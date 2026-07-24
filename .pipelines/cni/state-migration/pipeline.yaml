@@ -1,10 +1,19 @@
 pr: none
-trigger:
-  tags:
-    include:
-      - "dropgz/*"
-      - "azure-ipam/*"
-      - "v*"
+trigger: none
+
+schedules:
+  - cron: "0 6 * * 0"
+    displayName: Weekly ownership handoff validation
+    branches:
+      include:
+        - master
+    always: false
+
+variables:
+  ACN_VERSION: "r22-$(Build.BuildId)"
+  AZURE_IPAM_VERSION: "r22-$(Build.BuildId)"
+  CNI_VERSION: "r22-$(Build.BuildId)"
+  CNS_VERSION: "r22-$(Build.BuildId)"
 
 parameters:
   - name: linuxNodeCount
@@ -31,10 +40,12 @@ parameters:
   - name: region
     type: string
     default: "$(LOCATION_AMD64)"
+  - name: kubernetesVersion
+    type: string
+    default: "1.34"
   - name: expectedSchemaVersion
     type: number
     default: 1
-
 stages:
   - stage: setup
     displayName: Set up migration release gate
@@ -46,10 +57,10 @@ stages:
           - bash: |
               set -euo pipefail
               go version
-              commitID="$(make revision)-$(Build.BuildId)"
-              echo "##vso[task.setvariable variable=commitID;isOutput=true]$commitID"
-              echo "Migration gate commit ID: $commitID"
-              echo "Reusable fault injection runs in CNS-managed migration lanes."
+              buildID="$(Build.BuildId)"
+              echo "##vso[task.setvariable variable=buildID;isOutput=true]$buildID"
+              echo "Migration gate isolation ID: $buildID"
+              echo "Queued source commit: $(Build.SourceVersion)"
             name: SetEnvVars
             displayName: Set migration gate variables
 
@@ -127,6 +138,7 @@ stages:
       os: linux
       cni: cilium
       region: ${{ parameters.region }}
+      kubernetesVersion: ${{ parameters.kubernetesVersion }}
       nodeCount: ${{ parameters.linuxNodeCount }}
       nodeCountWin: 0
       vmSize: ${{ parameters.linuxVMSize }}
@@ -137,21 +149,25 @@ stages:
       replicasPerNode: ${{ parameters.replicasPerNode }}
       configMapName: cns-config
       daemonsetName: azure-cns
-      manageEndpointState: "true"
+      jsonManageEndpointState: "true"
       initializeFromCNI: "false"
+      enableStateMigration: "false"
+      boltInitializeFromCNI: "false"
+      boltEnableStateMigration: "false"
       expectedAuthority: bolt
       expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
 
   - template: lane.stage.yaml
     parameters:
       name: linux_podsubnet
-      displayName: "P0 Linux Azure CNI pod-subnet — CNI-managed"
+      displayName: "P0 Linux Azure CNI pod-subnet — CNI-controlled JSON, CNS-owned Bolt"
       clusterBaseName: mig-podsub-lnx
       clusterType: swift-byocni-up
       scenario: azure-cni-pod-subnet
       os: linux
       cni: cniv2
       region: ${{ parameters.region }}
+      kubernetesVersion: ${{ parameters.kubernetesVersion }}
       nodeCount: ${{ parameters.linuxNodeCount }}
       nodeCountWin: 0
       vmSize: ${{ parameters.linuxVMSize }}
@@ -162,21 +178,25 @@ stages:
       replicasPerNode: ${{ parameters.replicasPerNode }}
       configMapName: cns-config
       daemonsetName: azure-cns
-      manageEndpointState: "false"
+      jsonManageEndpointState: "false"
       initializeFromCNI: "true"
+      enableStateMigration: "false"
+      boltInitializeFromCNI: "true"
+      boltEnableStateMigration: "true"
       expectedAuthority: bolt
       expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
 
   - template: lane.stage.yaml
     parameters:
       name: linux_overlay
-      displayName: "P0 Linux Azure CNI overlay — CNI-managed"
+      displayName: "P0 Linux Azure CNI overlay — CNI-controlled JSON, CNS-owned Bolt"
       clusterBaseName: mig-overlay-lnx
       clusterType: overlay-byocni-up
       scenario: azure-cni-overlay
       os: linux
       cni: cniv2
       region: ${{ parameters.region }}
+      kubernetesVersion: ${{ parameters.kubernetesVersion }}
       nodeCount: ${{ parameters.linuxNodeCount }}
       nodeCountWin: 0
       vmSize: ${{ parameters.linuxVMSize }}
@@ -187,21 +207,25 @@ stages:
       replicasPerNode: ${{ parameters.replicasPerNode }}
       configMapName: cns-config
       daemonsetName: azure-cns
-      manageEndpointState: "false"
+      jsonManageEndpointState: "false"
       initializeFromCNI: "true"
+      enableStateMigration: "false"
+      boltInitializeFromCNI: "true"
+      boltEnableStateMigration: "true"
       expectedAuthority: bolt
       expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
 
   - template: lane.stage.yaml
     parameters:
       name: windows_podsubnet
-      displayName: "P0 Windows Azure CNI pod-subnet — CNI-managed"
+      displayName: "P0 Windows pod-subnet — CNI JSON source to CNS-owned Bolt handoff"
       clusterBaseName: mig-podsub-win
       clusterType: swift-byocni-up
       scenario: azure-cni-pod-subnet
       os: windows
       cni: cniv2
       region: ${{ parameters.region }}
+      kubernetesVersion: ${{ parameters.kubernetesVersion }}
       nodeCount: ${{ parameters.windowsSystemNodeCount }}
       nodeCountWin: ${{ parameters.windowsNodeCount }}
       vmSize: ${{ parameters.windowsSystemVMSize }}
@@ -212,10 +236,14 @@ stages:
       replicasPerNode: ${{ parameters.replicasPerNode }}
       configMapName: cns-win-config
       daemonsetName: azure-cns-win
-      manageEndpointState: "false"
+      jsonManageEndpointState: "false"
       initializeFromCNI: "true"
+      enableStateMigration: "false"
+      boltInitializeFromCNI: "true"
+      boltEnableStateMigration: "true"
       expectedAuthority: bolt
       expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
+      enableOwnershipHandoff: true
 
   - template: lane.stage.yaml
     parameters:
@@ -227,6 +255,7 @@ stages:
       os: windows
       cni: stateless
       region: ${{ parameters.region }}
+      kubernetesVersion: ${{ parameters.kubernetesVersion }}
       nodeCount: ${{ parameters.windowsSystemNodeCount }}
       nodeCountWin: ${{ parameters.windowsNodeCount }}
       vmSize: ${{ parameters.windowsSystemVMSize }}
@@ -237,8 +266,11 @@ stages:
       replicasPerNode: ${{ parameters.replicasPerNode }}
       configMapName: cns-win-config
       daemonsetName: azure-cns-win
-      manageEndpointState: "true"
+      jsonManageEndpointState: "true"
       initializeFromCNI: "false"
+      enableStateMigration: "false"
+      boltInitializeFromCNI: "false"
+      boltEnableStateMigration: "false"
       expectedAuthority: bolt
       expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
 
@@ -257,5 +289,5 @@ stages:
           name: $(BUILD_POOL_NAME_DEFAULT)
         steps:
           - bash: |
-              echo "All five P0 state-migration lifecycle lanes passed."
+              echo "All five lifecycle lanes and all 18 ownership handoff transitions passed."
             displayName: Confirm release gate

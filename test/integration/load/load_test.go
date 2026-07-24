@@ -4,6 +4,8 @@ package load
 
 import (
 	"context"
+	"encoding/json"
+	"os"
 	"testing"
 	"time"
 
@@ -29,6 +31,8 @@ type TestConfig struct {
 	// PoolLabelSelector optionally restricts state validation to nodes matching
 	// this label selector (e.g. "agentpool=pool1"). Empty validates all nodes.
 	PoolLabelSelector string `env:"POOL_LABEL_SELECTOR" default:""`
+	SummaryPath       string `env:"VALIDATE_SUMMARY_PATH"`
+	StateBackend      string `env:"VALIDATE_STATE_BACKEND" default:"json"`
 	WaitForCNS        bool   `env:"WAIT_FOR_CNS" default:"true"`
 }
 
@@ -180,6 +184,13 @@ func TestValidateState(t *testing.T) {
 
 	err = validator.Validate(ctx)
 	require.NoError(t, err)
+	if testConfig.SummaryPath != "" {
+		summary := validator.Summary(validate.StateBackend(testConfig.StateBackend))
+		require.NoError(t, validate.CheckSummary(summary, validate.StateBackend(testConfig.StateBackend)))
+		encoded, err := json.MarshalIndent(summary, "", "  ")
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(testConfig.SummaryPath, append(encoded, '\n'), 0o600))
+	}
 
 	if testConfig.Cleanup {
 		validator.Cleanup(ctx)

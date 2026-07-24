@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"net/netip"
+	"sort"
 	"time"
 
 	acnk8s "github.com/Azure/azure-container-networking/test/internal/kubernetes"
@@ -52,6 +54,7 @@ type Validator struct {
 	restartCase       bool
 	os                string
 	poolLabelSelector string
+	summaries         []ValidationCheckSummary
 }
 
 type check struct {
@@ -131,6 +134,7 @@ func (v *Validator) Validate(ctx context.Context) error {
 }
 
 func (v *Validator) ValidateStateFile(ctx context.Context) error {
+	v.summaries = []ValidationCheckSummary{}
 	for _, check := range v.checks {
 		err := v.validateIPs(ctx, check.stateFileIPs, check.cmd, check.name, check.podNamespace, check.podLabelSelector, check.containerName)
 		if err != nil {
@@ -150,6 +154,8 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 	for index := range nodes.Items {
 		node := nodes.Items[index]
 		var comparisonErr error
+		observedState := map[string]string{}
+		var livePodIPs []string
 		_, converged, validationErr := runValidationAttempts(ctx, stateValidationAttempts, stateValidationInterval, func() (bool, error) {
 			pod, err := acnk8s.GetPodsByNode(ctx, v.clientset, namespace, labelSelector, node.Name)
 			if err != nil {
@@ -170,6 +176,8 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 			}
 			if len(filePodIps) == 0 && v.restartCase {
 				log.Printf("No pods found on node %s", node.Name)
+				observedState = map[string]string{}
+				livePodIPs = nil
 				return true, nil
 			}
 
@@ -177,8 +185,26 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 			if hasL7PolicyEnabled(ctx, v.clientset, node.Name) {
 				podIps = append(podIps, getCiliumInternalEndpointIPs(ctx, v.clientset, v.config, node.Name)...)
 			}
+			if len(filePodIps) == 0 && len(podIps) > 0 {
+				comparisonErr = errors.Errorf(
+					"state is empty on node %s with %d live pod IPs",
+					node.Name,
+					len(podIps),
+				)
+				return false, nil
+			}
+
+			state := make(map[string]string, len(filePodIps))
+			for ip, owner := range filePodIps {
+				state[ip] = owner
+			}
 			comparisonErr = compareIPs(filePodIps, podIps)
-			return comparisonErr == nil, nil
+			if comparisonErr != nil {
+				return false, nil
+			}
+			observedState = state
+			livePodIPs = podIps
+			return true, nil
 		})
 		if validationErr != nil {
 			return validationErr
@@ -186,7 +212,13 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 		if !converged {
 			return errors.Wrapf(comparisonErr, "State file validation failed for %s on node %s", checkType, node.Name)
 		}
+		summary, err := buildValidationCheckSummary(checkType, node.Name, observedState, livePodIPs)
+		if err != nil {
+			return errors.Wrapf(err, "failed to summarize %s state on node %s", checkType, node.Name)
+		}
+		v.summaries = append(v.summaries, summary)
 	}
+
 	log.Printf("State file validation for %s passed", checkType)
 	return nil
 }
@@ -229,6 +261,74 @@ func runValidationAttempts(
 		case <-timer.C:
 		}
 	}
+}
+
+// Summary returns the exact state identities observed by the latest validation.
+func (v *Validator) Summary(backend StateBackend) ValidationSummary {
+	checks := make([]ValidationCheckSummary, len(v.summaries))
+	copy(checks, v.summaries)
+	return ValidationSummary{
+		StateBackend: backend,
+		Checks:       checks,
+	}
+}
+
+func buildValidationCheckSummary(
+	checkName string,
+	nodeName string,
+	state map[string]string,
+	actualIPs []string,
+) (ValidationCheckSummary, error) {
+	expected := make([]PodIPIdentity, 0, len(state))
+	actual := make([]PodIPIdentity, 0, len(actualIPs))
+	owners := make(map[string]struct{}, len(state))
+	ownerByIP := make(map[netip.Addr]string, len(state))
+
+	for rawIP, owner := range state {
+		ip, err := netip.ParseAddr(rawIP)
+		if err != nil {
+			return ValidationCheckSummary{}, errors.Wrapf(err, "invalid state IP %q", rawIP)
+		}
+		ip = ip.Unmap()
+		if _, exists := ownerByIP[ip]; exists {
+			return ValidationCheckSummary{}, errors.Errorf("duplicate state IP %q", ip)
+		}
+		ownerByIP[ip] = owner
+		expected = append(expected, PodIPIdentity{PodID: owner, IP: ip})
+		owners[owner] = struct{}{}
+	}
+	for _, rawIP := range actualIPs {
+		ip, err := netip.ParseAddr(rawIP)
+		if err != nil {
+			return ValidationCheckSummary{}, errors.Wrapf(err, "invalid live pod IP %q", rawIP)
+		}
+		ip = ip.Unmap()
+		owner, ok := ownerByIP[ip]
+		if !ok {
+			return ValidationCheckSummary{}, errors.Errorf("live pod IP %q has no validated state owner", rawIP)
+		}
+		actual = append(actual, PodIPIdentity{PodID: owner, IP: ip})
+	}
+	sort.Slice(expected, func(i, j int) bool {
+		if expected[i].PodID == expected[j].PodID {
+			return expected[i].IP.Less(expected[j].IP)
+		}
+		return expected[i].PodID < expected[j].PodID
+	})
+	sort.Slice(actual, func(i, j int) bool {
+		if actual[i].PodID == actual[j].PodID {
+			return actual[i].IP.Less(actual[j].IP)
+		}
+		return actual[i].PodID < actual[j].PodID
+	})
+
+	return ValidationCheckSummary{
+		CheckName:    checkName,
+		NodeName:     nodeName,
+		LivePodCount: len(owners),
+		Expected:     expected,
+		Actual:       actual,
+	}, nil
 }
 
 func validateNodeProperties(nodes *corev1.NodeList, labels map[string]string, expectedIPCount int) error {

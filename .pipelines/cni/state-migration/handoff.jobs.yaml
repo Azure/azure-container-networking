@@ -1,0 +1,347 @@
+parameters:
+  - name: lane
+    type: string
+  - name: clusterName
+    type: string
+  - name: os
+    type: string
+  - name: targetNodeCount
+    type: number
+  - name: replicasPerNode
+    type: number
+  - name: configMapName
+    type: string
+  - name: daemonsetName
+    type: string
+  - name: expectedAuthority
+    type: string
+  - name: expectedSchemaVersion
+    type: number
+  - name: transitions
+    type: object
+    default:
+      - job: handoff_cni_json
+        displayName: 11 Reset stateful CNI-managed JSON
+        dependsOn: final_same_boot_restart
+        baselineTransition: 10-final-same-boot-restart
+        transition: 11-handoff-cni-json
+        action: rollback-json
+        backend: json
+        cni: cniv2
+        manageEndpointState: "false"
+        initializeFromCNI: "true"
+        enableStateMigration: "false"
+        stateRelation: exact
+        bootRelation: none
+        podRelation: exact
+        externalFault: false
+        timeout: 90
+      # CNS must import while the stateful CNI executable can still return its
+      # endpoint store. The following rollout replaces it with stateless CNI
+      # only after strict CNS endpoint-state validation succeeds.
+      - job: handoff_ownership_first_import
+        displayName: 12 Import stateful CNI JSON into CNS JSON
+        dependsOn: handoff_cni_json
+        baselineTransition: 11-handoff-cni-json
+        transition: 12-handoff-cns-json-import
+        action: configure-state-import
+        backend: json
+        cni: cniv2
+        manageEndpointState: "true"
+        initializeFromCNI: "false"
+        enableStateMigration: "true"
+        stateRelation: exact
+        bootRelation: none
+        podRelation: exact
+        externalFault: false
+        timeout: 90
+      - job: handoff_ownership_first_stateless
+        displayName: 13 Activate stateless CNI with CNS-managed JSON
+        dependsOn: handoff_ownership_first_import
+        baselineTransition: 12-handoff-cns-json-import
+        transition: 13-handoff-cns-json-stateless
+        action: configure-state
+        backend: json
+        cni: stateless
+        manageEndpointState: "true"
+        initializeFromCNI: "false"
+        enableStateMigration: "false"
+        stateRelation: none
+        bootRelation: none
+        podRelation: exact
+        externalFault: false
+        timeout: 90
+      - job: handoff_ownership_first_bolt
+        displayName: 14 Ownership-first CNS-managed Bolt
+        dependsOn: handoff_ownership_first_stateless
+        baselineTransition: 13-handoff-cns-json-stateless
+        transition: 14-handoff-cns-bolt
+        action: configure-state
+        backend: bolt
+        cni: stateless
+        manageEndpointState: "true"
+        initializeFromCNI: "false"
+        enableStateMigration: "false"
+        stateRelation: exact
+        bootRelation: none
+        podRelation: exact
+        externalFault: false
+        timeout: 90
+      # CNS has no CNI export. Reverse only before pod churn while the original
+      # stateful CNI store still describes these exact live endpoints. Restore
+      # that binary in one rollout before disabling CNS ownership in the next.
+      - job: handoff_ownership_first_stateful
+        displayName: 15 Restore stateful CNI binary while CNS remains owner
+        dependsOn: handoff_ownership_first_bolt
+        baselineTransition: 14-handoff-cns-bolt
+        transition: 15-handoff-cns-bolt-stateful
+        action: configure-state
+        backend: bolt
+        cni: cniv2
+        manageEndpointState: "true"
+        initializeFromCNI: "false"
+        enableStateMigration: "false"
+        stateRelation: none
+        bootRelation: same
+        podRelation: exact
+        externalFault: false
+        timeout: 90
+      - job: handoff_ownership_first_reverse
+        displayName: 16 Reverse ownership to stateful CNI before pod churn
+        dependsOn: handoff_ownership_first_stateful
+        baselineTransition: 15-handoff-cns-bolt-stateful
+        transition: 16-handoff-cni-json-reverse
+        action: rollback-json-and-clear-endpoints
+        backend: json
+        cni: cniv2
+        manageEndpointState: "false"
+        initializeFromCNI: "true"
+        enableStateMigration: "false"
+        stateRelation: exact
+        bootRelation: same
+        podRelation: exact
+        externalFault: false
+        timeout: 90
+      - job: handoff_backend_first_json
+        displayName: 17 Reset stateful CNI-managed JSON
+        dependsOn: handoff_ownership_first_reverse
+        baselineTransition: 16-handoff-cni-json-reverse
+        transition: 17-handoff-cni-json
+        action: rollback-json
+        backend: json
+        cni: cniv2
+        manageEndpointState: "false"
+        initializeFromCNI: "true"
+        enableStateMigration: "false"
+        stateRelation: exact
+        bootRelation: none
+        podRelation: exact
+        externalFault: false
+        timeout: 90
+      - job: handoff_backend_first_bolt
+        displayName: 18 Import into CNS Bolt while stateful CNI remains installed
+        dependsOn: handoff_backend_first_json
+        baselineTransition: 17-handoff-cni-json
+        transition: 18-handoff-cns-bolt-import
+        action: configure-state-import
+        backend: bolt
+        cni: cniv2
+        manageEndpointState: "true"
+        initializeFromCNI: "true"
+        enableStateMigration: "true"
+        stateRelation: exact
+        bootRelation: none
+        podRelation: exact
+        externalFault: false
+        timeout: 90
+      - job: handoff_backend_first_import
+        displayName: 19 Confirm CNS-owned Bolt before CNI replacement
+        dependsOn: handoff_backend_first_bolt
+        baselineTransition: 18-handoff-cns-bolt-import
+        transition: 19-handoff-cns-bolt-import
+        action: configure-state
+        backend: bolt
+        cni: cniv2
+        manageEndpointState: "true"
+        initializeFromCNI: "false"
+        enableStateMigration: "false"
+        stateRelation: exact
+        bootRelation: none
+        podRelation: exact
+        externalFault: false
+        timeout: 90
+      - job: handoff_backend_first_stateless
+        displayName: 20 Activate stateless CNI with CNS-managed Bolt
+        dependsOn: handoff_backend_first_import
+        baselineTransition: 19-handoff-cns-bolt-import
+        transition: 20-handoff-cns-bolt-stateless
+        action: configure-state
+        backend: bolt
+        cni: stateless
+        manageEndpointState: "true"
+        initializeFromCNI: "false"
+        enableStateMigration: "false"
+        stateRelation: none
+        bootRelation: none
+        podRelation: exact
+        externalFault: false
+        timeout: 90
+      - job: handoff_backend_first_stateful
+        displayName: 21 Restore stateful CNI binary while CNS remains owner
+        dependsOn: handoff_backend_first_stateless
+        baselineTransition: 20-handoff-cns-bolt-stateless
+        transition: 21-handoff-cns-bolt-stateful
+        action: configure-state
+        backend: bolt
+        cni: cniv2
+        manageEndpointState: "true"
+        initializeFromCNI: "false"
+        enableStateMigration: "false"
+        stateRelation: none
+        bootRelation: same
+        podRelation: exact
+        externalFault: false
+        timeout: 90
+      - job: handoff_backend_first_reverse
+        displayName: 22 Reverse ownership to stateful CNI before pod churn
+        dependsOn: handoff_backend_first_stateful
+        baselineTransition: 21-handoff-cns-bolt-stateful
+        transition: 22-handoff-cni-json-reverse
+        action: rollback-json-and-clear-endpoints
+        backend: json
+        cni: cniv2
+        manageEndpointState: "false"
+        initializeFromCNI: "true"
+        enableStateMigration: "false"
+        stateRelation: exact
+        bootRelation: same
+        podRelation: exact
+        externalFault: false
+        timeout: 90
+      - job: handoff_direct_json
+        displayName: 23 Reset stateful CNI-managed JSON
+        dependsOn: handoff_backend_first_reverse
+        baselineTransition: 22-handoff-cni-json-reverse
+        transition: 23-handoff-cni-json
+        action: rollback-json
+        backend: json
+        cni: cniv2
+        manageEndpointState: "false"
+        initializeFromCNI: "true"
+        enableStateMigration: "false"
+        stateRelation: exact
+        bootRelation: none
+        podRelation: exact
+        externalFault: false
+        timeout: 90
+      - job: handoff_direct_import
+        displayName: 24 Direct stateful CNI JSON to CNS Bolt import
+        dependsOn: handoff_direct_json
+        baselineTransition: 23-handoff-cni-json
+        transition: 24-handoff-direct-cns-bolt-import
+        action: configure-state-import
+        backend: bolt
+        cni: cniv2
+        manageEndpointState: "true"
+        initializeFromCNI: "true"
+        enableStateMigration: "true"
+        stateRelation: exact
+        bootRelation: none
+        podRelation: exact
+        externalFault: false
+        timeout: 90
+      - job: handoff_direct_stateless
+        displayName: 25 Activate stateless CNI with CNS-managed Bolt
+        dependsOn: handoff_direct_import
+        baselineTransition: 24-handoff-direct-cns-bolt-import
+        transition: 25-handoff-direct-cns-bolt-stateless
+        action: configure-state
+        backend: bolt
+        cni: stateless
+        manageEndpointState: "true"
+        initializeFromCNI: "false"
+        enableStateMigration: "false"
+        stateRelation: none
+        bootRelation: none
+        podRelation: exact
+        externalFault: false
+        timeout: 90
+      - job: handoff_faults
+        displayName: 26 CNS-managed Bolt fault coverage
+        dependsOn: handoff_direct_stateless
+        baselineTransition: 25-handoff-direct-cns-bolt-stateless
+        transition: 26-handoff-faults
+        action: external-fault
+        backend: bolt
+        cni: stateless
+        manageEndpointState: "true"
+        initializeFromCNI: "false"
+        enableStateMigration: "false"
+        stateRelation: exact
+        bootRelation: same
+        podRelation: exact
+        externalFault: true
+        timeout: 120
+      - job: handoff_restart
+        displayName: 27 CNS-managed Bolt component restart
+        dependsOn: handoff_faults
+        baselineTransition: 26-handoff-faults
+        transition: 27-handoff-restart
+        action: same-boot-restart
+        backend: bolt
+        cni: stateless
+        manageEndpointState: "true"
+        initializeFromCNI: "false"
+        enableStateMigration: "false"
+        stateRelation: exact
+        bootRelation: same
+        podRelation: exact
+        externalFault: false
+        timeout: 90
+      - job: handoff_reboot
+        displayName: 28 CNS-managed Bolt node reboot
+        dependsOn: handoff_restart
+        baselineTransition: 27-handoff-restart
+        transition: 28-handoff-reboot
+        action: node-reboot
+        backend: bolt
+        cni: stateless
+        manageEndpointState: "true"
+        initializeFromCNI: "false"
+        enableStateMigration: "false"
+        stateRelation: none
+        bootRelation: changed
+        podRelation: identity
+        externalFault: false
+        timeout: 120
+
+jobs:
+  - ${{ each transition in parameters.transitions }}:
+    - job: ${{ transition.job }}
+      displayName: ${{ transition.displayName }}
+      dependsOn: ${{ transition.dependsOn }}
+      timeoutInMinutes: ${{ transition.timeout }}
+      steps:
+        - template: transition.steps.yaml
+          parameters:
+            lane: ${{ parameters.lane }}
+            transition: ${{ transition.transition }}
+            action: ${{ transition.action }}
+            clusterName: ${{ parameters.clusterName }}
+            os: ${{ parameters.os }}
+            cni: ${{ transition.cni }}
+            targetNodeCount: ${{ parameters.targetNodeCount }}
+            replicasPerNode: ${{ parameters.replicasPerNode }}
+            configMapName: ${{ parameters.configMapName }}
+            daemonsetName: ${{ parameters.daemonsetName }}
+            expectedBackend: ${{ transition.backend }}
+            expectedAuthority: ${{ parameters.expectedAuthority }}
+            expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
+            expectedManageEndpointState: ${{ transition.manageEndpointState }}
+            expectedInitializeFromCNI: ${{ transition.initializeFromCNI }}
+            expectedEnableStateMigration: ${{ transition.enableStateMigration }}
+            baselineArtifact: state-migration-$(Build.BuildId)-${{ parameters.lane }}-${{ transition.baselineTransition }}
+            stateRelation: ${{ transition.stateRelation }}
+            bootRelation: ${{ transition.bootRelation }}
+            podRelation: ${{ transition.podRelation }}
+            injectExternalFault: ${{ transition.externalFault }}
