@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net"
 	"net/netip"
 	"slices"
@@ -32,6 +33,41 @@ func (s *DB) AssignEndpoint(
 	now time.Time,
 	deleteIntentTTL time.Duration,
 ) (bool, error) {
+	return s.assignEndpoint(ctx, nil, assignment, endpoint, now, deleteIntentTTL, nil)
+}
+
+// AssignEndpointIfGeneration atomically assigns an endpoint only when the
+// database is at expectedGeneration. beforeCommit may validate the complete
+// candidate snapshot before any records are written.
+func (s *DB) AssignEndpointIfGeneration(
+	ctx context.Context,
+	expectedGeneration uint64,
+	assignment AssignmentRecord,
+	endpoint EndpointRecord,
+	now time.Time,
+	deleteIntentTTL time.Duration,
+	beforeCommit func(Snapshot) error,
+) (bool, error) {
+	return s.assignEndpoint(
+		ctx,
+		&expectedGeneration,
+		assignment,
+		endpoint,
+		now,
+		deleteIntentTTL,
+		beforeCommit,
+	)
+}
+
+func (s *DB) assignEndpoint(
+	ctx context.Context,
+	expectedGeneration *uint64,
+	assignment AssignmentRecord,
+	endpoint EndpointRecord,
+	now time.Time,
+	deleteIntentTTL time.Duration,
+	beforeCommit func(Snapshot) error,
+) (bool, error) {
 	normalizedAssignment, err := normalizeAssignment(assignment, true)
 	if err != nil {
 		return false, err
@@ -52,6 +88,14 @@ func (s *DB) AssignEndpoint(
 		current, snapshotErr := tx.validSnapshot()
 		if snapshotErr != nil {
 			return false, snapshotErr
+		}
+		if expectedGeneration != nil && current.Metadata.Generation != *expectedGeneration {
+			return false, fmt.Errorf(
+				"%w: expected=%d actual=%d",
+				ErrStaleGeneration,
+				*expectedGeneration,
+				current.Metadata.Generation,
+			)
 		}
 		plan, planErr := buildEndpointAssignmentPlan(
 			current,
@@ -78,7 +122,22 @@ func (s *DB) AssignEndpoint(
 		}
 
 		if plan.assignmentExists && !plan.endpointChanged && !plan.removeExpiredIntent {
+			if beforeCommit != nil {
+				if err := beforeCommit(current); err != nil {
+					return false, fmt.Errorf("validating endpoint assignment candidate: %w", err)
+				}
+			}
 			return false, nil
+		}
+		candidate := plan.candidate
+		if candidate.Metadata.Generation == math.MaxUint64 {
+			return false, corrupt("generation overflow", nil)
+		}
+		candidate.Metadata.Generation++
+		if beforeCommit != nil {
+			if err := beforeCommit(candidate); err != nil {
+				return false, fmt.Errorf("validating endpoint assignment candidate: %w", err)
+			}
 		}
 
 		if plan.removeExpiredIntent {

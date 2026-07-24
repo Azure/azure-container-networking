@@ -52,6 +52,16 @@ type durableStateOperations struct {
 	snapshot       func(context.Context) (state.Snapshot, error)
 	replace        func(context.Context, uint64, state.DurableState) (bool, error)
 	updateMetadata func(context.Context, uint64, state.Metadata) (bool, error)
+	assignEndpoint func(
+		context.Context,
+		uint64,
+		state.AssignmentRecord,
+		state.EndpointRecord,
+		time.Time,
+		time.Duration,
+		func(state.Snapshot) error,
+	) (bool, error)
+	refreshMetrics func(context.Context) (state.Status, error)
 	status         func(context.Context) (state.Status, error)
 	close          func() error
 }
@@ -64,6 +74,9 @@ type durableStateAdapter struct {
 	// service lock; the adapter applies complete projections under that lock.
 	mu                   sync.Mutex
 	projectEndpointState bool
+	buildProjection      func(state.Snapshot) (durableCacheProjection, error)
+	applyAddProjection   func(durableCacheProjection) error
+	now                  func() time.Time
 	projected            bool
 	generation           uint64
 	closeOnce            sync.Once
@@ -103,6 +116,15 @@ func NewDurableStateLifecycle(
 	if err != nil {
 		return nil, nil, err
 	}
+	if projectEndpointState {
+		return func(ctx context.Context) error {
+			if err := adapter.restore(ctx); err != nil {
+				return err
+			}
+			service.setUnifiedStateAdapter(adapter)
+			return nil
+		}, adapter.Close, nil
+	}
 	return adapter.restore, adapter.Close, nil
 }
 
@@ -115,8 +137,10 @@ func newDurableStateAdapter(
 		return nil, errNilDurableStateDB
 	}
 	return newDurableStateAdapterWithOperations(service, durableStateOperations{
-		snapshot: db.Snapshot,
-		replace:  db.ReplaceDurableState,
+		snapshot:       db.Snapshot,
+		replace:        db.ReplaceDurableState,
+		assignEndpoint: db.AssignEndpointIfGeneration,
+		refreshMetrics: db.RefreshMetrics,
 		updateMetadata: func(ctx context.Context, expectedGeneration uint64, metadata state.Metadata) (bool, error) {
 			err := db.Update(ctx, func(tx *state.WriteTx) error {
 				current, err := tx.Metadata()
@@ -168,6 +192,8 @@ func newDurableStateAdapterWithOperations(
 		service:              service,
 		store:                operations,
 		projectEndpointState: projectEndpointState,
+		buildProjection:      buildDurableCacheProjection,
+		now:                  time.Now,
 	}, nil
 }
 
@@ -486,6 +512,10 @@ func (a *durableStateAdapter) applyProjection(projection durableCacheProjection)
 	a.service.Lock()
 	defer a.service.Unlock()
 
+	a.applyProjectionLocked(projection)
+}
+
+func (a *durableStateAdapter) applyProjectionLocked(projection durableCacheProjection) {
 	a.service.state.OrchestratorType = projection.metadata.OrchestratorType
 	a.service.state.NodeID = projection.metadata.NodeID
 	a.service.state.Location = projection.metadata.Location

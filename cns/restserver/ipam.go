@@ -73,11 +73,22 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 
 	// record a pod requesting an IP
 	service.podsPendingIPAssignment.Push(podInfo.Key())
-	podIPInfo, err := requestIPConfigsHelper(service, ipconfigsRequest) //nolint:contextcheck // appease linter for revert PR
+	unifiedAdapter := service.selectedUnifiedStateAdapter()
+	var podIPInfo []cns.PodIpInfo
+	var err error
+	if unifiedAdapter != nil {
+		podIPInfo, err = unifiedAdapter.requestIPConfigs(ctx, ipconfigsRequest, podInfo)
+	} else {
+		podIPInfo, err = requestIPConfigsHelper(service, ipconfigsRequest) //nolint:contextcheck // appease linter for revert PR
+	}
 	if err != nil {
+		returnCode := types.FailedToAllocateIPConfig
+		if unifiedAdapter != nil {
+			returnCode = unifiedAddResponseCode(err)
+		}
 		return &cns.IPConfigsResponse{
 			Response: cns.Response{
-				ReturnCode: types.FailedToAllocateIPConfig,
+				ReturnCode: returnCode,
 				Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %v", err, ipconfigsRequest),
 			},
 			PodIPInfo: podIPInfo,
@@ -93,7 +104,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 	}()
 
 	// Check if http rest service managed endpoint state is set
-	if service.Options[common.OptManageEndpointState] == true {
+	if unifiedAdapter == nil && service.Options[common.OptManageEndpointState] == true {
 		err = service.updateEndpointState(ipconfigsRequest, podInfo, podIPInfo)
 		if err != nil {
 			return &cns.IPConfigsResponse{

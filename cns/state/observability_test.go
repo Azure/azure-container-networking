@@ -51,6 +51,7 @@ func TestNewMetricsRegistration(t *testing.T) {
 			"cns_persistent_state_database_bytes":               "Current persistent state database size in bytes.",
 			"cns_persistent_state_records":                      "Current persistent state record count by bounded record type.",
 		}
+
 		wantLabels := map[string][]string{
 			"cns_persistent_state_transactions_total":           {metricLabelOperation, metricLabelResult},
 			"cns_persistent_state_transaction_duration_seconds": {metricLabelOperation, metricLabelResult},
@@ -107,6 +108,19 @@ func TestNewMetricsRegistration(t *testing.T) {
 		_, err := NewMetrics(registerer)
 		require.ErrorContains(t, err, "collector rollback incomplete")
 	})
+}
+
+func TestClassifyOwnershipConflictResult(t *testing.T) {
+	tests := map[string]error{
+		"stale generation": ErrStaleGeneration,
+		"IP owner":         ErrIPAlreadyAssigned,
+		"delete intent":    ErrDeleteIntent,
+	}
+	for name, err := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, ResultConflict, classifyResult(false, err))
+		})
+	}
 }
 
 func TestMetricsValidateBoundedInputs(t *testing.T) {

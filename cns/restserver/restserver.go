@@ -128,6 +128,7 @@ type HTTPRestService struct {
 	nodeinfoClient             nodeinfoClient
 	nodeName                   string
 	stateRestoreLogger         stateRestoreLogger
+	unifiedStateAdapter        *durableStateAdapter
 }
 
 type CNIConflistGenerator interface {

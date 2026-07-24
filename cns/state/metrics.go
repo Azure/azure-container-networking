@@ -300,7 +300,9 @@ func classifyResult(changed bool, err error) OperationResult {
 	switch {
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return ResultCanceled
-	case errors.Is(err, ErrStaleGeneration):
+	case errors.Is(err, ErrStaleGeneration),
+		errors.Is(err, ErrIPAlreadyAssigned),
+		errors.Is(err, ErrDeleteIntent):
 		return ResultConflict
 	case err != nil:
 		return ResultError
