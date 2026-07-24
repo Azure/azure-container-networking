@@ -53,3 +53,43 @@ func TestBuildValidationCheckSummary(t *testing.T) {
 		})
 	}
 }
+
+func TestEmptyStateValidationMode(t *testing.T) {
+	tests := []struct {
+		name        string
+		restartCase bool
+		wantSkip    bool
+		wantErr     bool
+	}{
+		{
+			name:        "existing restart case skips transient empty state",
+			restartCase: true,
+			wantSkip:    true,
+		},
+		{
+			name:    "strict R22 mode rejects empty state with live pods",
+			wantErr: true,
+		},
+		{
+			name:    "normal non-restart validation rejects empty state with live pods",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			skip := skipEmptyStateForRestart(0, tt.restartCase)
+			require.Equal(t, tt.wantSkip, skip)
+			if skip {
+				require.False(t, tt.wantErr)
+				return
+			}
+			err := validateLivePodsHaveState(0, 1)
+			if tt.wantErr {
+				require.ErrorContains(t, err, "state is empty with 1 live pod IPs")
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}

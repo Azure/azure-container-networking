@@ -182,6 +182,8 @@ func TestMigrationTemplateSafetyContract(t *testing.T) {
 		"Start-Service hns -ErrorAction Stop",
 		"VALIDATE_SUMMARY_PATH",
 		"VALIDATE_STATE_BACKEND",
+		"run-state-migration-validator.sh",
+		"RESTART_CASE=false",
 		"persistent-state/snapshot",
 	} {
 		require.Contains(t, transition, expected)
@@ -202,6 +204,8 @@ func TestMigrationTemplateSafetyContract(t *testing.T) {
 		"pkill",
 		"killall",
 		"retryCountOnTaskFailure",
+		"VALIDATE_CONVERGENCE_",
+		`RESTART_CASE="$restartCase"`,
 	} {
 		require.NotContains(t, transition, forbidden)
 	}
@@ -220,6 +224,110 @@ func TestMigrationTemplateSafetyContract(t *testing.T) {
 		`.StateStoreBackend = "json"`,
 	} {
 		require.Contains(t, install, expected)
+	}
+}
+
+func TestStateMigrationValidatorRetry(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("bash validation runs on Linux pipeline agents")
+	}
+
+	runner := filepath.Join(repositoryRoot, "hack", "scripts", "run-state-migration-validator.sh")
+	require.NoError(t, exec.Command("bash", "-n", runner).Run())
+
+	tests := []struct {
+		name         string
+		mode         string
+		wantAttempts int
+		wantStatus   int
+	}{
+		{
+			name:         "eventual convergence succeeds",
+			mode:         "eventual",
+			wantAttempts: 3,
+		},
+		{
+			name:         "retryable exhaustion preserves failure",
+			mode:         "exhaust",
+			wantAttempts: 3,
+			wantStatus:   7,
+		},
+		{
+			name:         "semantic corruption exits promptly",
+			mode:         "semantic",
+			wantAttempts: 1,
+			wantStatus:   9,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir, err := os.MkdirTemp(".", ".r22-retry-")
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, os.RemoveAll(dir))
+			})
+
+			fixture := filepath.Join(dir, "validator-fixture.sh")
+			counter := filepath.Join(dir, "counter")
+			diagnostics := filepath.Join(dir, "diagnostics")
+			require.NoError(t, os.WriteFile(fixture, []byte(`#!/usr/bin/env bash
+set -euo pipefail
+mode=$1
+counter=$2
+count=0
+if [[ -s "$counter" ]]; then
+	count=$(<"$counter")
+fi
+count=$((count + 1))
+printf '%d' "$count" >"$counter"
+case "$mode" in
+	eventual)
+		if ((count < 3)); then
+			echo "State file validation failed for state on node-1"
+			exit 4
+		fi
+		echo "state converged"
+		;;
+	exhaust)
+		echo "State file validation failed for state on node-1"
+		exit 7
+		;;
+	semantic)
+		echo "duplicate state IP corruption"
+		exit 9
+		;;
+esac
+`), 0o700))
+
+			command := exec.Command(
+				"bash",
+				runner,
+				"3",
+				"0",
+				diagnostics,
+				"--",
+				fixture,
+				tt.mode,
+				counter,
+			)
+			output, runErr := command.CombinedOutput()
+			if tt.wantStatus == 0 {
+				require.NoError(t, runErr, string(output))
+			} else {
+				var exitErr *exec.ExitError
+				require.ErrorAs(t, runErr, &exitErr, string(output))
+				require.Equal(t, tt.wantStatus, exitErr.ExitCode(), string(output))
+			}
+
+			attempts := mustAtoi(t, strings.TrimSpace(string(readFile(t, counter))))
+			require.Equal(t, tt.wantAttempts, attempts)
+			logs, err := filepath.Glob(filepath.Join(diagnostics, "attempt-*.log"))
+			require.NoError(t, err)
+			require.Len(t, logs, tt.wantAttempts)
+			status := strings.TrimSpace(string(readFile(t, filepath.Join(diagnostics, "status.tsv"))))
+			require.Len(t, strings.Split(status, "\n"), tt.wantAttempts)
+		})
 	}
 }
 
@@ -245,6 +353,13 @@ func TestMigrationTemplatesParseAndResolve(t *testing.T) {
 			}
 		})
 	}
+}
+
+func mustAtoi(t *testing.T, value string) int {
+	t.Helper()
+	parsed, err := strconv.Atoi(value)
+	require.NoError(t, err)
+	return parsed
 }
 
 type templateReference struct {

@@ -174,7 +174,7 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 			if err != nil {
 				return false, errors.Wrapf(err, "failed to get pod ips from state file on node %v", node.Name)
 			}
-			if len(filePodIps) == 0 && v.restartCase {
+			if skipEmptyStateForRestart(len(filePodIps), v.restartCase) {
 				log.Printf("No pods found on node %s", node.Name)
 				observedState = map[string]string{}
 				livePodIPs = nil
@@ -185,12 +185,8 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 			if hasL7PolicyEnabled(ctx, v.clientset, node.Name) {
 				podIps = append(podIps, getCiliumInternalEndpointIPs(ctx, v.clientset, v.config, node.Name)...)
 			}
-			if len(filePodIps) == 0 && len(podIps) > 0 {
-				comparisonErr = errors.Errorf(
-					"state is empty on node %s with %d live pod IPs",
-					node.Name,
-					len(podIps),
-				)
+			if err := validateLivePodsHaveState(len(filePodIps), len(podIps)); err != nil {
+				comparisonErr = errors.Wrapf(err, "invalid state on node %s", node.Name)
 				return false, nil
 			}
 
@@ -220,6 +216,17 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 	}
 
 	log.Printf("State file validation for %s passed", checkType)
+	return nil
+}
+
+func skipEmptyStateForRestart(stateIPCount int, restartCase bool) bool {
+	return stateIPCount == 0 && restartCase
+}
+
+func validateLivePodsHaveState(stateIPCount, livePodIPCount int) error {
+	if stateIPCount == 0 && livePodIPCount > 0 {
+		return errors.Errorf("state is empty with %d live pod IPs", livePodIPCount)
+	}
 	return nil
 }
 

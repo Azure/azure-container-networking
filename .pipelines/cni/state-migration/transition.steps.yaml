@@ -958,20 +958,20 @@ steps:
             >"$evidenceDir/cni-type.json"
         fi
 
-        restartCase=true
-        if [[ "${{ parameters.action }}" == "json-baseline" ]]; then
-          restartCase=false
-        fi
-
-        VALIDATE_SUMMARY_PATH="$summaryPath" \
-        VALIDATE_STATEFILE=true \
-        VALIDATE_STATE_BACKEND="${{ parameters.expectedBackend }}" \
-        VALIDATE_CONVERGENCE_ATTEMPTS=10 \
-        VALIDATE_CONVERGENCE_INTERVAL_SECONDS=15 \
-          make test-validate-state \
-            OS_TYPE=${{ parameters.os }} \
-            RESTART_CASE="$restartCase" \
-            CNI_TYPE=${{ parameters.cni }}
+        validatorDiagnostics="$evidenceDir/validator-attempts"
+        bash hack/scripts/run-state-migration-validator.sh \
+          10 \
+          15 \
+          "$validatorDiagnostics" \
+          -- \
+          env \
+            VALIDATE_SUMMARY_PATH="$summaryPath" \
+            VALIDATE_STATEFILE=true \
+            VALIDATE_STATE_BACKEND="${{ parameters.expectedBackend }}" \
+            make test-validate-state \
+              OS_TYPE=${{ parameters.os }} \
+              RESTART_CASE=false \
+              CNI_TYPE=${{ parameters.cni }}
 
         test -s "$summaryPath"
         jq -e \
