@@ -135,6 +135,50 @@ func TestCIDRSetsDoNotMergeInManager(t *testing.T) {
 	require.Equal(t, map[string]struct{}{"b-in-ns-c/a": {}}, secondSet.NetPolReference)
 }
 
+// TestGetHashedNameDistinctForReportedPair verifies the two prefixed names that previously
+// shared a kernel name now resolve to distinct kernel names, so their members can never be
+// combined.
+func TestGetHashedNameDistinctForReportedPair(t *testing.T) {
+	nsSet := NewIPSetMetadata("msobb-target", Namespace)            // prefixed "ns-msobb-target"
+	podLabelSet := NewIPSetMetadata("x:YMaaIZ", KeyValueLabelOfPod) // prefixed "podlabel-x:YMaaIZ"
+	require.NotEqual(t, nsSet.GetHashedName(), podLabelSet.GetHashedName(),
+		"distinct ipset names must resolve to distinct kernel names")
+}
+
+// TestClaimKernelNameSingleOwner verifies the defense-in-depth invariant: a kernel name is
+// owned by a single prefixed name; the owner (and re-claims) are accepted, a different name
+// is rejected, and the name is released on delete.
+func TestClaimKernelNameSingleOwner(t *testing.T) {
+	metrics.ReinitializeAll()
+	iMgr := NewIPSetManager(applyAlwaysCfg, common.NewMockIOShim(nil))
+
+	const kernelName = "azure-npm-sharedkernelname00"
+	require.NoError(t, iMgr.claimKernelName("ns-a", kernelName))     // first owner
+	require.NoError(t, iMgr.claimKernelName("ns-a", kernelName))     // same owner re-claims (idempotent)
+	require.Error(t, iMgr.claimKernelName("podlabel-b", kernelName)) // different owner rejected
+
+	delete(iMgr.kernelNameOwner, kernelName)
+	require.NoError(t, iMgr.claimKernelName("podlabel-b", kernelName)) // free after release
+}
+
+// TestCreateIPSetKernelNameFreedOnDelete verifies DeleteIPSet releases a set's kernel name so
+// the same set can be recreated afterwards.
+func TestCreateIPSetKernelNameFreedOnDelete(t *testing.T) {
+	metrics.ReinitializeAll()
+	iMgr := NewIPSetManager(applyAlwaysCfg, common.NewMockIOShim(nil))
+
+	set := NewIPSetMetadata("msobb-target", Namespace)
+	iMgr.CreateIPSets([]*IPSetMetadata{set})
+	require.NotNil(t, iMgr.GetIPSet(set.GetPrefixName()))
+	_, owned := iMgr.kernelNameOwner[set.GetHashedName()]
+	require.True(t, owned)
+
+	iMgr.DeleteIPSet(set.GetPrefixName(), util.SoftDelete)
+	require.Nil(t, iMgr.GetIPSet(set.GetPrefixName()))
+	_, owned = iMgr.kernelNameOwner[set.GetHashedName()]
+	require.False(t, owned, "kernel name must be released on delete")
+}
+
 func TestReconcileCache(t *testing.T) {
 	type args struct {
 		cfg          *IPSetManagerCfg

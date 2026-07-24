@@ -464,7 +464,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				fakeRestoreSuccessCommand,
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-B", "5", "-P", "References: [1-9]"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
+				{Cmd: []string{"grep", "-o", "-P", "azure-npm-[0-9a-z]+"}, ExitCode: 1},
 				fakeRestoreSuccessCommand,
 			},
 			wantErr: false,
@@ -504,7 +504,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				fakeRestoreSuccessCommand,
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-B", "5", "-P", "References: [1-9]"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
+				{Cmd: []string{"grep", "-o", "-P", "azure-npm-[0-9a-z]+"}, ExitCode: 1},
 				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
@@ -523,7 +523,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				fakeRestoreSuccessCommand,
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-B", "5", "-P", "References: [1-9]"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, Stdout: resetIPSetsListOutputString},
+				{Cmd: []string{"grep", "-o", "-P", "azure-npm-[0-9a-z]+"}, Stdout: resetIPSetsListOutputString},
 			},
 			wantErr: false,
 		},
@@ -537,7 +537,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				fakeRestoreSuccessCommand,
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-B", "5", "-P", "References: [1-9]"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, Stdout: otherIPSetsListOutput},
+				{Cmd: []string{"grep", "-o", "-P", "azure-npm-[0-9a-z]+"}, Stdout: otherIPSetsListOutput},
 				fakeRestoreSuccessCommand,
 			},
 			wantErr: false,
@@ -557,7 +557,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				fakeRestoreSuccessCommand,
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-B", "5", "-P", "References: [1-9]"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
+				{Cmd: []string{"grep", "-o", "-P", "azure-npm-[0-9a-z]+"}, ExitCode: 1},
 				fakeRestoreSuccessCommand,
 			},
 			wantErr: false,
@@ -577,7 +577,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				fakeRestoreSuccessCommand,
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-B", "5", "-P", "References: [1-9]"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
+				{Cmd: []string{"grep", "-o", "-P", "azure-npm-[0-9a-z]+"}, ExitCode: 1},
 				fakeRestoreSuccessCommand,
 			},
 			wantErr: false,
@@ -592,7 +592,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				fakeRestoreSuccessCommand,
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-B", "5", "-P", "References: [1-9]"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
+				{Cmd: []string{"grep", "-o", "-P", "azure-npm-[0-9a-z]+"}, ExitCode: 1},
 				{
 					Cmd:      ipsetRestoreStringSlice,
 					Stdout:   "Error in line 2: The set with the given name does not exist",
@@ -612,7 +612,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				fakeRestoreSuccessCommand,
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-B", "5", "-P", "References: [1-9]"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
+				{Cmd: []string{"grep", "-o", "-P", "azure-npm-[0-9a-z]+"}, ExitCode: 1},
 				{
 					Cmd:      ipsetRestoreStringSlice,
 					Stdout:   "Error in line 2: for some other error",
@@ -1850,7 +1850,7 @@ func testAndSortRestoreFileLines(t *testing.T, lines []string) []string {
 func hashedNameOfSetImpacted(t *testing.T, operation string, lines []string, lineNum int) string {
 	lineNumIndex := lineNum - 1
 	line := lines[lineNumIndex]
-	pattern := fmt.Sprintf(`\%s (azure-npm-\d+)`, operation)
+	pattern := fmt.Sprintf(`\%s (azure-npm-[0-9a-z]+)`, operation)
 	re := regexp.MustCompile(pattern)
 	results := re.FindStringSubmatch(line)
 	require.Equal(t, 2, len(results), "expected to find a match with regex pattern %s for line: %s", pattern, line)
@@ -1860,7 +1860,7 @@ func hashedNameOfSetImpacted(t *testing.T, operation string, lines []string, lin
 func memberNameOfSetImpacted(t *testing.T, lines []string, lineNum int) string {
 	lineNumIndex := lineNum - 1
 	line := lines[lineNumIndex]
-	pattern := `\-[AD] azure-npm-\d+ (.*)`
+	pattern := `\-[AD] azure-npm-[0-9a-z]+ (.*)`
 	re := regexp.MustCompile(pattern)
 	member := re.FindStringSubmatch(line)[1]
 	results := re.FindStringSubmatch(line)

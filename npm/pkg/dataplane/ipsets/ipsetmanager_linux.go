@@ -18,7 +18,7 @@ const (
 	ipsetFlushAndDestroyString = "ipset flush && ipset destroy"
 
 	azureNPMPrefix        = "azure-npm-"
-	azureNPMRegex         = "azure-npm-\\d+"
+	azureNPMRegex         = "azure-npm-[0-9a-z]+"
 	positiveRefsRegex     = "References: [1-9]"
 	referenceGrepLookBack = "5"
 	maxLinesToPrint       = 10
