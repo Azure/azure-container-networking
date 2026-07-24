@@ -138,7 +138,7 @@ data:
   # bpf-policy-stats-map-max specifies the maximum number of entries in global
   # policy stats map
   bpf-policy-stats-map-max: "65536"
-  identity-management-mode: "agent"
+  identity-management-mode: "operator"
   tofqdns-preallocate-identities: "true"
   policy-default-local-cluster: "false"    
 kind: ConfigMap
