@@ -69,8 +69,7 @@ spec:
                 minimum: 0
                 type: integer
               macAddress:
-                description: MACAddress is the MAC address of the NIC, used to create
-                  the network container
+                description: MACAddress is the MAC address of the NIC, used to create the network container
                 type: string
               networkID:
                 description: NetworkID is the VNET GUID or network identifier
@@ -79,11 +78,9 @@ spec:
                 description: NodeName is the name of the node this NIC belongs to
                 type: string
               podAllocations:
-                description: PodAllocationRequests tracks which pods are allocated
-                  on this NIC
+                description: PodAllocationRequests tracks which pods are allocated on this NIC
                 items:
-                  description: PodAllocationRequest represents a pod's IP allocation
-                    request on this NIC
+                  description: PodAllocationRequest represents a pod's IP allocation request on this NIC
                   properties:
                     mtpnc:
                       description: MTPNC is the name of the MultitenantPodNetworkConfig
@@ -104,8 +101,7 @@ spec:
                 description: PodNetwork is the name of the PodNetwork
                 type: string
               scheduledByDRA:
-                description: ScheduledByDRA indicates the pod was scheduled via Dynamic
-                  Resource Allocation (DRA).
+                description: ScheduledByDRA indicates the pod was scheduled via Dynamic Resource Allocation (DRA).
                 type: boolean
               subnetGUID:
                 description: customer subnet guid
@@ -124,15 +120,18 @@ spec:
             description: NICNetworkConfigStatus defines the observed state of NICNetworkConfig
             properties:
               accelnetEnabled:
-                description: AccelnetEnabled determines if the CNI will provision
-                  the NIC with accelerated networking enabled
+                description: AccelnetEnabled determines if the CNI will provision the NIC with accelerated networking enabled
                 type: boolean
               availableIPs:
-                description: AvailableIPs tracks the available IP addresses in this
-                  NC block
+                description: AvailableIPs tracks the available IP addresses in this NC block
                 items:
                   type: string
                 type: array
+              consumableCapacity:
+                description: |-
+                  ConsumableCapacity indicates the number of pods that can share this NIC.
+                  Total number of pods.
+                type: integer
               cooldownExpiresAt:
                 description: |-
                   CooldownExpiresAt is the time at which the cooldown period ends. It is set only while Status is
@@ -140,8 +139,7 @@ spec:
                 format: date-time
                 type: string
               deviceType:
-                description: DeviceType is the device type that this NC was created
-                  for
+                description: DeviceType is the device type that this NC was created for
                 enum:
                 - acn.azure.com/vnet-nic
                 - acn.azure.com/infiniband-nic
@@ -157,12 +155,10 @@ spec:
                 type: string
               podAllocations:
                 additionalProperties:
-                  description: PodAllocation represents a pod's IP allocation on this
-                    NIC
+                  description: PodAllocation represents a pod's IP allocation on this NIC
                   properties:
                     allocatedIP:
-                      description: AllocatedIP is the IP address allocated to the
-                        pod
+                      description: AllocatedIP is the IP address allocated to the pod
                       type: string
                     mtpnc:
                       description: MTPNC is the name of the MultitenantPodNetworkConfig
@@ -179,16 +175,13 @@ spec:
                   - podName
                   - podNamespace
                   type: object
-                description: PodAllocations tracks the allocated IP addresses to pod
-                  mapping.
+                description: PodAllocations tracks the allocated IP addresses to pod mapping.
                 type: object
               primaryIP:
-                description: PrimaryIP is the primary IP allocated to the network
-                  container
+                description: PrimaryIP is the primary IP allocated to the network container
                 type: string
               status:
-                description: Status indicates the current status of the NIC Network
-                  Config
+                description: Status indicates the current status of the NIC Network Config
                 enum:
                 - Ready
                 - Pending
@@ -198,8 +191,7 @@ spec:
                 - NCCreateError
                 type: string
               subnetAddressSpace:
-                description: SubnetAddressSpace is the subnet address space of the
-                  injected subnet
+                description: SubnetAddressSpace is the subnet address space of the injected subnet
                 type: string
             type: object
         type: object
