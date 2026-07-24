@@ -5,6 +5,7 @@ metadata:
   namespace: kube-system
 data:
   filter: |
+    -A INPUT -p udp --dport 68 -j ACCEPT
 
   global: |
     ^-N .*
