@@ -1,16 +1,13 @@
 parameters:
-  name: ""
-  displayName: ""
   clusterType: ""
   clusterName: "" # Recommended to pass in unique identifier
   vmSize: ""
   vmSizeWin: ""
   k8sVersion: ""
   osSkuWin: "Windows2022" # Currently we only support Windows2022
-  dependsOn: ""
+  osSKU: "Ubuntu"
   region: ""
   os: linux
-
 
 steps:
   - task: AzureCLI@2
@@ -23,6 +20,11 @@ steps:
         set -e
         echo "Check az version"
         az version
+
+        if ${{ lower(contains(parameters.clusterType, 'dualstack')) }}
+        then
+          export POD_CIDRS="10.244.0.0/16,fdd5:a27a:b4bc:99d6::/64"
+        fi
 
         if ! [ -z ${{ parameters.k8sVersion }} ]; then
           echo "Set K8S_VER with ${{ parameters.k8sVersion }}"
@@ -37,12 +39,23 @@ steps:
         mkdir -p ~/.kube/
         make -C ./hack/aks azcfg AZCLI=az REGION=${{ parameters.region }}
 
+        CLUSTER_EXISTS=$(az aks show --resource-group ${{ parameters.clusterName }} --name ${{ parameters.clusterName }} --query "name" -o tsv 2>/dev/null || echo "")
+
+        if [ ! -z "$CLUSTER_EXISTS" ]; then
+          echo "Cluster ${{ parameters.clusterName }} already exists. Tearing it down first..."
+          make -C ./hack/aks down \
+          AZCLI=az REGION=${{ parameters.region }} SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \
+          CLUSTER=${{ parameters.clusterName }}
+          echo "Cluster teardown completed. Proceeding with recreation..."
+        else
+          echo "Cluster ${{ parameters.clusterName }} does not exist. Proceeding with creation..."
+        fi
+
         make -C ./hack/aks ${{ parameters.clusterType }} \
         AZCLI=az REGION=${{ parameters.region }} SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \
         CLUSTER=${{ parameters.clusterName }} \
         VM_SIZE=${{ parameters.vmSize }} VM_SIZE_WIN=${{ parameters.vmSizeWin }} \
-        OS_SKU_WIN=${{ parameters.osSkuWin }} OS=${{ parameters.os }} \
-        LTS=${{ lower(parameters.LTS) }}
+        OS_SKU_WIN=${{ parameters.osSkuWin }} OS=${{ parameters.os }} OS_SKU=${{ parameters.osSKU }}
 
         echo "Cluster successfully created"
     displayName: Cluster - ${{ parameters.clusterType }}
