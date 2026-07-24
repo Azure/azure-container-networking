@@ -264,6 +264,47 @@ func TestHasUnexpectedRules(t *testing.T) {
 			},
 			expected: false,
 		},
+		{
+			name: "cilium raw DNS notrack rules allowlisted",
+			currentRules: []string{
+				"-A CILIUM_OUTPUT_raw -d 10.244.0.13/32 -p tcp -m tcp --dport 53 -j CT --notrack",
+				"-A CILIUM_OUTPUT_raw -s 10.244.0.13/32 -p tcp -m tcp --sport 53 -j CT --notrack",
+				"-A CILIUM_OUTPUT_raw -d 10.244.0.13/32 -p udp -m udp --dport 53 -j CT --notrack",
+				"-A CILIUM_OUTPUT_raw -s 10.244.0.13/32 -p udp -m udp --sport 53 -j CT --notrack",
+				"-A CILIUM_PRE_raw -d 10.244.0.13/32 -p tcp -m tcp --dport 53 -j CT --notrack",
+				"-A CILIUM_PRE_raw -s 10.244.0.13/32 -p tcp -m tcp --sport 53 -j CT --notrack",
+				"-A CILIUM_PRE_raw -d 10.244.0.13/32 -p udp -m udp --dport 53 -j CT --notrack",
+				"-A CILIUM_PRE_raw -s 10.244.0.13/32 -p udp -m udp --sport 53 -j CT --notrack",
+				"-A CILIUM_FORWARD -o lxc+ -m comment --comment \"cilium: any->cluster on lxc+ forward accept\" -j ACCEPT",
+				"-A CILIUM_POST_nat -s 10.244.0.0/24 ! -d 10.244.0.0/24 -o eth0 -j MASQUERADE",
+			},
+			allowedPatterns: []string{
+				`^-A CILIUM_\S+ `,
+			},
+			expected: false,
+		},
+		{
+			name: "cilium ip6 raw DNS notrack rules allowlisted",
+			currentRules: []string{
+				"-A CILIUM_OUTPUT_raw -d fd00::13/128 -p tcp -m tcp --dport 53 -j CT --notrack",
+				"-A CILIUM_PRE_raw -s fd00::13/128 -p udp -m udp --sport 53 -j CT --notrack",
+			},
+			allowedPatterns: []string{
+				`^-A CILIUM_\S+ `,
+			},
+			expected: false,
+		},
+		{
+			name: "cilium chain pattern does not match non-cilium chains",
+			currentRules: []string{
+				"-A OUTPUT -d 10.244.0.13/32 -p tcp -m tcp --dport 53 -j CT --notrack",
+				"-A MY_CUSTOM_CHAIN -j ACCEPT",
+			},
+			allowedPatterns: []string{
+				`^-A CILIUM_\S+ `,
+			},
+			expected: true,
+		},
 	}
 
 	for _, tc := range testCases {

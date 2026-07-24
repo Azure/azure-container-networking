@@ -65,7 +65,7 @@ func setupLinuxEnvironment(t *testing.T) {
 	}
 
 	t.Log("Waiting for pods to be running state")
-	err = kubernetes.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector, nil)
+	err = kubernetes.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
 	if err != nil {
 		t.Fatalf("Pods are not in running state due to %+v", err)
 	}
