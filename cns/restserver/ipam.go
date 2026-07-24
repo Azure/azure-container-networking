@@ -454,8 +454,18 @@ func (service *HTTPRestService) ReleaseIPConfigHandlerHelper(ctx context.Context
 			},
 		}, fmt.Errorf("failed to validate ip config request") //nolint:goerr113 // return error
 	}
-	// Check if http rest service managed endpoint state is set
-	if service.Options[common.OptManageEndpointState] == true {
+	unifiedAdapter := service.selectedUnifiedStateAdapter()
+	if unifiedAdapter != nil {
+		if err := unifiedAdapter.releaseIPConfigs(ctx, ipconfigsRequest, podInfo); err != nil {
+			resp := &cns.IPConfigsResponse{
+				Response: cns.Response{
+					ReturnCode: unifiedReleaseResponseCode(err),
+					Message:    err.Error(),
+				},
+			}
+			return resp, fmt.Errorf("releasing unified IP configs: %w", err)
+		}
+	} else if service.Options[common.OptManageEndpointState] == true {
 		if err := service.releaseIPConfigsWithDeleteIntent(podInfo); err != nil {
 			resp := &cns.IPConfigsResponse{
 				Response: cns.Response{
@@ -1221,6 +1231,10 @@ func validateDesiredIPAddresses(desiredIPs []string) error {
 func (service *HTTPRestService) EndpointHandlerAPI(w http.ResponseWriter, r *http.Request) {
 	opName := "endpointHandler"
 	logger.Printf("[EndpointHandlerAPI] EndpointHandlerAPI received request with http Method %s", r.Method)
+	if r.Method == http.MethodDelete && service.selectedUnifiedStateAdapter() != nil {
+		service.DeleteEndpointStateHandler(w, r)
+		return
+	}
 	service.Lock()
 	defer service.Unlock()
 	// Check if CNS is managing the CNI statefile
@@ -1251,7 +1265,7 @@ func (service *HTTPRestService) DeleteEndpointStateHandler(w http.ResponseWriter
 	logger.Printf("[DeleteEndpointStateHandler] DeleteEndpointState for %s", r.URL.Path) //nolint:staticcheck // reason: using deprecated call until migration to new API
 	endpointID := strings.TrimPrefix(r.URL.Path, cns.EndpointPath)
 
-	if service.EndpointStateStore == nil {
+	if service.EndpointStateStore == nil && service.unifiedStateAdapter == nil {
 		response := cns.Response{
 			ReturnCode: types.NilEndpointStateStore,
 			Message:    "[DeleteEndpointStateHandler] EndpointStateStore is not initialized",
@@ -1262,7 +1276,7 @@ func (service *HTTPRestService) DeleteEndpointStateHandler(w http.ResponseWriter
 	}
 
 	// Delete the endpoint from state
-	err := service.DeleteEndpointStateHelper(endpointID)
+	err := service.deleteEndpointState(r.Context(), endpointID)
 	if err != nil {
 		response := cns.Response{
 			ReturnCode: types.UnexpectedError,
@@ -1308,6 +1322,13 @@ func (service *HTTPRestService) DeleteEndpointStateHelper(endpointID string) err
 	service.EndpointState = endpointState
 	logger.Printf("[deleteEndpointState] successfully deleted endpoint %s from state file", endpointID) //nolint:staticcheck // reason: using deprecated call until migration to new API
 	return nil
+}
+
+func (service *HTTPRestService) deleteEndpointState(ctx context.Context, endpointID string) error {
+	if adapter := service.unifiedStateAdapter; adapter != nil {
+		return adapter.deleteEndpointRecord(ctx, endpointID)
+	}
+	return service.DeleteEndpointStateHelper(endpointID)
 }
 
 // GetEndpointHandler handles the incoming GetEndpoint requests with http Get method

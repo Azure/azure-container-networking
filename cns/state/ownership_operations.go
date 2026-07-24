@@ -235,6 +235,29 @@ func (s *DB) ReleaseEndpoint(
 	pod PodIdentity,
 	now time.Time,
 ) (bool, error) {
+	return s.releaseEndpoint(ctx, nil, pod, now, nil)
+}
+
+// ReleaseEndpointIfGeneration atomically records the delete intent and releases
+// every assignment for the endpoint only at expectedGeneration. beforeCommit
+// may validate the complete candidate snapshot before any records are written.
+func (s *DB) ReleaseEndpointIfGeneration(
+	ctx context.Context,
+	expectedGeneration uint64,
+	pod PodIdentity,
+	now time.Time,
+	beforeCommit func(Snapshot) error,
+) (bool, error) {
+	return s.releaseEndpoint(ctx, &expectedGeneration, pod, now, beforeCommit)
+}
+
+func (s *DB) releaseEndpoint(
+	ctx context.Context,
+	expectedGeneration *uint64,
+	pod PodIdentity,
+	now time.Time,
+	beforeCommit func(Snapshot) error,
+) (bool, error) {
 	normalizedPod, err := normalizePodIdentity(pod, true)
 	if err != nil {
 		return false, err
@@ -248,6 +271,14 @@ func (s *DB) ReleaseEndpoint(
 		current, snapshotErr := tx.validSnapshot()
 		if snapshotErr != nil {
 			return false, snapshotErr
+		}
+		if expectedGeneration != nil && current.Metadata.Generation != *expectedGeneration {
+			return false, fmt.Errorf(
+				"%w: expected=%d actual=%d",
+				ErrStaleGeneration,
+				*expectedGeneration,
+				current.Metadata.Generation,
+			)
 		}
 		if validationErr := validateReleaseIdentity(current, normalizedPod); validationErr != nil {
 			return false, validationErr
@@ -286,7 +317,24 @@ func (s *DB) ReleaseEndpoint(
 			return false, invalidInput("encoding delete intent", encodeErr)
 		}
 		if len(assignmentKeys) == 0 && intentExists {
+			if beforeCommit != nil {
+				if err := beforeCommit(current); err != nil {
+					return false, fmt.Errorf("validating endpoint release candidate: %w", err)
+				}
+			}
 			return false, nil
+		}
+		if candidate.Metadata.Generation == math.MaxUint64 {
+			return false, corrupt("generation overflow", nil)
+		}
+		candidate.Metadata.Generation++
+		if beforeCommit != nil {
+			if err := beforeCommit(candidate); err != nil {
+				return false, fmt.Errorf("validating endpoint release candidate: %w", err)
+			}
+		}
+		if err := ctx.Err(); err != nil {
+			return false, err
 		}
 
 		if !intentExists {
@@ -384,6 +432,26 @@ func (s *DB) PatchEndpoint(
 }
 
 func (s *DB) DeleteEndpointRecord(ctx context.Context, infraContainerID string) (bool, error) {
+	return s.deleteEndpointRecord(ctx, nil, infraContainerID, nil)
+}
+
+// DeleteEndpointRecordIfGeneration removes an endpoint record only at
+// expectedGeneration while preserving its delete intent.
+func (s *DB) DeleteEndpointRecordIfGeneration(
+	ctx context.Context,
+	expectedGeneration uint64,
+	infraContainerID string,
+	beforeCommit func(Snapshot) error,
+) (bool, error) {
+	return s.deleteEndpointRecord(ctx, &expectedGeneration, infraContainerID, beforeCommit)
+}
+
+func (s *DB) deleteEndpointRecord(
+	ctx context.Context,
+	expectedGeneration *uint64,
+	infraContainerID string,
+	beforeCommit func(Snapshot) error,
+) (bool, error) {
 	infraContainerID = normalizeID(infraContainerID)
 	if infraContainerID == "" {
 		return false, invalidInput("infra container ID is empty", nil)
@@ -393,13 +461,38 @@ func (s *DB) DeleteEndpointRecord(ctx context.Context, infraContainerID string) 
 		if snapshotErr != nil {
 			return false, snapshotErr
 		}
+		if expectedGeneration != nil && current.Metadata.Generation != *expectedGeneration {
+			return false, fmt.Errorf(
+				"%w: expected=%d actual=%d",
+				ErrStaleGeneration,
+				*expectedGeneration,
+				current.Metadata.Generation,
+			)
+		}
 		if _, ok := current.Endpoints[infraContainerID]; !ok {
+			if beforeCommit != nil {
+				if err := beforeCommit(current); err != nil {
+					return false, fmt.Errorf("validating endpoint deletion candidate: %w", err)
+				}
+			}
 			return false, nil
 		}
 		candidate := cloneSnapshot(current)
 		delete(candidate.Endpoints, infraContainerID)
 		if validationErr := validateInput(candidate); validationErr != nil {
 			return false, validationErr
+		}
+		if candidate.Metadata.Generation == math.MaxUint64 {
+			return false, corrupt("generation overflow", nil)
+		}
+		candidate.Metadata.Generation++
+		if beforeCommit != nil {
+			if err := beforeCommit(candidate); err != nil {
+				return false, fmt.Errorf("validating endpoint deletion candidate: %w", err)
+			}
+		}
+		if err := ctx.Err(); err != nil {
+			return false, err
 		}
 		if deleteErr := tx.tx.Bucket(bucketEndpoints).Delete([]byte(infraContainerID)); deleteErr != nil {
 			return false, fmt.Errorf("deleting endpoint %q: %w", infraContainerID, deleteErr)
@@ -413,6 +506,28 @@ func (s *DB) PruneDeleteIntents(
 	now time.Time,
 	deleteIntentTTL time.Duration,
 ) (int, error) {
+	return s.pruneDeleteIntents(ctx, nil, now, deleteIntentTTL, nil)
+}
+
+// PruneDeleteIntentsIfGeneration removes expired intents only at
+// expectedGeneration.
+func (s *DB) PruneDeleteIntentsIfGeneration(
+	ctx context.Context,
+	expectedGeneration uint64,
+	now time.Time,
+	deleteIntentTTL time.Duration,
+	beforeCommit func(Snapshot) error,
+) (int, error) {
+	return s.pruneDeleteIntents(ctx, &expectedGeneration, now, deleteIntentTTL, beforeCommit)
+}
+
+func (s *DB) pruneDeleteIntents(
+	ctx context.Context,
+	expectedGeneration *uint64,
+	now time.Time,
+	deleteIntentTTL time.Duration,
+	beforeCommit func(Snapshot) error,
+) (int, error) {
 	now, err := normalizeNow(now, deleteIntentTTL)
 	if err != nil {
 		return 0, err
@@ -423,6 +538,14 @@ func (s *DB) PruneDeleteIntents(
 		if snapshotErr != nil {
 			return false, snapshotErr
 		}
+		if expectedGeneration != nil && current.Metadata.Generation != *expectedGeneration {
+			return false, fmt.Errorf(
+				"%w: expected=%d actual=%d",
+				ErrStaleGeneration,
+				*expectedGeneration,
+				current.Metadata.Generation,
+			)
+		}
 		expired := make([]string, 0)
 		for _, containerID := range sortedKeys(current.DeleteIntents) {
 			if !deleteIntentLive(current.DeleteIntents[containerID], now, deleteIntentTTL) {
@@ -430,6 +553,11 @@ func (s *DB) PruneDeleteIntents(
 			}
 		}
 		if len(expired) == 0 {
+			if beforeCommit != nil {
+				if err := beforeCommit(current); err != nil {
+					return false, fmt.Errorf("validating delete intent prune candidate: %w", err)
+				}
+			}
 			return false, nil
 		}
 		candidate := cloneSnapshot(current)
@@ -438,6 +566,18 @@ func (s *DB) PruneDeleteIntents(
 		}
 		if validationErr := validateInput(candidate); validationErr != nil {
 			return false, validationErr
+		}
+		if candidate.Metadata.Generation == math.MaxUint64 {
+			return false, corrupt("generation overflow", nil)
+		}
+		candidate.Metadata.Generation++
+		if beforeCommit != nil {
+			if err := beforeCommit(candidate); err != nil {
+				return false, fmt.Errorf("validating delete intent prune candidate: %w", err)
+			}
+		}
+		if err := ctx.Err(); err != nil {
+			return false, err
 		}
 		bucket := tx.tx.Bucket(bucketDeleteIntents)
 		for _, containerID := range expired {

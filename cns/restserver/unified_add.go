@@ -79,7 +79,8 @@ func (a *durableStateAdapter) requestIPConfigs(
 	if err != nil {
 		return nil, err
 	}
-	plan, err := a.service.requestIPConfigsUnifiedLocked(ctx, request, podInfo, snapshot)
+	now := a.now()
+	plan, err := a.service.requestIPConfigsUnifiedLocked(ctx, request, podInfo, snapshot, now)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +94,7 @@ func (a *durableStateAdapter) requestIPConfigs(
 		a.generation,
 		plan.assignment,
 		plan.endpoint,
-		a.now(),
+		now,
 		unifiedDeleteIntentTTL,
 		func(candidate state.Snapshot) error {
 			var buildErr error
@@ -158,6 +159,7 @@ func (service *HTTPRestService) requestIPConfigsUnifiedLocked(
 	request cns.IPConfigsRequest,
 	podInfo cns.PodInfo,
 	snapshot state.Snapshot,
+	now time.Time,
 ) (unifiedAddPlan, error) {
 	if err := ctx.Err(); err != nil {
 		return unifiedAddPlan{}, fmt.Errorf("planning unified endpoint assignment: %w", err)
@@ -168,6 +170,14 @@ func (service *HTTPRestService) requestIPConfigsUnifiedLocked(
 		InterfaceID:      podInfo.InterfaceID(),
 		PodName:          podInfo.Name(),
 		PodNamespace:     podInfo.Namespace(),
+	}
+	if intent, ok := snapshot.DeleteIntents[requestedPod.InfraContainerID]; ok &&
+		now.Before(intent.CreatedAt.Add(unifiedDeleteIntentTTL)) {
+		return unifiedAddPlan{}, fmt.Errorf(
+			"%w: infra container %q",
+			state.ErrDeleteIntent,
+			requestedPod.InfraContainerID,
+		)
 	}
 	if existing, ok := snapshot.Assignments[requestedPod.PodKey]; ok {
 		if existing.Pod != requestedPod {
