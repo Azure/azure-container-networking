@@ -145,3 +145,14 @@ steps:
     displayName: "Verify Async Delete when CNS is down"
 
   - template: ../../templates/cilium-mtu-check.yaml
+
+  - script: |
+      set -e
+      # End-of-run check for eBPF host-routing clusters: azure-iptables-monitor must not
+      # have flagged any unexpected/blocked iptables rules on any node during the e2e run.
+      # Skips automatically if the monitor is not deployed (non-eBPF clusters).
+      cd test/integration/iptables/
+      go test . -v -tags "ebpf" -count=1 -timeout 5m -run ^TestNoUnexpectedIPTablesEvents$
+    retryCountOnTaskFailure: 1
+    name: "iptablesMonitorEventsCheck"
+    displayName: "Verify no unexpected iptables events (eBPF host routing)"
