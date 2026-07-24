@@ -676,6 +676,398 @@ func TestPatchAndDeleteEndpoint(t *testing.T) {
 	assert.Equal(t, deleteGeneration, readMetadata(t, db).Generation)
 }
 
+func TestPatchEndpointIfGeneration(t *testing.T) {
+	t.Run("commit callback and replay", func(t *testing.T) {
+		db, _ := openTestDB(t)
+		assignment, endpoint := seedOwnershipInventory(t, db)
+		_, err := db.AssignEndpoint(
+			context.Background(),
+			assignment,
+			endpoint,
+			testNow,
+			testDeleteIntentTTL,
+		)
+		require.NoError(t, err)
+		before := requireValidSnapshot(t, db)
+		patched := deepCloneEndpoint(t, endpoint)
+		patched.IfnameToIPMap["eth0"].HNSEndpointID = "patched-hns"
+		callbacks := 0
+
+		changed, err := db.PatchEndpointIfGeneration(
+			context.Background(),
+			before.Metadata.Generation,
+			assignment.Pod,
+			patched,
+			testNow,
+			testDeleteIntentTTL,
+			func(candidate Snapshot) error {
+				callbacks++
+				assert.Equal(t, before.Metadata.Generation+1, candidate.Metadata.Generation)
+				equal, equalErr := endpointsEqual(
+					patched,
+					candidate.Endpoints[assignment.Pod.InfraContainerID],
+				)
+				require.NoError(t, equalErr)
+				assert.True(t, equal)
+				assert.Equal(t, before.Assignments, candidate.Assignments)
+				assert.Equal(t, before.IPOwners, candidate.IPOwners)
+				assert.Equal(t, before.DeleteIntents, candidate.DeleteIntents)
+				return nil
+			},
+		)
+		require.NoError(t, err)
+		assert.True(t, changed)
+		committed := requireValidSnapshot(t, db)
+		assert.Equal(t, before.Metadata.Generation+1, committed.Metadata.Generation)
+		equal, err := endpointsEqual(patched, committed.Endpoints[assignment.Pod.InfraContainerID])
+		require.NoError(t, err)
+		assert.True(t, equal)
+
+		changed, err = db.PatchEndpointIfGeneration(
+			context.Background(),
+			committed.Metadata.Generation,
+			assignment.Pod,
+			patched,
+			testNow,
+			testDeleteIntentTTL,
+			func(candidate Snapshot) error {
+				callbacks++
+				assert.Equal(t, committed, candidate)
+				return nil
+			},
+		)
+		require.NoError(t, err)
+		assert.False(t, changed)
+		assert.Equal(t, 2, callbacks)
+		assert.Equal(t, committed, requireValidSnapshot(t, db))
+
+		changed, err = db.PatchEndpointIfGeneration(
+			context.Background(),
+			committed.Metadata.Generation,
+			assignment.Pod,
+			patched,
+			testNow,
+			testDeleteIntentTTL,
+			func(Snapshot) error { return errAbort },
+		)
+		require.ErrorIs(t, err, errAbort)
+		assert.False(t, changed)
+		assert.Equal(t, committed, requireValidSnapshot(t, db))
+	})
+
+	t.Run("stale and callback failures are atomic", func(t *testing.T) {
+		db, _ := openTestDB(t)
+		assignment, endpoint := seedOwnershipInventory(t, db)
+		_, err := db.AssignEndpoint(
+			context.Background(),
+			assignment,
+			endpoint,
+			testNow,
+			testDeleteIntentTTL,
+		)
+		require.NoError(t, err)
+		before := requireValidSnapshot(t, db)
+		patched := deepCloneEndpoint(t, endpoint)
+		patched.IfnameToIPMap["eth0"].HostVethName = "patched-veth"
+
+		changed, err := db.PatchEndpointIfGeneration(
+			context.Background(),
+			before.Metadata.Generation-1,
+			assignment.Pod,
+			patched,
+			testNow,
+			testDeleteIntentTTL,
+			nil,
+		)
+		require.ErrorIs(t, err, ErrStaleGeneration)
+		assert.False(t, changed)
+		assert.Equal(t, before, requireValidSnapshot(t, db))
+
+		changed, err = db.PatchEndpointIfGeneration(
+			context.Background(),
+			before.Metadata.Generation,
+			assignment.Pod,
+			patched,
+			testNow,
+			testDeleteIntentTTL,
+			func(Snapshot) error { return errAbort },
+		)
+		require.ErrorIs(t, err, errAbort)
+		assert.False(t, changed)
+		assert.Equal(t, before, requireValidSnapshot(t, db))
+	})
+
+	t.Run("contract failures", func(t *testing.T) {
+		t.Run("invalid time", func(t *testing.T) {
+			db, _ := openTestDB(t)
+			assignment, endpoint := seedOwnershipInventory(t, db)
+			changed, err := db.PatchEndpointIfGeneration(
+				context.Background(),
+				0,
+				assignment.Pod,
+				endpoint,
+				time.Time{},
+				testDeleteIntentTTL,
+				nil,
+			)
+			require.ErrorIs(t, err, ErrInvalidInput)
+			assert.False(t, changed)
+		})
+
+		t.Run("expired released assignment is absent", func(t *testing.T) {
+			db, _ := openTestDB(t)
+			assignment, endpoint := seedOwnershipInventory(t, db)
+			_, err := db.AssignEndpoint(
+				context.Background(),
+				assignment,
+				endpoint,
+				testNow,
+				testDeleteIntentTTL,
+			)
+			require.NoError(t, err)
+			_, err = db.ReleaseEndpoint(context.Background(), assignment.Pod, testNow)
+			require.NoError(t, err)
+			before := requireValidSnapshot(t, db)
+
+			changed, err := db.PatchEndpointIfGeneration(
+				context.Background(),
+				before.Metadata.Generation,
+				assignment.Pod,
+				endpoint,
+				testNow.Add(testDeleteIntentTTL),
+				testDeleteIntentTTL,
+				nil,
+			)
+			require.ErrorIs(t, err, ErrNotFound)
+			assert.False(t, changed)
+			assert.Equal(t, before, requireValidSnapshot(t, db))
+		})
+
+		t.Run("assignment identity mismatch", func(t *testing.T) {
+			db, _ := openTestDB(t)
+			assignment, endpoint := seedOwnershipInventory(t, db)
+			_, err := db.AssignEndpoint(
+				context.Background(),
+				assignment,
+				endpoint,
+				testNow,
+				testDeleteIntentTTL,
+			)
+			require.NoError(t, err)
+			before := requireValidSnapshot(t, db)
+			wrongPod := assignment.Pod
+			wrongPod.InfraContainerID = "other-container"
+
+			changed, err := db.PatchEndpointIfGeneration(
+				context.Background(),
+				before.Metadata.Generation,
+				wrongPod,
+				endpoint,
+				testNow,
+				testDeleteIntentTTL,
+				nil,
+			)
+			require.ErrorIs(t, err, ErrInvalidInput)
+			assert.False(t, changed)
+			assert.Equal(t, before, requireValidSnapshot(t, db))
+		})
+
+		t.Run("generation overflow", func(t *testing.T) {
+			db, _ := openTestDB(t)
+			assignment, endpoint := seedOwnershipInventory(t, db)
+			_, err := db.AssignEndpoint(
+				context.Background(),
+				assignment,
+				endpoint,
+				testNow,
+				testDeleteIntentTTL,
+			)
+			require.NoError(t, err)
+			require.NoError(t, db.db.Update(func(tx *bolt.Tx) error {
+				return tx.Bucket(bucketMetadata).Put(metaKeyGeneration, encodeUint64(^uint64(0)))
+			}))
+			before := requireValidSnapshot(t, db)
+			patched := deepCloneEndpoint(t, endpoint)
+			patched.IfnameToIPMap["eth0"].HostVethName = "patched-veth"
+
+			changed, err := db.PatchEndpointIfGeneration(
+				context.Background(),
+				before.Metadata.Generation,
+				assignment.Pod,
+				patched,
+				testNow,
+				testDeleteIntentTTL,
+				nil,
+			)
+			require.ErrorIs(t, err, ErrCorrupt)
+			assert.False(t, changed)
+			assert.Equal(t, before, requireValidSnapshot(t, db))
+		})
+
+		t.Run("callback cancellation", func(t *testing.T) {
+			db, _ := openTestDB(t)
+			assignment, endpoint := seedOwnershipInventory(t, db)
+			_, err := db.AssignEndpoint(
+				context.Background(),
+				assignment,
+				endpoint,
+				testNow,
+				testDeleteIntentTTL,
+			)
+			require.NoError(t, err)
+			before := requireValidSnapshot(t, db)
+			patched := deepCloneEndpoint(t, endpoint)
+			patched.IfnameToIPMap["eth0"].HostVethName = "patched-veth"
+			ctx, cancel := context.WithCancel(context.Background())
+
+			changed, err := db.PatchEndpointIfGeneration(
+				ctx,
+				before.Metadata.Generation,
+				assignment.Pod,
+				patched,
+				testNow,
+				testDeleteIntentTTL,
+				func(Snapshot) error {
+					cancel()
+					return nil
+				},
+			)
+			require.ErrorIs(t, err, context.Canceled)
+			assert.False(t, changed)
+			assert.Equal(t, before, requireValidSnapshot(t, db))
+		})
+	})
+
+	t.Run("expired intent is retained", func(t *testing.T) {
+		db, _ := openTestDB(t)
+		assignment, endpoint := seedOwnershipInventory(t, db)
+		_, err := db.AssignEndpoint(
+			context.Background(),
+			assignment,
+			endpoint,
+			testNow,
+			testDeleteIntentTTL,
+		)
+		require.NoError(t, err)
+		createdAt := testNow.Add(-testDeleteIntentTTL)
+		require.NoError(t, db.Update(context.Background(), func(tx *WriteTx) error {
+			return tx.PutDeleteIntent(assignment.Pod.InfraContainerID, DeleteIntent{CreatedAt: createdAt})
+		}))
+		before := requireValidSnapshot(t, db)
+		beforeAssignment := rawValue(t, db, bucketAssignments, []byte(assignment.Pod.PodKey))
+		beforeIntent := rawValue(t, db, bucketDeleteIntents, []byte(assignment.Pod.InfraContainerID))
+		beforeOwners := map[string][]byte{}
+		for _, ipID := range assignment.IPIDs {
+			beforeOwners[ipID] = rawValue(t, db, bucketIPOwners, []byte(ipID))
+		}
+		patched := deepCloneEndpoint(t, endpoint)
+		patched.IfnameToIPMap["eth0"].HNSNetworkID = "patched-network"
+
+		changed, err := db.PatchEndpointIfGeneration(
+			context.Background(),
+			before.Metadata.Generation,
+			assignment.Pod,
+			patched,
+			testNow,
+			testDeleteIntentTTL,
+			nil,
+		)
+		require.NoError(t, err)
+		assert.True(t, changed)
+		after := requireValidSnapshot(t, db)
+		assert.Equal(t, DeleteIntent{CreatedAt: createdAt}, after.DeleteIntents[assignment.Pod.InfraContainerID])
+		assert.Equal(t, beforeAssignment, rawValue(t, db, bucketAssignments, []byte(assignment.Pod.PodKey)))
+		assert.Equal(t, beforeIntent, rawValue(t, db, bucketDeleteIntents, []byte(assignment.Pod.InfraContainerID)))
+		for _, ipID := range assignment.IPIDs {
+			assert.Equal(t, beforeOwners[ipID], rawValue(t, db, bucketIPOwners, []byte(ipID)))
+		}
+	})
+
+	t.Run("canceled while waiting for writer gate", func(t *testing.T) {
+		db, _ := openTestDB(t)
+		assignment, endpoint := seedOwnershipInventory(t, db)
+		_, err := db.AssignEndpoint(
+			context.Background(),
+			assignment,
+			endpoint,
+			testNow,
+			testDeleteIntentTTL,
+		)
+		require.NoError(t, err)
+		before := requireValidSnapshot(t, db)
+		patched := deepCloneEndpoint(t, endpoint)
+		patched.IfnameToIPMap["eth0"].MACAddress = "00:11:22:33:44:66"
+		db.writeGate <- struct{}{}
+		t.Cleanup(func() {
+			select {
+			case <-db.writeGate:
+			default:
+			}
+		})
+		ctx, cancel := context.WithCancel(context.Background())
+		result := make(chan error, 1)
+		go func() {
+			_, patchErr := db.PatchEndpointIfGeneration(
+				ctx,
+				before.Metadata.Generation,
+				assignment.Pod,
+				patched,
+				testNow,
+				testDeleteIntentTTL,
+				nil,
+			)
+			result <- patchErr
+		}()
+		cancel()
+		require.ErrorIs(t, <-result, context.Canceled)
+		<-db.writeGate
+		assert.Equal(t, before, requireValidSnapshot(t, db))
+	})
+
+	t.Run("read only and closed", func(t *testing.T) {
+		db, path := openTestDB(t)
+		assignment, endpoint := seedOwnershipInventory(t, db)
+		_, err := db.AssignEndpoint(
+			context.Background(),
+			assignment,
+			endpoint,
+			testNow,
+			testDeleteIntentTTL,
+		)
+		require.NoError(t, err)
+		before := requireValidSnapshot(t, db)
+		require.NoError(t, db.Close())
+
+		_, err = db.PatchEndpointIfGeneration(
+			context.Background(),
+			before.Metadata.Generation,
+			assignment.Pod,
+			endpoint,
+			testNow,
+			testDeleteIntentTTL,
+			nil,
+		)
+		require.ErrorIs(t, err, bolterrors.ErrDatabaseNotOpen)
+
+		readOnly, err := Open(path, Options{ReadOnly: true})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, readOnly.Close()) })
+		patched := deepCloneEndpoint(t, endpoint)
+		patched.IfnameToIPMap["eth0"].HostVethName = "patched-veth"
+		_, err = readOnly.PatchEndpointIfGeneration(
+			context.Background(),
+			before.Metadata.Generation,
+			assignment.Pod,
+			patched,
+			testNow,
+			testDeleteIntentTTL,
+			nil,
+		)
+		require.ErrorIs(t, err, bolterrors.ErrDatabaseReadOnly)
+		assert.Equal(t, before, requireValidSnapshot(t, readOnly))
+	})
+}
+
 func TestPruneDeleteIntents(t *testing.T) {
 	db, _ := openTestDB(t)
 	require.NoError(t, db.Update(context.Background(), func(tx *WriteTx) error {

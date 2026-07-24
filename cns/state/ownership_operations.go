@@ -369,6 +369,41 @@ func (s *DB) PatchEndpoint(
 	now time.Time,
 	deleteIntentTTL time.Duration,
 ) (bool, error) {
+	return s.patchEndpoint(ctx, nil, pod, endpoint, now, deleteIntentTTL, nil)
+}
+
+// PatchEndpointIfGeneration atomically replaces endpoint details only at
+// expectedGeneration. beforeCommit may validate the complete candidate
+// snapshot before the endpoint is written.
+func (s *DB) PatchEndpointIfGeneration(
+	ctx context.Context,
+	expectedGeneration uint64,
+	pod PodIdentity,
+	endpoint EndpointRecord,
+	now time.Time,
+	deleteIntentTTL time.Duration,
+	beforeCommit func(Snapshot) error,
+) (bool, error) {
+	return s.patchEndpoint(
+		ctx,
+		&expectedGeneration,
+		pod,
+		endpoint,
+		now,
+		deleteIntentTTL,
+		beforeCommit,
+	)
+}
+
+func (s *DB) patchEndpoint(
+	ctx context.Context,
+	expectedGeneration *uint64,
+	pod PodIdentity,
+	endpoint EndpointRecord,
+	now time.Time,
+	deleteIntentTTL time.Duration,
+	beforeCommit func(Snapshot) error,
+) (bool, error) {
 	normalizedPod, err := normalizePodIdentity(pod, true)
 	if err != nil {
 		return false, err
@@ -389,6 +424,14 @@ func (s *DB) PatchEndpoint(
 		current, snapshotErr := tx.validSnapshot()
 		if snapshotErr != nil {
 			return false, snapshotErr
+		}
+		if expectedGeneration != nil && current.Metadata.Generation != *expectedGeneration {
+			return false, fmt.Errorf(
+				"%w: expected=%d actual=%d",
+				ErrStaleGeneration,
+				*expectedGeneration,
+				current.Metadata.Generation,
+			)
 		}
 		if intent, ok := current.DeleteIntents[normalizedPod.InfraContainerID]; ok &&
 			deleteIntentLive(intent, now, deleteIntentTTL) {
@@ -415,7 +458,24 @@ func (s *DB) PatchEndpoint(
 			return false, equalErr
 		}
 		if equal {
+			if beforeCommit != nil {
+				if err := beforeCommit(current); err != nil {
+					return false, fmt.Errorf("validating endpoint patch candidate: %w", err)
+				}
+			}
 			return false, nil
+		}
+		if candidate.Metadata.Generation == math.MaxUint64 {
+			return false, corrupt("generation overflow", nil)
+		}
+		candidate.Metadata.Generation++
+		if beforeCommit != nil {
+			if callbackErr := beforeCommit(candidate); callbackErr != nil {
+				return false, fmt.Errorf("validating endpoint patch candidate: %w", callbackErr)
+			}
+		}
+		if contextErr := ctx.Err(); contextErr != nil {
+			return false, fmt.Errorf("committing endpoint patch: %w", contextErr)
 		}
 		data, encodeErr := encodeJSONInput(normalizedEndpoint)
 		if encodeErr != nil {

@@ -61,6 +61,15 @@ type durableStateOperations struct {
 		time.Duration,
 		func(state.Snapshot) error,
 	) (bool, error)
+	patchEndpoint func(
+		context.Context,
+		uint64,
+		state.PodIdentity,
+		state.EndpointRecord,
+		time.Time,
+		time.Duration,
+		func(state.Snapshot) error,
+	) (bool, error)
 	releaseEndpoint func(
 		context.Context,
 		uint64,
@@ -96,6 +105,7 @@ type durableStateAdapter struct {
 	projectEndpointState  bool
 	buildProjection       func(state.Snapshot) (durableCacheProjection, error)
 	applyAddProjection    func(durableCacheProjection) error
+	applyPatchProjection  func(durableCacheProjection) error
 	applyDeleteProjection func(durableCacheProjection) error
 	now                   func() time.Time
 	projected             bool
@@ -161,6 +171,7 @@ func newDurableStateAdapter(
 		snapshot:           db.Snapshot,
 		replace:            db.ReplaceDurableState,
 		assignEndpoint:     db.AssignEndpointIfGeneration,
+		patchEndpoint:      db.PatchEndpointIfGeneration,
 		releaseEndpoint:    db.ReleaseEndpointIfGeneration,
 		deleteEndpoint:     db.DeleteEndpointRecordIfGeneration,
 		pruneDeleteIntents: db.PruneDeleteIntentsIfGeneration,
