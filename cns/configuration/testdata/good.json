@@ -1,6 +1,8 @@
 {
     "ChannelMode": "Direct",
     "EnableBoltStateStore": false,
+    "EnablePersistentStateDebug": false,
+    "EnablePersistentStateFaults": false,
     "InitializeFromCNI": true,
     "StateStoreBackend": "json",
     "StateStoreMode": "normal",

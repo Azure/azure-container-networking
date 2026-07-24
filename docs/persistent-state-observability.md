@@ -1,23 +1,74 @@
 # CNS persistent state observability
 
-The Bolt persistent state engine provides low-cardinality metrics, safe status, and
-structured lifecycle events before it becomes a supported runtime mode. R13 does
-not activate the backend, register HTTP routes, or add runtime configuration.
+The Bolt persistent state engine is an opt-in CNS-owned endpoint-state backend.
+This release ships dark: every checked-in configuration keeps
+`EnableBoltStateStore=false`, `StateStoreBackend=json`,
+`StateStoreMode=normal`, `EnablePersistentStateDebug=false`, and
+`EnablePersistentStateFaults=false`.
 
 ```mermaid
-flowchart LR
-    Caller[Future R14/R15 runtime boundary] --> DB[Persistent state DB]
-    DB --> Tx[View and Update metrics]
-    DB --> Life[Startup, import, rollback, and boot metrics]
-    DB --> Status[Safe status read]
-    Status --> Gauges[Metadata and count gauges]
-    Status --> SafeHandler[Unregistered safe-status handler]
-    DB --> Snapshot[Logical snapshot]
-    Snapshot --> Gate{Explicit debug gate}
-    Gate -->|false by default| NotFound[404]
-    Gate -->|true| DebugHandler[Unregistered debug handler]
-    DB --> Logs[Stable lifecycle success/no-op logs]
+flowchart TD
+    Config[Load, default, validate config] --> Choice{Validated backend and mode}
+    Choice -->|default or cooling| JSON[Open legacy JSON stores]
+    Choice -->|Bolt normal| Bolt[Open and verify Bolt]
+    Choice -->|explicit rollback| Export[Open Bolt, export and verify JSON]
+    Bolt --> Restore[Restore cache projection]
+    Restore --> Import{CNI ownership import requested?}
+    Import -->|no| Unified[Activate unified provider]
+    Import -->|yes| Preflight[Query stateful CNI, preflight, import and verify]
+    Preflight --> Unified
+    Export --> JSON
+    JSON --> Listener[Start CNS listener]
+    Unified --> Listener
 ```
+
+## Supported configuration matrix
+
+`ManageEndpointState=true` is required whenever the Bolt master flag is enabled.
+Bolt is not supported while CNI owns endpoint state.
+
+| Purpose | Master flag | Backend | Mode | CNS owns endpoint state | Result |
+| --- | --- | --- | --- | --- | --- |
+| Shipped default | false | json | normal | either | JSON |
+| CNS-owned Bolt | true | bolt | normal | true | Bolt |
+| Explicit rollback | true | json | rollback-to-json | true | Export Bolt to JSON, then JSON |
+| Post-rollback cooling | true | json | normal | true | JSON |
+| Master disabled after cooling | false | json | normal | either | JSON |
+
+All other combinations fail validation, including Bolt with the master flag
+disabled, rollback with the master flag disabled, Bolt plus rollback mode, any
+enabled master flag with `ManageEndpointState=false`, invalid enum values, debug
+outside normal Bolt, and all fault-hook requests. `EnableStateMigration` retains
+its existing CNI-to-CNS ownership meaning; it is not a backend selector.
+
+Configuration is validated before any database or legacy state file is opened.
+Normal Bolt startup errors, including lock, schema, authority, import, boot, and
+restore failures, stop startup before the CNS listener starts. CNS never falls
+back automatically to JSON. After a completed import, Bolt is authoritative and
+legacy JSON files are ignored even if they are corrupt.
+
+## CNI-to-CNS ownership handoff
+
+Set `EnableStateMigration=true` and `InitializeFromCNI=true` together only for
+the import restart while the stateful CNI remains installed and callable. CNS
+queries CNI, validates record counts and identities, imports and verifies all
+records, restores its cache, and only then activates the unified provider.
+Query, preflight, import, or restore failure blocks startup without a partial
+cache or fallback. Installing stateless CNI is a separate operator action after
+that successful restart; CNS does not install or switch CNI.
+
+## Rollback sequence
+
+1. With CNS still owning endpoint state, set the backend to `json` and mode to
+   `rollback-to-json`, leaving the master flag enabled.
+2. Restart CNS. It opens authoritative Bolt state, exports and verifies current
+   JSON stores, then runs on JSON.
+3. Set mode to `normal` while leaving the master flag enabled and restart for
+   the cooling state.
+4. Disable the master flag only after the cooling restart.
+
+Do not disable the master flag or select JSON normal before completing rollback.
+A later re-upgrade imports the current JSON state rather than stale Bolt state.
 
 ## Signals
 
@@ -128,17 +179,24 @@ storage size, bounded invariant state, and aggregate record counts. It never
 contains the database path, boot value, node identity, pod identity, IP address,
 endpoint payload, token, or raw Bolt page.
 
-When registered in a future release, a valid GET returns 200 even when
+In normal Bolt mode the safe status route is registered on the existing local
+CNS transport. A valid GET returns 200 even when
 `invariantStatus` is `failed`; the bounded failure is the status representation,
 not a transport failure. Provider failures return 503, canceled requests return
 408, method mismatches return 405, and GET requests with bodies return 400.
 
 The full logical snapshot contains pod, IP, and endpoint data. Its handler
-requires an explicit behavioral `enabled` boolean and returns 404 while disabled.
-Authorization tokens are removed before transport. The constructor is available
-for future composition, but **no route is registered and the endpoint is not
-enabled in R13**. Future callers must default the gate to false and protect the
-route as sensitive debug access.
+is registered only for normal Bolt when `EnablePersistentStateDebug=true`.
+Authorization tokens are removed before transport. This route exposes sensitive
+logical state and is not an authentication mechanism; keep it disabled except
+during explicitly controlled local diagnosis.
+
+There are no runtime persistent-state fault hooks in this release. Setting
+`EnablePersistentStateFaults=true` fails validation, so no missing, wrong, or
+default token can make a hook reachable. Any future hook must remain on the
+existing local CNS transport and require both an explicit default-false gate and
+a high-entropy out-of-band token on every invocation. Tokens must never be
+logged, persisted, returned by status, or used as metric labels.
 
 ## Lifecycle logs and error ownership
 
@@ -151,9 +209,9 @@ Successful and no-op lifecycle outcomes use stable messages:
 
 Fields are typed and bounded: backend, authority, schema, generation, operation,
 result, duration, and aggregate record counts. Transaction hot paths do not log.
-The state package returns failures without logging them. The R14 startup adapter
-and R15 request/runtime handling boundaries own the single error log after they
-decide retry, rollback, or process-failure behavior.
+The state package returns failures without logging them. The CNS startup and
+request/runtime boundaries own the single error log after deciding whether to
+fail the process or return the request error.
 
 ## Migration and rollback diagnosis
 
@@ -164,8 +222,8 @@ decide retry, rollback, or process-failure behavior.
    bounded invariant state.
 5. Treat schema, authority, or structural invariant failures as unsafe state;
    do not inspect or publish raw records to diagnose them.
-6. At the R14/R15 owner boundary, retain the returned error once and apply the
-   documented retry or rollback policy.
+6. At the owner boundary, retain the returned error once and apply only the
+   explicit rollback policy; never fall back automatically.
 
 ## Soak checklist
 

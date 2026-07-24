@@ -148,20 +148,57 @@ func NewDurableStateLifecycle(
 	db *state.DB,
 	projectEndpointState bool,
 ) (restore func(context.Context) error, closeFn func() error, err error) {
+	return NewDurableStateLifecycleWithCNIImport(service, db, projectEndpointState, nil)
+}
+
+// NewDurableStateLifecycleWithCNIImport binds unified state and optionally
+// imports live stateful CNI ownership before making the adapter selectable.
+func NewDurableStateLifecycleWithCNIImport(
+	service *HTTPRestService,
+	db *state.DB,
+	projectEndpointState bool,
+	cniState cns.CNIEndpointStateProvider,
+) (restore func(context.Context) error, closeFn func() error, err error) {
 	adapter, err := newDurableStateAdapter(service, db, projectEndpointState)
 	if err != nil {
 		return nil, nil, err
 	}
 	if projectEndpointState {
 		return func(ctx context.Context) error {
-			if err := adapter.restore(ctx); err != nil {
+			if cniState == nil {
+				if err := adapter.restore(ctx); err != nil {
+					return err
+				}
+			} else {
+				records, err := cniState(ctx)
+				if err != nil {
+					return err
+				}
+				if err := adapter.prepare(ctx); err != nil {
+					return err
+				}
+				plan, err := adapter.preflightCNIEndpointImport(ctx, records)
+				if err != nil {
+					return err
+				}
+				if err := adapter.importCNIEndpointState(ctx, records, plan); err != nil {
+					return err
+				}
+			}
+			if _, err := db.RefreshMetrics(ctx); err != nil {
 				return err
 			}
 			service.setUnifiedStateAdapter(adapter)
 			return nil
 		}, adapter.Close, nil
 	}
-	return adapter.restore, adapter.Close, nil
+	return func(ctx context.Context) error {
+		if err := adapter.restore(ctx); err != nil {
+			return err
+		}
+		_, err := db.RefreshMetrics(ctx)
+		return err
+	}, adapter.Close, nil
 }
 
 // NewCNIEndpointImportLifecycle creates an import-only adapter for transferring
@@ -374,6 +411,26 @@ func (a *durableStateAdapter) restore(ctx context.Context) error {
 		}
 	}
 	a.applyProjection(projection)
+	return nil
+}
+
+func (a *durableStateAdapter) prepare(ctx context.Context) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	snapshot, err := a.store.snapshot(ctx)
+	if err != nil {
+		return err
+	}
+	projection, err := a.buildProjection(snapshot)
+	if err != nil {
+		return err
+	}
+	if err := a.verifyStatus(ctx, projection.generation); err != nil {
+		return err
+	}
+	a.generation = projection.generation
+	a.projected = true
 	return nil
 }
 

@@ -14,6 +14,13 @@ import (
 	"github.com/Azure/azure-container-networking/cns/state"
 )
 
+const (
+	// PersistentStateStatusPath exposes bounded persistent-state metadata and counts.
+	PersistentStateStatusPath = "/debug/persistent-state/status"
+	// PersistentStateSnapshotPath exposes the token-redacted logical state when explicitly enabled.
+	PersistentStateSnapshotPath = "/debug/persistent-state/snapshot"
+)
+
 var (
 	errNilPersistentStateStatusProvider   = errors.New("persistent state status provider is nil")
 	errNilPersistentStateSnapshotProvider = errors.New("persistent state snapshot provider is nil")
@@ -64,6 +71,36 @@ func NewPersistentStateSnapshotHandler(
 		snapshot: snapshot,
 		enabled:  enabled,
 	}, nil
+}
+
+// RegisterPersistentStateRoutes registers the safe status route and optionally the logical snapshot route.
+func (service *HTTPRestService) RegisterPersistentStateRoutes(
+	status func(context.Context) (state.Status, error),
+	snapshot func(context.Context) (state.Snapshot, error),
+	enableSnapshot bool,
+) error {
+	if service == nil || service.Service == nil || service.Listener == nil {
+		return errors.New("persistent state listener is nil")
+	}
+	service.persistentStateRoutesOnce.Do(func() {
+		statusHandler, err := NewPersistentStateStatusHandler(status)
+		if err != nil {
+			service.persistentStateRoutesErr = err
+			return
+		}
+		mux := service.Listener.GetMux()
+		mux.Handle(PersistentStateStatusPath, statusHandler)
+		if !enableSnapshot {
+			return
+		}
+		snapshotHandler, err := NewPersistentStateSnapshotHandler(snapshot, true)
+		if err != nil {
+			service.persistentStateRoutesErr = err
+			return
+		}
+		mux.Handle(PersistentStateSnapshotPath, snapshotHandler)
+	})
+	return service.persistentStateRoutesErr
 }
 
 func (h *PersistentStateSnapshotHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

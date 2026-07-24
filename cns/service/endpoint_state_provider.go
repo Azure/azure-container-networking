@@ -6,6 +6,8 @@ package main
 import (
 	"errors"
 	"fmt"
+
+	"github.com/Azure/azure-container-networking/cns/configuration"
 )
 
 var (
@@ -20,7 +22,15 @@ const (
 	endpointStateProviderUnified endpointStateProvider = "unified"
 )
 
-const productionEndpointStateProvider = endpointStateProviderJSON
+func selectEndpointStateProvider(
+	backend configuration.StateStoreBackend,
+	mode configuration.StateStoreMode,
+) endpointStateProvider {
+	if backend == configuration.StateStoreBackendBolt && mode == configuration.StateStoreModeNormal {
+		return endpointStateProviderUnified
+	}
+	return endpointStateProviderJSON
+}
 
 func (provider endpointStateProvider) restoresStateFromJSON() bool {
 	return provider == endpointStateProviderJSON

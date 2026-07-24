@@ -7,12 +7,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/cns/state"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/processlock"
 	"github.com/Azure/azure-container-networking/store"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 var (
@@ -61,8 +64,22 @@ type boltPersistentStateDependencies struct {
 	restoreJSON     func(context.Context, store.KeyValueStore, store.KeyValueStore) error
 }
 
+var (
+	productionPersistentStateMetricsOnce sync.Once
+	productionPersistentStateMetrics     *state.Metrics
+	productionPersistentStateMetricsErr  error
+)
+
+func getProductionPersistentStateMetrics() (*state.Metrics, error) {
+	productionPersistentStateMetricsOnce.Do(func() {
+		productionPersistentStateMetrics, productionPersistentStateMetricsErr = state.NewMetrics(prometheus.DefaultRegisterer)
+	})
+	return productionPersistentStateMetrics, productionPersistentStateMetricsErr
+}
+
 func productionBoltPersistentStateDependencies(
 	service *restserver.HTTPRestService,
+	cniState cns.CNIEndpointStateProvider,
 	restoreJSON func(context.Context, store.KeyValueStore, store.KeyValueStore) error,
 ) boltPersistentStateDependencies {
 	return boltPersistentStateDependencies{
@@ -74,7 +91,12 @@ func productionBoltPersistentStateDependencies(
 		openDB:        state.OpenContext,
 		currentBootID: platform.BootID,
 		attachBolt: func(db *state.DB, projectEndpointState bool) (persistentStateAttachment, error) {
-			restore, closeFn, err := restserver.NewDurableStateLifecycle(service, db, projectEndpointState)
+			restore, closeFn, err := restserver.NewDurableStateLifecycleWithCNIImport(
+				service,
+				db,
+				projectEndpointState,
+				cniState,
+			)
 			if err != nil {
 				return persistentStateAttachment{}, fmt.Errorf("creating durable state lifecycle: %w", err)
 			}
@@ -180,14 +202,13 @@ func newBoltPersistentStateStartup(
 	if _, bootErr := db.ApplyBoot(ctx, bootID, config.bootPolicy); bootErr != nil {
 		return nil, closeDBAfterError(bootErr)
 	}
-	if _, metricsErr := db.RefreshMetrics(ctx); metricsErr != nil {
-		return nil, closeDBAfterError(metricsErr)
-	}
 	attachment, attachmentErr := deps.attachBolt(db, config.manageEndpointState)
 	if attachmentErr != nil {
 		return nil, closeDBAfterError(fmt.Errorf("attaching Bolt persistent state: %w", attachmentErr))
 	}
 	startup.attachments = append(startup.attachments, attachment)
+	startup.status = db.Status
+	startup.snapshot = db.Snapshot
 	return startup, nil
 }
 

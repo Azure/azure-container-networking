@@ -1,14 +1,53 @@
 package configuration
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestPersistentStateManifestDefaultsRemainDark(t *testing.T) {
+	repositoryRoot := filepath.Clean(filepath.Join("..", ".."))
+	required := []string{
+		`"EnableBoltStateStore": false`,
+		`"EnablePersistentStateDebug": false`,
+		`"EnablePersistentStateFaults": false`,
+		`"StateStoreBackend": "json"`,
+		`"StateStoreMode": "normal"`,
+	}
+	found := 0
+	err := filepath.WalkDir(repositoryRoot, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || (filepath.Ext(path) != ".json" && filepath.Ext(path) != ".yaml" && filepath.Ext(path) != ".yml") {
+			return nil
+		}
+		contents, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		text := string(contents)
+		if !strings.Contains(text, `"EnableBoltStateStore"`) {
+			return nil
+		}
+		found++
+		for _, value := range required {
+			assert.Contains(t, text, value, "%s must explicitly preserve dark persistent-state defaults", path)
+		}
+		assert.NotContains(t, text, `"EnableBoltStateStore": true`, path)
+		assert.NotContains(t, text, `"StateStoreBackend": "bolt"`, path)
+		return nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 17, found)
+}
 
 func TestGetConfigFilePath(t *testing.T) {
 	execpath, _ := common.GetExecutableDirectory()
@@ -317,142 +356,86 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 }
 
 func TestCNSConfigValidateStateStore(t *testing.T) {
-	tests := []struct {
-		name                 string
-		enableBoltStateStore bool
-		enableStateMigration bool
-		backend              StateStoreBackend
-		mode                 StateStoreMode
-		wantErr              error
-	}{
-		{
-			name:    "json normal",
-			backend: StateStoreBackendJSON,
-			mode:    StateStoreModeNormal,
-		},
-		{
-			name:    "json rollback",
-			backend: StateStoreBackendJSON,
-			mode:    StateStoreModeRollbackToJSON,
-			wantErr: ErrStateStoreFeatureUnavailable,
-		},
-		{
-			name:    "bolt normal",
-			backend: StateStoreBackendBolt,
-			mode:    StateStoreModeNormal,
-			wantErr: ErrStateStoreFeatureUnavailable,
-		},
-		{
-			name:    "bolt rollback",
-			backend: StateStoreBackendBolt,
-			mode:    StateStoreModeRollbackToJSON,
-			wantErr: ErrStateStoreFeatureUnavailable,
-		},
-		{
-			name:                 "enabled json normal",
-			enableBoltStateStore: true,
-			backend:              StateStoreBackendJSON,
-			mode:                 StateStoreModeNormal,
-			wantErr:              ErrStateStoreFeatureUnavailable,
-		},
-		{
-			name:                 "enabled json rollback",
-			enableBoltStateStore: true,
-			backend:              StateStoreBackendJSON,
-			mode:                 StateStoreModeRollbackToJSON,
-			wantErr:              ErrStateStoreFeatureUnavailable,
-		},
-		{
-			name:                 "enabled bolt normal",
-			enableBoltStateStore: true,
-			backend:              StateStoreBackendBolt,
-			mode:                 StateStoreModeNormal,
-			wantErr:              ErrStateStoreFeatureUnavailable,
-		},
-		{
-			name:                 "enabled bolt rollback",
-			enableBoltStateStore: true,
-			backend:              StateStoreBackendBolt,
-			mode:                 StateStoreModeRollbackToJSON,
-			wantErr:              ErrStateStoreFeatureUnavailable,
-		},
-		{
-			name:                 "migration json normal",
-			enableStateMigration: true,
-			backend:              StateStoreBackendJSON,
-			mode:                 StateStoreModeNormal,
-		},
-		{
-			name:                 "migration json rollback",
-			enableStateMigration: true,
-			backend:              StateStoreBackendJSON,
-			mode:                 StateStoreModeRollbackToJSON,
-			wantErr:              ErrStateStoreFeatureUnavailable,
-		},
-		{
-			name:                 "migration bolt normal",
-			enableStateMigration: true,
-			backend:              StateStoreBackendBolt,
-			mode:                 StateStoreModeNormal,
-			wantErr:              ErrStateStoreFeatureUnavailable,
-		},
-		{
-			name:                 "migration bolt rollback",
-			enableStateMigration: true,
-			backend:              StateStoreBackendBolt,
-			mode:                 StateStoreModeRollbackToJSON,
-			wantErr:              ErrStateStoreFeatureUnavailable,
-		},
-		{
-			name:                 "migration enabled json normal",
-			enableBoltStateStore: true,
-			enableStateMigration: true,
-			backend:              StateStoreBackendJSON,
-			mode:                 StateStoreModeNormal,
-			wantErr:              ErrStateStoreFeatureUnavailable,
-		},
-		{
-			name:                 "migration enabled json rollback",
-			enableBoltStateStore: true,
-			enableStateMigration: true,
-			backend:              StateStoreBackendJSON,
-			mode:                 StateStoreModeRollbackToJSON,
-			wantErr:              ErrStateStoreFeatureUnavailable,
-		},
-		{
-			name:                 "migration enabled bolt normal",
-			enableBoltStateStore: true,
-			enableStateMigration: true,
-			backend:              StateStoreBackendBolt,
-			mode:                 StateStoreModeNormal,
-			wantErr:              ErrStateStoreFeatureUnavailable,
-		},
-		{
-			name:                 "migration enabled bolt rollback",
-			enableBoltStateStore: true,
-			enableStateMigration: true,
-			backend:              StateStoreBackendBolt,
-			mode:                 StateStoreModeRollbackToJSON,
-			wantErr:              ErrStateStoreFeatureUnavailable,
-		},
+	boolValues := []bool{false, true}
+	backends := []StateStoreBackend{StateStoreBackendJSON, StateStoreBackendBolt}
+	modes := []StateStoreMode{StateStoreModeNormal, StateStoreModeRollbackToJSON}
+	for _, enable := range boolValues {
+		for _, backend := range backends {
+			for _, mode := range modes {
+				for _, manage := range boolValues {
+					for _, debug := range boolValues {
+						for _, faults := range boolValues {
+							for _, migrate := range boolValues {
+								for _, initializeFromCNI := range boolValues {
+									config := CNSConfig{
+										EnableBoltStateStore:        enable,
+										EnablePersistentStateDebug:  debug,
+										EnablePersistentStateFaults: faults,
+										EnableStateMigration:        migrate,
+										InitializeFromCNI:           initializeFromCNI,
+										ManageEndpointState:         manage,
+										StateStoreBackend:           backend,
+										StateStoreMode:              mode,
+									}
+									name := fmt.Sprintf(
+										"enable=%t/backend=%s/mode=%s/manage=%t/debug=%t/faults=%t/migrate=%t/from-cni=%t",
+										enable,
+										backend,
+										mode,
+										manage,
+										debug,
+										faults,
+										migrate,
+										initializeFromCNI,
+									)
+									t.Run(name, func(t *testing.T) {
+										wantErr := expectedStateStoreValidationError(config)
+										err := config.ValidateStateStore()
+										if wantErr == nil {
+											require.NoError(t, err)
+											return
+										}
+										require.ErrorIs(t, err, wantErr)
+									})
+								}
+							}
+						}
+					}
+				}
+			}
+		}
 	}
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			config := CNSConfig{
-				EnableBoltStateStore: tt.enableBoltStateStore,
-				EnableStateMigration: tt.enableStateMigration,
-				StateStoreBackend:    tt.backend,
-				StateStoreMode:       tt.mode,
-			}
-
-			err := config.ValidateStateStore()
-			if tt.wantErr == nil {
-				require.NoError(t, err)
-				return
-			}
-			require.ErrorIs(t, err, tt.wantErr)
-		})
+func expectedStateStoreValidationError(config CNSConfig) error {
+	if config.EnablePersistentStateFaults {
+		return ErrStateStoreFeatureUnavailable
+	}
+	if !config.EnableBoltStateStore {
+		if config.StateStoreBackend != StateStoreBackendJSON ||
+			config.StateStoreMode != StateStoreModeNormal ||
+			config.EnablePersistentStateDebug {
+			return ErrInvalidStateStoreConfig
+		}
+		return nil
+	}
+	if !config.ManageEndpointState {
+		return ErrInvalidStateStoreConfig
+	}
+	switch {
+	case config.StateStoreBackend == StateStoreBackendBolt && config.StateStoreMode == StateStoreModeNormal:
+		if config.EnableStateMigration && !config.InitializeFromCNI {
+			return ErrInvalidStateStoreConfig
+		}
+		return nil
+	case config.StateStoreBackend == StateStoreBackendJSON &&
+		(config.StateStoreMode == StateStoreModeNormal || config.StateStoreMode == StateStoreModeRollbackToJSON):
+		if config.EnablePersistentStateDebug {
+			return ErrInvalidStateStoreConfig
+		}
+		return nil
+	default:
+		return ErrInvalidStateStoreConfig
 	}
 }
 
@@ -471,21 +454,21 @@ func TestCNSConfigValidateStateStoreDefaultsAndInvalidEnums(t *testing.T) {
 			config: CNSConfig{
 				EnableBoltStateStore: true,
 			},
-			wantErr: ErrStateStoreFeatureUnavailable,
+			wantErr: ErrInvalidStateStoreConfig,
 		},
 		{
 			name: "bolt with default mode",
 			config: CNSConfig{
 				StateStoreBackend: StateStoreBackendBolt,
 			},
-			wantErr: ErrStateStoreFeatureUnavailable,
+			wantErr: ErrInvalidStateStoreConfig,
 		},
 		{
 			name: "rollback with default backend",
 			config: CNSConfig{
 				StateStoreMode: StateStoreModeRollbackToJSON,
 			},
-			wantErr: ErrStateStoreFeatureUnavailable,
+			wantErr: ErrInvalidStateStoreConfig,
 		},
 		{
 			name: "invalid backend",

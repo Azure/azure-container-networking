@@ -7,6 +7,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,14 +18,34 @@ var (
 )
 
 func TestEndpointStateProviderSelection(t *testing.T) {
-	assert.True(t, productionEndpointStateProvider.restoresStateFromJSON())
+	t.Run("configuration matrix", func(t *testing.T) {
+		tests := []struct {
+			name            string
+			backend         configuration.StateStoreBackend
+			mode            configuration.StateStoreMode
+			want            endpointStateProvider
+			wantRestoreJSON bool
+		}{
+			{name: "default JSON", backend: configuration.StateStoreBackendJSON, mode: configuration.StateStoreModeNormal, want: endpointStateProviderJSON, wantRestoreJSON: true},
+			{name: "cooling JSON", backend: configuration.StateStoreBackendJSON, mode: configuration.StateStoreModeNormal, want: endpointStateProviderJSON, wantRestoreJSON: true},
+			{name: "rollback JSON", backend: configuration.StateStoreBackendJSON, mode: configuration.StateStoreModeRollbackToJSON, want: endpointStateProviderJSON, wantRestoreJSON: true},
+			{name: "normal Bolt", backend: configuration.StateStoreBackendBolt, mode: configuration.StateStoreModeNormal, want: endpointStateProviderUnified},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				provider := selectEndpointStateProvider(tt.backend, tt.mode)
+				assert.Equal(t, tt.want, provider)
+				assert.Equal(t, tt.wantRestoreJSON, provider.restoresStateFromJSON())
+			})
+		}
+	})
 
 	t.Run("production JSON does not open unified state", func(t *testing.T) {
 		jsonStartup := &persistentStateStartup{}
 		jsonCalls := 0
 		unifiedCalls := 0
 		startup, err := newEndpointStateStartup(
-			productionEndpointStateProvider,
+			selectEndpointStateProvider(configuration.StateStoreBackendJSON, configuration.StateStoreModeNormal),
 			func() (*persistentStateStartup, error) {
 				jsonCalls++
 				return jsonStartup, nil

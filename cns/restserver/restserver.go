@@ -132,6 +132,8 @@ type HTTPRestService struct {
 	stateRestoreLogger         stateRestoreLogger
 	unifiedStateAdapter        *durableStateAdapter
 	faultInjector              *faultInjector
+	persistentStateRoutesOnce  sync.Once
+	persistentStateRoutesErr   error
 }
 
 type CNIConflistGenerator interface {

@@ -29,6 +29,8 @@ data:
       "EnableCNIConflistGeneration": false,
       "EnableIPAMv2": true,
       "EnableBoltStateStore": false,
+      "EnablePersistentStateDebug": false,
+      "EnablePersistentStateFaults": false,
       "EnableStateMigration": false,
       "EnableSubnetScarcity": false,
       "InitializeFromCNI": false,

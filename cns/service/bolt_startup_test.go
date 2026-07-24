@@ -41,6 +41,7 @@ type startupTestLock struct {
 func TestProductionBoltPersistentStateDependencies(t *testing.T) {
 	deps := productionBoltPersistentStateDependencies(
 		nil,
+		nil,
 		func(context.Context, store.KeyValueStore, store.KeyValueStore) error { return nil },
 	)
 	assert.NotNil(t, deps.createDirectory)
@@ -50,6 +51,14 @@ func TestProductionBoltPersistentStateDependencies(t *testing.T) {
 	assert.NotNil(t, deps.currentBootID)
 	assert.NotNil(t, deps.attachBolt)
 	assert.NotNil(t, deps.restoreJSON)
+}
+
+func TestProductionPersistentStateMetricsRegisterOnce(t *testing.T) {
+	first, err := getProductionPersistentStateMetrics()
+	require.NoError(t, err)
+	second, err := getProductionPersistentStateMetrics()
+	require.NoError(t, err)
+	assert.Same(t, first, second)
 }
 
 func (l *startupTestLock) Lock() error {
@@ -143,6 +152,44 @@ func TestBoltPersistentStateStartupFirstImportAndRestart(t *testing.T) {
 	assert.Equal(t, "boot-2", newBootSnapshot.Metadata.BootID)
 	assert.Equal(t, restartedSnapshot.Metadata.Generation+1, newBootSnapshot.Metadata.Generation)
 	require.NoError(t, db.Close())
+}
+
+func TestBoltPersistentStateStartupCorruptDatabaseDoesNotFallBackToValidJSON(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		mode boltStartupMode
+	}{
+		{name: "normal Bolt", mode: boltStartupNormal},
+		{name: "rollback", mode: boltStartupRollback},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			paths := writeStartupLegacyState(t, "valid-json-node")
+			require.NoError(t, os.MkdirAll(filepath.Dir(paths.databaseFile), 0o700))
+			require.NoError(t, os.WriteFile(paths.databaseFile, []byte("corrupt bolt database"), 0o600))
+			var events []string
+			deps, _, _, _ := startupTestDependencies(t, &events)
+			listenerCalls := 0
+
+			startup, err := newBoltPersistentStateStartup(
+				context.Background(),
+				boltPersistentStateConfig{
+					paths:               paths,
+					mode:                tt.mode,
+					manageEndpointState: true,
+					options:             state.Options{Timeout: 50 * time.Millisecond},
+				},
+				func(context.Context) error {
+					listenerCalls++
+					return nil
+				},
+				deps,
+			)
+			require.Error(t, err)
+			assert.Nil(t, startup)
+			assert.Zero(t, listenerCalls)
+			assert.NotContains(t, events, "restore")
+		})
+	}
 }
 
 func TestBoltPersistentStateStartupRollbackAndReupgrade(t *testing.T) {
