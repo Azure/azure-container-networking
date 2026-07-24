@@ -28,9 +28,12 @@ data:
       "EnableAsyncPodDelete": true,
       "EnableCNIConflistGeneration": true,
       "EnableIPAMv2": true,
+      "EnableBoltStateStore": false,
       "EnableStateMigration": false,
       "EnableSubnetScarcity": false,
       "InitializeFromCNI": false,
+      "StateStoreBackend": "json",
+      "StateStoreMode": "normal",
       "ManageEndpointState": true,
       "ProgramSNATIPTables": true
     }
