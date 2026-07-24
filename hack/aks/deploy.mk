@@ -166,3 +166,4 @@ deploy-ebpf-podsubnet-cilium: print-ebpf-cilium-vars deploy-common-ebpf-cilium
 		../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/podsubnet/cilium.yaml \
 		| kubectl apply -f -
 	@$(MAKE) wait-for-cilium
+
