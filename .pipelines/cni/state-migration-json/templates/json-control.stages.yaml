@@ -1,0 +1,136 @@
+parameters:
+  name: ""
+  displayName: ""
+  clusterName: ""
+  clusterType: overlay-up
+  region: ""
+  os: linux
+  nodeCount: 2
+  nodeCountWin: 0
+  vmSize: Standard_D4s_v5
+  vmSizeWin: Standard_D4s_v5
+  osSKU: Ubuntu
+  osSkuWin: Windows2022
+  scaleup: 10
+  iterations: 2
+  deleteResources: true
+
+stages:
+  - stage: create_${{ parameters.name }}
+    displayName: "${{ parameters.displayName }} - Create"
+    dependsOn: []
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+    jobs:
+      - job: create_cluster
+        displayName: "Create representative cluster"
+        steps:
+          - template: ../../load-test-templates/create-cluster-template.yaml
+            parameters:
+              clusterType: ${{ parameters.clusterType }}
+              clusterName: ${{ parameters.clusterName }}
+              nodeCount: ${{ parameters.nodeCount }}
+              nodeCountWin: ${{ parameters.nodeCountWin }}
+              vmSize: ${{ parameters.vmSize }}
+              vmSizeWin: ${{ parameters.vmSizeWin }}
+              region: ${{ parameters.region }}
+              osSKU: ${{ parameters.osSKU }}
+              osSkuWin: ${{ parameters.osSkuWin }}
+              os: ${{ parameters.os }}
+
+  - stage: control_${{ parameters.name }}
+    displayName: "${{ parameters.displayName }} - JSON lifecycle"
+    dependsOn: create_${{ parameters.name }}
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+    jobs:
+      - job: baseline
+        displayName: "Baseline JSON state"
+        steps:
+          - template: baseline-json.steps.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}
+              os: ${{ parameters.os }}
+
+      - job: same_boot_cns_restart
+        displayName: "Same-boot CNS restart"
+        dependsOn: baseline
+        steps:
+          - template: restart-cns-json.steps.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}
+              os: ${{ parameters.os }}
+
+      - job: active_scale_restart
+        displayName: "Active scale and CNS restart"
+        dependsOn: same_boot_cns_restart
+        steps:
+          - template: active-scale-restart.steps.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}
+              os: ${{ parameters.os }}
+              scaleup: ${{ parameters.scaleup }}
+              iterations: ${{ parameters.iterations }}
+
+      - job: node_reboot
+        displayName: "Node reboot"
+        dependsOn: active_scale_restart
+        timeoutInMinutes: 90
+        steps:
+          - template: ../../load-test-templates/restart-node-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}
+              os: ${{ parameters.os }}
+              cni: cniv2
+              region: ${{ parameters.region }}
+              jobName: "state_migration_json_node_reboot"
+              logType: "stateMigrationJSONNodeReboot"
+          - template: ../../load-test-templates/validate-state-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}
+              os: ${{ parameters.os }}
+              cni: cniv2
+              restartCase: "true"
+
+      - job: capture
+        displayName: "Capture JSON state artifact"
+        dependsOn:
+          - baseline
+          - same_boot_cns_restart
+          - active_scale_restart
+          - node_reboot
+        condition: always()
+        steps:
+          - template: capture-json-state.steps.yaml
+            parameters:
+              name: ${{ parameters.name }}
+              clusterName: ${{ parameters.clusterName }}
+              os: ${{ parameters.os }}
+
+      - job: cleanup_workload
+        displayName: "Clean test workload"
+        dependsOn: capture
+        condition: always()
+        steps:
+          - template: cleanup.steps.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}
+
+  - stage: delete_${{ parameters.name }}
+    displayName: "${{ parameters.displayName }} - Delete"
+    dependsOn:
+      - create_${{ parameters.name }}
+      - control_${{ parameters.name }}
+    condition: always()
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+    jobs:
+      - job: delete_cluster
+        displayName: "Delete representative cluster"
+        steps:
+          - template: ../../../templates/delete-cluster.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}
+              sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
+              svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              deleteResources: ${{ parameters.deleteResources }}
