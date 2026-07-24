@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/azure-container-networking/cni/api"
 	"github.com/Azure/azure-container-networking/cni/client"
 	"github.com/Azure/azure-container-networking/cns"
+	pkgerrors "github.com/pkg/errors"
 	kexec "k8s.io/utils/exec"
 )
 
@@ -64,21 +65,17 @@ func endpointStateProvider(exec kexec.Interface) cns.CNIEndpointStateProvider {
 // for pods with multiple IPs (such as in dualstack cases), this means multiple keys in the map
 // will point to the same pod information.
 func cniStateToPodInfoByIP(state *api.AzureCNIState) (map[string]cns.PodInfo, error) {
-	records, err := translateEndpointState(state)
-	if err != nil {
-		return nil, err
-	}
-	podInfoByIP := make(map[string]cns.PodInfo)
-	for _, record := range records {
-		podInfo := cns.NewPodInfo(
-			record.InfraContainerID,
-			record.PodEndpointID,
-			record.PodName,
-			record.PodNamespace,
-		)
-		for _, prefix := range record.IPAddresses {
-			address, _ := netip.AddrFromSlice(prefix.IP)
-			podInfoByIP[address.Unmap().String()] = podInfo
+	podInfoByIP := map[string]cns.PodInfo{}
+	for _, endpoint := range state.ContainerInterfaces {
+		for _, epIP := range endpoint.IPAddresses {
+			podInfo := cns.NewPodInfo(endpoint.ContainerID, endpoint.PodEndpointId, endpoint.PodName, endpoint.PodNamespace)
+
+			ipKey := epIP.IP.String()
+			if prevPodInfo, ok := podInfoByIP[ipKey]; ok {
+				return nil, pkgerrors.Wrapf(cns.ErrDuplicateIP, "duplicate ip %s found for different pods: pod: %+v, pod: %+v", ipKey, podInfo, prevPodInfo)
+			}
+
+			podInfoByIP[ipKey] = podInfo
 		}
 	}
 	return podInfoByIP, nil
