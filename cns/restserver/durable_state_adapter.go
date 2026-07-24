@@ -52,6 +52,8 @@ type durableStateOperations struct {
 	snapshot       func(context.Context) (state.Snapshot, error)
 	replace        func(context.Context, uint64, state.DurableState) (bool, error)
 	updateMetadata func(context.Context, uint64, state.Metadata) (bool, error)
+	preflightCNI   func(context.Context, []cns.CNIEndpointState, bool) (state.CNIImportPreflight, error)
+	importCNI      func(context.Context, []cns.CNIEndpointState, state.CNIImportPreflight) (bool, error)
 	status         func(context.Context) (state.Status, error)
 	close          func() error
 }
@@ -64,8 +66,10 @@ type durableStateAdapter struct {
 	// service lock; the adapter applies complete projections under that lock.
 	mu                   sync.Mutex
 	projectEndpointState bool
+	buildProjection      func(state.Snapshot) (durableCacheProjection, error)
 	projected            bool
 	generation           uint64
+	cniImportActive      bool
 	closeOnce            sync.Once
 	closeErr             error
 }
@@ -106,6 +110,30 @@ func NewDurableStateLifecycle(
 	return adapter.restore, adapter.Close, nil
 }
 
+// NewCNIEndpointImportLifecycle creates an import-only adapter for transferring
+// live stateful CNI ownership into Bolt. It does not install, configure, or
+// select stateless CNI.
+func NewCNIEndpointImportLifecycle(
+	service *HTTPRestService,
+	db *state.DB,
+) (
+	restore func(context.Context) error,
+	preflight func(context.Context, []cns.CNIEndpointState) (state.CNIImportPreflight, error),
+	importState func(context.Context, []cns.CNIEndpointState, state.CNIImportPreflight) error,
+	close func() error,
+	err error,
+) {
+	adapter, err := newDurableStateAdapter(service, db, true)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	return adapter.restore,
+		adapter.preflightCNIEndpointImport,
+		adapter.importCNIEndpointState,
+		adapter.Close,
+		nil
+}
+
 func newDurableStateAdapter(
 	service *HTTPRestService,
 	db *state.DB,
@@ -138,8 +166,10 @@ func newDurableStateAdapter(
 			}
 			return true, nil
 		},
-		status: db.Status,
-		close:  db.Close,
+		preflightCNI: db.PreflightCNIEndpointImport,
+		importCNI:    db.ImportCNIEndpointState,
+		status:       db.Status,
+		close:        db.Close,
 	}, projectEndpointState)
 }
 
@@ -168,7 +198,90 @@ func newDurableStateAdapterWithOperations(
 		service:              service,
 		store:                operations,
 		projectEndpointState: projectEndpointState,
+		buildProjection:      buildDurableCacheProjection,
 	}, nil
+}
+
+func (a *durableStateAdapter) preflightCNIEndpointImport(
+	ctx context.Context,
+	records []cns.CNIEndpointState,
+) (state.CNIImportPreflight, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if a.store.preflightCNI == nil {
+		return state.CNIImportPreflight{}, errors.New("CNI endpoint preflight operation is nil")
+	}
+	current, err := a.currentSnapshot(ctx)
+	if err != nil {
+		return state.CNIImportPreflight{}, err
+	}
+	plan, err := a.store.preflightCNI(ctx, records, a.cniImportActive)
+	if err != nil {
+		return state.CNIImportPreflight{}, err
+	}
+	candidate, err := plan.SnapshotForProjection(current)
+	if err != nil {
+		return state.CNIImportPreflight{}, err
+	}
+	if _, err := a.buildProjection(candidate); err != nil {
+		return state.CNIImportPreflight{}, err
+	}
+	return plan, nil
+}
+
+func (a *durableStateAdapter) importCNIEndpointState(
+	ctx context.Context,
+	records []cns.CNIEndpointState,
+	plan state.CNIImportPreflight,
+) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if a.store.importCNI == nil {
+		return errors.New("CNI endpoint import operation is nil")
+	}
+	current, err := a.currentSnapshot(ctx)
+	if err != nil {
+		return err
+	}
+	candidate, err := plan.SnapshotForProjection(current)
+	if err != nil {
+		return err
+	}
+	projection, err := a.buildProjection(candidate)
+	if err != nil {
+		return err
+	}
+	changed, err := a.store.importCNI(ctx, records, plan)
+	if err != nil {
+		return err
+	}
+	expectedGeneration := current.Metadata.Generation
+	if changed {
+		expectedGeneration++
+	}
+	projection.generation = expectedGeneration
+	if err := a.verifyStatus(ctx, expectedGeneration); err != nil {
+		return a.restoreCommittedProjection(ctx, err)
+	}
+	a.applyProjection(projection)
+	a.cniImportActive = true
+	return nil
+}
+
+func (a *durableStateAdapter) restoreCommittedProjection(ctx context.Context, importErr error) error {
+	snapshot, err := a.store.snapshot(context.WithoutCancel(ctx))
+	if err != nil {
+		return errors.Join(importErr, fmt.Errorf("restoring committed CNI import projection: %w", err))
+	}
+	projection, err := a.buildProjection(snapshot)
+	if err != nil {
+		return errors.Join(importErr, fmt.Errorf("restoring committed CNI import projection: %w", err))
+	}
+	a.applyProjection(projection)
+	a.cniImportActive = true
+	return importErr
 }
 
 func (a *durableStateAdapter) restore(ctx context.Context) error {

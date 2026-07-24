@@ -49,10 +49,10 @@ func TestNewCNIPodInfoProvider(t *testing.T) {
 				`{"ContainerInterfaces":{"3f813b02-eth0":{"PodName":"metrics-server-77c8679d7d-6ksdh","IfName":"eth0",
 				"PodNamespace":"kube-system","PodEndpointID":"3f813b02-eth0",
 				"ContainerID":"3f813b029429b4e41a09ab33b6f6d365d2ed704017524c78d1d0dece33cdaf46",
-				"IPAddresses":[{"IP":"10.241.0.17","Mask":"//8AAA=="},{"IP":"2001:0db8:abcd:0015::0","Mask":"//8AAA=="}]},
+				"IPAddresses":[{"IP":"10.241.0.17","Mask":"//8AAA=="},{"IP":"2001:0db8:abcd:0015::0","Mask":"//////////8AAAAAAAAAAA=="}]},
 				"6e688597-eth0":{"PodName":"tunnelfront-5d96f9b987-65xbn","IfName":"eth0","PodNamespace":"kube-system",
 				"PodEndpointID":"6e688597-eth0","ContainerID":"6e688597eafb97c83c84e402cc72b299bfb8aeb02021e4c99307a037352c0bed",
-				"IPAddresses":[{"IP":"10.241.0.13","Mask":"//8AAA=="},{"IP":"2001:0db8:abcd:0014::0","Mask":"//8AAA=="}]}}}`,
+				"IPAddresses":[{"IP":"10.241.0.13","Mask":"//8AAA=="},{"IP":"2001:0db8:abcd:0014::0","Mask":"//////////8AAAAAAAAAAA=="}]}}}`,
 			),
 			want: map[string]cns.PodInfo{
 				"2001:db8:abcd:15::": cns.NewPodInfo("3f813b029429b4e41a09ab33b6f6d365d2ed704017524c78d1d0dece33cdaf46", "3f813b02-eth0", "metrics-server-77c8679d7d-6ksdh", "kube-system"),
