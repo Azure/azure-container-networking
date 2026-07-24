@@ -149,7 +149,7 @@ data:
   tofqdns-proxy-port: "40046"
   tofqdns-proxy-response-max-delay: 100ms
   tofqdns-server-port: "40045"
-  unmanaged-pod-watcher-interval: "0"
+  unmanaged-pod-watcher-interval: "0s"
   vtep-cidr: ""
   vtep-endpoint: ""
   vtep-mac: ""

@@ -20,6 +20,7 @@ import (
 // +kubebuilder:printcolumn:name="MACAddress",type=string,JSONPath=`.spec.macAddress`
 // +kubebuilder:printcolumn:name="PodNetwork",type=string,JSONPath=`.spec.podNetwork`
 // +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.status`
+// +kubebuilder:printcolumn:name="CooldownExpiresAt",type=date,JSONPath=`.status.cooldownExpiresAt`
 type NICNetworkConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -58,6 +59,13 @@ type NICNetworkConfigSpec struct {
 	// PodAllocationRequests tracks which pods are allocated on this NIC
 	// +kubebuilder:validation:Optional
 	PodAllocationRequests []PodAllocationRequest `json:"podAllocations,omitempty"`
+	// CooldownPeriodInSeconds is the cooldown duration to keep this NIC's network container and its
+	// pre-allocated IPs reserved after the last pod is released, before tearing it down. Pointer
+	// unset (nil, defaults to 30) is distinguishable from an explicit 0, which disables the cooldown
+	// +kubebuilder:default=30
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Optional
+	CooldownPeriodInSeconds *int `json:"cooldownPeriodInSeconds,omitempty"`
 }
 
 // PodAllocationRequest represents a pod's IP allocation request on this NIC
@@ -85,7 +93,7 @@ type PodAllocation struct {
 // NICNetworkConfigStatus defines the observed state of NICNetworkConfig
 type NICNetworkConfigStatus struct {
 	// Status indicates the current status of the NIC Network Config
-	// +kubebuilder:validation:Enum=Ready;Pending;Deleting;InternalError;NCCreateError
+	// +kubebuilder:validation:Enum=Ready;Pending;Cooldown;Deleting;InternalError;NCCreateError
 	Status NICNCStatus `json:"status,omitempty"`
 	// NCID is the network container id created for this NIC
 	// +kubebuilder:validation:Optional
@@ -107,10 +115,10 @@ type NICNetworkConfigStatus struct {
 	// PodAllocations tracks the allocated IP addresses to pod mapping.
 	// +kubebuilder:validation:Optional
 	PodAllocations map[string]PodAllocation `json:"podAllocations,omitempty"`
-	// CooldownPeriodInSeconds is the cooldown duration before retrying NIC NC operations.
-	// +kubebuilder:default=30
-	// +kubebuilder:validation:Minimum=0
-	CooldownPeriodInSeconds int `json:"cooldownPeriodInSeconds,omitempty"`
+	// CooldownExpiresAt is the time at which the cooldown period ends. It is set only while Status is
+	// Cooldown; once it passes (and no pod has re-claimed the NIC) the NIC transitions to Deleting.
+	// +kubebuilder:validation:Optional
+	CooldownExpiresAt *metav1.Time `json:"cooldownExpiresAt,omitempty"`
 	// DeviceType is the device type that this NC was created for
 	DeviceType DeviceType `json:"deviceType,omitempty"`
 	// AccelnetEnabled determines if the CNI will provision the NIC with accelerated networking enabled
@@ -126,6 +134,10 @@ const (
 	NICNCReady NICNCStatus = "Ready"
 	// NICNCPending indicates the NIC's network container is awaiting processing.
 	NICNCPending NICNCStatus = "Pending"
+	// NICNCCooldown indicates the last pod on the NIC has been released and the NIC's network
+	// container and pre-allocated IPs are being held for the cooldown period before teardown. A new
+	// pod for the same NIC during cooldown cancels it and returns the NIC to Ready.
+	NICNCCooldown NICNCStatus = "Cooldown"
 	// NICNCDeleting indicates the NIC's network container is being cleaned up.
 	NICNCDeleting NICNCStatus = "Deleting"
 	// NICNCInternalError indicates an internal error occurred while processing the NIC Network Config.

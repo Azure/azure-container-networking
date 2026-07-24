@@ -19,6 +19,7 @@ data:
     ^.*--comment.*cilium:
     ^.*--comment.*cilium-feeder:
     ^.*--comment.*AKS managed: added by AgentBaker
+    ^-A CILIUM_\S+ 
   mangle: |
     -A FORWARD -d 168.63.129.16/32 -p tcp -m tcp --dport 80 -j DROP
     -A FORWARD -d 168.63.129.16/32 -p tcp -m tcp --dport 32526 -j DROP
