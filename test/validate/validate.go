@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"time"
 
 	acnk8s "github.com/Azure/azure-container-networking/test/internal/kubernetes"
 	"github.com/pkg/errors"
@@ -38,16 +39,19 @@ const (
 	privilegedNamespace      = "kube-system"
 	IPv4ExpectedIPCount      = 1
 	DualstackExpectedIPCount = 2
+	stateValidationAttempts  = 3
+	stateValidationInterval  = 2 * time.Second
 )
 
 type Validator struct {
-	clientset   *kubernetes.Clientset
-	config      *rest.Config
-	checks      []check
-	namespace   string
-	cni         string
-	restartCase bool
-	os          string
+	clientset         *kubernetes.Clientset
+	config            *rest.Config
+	checks            []check
+	namespace         string
+	cni               string
+	restartCase       bool
+	os                string
+	poolLabelSelector string
 }
 
 type check struct {
@@ -59,7 +63,7 @@ type check struct {
 	cmd              []string
 }
 
-func CreateValidator(ctx context.Context, clientset *kubernetes.Clientset, config *rest.Config, namespace, cni string, restartCase bool, os string) (*Validator, error) {
+func CreateValidator(ctx context.Context, clientset *kubernetes.Clientset, config *rest.Config, namespace, cni string, restartCase bool, os, poolLabelSelector string) (*Validator, error) {
 	// deploy privileged pod
 	privilegedDaemonSet := acnk8s.MustParseDaemonSet(privilegedDaemonSetPathMap[os])
 	daemonsetClient := clientset.AppsV1().DaemonSets(privilegedNamespace)
@@ -85,14 +89,27 @@ func CreateValidator(ctx context.Context, clientset *kubernetes.Clientset, confi
 	}
 
 	return &Validator{
-		clientset:   clientset,
-		config:      config,
-		namespace:   namespace,
-		cni:         cni,
-		restartCase: restartCase,
-		checks:      checks,
-		os:          os,
+		clientset:         clientset,
+		config:            config,
+		namespace:         namespace,
+		cni:               cni,
+		restartCase:       restartCase,
+		checks:            checks,
+		os:                os,
+		poolLabelSelector: poolLabelSelector,
 	}, nil
+}
+
+// nodeSelector returns the label selector used to pick candidate nodes. It
+// always constrains by OS; when a pool label selector is configured (via
+// POOL_LABEL_SELECTOR) it is ANDed in so validation targets a single pool.
+// An empty poolLabelSelector reproduces the previous OS-only behavior.
+func (v *Validator) nodeSelector() string {
+	selector := nodeSelectorMap[v.os]
+	if v.poolLabelSelector != "" {
+		selector += "," + v.poolLabelSelector
+	}
+	return selector
 }
 
 func (v *Validator) Validate(ctx context.Context) error {
@@ -125,49 +142,93 @@ func (v *Validator) ValidateStateFile(ctx context.Context) error {
 
 func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFunc, cmd []string, checkType, namespace, labelSelector, containerName string) error {
 	log.Printf("Validating %s state file for %s on %s", checkType, v.cni, v.os)
-	nodes, err := acnk8s.GetNodeListByLabelSelector(ctx, v.clientset, nodeSelectorMap[v.os])
+	nodes, err := acnk8s.GetNodeListByLabelSelector(ctx, v.clientset, v.nodeSelector())
 	if err != nil {
 		return errors.Wrapf(err, "failed to get node list")
 	}
 
 	for index := range nodes.Items {
-		// get the privileged pod
-		pod, err := acnk8s.GetPodsByNode(ctx, v.clientset, namespace, labelSelector, nodes.Items[index].Name)
-		if err != nil {
-			return errors.Wrapf(err, "failed to get privileged pod")
-		}
-		if len(pod.Items) == 0 {
-			return errors.Errorf("there are no privileged pods on node - %v", nodes.Items[index].Name)
-		}
-		podName := pod.Items[0].Name
-		// exec into the pod to get the state file
-		log.Printf("Executing command %s on pod %s, container %s", cmd, podName, containerName)
-		result, _, err := acnk8s.ExecCmdOnPod(ctx, v.clientset, namespace, podName, containerName, cmd, v.config, true)
-		if err != nil {
-			return errors.Wrapf(err, "failed to exec into privileged pod - %s", podName)
-		}
-		filePodIps, err := stateFileIps(result)
-		if err != nil {
-			return errors.Wrapf(err, "failed to get pod ips from state file on node %v", nodes.Items[index].Name)
-		}
-		if len(filePodIps) == 0 && v.restartCase {
-			log.Printf("No pods found on node %s", nodes.Items[index].Name)
-			continue
-		}
-		// get the pod ips
-		podIps := getPodIPsWithoutNodeIP(ctx, v.clientset, nodes.Items[index])
-		// include IPs from Cilium internal endpoints (reserved:ingress) that are not real K8s pods.
-		// These only exist when L7 policy is enabled, indicated by the acns-security-agent pod with cilium-envoy container.
-		if hasL7PolicyEnabled(ctx, v.clientset, nodes.Items[index].Name) {
-			podIps = append(podIps, getCiliumInternalEndpointIPs(ctx, v.clientset, v.config, nodes.Items[index].Name)...)
-		}
+		node := nodes.Items[index]
+		var comparisonErr error
+		_, converged, validationErr := runValidationAttempts(ctx, stateValidationAttempts, stateValidationInterval, func() (bool, error) {
+			pod, err := acnk8s.GetPodsByNode(ctx, v.clientset, namespace, labelSelector, node.Name)
+			if err != nil {
+				return false, errors.Wrap(err, "failed to get privileged pod")
+			}
+			if len(pod.Items) == 0 {
+				return false, errors.Errorf("there are no privileged pods on node - %v", node.Name)
+			}
+			podName := pod.Items[0].Name
+			log.Printf("Executing command %s on pod %s, container %s", cmd, podName, containerName)
+			result, _, err := acnk8s.ExecCmdOnPod(ctx, v.clientset, namespace, podName, containerName, cmd, v.config, true)
+			if err != nil {
+				return false, errors.Wrapf(err, "failed to exec into privileged pod - %s", podName)
+			}
+			filePodIps, err := stateFileIps(result)
+			if err != nil {
+				return false, errors.Wrapf(err, "failed to get pod ips from state file on node %v", node.Name)
+			}
+			if len(filePodIps) == 0 && v.restartCase {
+				log.Printf("No pods found on node %s", node.Name)
+				return true, nil
+			}
 
-		if err := compareIPs(filePodIps, podIps); err != nil {
-			return errors.Wrapf(err, "State file validation failed for %s on node %s", checkType, nodes.Items[index].Name)
+			podIps := getPodIPsWithoutNodeIP(ctx, v.clientset, node)
+			if hasL7PolicyEnabled(ctx, v.clientset, node.Name) {
+				podIps = append(podIps, getCiliumInternalEndpointIPs(ctx, v.clientset, v.config, node.Name)...)
+			}
+			comparisonErr = compareIPs(filePodIps, podIps)
+			return comparisonErr == nil, nil
+		})
+		if validationErr != nil {
+			return validationErr
+		}
+		if !converged {
+			return errors.Wrapf(comparisonErr, "State file validation failed for %s on node %s", checkType, node.Name)
 		}
 	}
 	log.Printf("State file validation for %s passed", checkType)
 	return nil
+}
+
+func runValidationAttempts(
+	ctx context.Context,
+	maxAttempts int,
+	interval time.Duration,
+	validate func() (bool, error),
+) (attempts int, converged bool, validationErr error) {
+	if maxAttempts < 1 {
+		return 0, false, errors.New("validation attempts must be positive")
+	}
+
+	var lastErr error
+	for attempts = 1; ; attempts++ {
+		converged, validationErr = validate()
+		if converged {
+			if validationErr != nil {
+				return attempts, false, validationErr
+			}
+			return attempts, true, nil
+		}
+		lastErr = validationErr
+		if attempts >= maxAttempts {
+			return attempts, false, lastErr
+		}
+		if err := ctx.Err(); err != nil {
+			return attempts, false, errors.Wrap(err, "waiting to retry state validation")
+		}
+		if interval <= 0 {
+			continue
+		}
+
+		timer := time.NewTimer(interval)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return attempts, false, errors.Wrap(ctx.Err(), "waiting to retry state validation")
+		case <-timer.C:
+		}
+	}
 }
 
 func validateNodeProperties(nodes *corev1.NodeList, labels map[string]string, expectedIPCount int) error {
@@ -208,7 +269,7 @@ func validateNodeProperties(nodes *corev1.NodeList, labels map[string]string, ex
 }
 
 func (v *Validator) ValidateV4OverlayControlPlane(ctx context.Context) error {
-	nodes, err := acnk8s.GetNodeListByLabelSelector(ctx, v.clientset, nodeSelectorMap[v.os])
+	nodes, err := acnk8s.GetNodeListByLabelSelector(ctx, v.clientset, v.nodeSelector())
 	if err != nil {
 		return errors.Wrap(err, "failed to get node list")
 	}
@@ -227,7 +288,7 @@ func (v *Validator) ValidateV4OverlayControlPlane(ctx context.Context) error {
 }
 
 func (v *Validator) ValidateDualStackControlPlane(ctx context.Context) error {
-	nodes, err := acnk8s.GetNodeListByLabelSelector(ctx, v.clientset, nodeSelectorMap[v.os])
+	nodes, err := acnk8s.GetNodeListByLabelSelector(ctx, v.clientset, v.nodeSelector())
 	if err != nil {
 		return errors.Wrap(err, "failed to get node list")
 	}
