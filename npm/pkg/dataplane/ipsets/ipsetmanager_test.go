@@ -76,6 +76,54 @@ var (
 	nestedPodLabelList = NewIPSetMetadata("test-nested-pod-label-list", NestedLabelOfPod)
 )
 
+// TestCreateIPSetRejectsSameKernelName verifies that two distinct sets whose prefixed names
+// hash to the same kernel name cannot both be created: the second is rejected so its members
+// are never combined with the first set's.
+func TestCreateIPSetRejectsSameKernelName(t *testing.T) {
+	metrics.ReinitializeAll()
+	iMgr := NewIPSetManager(applyAlwaysCfg, common.NewMockIOShim(nil))
+
+	// These two prefixed names ("ns-msobb-target" and "podlabel-x:YMaaIZ") hash to the same
+	// kernel name, so only the first may own it.
+	first := NewIPSetMetadata("msobb-target", Namespace)
+	second := NewIPSetMetadata("x:YMaaIZ", KeyValueLabelOfPod)
+	require.Equal(t, first.GetHashedName(), second.GetHashedName(), "test setup expects a shared kernel name")
+
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{first}, "10.0.0.10", "pod-a"))
+	// The second set resolves to the same kernel name and must be rejected.
+	require.Error(t, iMgr.AddToSets([]*IPSetMetadata{second}, "10.0.0.20", "pod-b"))
+
+	// The first set is untouched: it holds only its own member and the second set was never created.
+	firstSet := iMgr.GetIPSet(first.GetPrefixName())
+	require.NotNil(t, firstSet)
+	require.Equal(t, map[string]string{"10.0.0.10": "pod-a"}, firstSet.IPPodKey)
+	require.Nil(t, iMgr.GetIPSet(second.GetPrefixName()))
+
+	// Re-adding the same first set is idempotent (same kernel name, same owner).
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{first}, "10.0.0.11", "pod-c"))
+}
+
+// TestCreateIPSetKernelNameFreedOnDelete verifies the kernel name is released when its owner
+// is deleted, so a different set may then use it.
+func TestCreateIPSetKernelNameFreedOnDelete(t *testing.T) {
+	metrics.ReinitializeAll()
+	iMgr := NewIPSetManager(applyAlwaysCfg, common.NewMockIOShim(nil))
+
+	first := NewIPSetMetadata("msobb-target", Namespace)
+	second := NewIPSetMetadata("x:YMaaIZ", KeyValueLabelOfPod)
+
+	iMgr.CreateIPSets([]*IPSetMetadata{first})
+	require.NotNil(t, iMgr.GetIPSet(first.GetPrefixName()))
+	require.Error(t, iMgr.AddToSets([]*IPSetMetadata{second}, "10.0.0.20", "pod-b")) // rejected while owned
+
+	iMgr.DeleteIPSet(first.GetPrefixName(), util.SoftDelete)
+	require.Nil(t, iMgr.GetIPSet(first.GetPrefixName()))
+
+	// Kernel name is free; the second set can now be created.
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{second}, "10.0.0.20", "pod-b"))
+	require.NotNil(t, iMgr.GetIPSet(second.GetPrefixName()))
+}
+
 func TestReconcileCache(t *testing.T) {
 	type args struct {
 		cfg          *IPSetManagerCfg
