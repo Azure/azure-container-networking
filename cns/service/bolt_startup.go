@@ -57,7 +57,7 @@ type boltPersistentStateDependencies struct {
 	openStore       func(string, processlock.Interface) (store.KeyValueStore, error)
 	openDB          func(context.Context, string, state.Options) (*state.DB, error)
 	currentBootID   func() (string, error)
-	attachBolt      func(*state.DB) (persistentStateAttachment, error)
+	attachBolt      func(*state.DB, bool) (persistentStateAttachment, error)
 	restoreJSON     func(context.Context, store.KeyValueStore, store.KeyValueStore) error
 }
 
@@ -73,8 +73,8 @@ func productionBoltPersistentStateDependencies(
 		},
 		openDB:        state.OpenContext,
 		currentBootID: platform.BootID,
-		attachBolt: func(db *state.DB) (persistentStateAttachment, error) {
-			restore, closeFn, err := restserver.NewDurableStateLifecycle(service, db)
+		attachBolt: func(db *state.DB, projectEndpointState bool) (persistentStateAttachment, error) {
+			restore, closeFn, err := restserver.NewDurableStateLifecycle(service, db, projectEndpointState)
 			if err != nil {
 				return persistentStateAttachment{}, fmt.Errorf("creating durable state lifecycle: %w", err)
 			}
@@ -183,7 +183,7 @@ func newBoltPersistentStateStartup(
 	if _, metricsErr := db.RefreshMetrics(ctx); metricsErr != nil {
 		return nil, closeDBAfterError(metricsErr)
 	}
-	attachment, attachmentErr := deps.attachBolt(db)
+	attachment, attachmentErr := deps.attachBolt(db, config.manageEndpointState)
 	if attachmentErr != nil {
 		return nil, closeDBAfterError(fmt.Errorf("attaching Bolt persistent state: %w", attachmentErr))
 	}

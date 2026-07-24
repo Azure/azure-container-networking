@@ -54,11 +54,12 @@ type durableStateAdapter struct {
 
 	// mu is acquired before the HTTPRestService lock. Callers must not hold the
 	// service lock; the adapter applies complete projections under that lock.
-	mu         sync.Mutex
-	projected  bool
-	generation uint64
-	closeOnce  sync.Once
-	closeErr   error
+	mu                   sync.Mutex
+	projectEndpointState bool
+	projected            bool
+	generation           uint64
+	closeOnce            sync.Once
+	closeErr             error
 }
 
 type durableServiceMetadata struct {
@@ -75,6 +76,9 @@ type durableCacheProjection struct {
 	metadata          durableServiceMetadata
 	containerStatus   map[string]containerstatus
 	ipConfigState     map[string]cns.IPConfigurationStatus
+	durableIPState    map[string]cns.IPConfigurationStatus
+	ipIDsByPodKey     map[string][]string
+	endpointState     map[string]*EndpointInfo
 	networks          map[string]*networkInfo
 	orchestratorNCs   map[string]*ncList
 	pnpIDByMACAddress map[string]string
@@ -85,15 +89,20 @@ type durableCacheProjection struct {
 func NewDurableStateLifecycle(
 	service *HTTPRestService,
 	db *state.DB,
+	projectEndpointState bool,
 ) (restore func(context.Context) error, closeFn func() error, err error) {
-	adapter, err := newDurableStateAdapter(service, db)
+	adapter, err := newDurableStateAdapter(service, db, projectEndpointState)
 	if err != nil {
 		return nil, nil, err
 	}
 	return adapter.restore, adapter.Close, nil
 }
 
-func newDurableStateAdapter(service *HTTPRestService, db *state.DB) (*durableStateAdapter, error) {
+func newDurableStateAdapter(
+	service *HTTPRestService,
+	db *state.DB,
+	projectEndpointState bool,
+) (*durableStateAdapter, error) {
 	if db == nil {
 		return nil, errNilDurableStateDB
 	}
@@ -123,12 +132,13 @@ func newDurableStateAdapter(service *HTTPRestService, db *state.DB) (*durableSta
 		},
 		status: db.Status,
 		close:  db.Close,
-	})
+	}, projectEndpointState)
 }
 
 func newDurableStateAdapterWithOperations(
 	service *HTTPRestService,
 	operations durableStateOperations,
+	projectEndpointState bool,
 ) (*durableStateAdapter, error) {
 	switch {
 	case service == nil:
@@ -146,7 +156,11 @@ func newDurableStateAdapterWithOperations(
 	case operations.close == nil:
 		return nil, errNilDurableCloseOperation
 	}
-	return &durableStateAdapter{service: service, store: operations}, nil
+	return &durableStateAdapter{
+		service:              service,
+		store:                operations,
+		projectEndpointState: projectEndpointState,
+	}, nil
 }
 
 func (a *durableStateAdapter) restore(ctx context.Context) error {
@@ -474,7 +488,15 @@ func (a *durableStateAdapter) applyProjection(projection durableCacheProjection)
 	a.service.state.ContainerIDByOrchestratorContext = projection.orchestratorNCs
 	a.service.state.Networks = projection.networks
 	a.service.state.PnpIDByMacAddress = projection.pnpIDByMACAddress
-	a.service.PodIPConfigState = projection.ipConfigState
+	if a.projectEndpointState {
+		// Delete intents have no legacy cache equivalent. They remain authoritative
+		// in the unified database and are intentionally absent from this projection.
+		a.service.PodIPConfigState = projection.ipConfigState
+		a.service.PodIPIDByPodInterfaceKey = projection.ipIDsByPodKey
+		a.service.EndpointState = projection.endpointState
+	} else {
+		a.service.PodIPConfigState = projection.durableIPState
+	}
 	a.generation = projection.generation
 	a.projected = true
 }
@@ -517,12 +539,16 @@ func buildDurableCacheProjection(snapshot state.Snapshot) (durableCacheProjectio
 		},
 		containerStatus:   make(map[string]containerstatus, len(snapshot.NetworkContainers)),
 		ipConfigState:     make(map[string]cns.IPConfigurationStatus, len(snapshot.IPs)),
+		durableIPState:    make(map[string]cns.IPConfigurationStatus, len(snapshot.IPs)),
+		ipIDsByPodKey:     make(map[string][]string, len(snapshot.Assignments)),
+		endpointState:     make(map[string]*EndpointInfo, len(snapshot.Endpoints)),
 		networks:          make(map[string]*networkInfo, len(snapshot.Networks)),
 		orchestratorNCs:   make(map[string]*ncList, len(snapshot.OrchestratorContexts)),
 		pnpIDByMACAddress: make(map[string]string, len(snapshot.PnPIDByMAC)),
 	}
 
 	hostVersions := make(map[string]int, len(snapshot.NetworkContainers))
+	unassignedIPStates := make(map[string]types.IPState, len(snapshot.IPs))
 	for id := range snapshot.NetworkContainers {
 		record := snapshot.NetworkContainers[id]
 		request, err := cloneJSON(record.Request)
@@ -576,12 +602,11 @@ func buildDurableCacheProjection(snapshot state.Snapshot) (durableCacheProjectio
 			IPAddress: record.IPAddress,
 			NCID:      record.NCID,
 		}
-		ipStatus.WithStateMiddleware(stateTransitionMiddleware)
 		ipState := types.Available
 		if hostVersion < record.NCVersion {
 			ipState = types.PendingProgramming
 		}
-		ipStatus.SetState(ipState)
+		unassignedIPStates[id] = ipState
 		projection.ipConfigState[id] = ipStatus
 	}
 
@@ -617,7 +642,227 @@ func buildDurableCacheProjection(snapshot state.Snapshot) (durableCacheProjectio
 		}
 		projection.pnpIDByMACAddress[mac.String()] = pnpID
 	}
+	for containerID, record := range snapshot.Endpoints {
+		endpoint, err := projectEndpoint(record)
+		if err != nil {
+			return durableCacheProjection{}, fmt.Errorf("projecting endpoint %q: %w", containerID, err)
+		}
+		projection.endpointState[containerID] = endpoint
+	}
+	for podKey, assignment := range snapshot.Assignments {
+		if assignment.Pod.PodKey != podKey {
+			return durableCacheProjection{}, fmt.Errorf(
+				"assignment key %q does not match projected pod key %q",
+				podKey,
+				assignment.Pod.PodKey,
+			)
+		}
+		endpoint, ok := snapshot.Endpoints[assignment.Pod.InfraContainerID]
+		if !ok {
+			return durableCacheProjection{}, fmt.Errorf(
+				"assignment %q references missing projected endpoint %q",
+				podKey,
+				assignment.Pod.InfraContainerID,
+			)
+		}
+		podInfo := newProjectedPodInfo(assignment.Pod, len(endpoint.IfnameToIPMap) > 1)
+		ipIDs := append([]string(nil), assignment.IPIDs...)
+		for _, ipID := range ipIDs {
+			ipStatus, ok := projection.ipConfigState[ipID]
+			if !ok {
+				return durableCacheProjection{}, fmt.Errorf(
+					"assignment %q references missing projected IP %q",
+					podKey,
+					ipID,
+				)
+			}
+			owner, ok := snapshot.IPOwners[ipID]
+			if !ok {
+				return durableCacheProjection{}, fmt.Errorf(
+					"assignment %q IP %q has no projected owner",
+					podKey,
+					ipID,
+				)
+			}
+			if owner != podKey {
+				return durableCacheProjection{}, fmt.Errorf(
+					"assignment %q IP %q is owned by %q",
+					podKey,
+					ipID,
+					owner,
+				)
+			}
+			ipStatus.PodInfo = podInfo
+			ipStatus.SetState(types.Assigned)
+			ipStatus.WithStateMiddleware(stateTransitionMiddleware)
+			projection.ipConfigState[ipID] = ipStatus
+		}
+		projection.ipIDsByPodKey[podKey] = ipIDs
+	}
+	for ipID, owner := range snapshot.IPOwners {
+		assignment, ok := snapshot.Assignments[owner]
+		if !ok {
+			return durableCacheProjection{}, fmt.Errorf(
+				"IP %q references missing projected assignment %q",
+				ipID,
+				owner,
+			)
+		}
+		if !containsString(assignment.IPIDs, ipID) {
+			return durableCacheProjection{}, fmt.Errorf(
+				"IP %q owner %q does not contain the IP",
+				ipID,
+				owner,
+			)
+		}
+	}
+	for ipID, ipStatus := range projection.ipConfigState {
+		durableStatus := cns.IPConfigurationStatus{
+			ID:        ipStatus.ID,
+			IPAddress: ipStatus.IPAddress,
+			NCID:      ipStatus.NCID,
+		}
+		durableStatus.SetState(unassignedIPStates[ipID])
+		durableStatus.WithStateMiddleware(stateTransitionMiddleware)
+		projection.durableIPState[ipID] = durableStatus
+		if ipStatus.PodInfo == nil {
+			projection.ipConfigState[ipID] = durableStatus
+		}
+	}
 	return projection, nil
+}
+
+type projectedPodInfo struct {
+	podKey           string
+	infraContainerID string
+	interfaceID      string
+	name             string
+	namespace        string
+	secondary        bool
+}
+
+func newProjectedPodInfo(pod state.PodIdentity, secondary bool) *projectedPodInfo {
+	return &projectedPodInfo{
+		podKey:           pod.PodKey,
+		infraContainerID: pod.InfraContainerID,
+		interfaceID:      pod.InterfaceID,
+		name:             pod.PodName,
+		namespace:        pod.PodNamespace,
+		secondary:        secondary,
+	}
+}
+
+func (p *projectedPodInfo) InfraContainerID() string {
+	return p.infraContainerID
+}
+
+func (p *projectedPodInfo) InterfaceID() string {
+	return p.interfaceID
+}
+
+func (p *projectedPodInfo) Key() string {
+	return p.podKey
+}
+
+func (p *projectedPodInfo) Name() string {
+	return p.name
+}
+
+func (p *projectedPodInfo) Namespace() string {
+	return p.namespace
+}
+
+func (p *projectedPodInfo) OrchestratorContext() (json.RawMessage, error) {
+	return json.Marshal(cns.KubernetesPodInfo{
+		PodName:      p.name,
+		PodNamespace: p.namespace,
+	})
+}
+
+func (p *projectedPodInfo) MarshalJSON() ([]byte, error) {
+	version := any(cns.InfraIDPodInfoScheme)
+	if p.interfaceID != "" {
+		version = cns.InterfaceIDPodInfoScheme
+	}
+	return json.Marshal(struct {
+		cns.KubernetesPodInfo
+		PodInfraContainerID   string
+		PodInterfaceID        string
+		Version               any
+		SecondaryInterfaceSet bool
+	}{
+		KubernetesPodInfo: cns.KubernetesPodInfo{
+			PodName:      p.name,
+			PodNamespace: p.namespace,
+		},
+		PodInfraContainerID:   p.infraContainerID,
+		PodInterfaceID:        p.interfaceID,
+		Version:               version,
+		SecondaryInterfaceSet: p.secondary,
+	})
+}
+
+func (p *projectedPodInfo) Equals(other cns.PodInfo) bool {
+	return other != nil && p.podKey == other.Key()
+}
+
+func (p *projectedPodInfo) String() string {
+	return fmt.Sprintf(
+		"InfraContainerID: [%s], InterfaceID: [%s], Key: [%s], Name: [%s], Namespace: [%s]",
+		p.infraContainerID,
+		p.interfaceID,
+		p.podKey,
+		p.name,
+		p.namespace,
+	)
+}
+
+func (p *projectedPodInfo) SecondaryInterfacesExist() bool {
+	return p.secondary
+}
+
+func projectEndpoint(record state.EndpointRecord) (*EndpointInfo, error) {
+	endpoint := &EndpointInfo{
+		PodName:       record.PodName,
+		PodNamespace:  record.PodNamespace,
+		IfnameToIPMap: make(map[string]*IPInfo, len(record.IfnameToIPMap)),
+	}
+	for ifname, infoRecord := range record.IfnameToIPMap {
+		if infoRecord == nil {
+			return nil, fmt.Errorf("interface %q is nil", ifname)
+		}
+		endpoint.IfnameToIPMap[ifname] = &IPInfo{
+			IPv4:               cloneIPNets(infoRecord.IPv4),
+			IPv6:               cloneIPNets(infoRecord.IPv6),
+			HnsEndpointID:      infoRecord.HNSEndpointID,
+			HnsNetworkID:       infoRecord.HNSNetworkID,
+			HostVethName:       infoRecord.HostVethName,
+			MacAddress:         infoRecord.MACAddress,
+			NetworkContainerID: infoRecord.NetworkContainerID,
+			NICType:            infoRecord.NICType,
+		}
+	}
+	return endpoint, nil
+}
+
+func cloneIPNets(values []net.IPNet) []net.IPNet {
+	cloned := make([]net.IPNet, len(values))
+	for i := range values {
+		cloned[i] = net.IPNet{
+			IP:   append(net.IP(nil), values[i].IP...),
+			Mask: append(net.IPMask(nil), values[i].Mask...),
+		}
+	}
+	return cloned
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }
 
 func cloneJSON[T any](input T) (T, error) {

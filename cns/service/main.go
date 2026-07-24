@@ -739,12 +739,18 @@ func main() {
 		logger.Printf("EndpointStoreState path is %s", endpointStorePath+endpointStoreName+".json") //nolint:staticcheck // main still uses the legacy global logger
 	}
 
-	persistentState, err := newJSONPersistentStateStartup(
-		resolvePersistentStatePaths(storeFileLocation, endpointStorePath),
-		cnsconfig.ManageEndpointState,
-		func(context.Context) error {
-			return httpRemoteRestService.Start(&config)
+	persistentState, err := newEndpointStateStartup(
+		productionEndpointStateProvider,
+		func() (*persistentStateStartup, error) {
+			return newJSONPersistentStateStartup(
+				resolvePersistentStatePaths(storeFileLocation, endpointStorePath),
+				cnsconfig.ManageEndpointState,
+				func(context.Context) error {
+					return httpRemoteRestService.Start(&config)
+				},
+			)
 		},
+		nil,
 	)
 	if err != nil {
 		logger.Errorf("Failed to initialize persistent state: %v", err) //nolint:staticcheck // main still uses the legacy global logger
