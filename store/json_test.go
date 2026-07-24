@@ -5,6 +5,7 @@ package store
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -155,6 +156,27 @@ func TestKeyValuePairsAreWrittenAndReadCorrectly(t *testing.T) {
 
 	// Cleanup.
 	os.Remove(testFileName)
+}
+
+func TestFailedWriteDoesNotPersistOnLaterWrite(t *testing.T) {
+	storeDir := filepath.Join(t.TempDir(), "missing")
+	storePath := filepath.Join(storeDir, testFileName)
+	kvs, err := NewJsonFileStore(storePath, processlock.NewMockFileLock(false), nil)
+	require.NoError(t, err)
+
+	err = kvs.Write(testKey1, &testType1{"failed", 1})
+	require.Error(t, err)
+
+	require.NoError(t, os.MkdirAll(storeDir, 0o755))
+	require.NoError(t, kvs.Write(testKey2, &testType1{"persisted", 2}))
+
+	reloaded, err := NewJsonFileStore(storePath, processlock.NewMockFileLock(false), nil)
+	require.NoError(t, err)
+
+	var value testType1
+	require.ErrorIs(t, reloaded.Read(testKey1, &value), ErrKeyNotFound)
+	require.NoError(t, reloaded.Read(testKey2, &value))
+	require.Equal(t, testType1{"persisted", 2}, value)
 }
 
 // test case for testing newjsonfilestore idempotent

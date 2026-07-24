@@ -7,7 +7,9 @@ import (
 	"net"
 	"net/netip"
 	"strconv"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
@@ -16,6 +18,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/middlewares"
 	"github.com/Azure/azure-container-networking/cns/middlewares/mock"
 	"github.com/Azure/azure-container-networking/cns/types"
+	acn "github.com/Azure/azure-container-networking/common"
 	nma "github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/pkg/errors"
@@ -30,6 +33,8 @@ var (
 	ipPrefixBitsv4 = uint8(24)
 	ipPrefixBitsv6 = uint8(120)
 	prefixes       = []uint8{ipPrefixBitsv4, ipPrefixBitsv6}
+
+	errForcedEndpointWrite = errors.New("forced endpoint write failure")
 
 	testIP1      = "10.0.0.1"
 	testIP1v6    = "fd12:1234::1"
@@ -289,6 +294,373 @@ func endpointStateReadAndWrite(t *testing.T, ncStates []ncState) {
 		t.Fatalf("Expected to not fail removing non existing key: %+v", err)
 	}
 	assert.Equal(t, desiredState, svc.EndpointState)
+}
+
+func TestReleaseIPConfigsRecordsDeleteIntentForUnknownEndpoint(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	enableManagedEndpointState(svc)
+	req := newTestIPConfigsRequest(t, testPod1Info)
+
+	resp, err := svc.ReleaseIPConfigHandlerHelper(context.Background(), req)
+	require.NoError(t, err)
+	require.Equal(t, types.Success, resp.Response.ReturnCode)
+
+	intent, ok := svc.EndpointDeleteIntents[testPod1Info.InfraContainerID()]
+	require.True(t, ok)
+	require.False(t, intent.CreatedAt.IsZero())
+
+	var stored map[string]EndpointDeleteIntent
+	require.NoError(t, svc.EndpointStateStore.Read(EndpointDeleteIntentStoreKey, &stored))
+	require.Contains(t, stored, testPod1Info.InfraContainerID())
+}
+
+func TestRequestIPConfigsRejectsTombstonedContainer(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	enableManagedEndpointState(svc)
+	require.NoError(t, seedAvailableIPs(t, svc, testNCID, map[string]string{testIPID1: testIP1}))
+
+	req := newTestIPConfigsRequest(t, testPod1Info)
+	_, err := svc.ReleaseIPConfigHandlerHelper(context.Background(), req)
+	require.NoError(t, err)
+
+	resp, err := svc.requestIPConfigHandlerHelper(context.Background(), req)
+	require.Error(t, err)
+	require.Equal(t, types.FailedToAllocateIPConfig, resp.Response.ReturnCode)
+	require.Empty(t, resp.PodIPInfo)
+	require.Empty(t, svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()])
+	ipState := svc.PodIPConfigState[testIPID1]
+	require.Equal(t, types.Available, ipState.GetState())
+	require.Empty(t, svc.EndpointState)
+}
+
+func TestReleaseIPConfigsLeavesDeleteIntentAfterReleasingAssignedIP(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	enableManagedEndpointState(svc)
+	require.NoError(t, seedAvailableIPs(t, svc, testNCID, map[string]string{testIPID1: testIP1}))
+
+	req := newTestIPConfigsRequest(t, testPod1Info)
+	resp, err := svc.requestIPConfigHandlerHelper(context.Background(), req)
+	require.NoError(t, err)
+	require.Equal(t, types.Success, resp.Response.ReturnCode)
+	ipState := svc.PodIPConfigState[testIPID1]
+	require.Equal(t, types.Assigned, ipState.GetState())
+	require.Contains(t, svc.EndpointState, testPod1Info.InfraContainerID())
+
+	resp, err = svc.ReleaseIPConfigHandlerHelper(context.Background(), req)
+	require.NoError(t, err)
+	require.Equal(t, types.Success, resp.Response.ReturnCode)
+	ipState = svc.PodIPConfigState[testIPID1]
+	require.Equal(t, types.Available, ipState.GetState())
+	require.NotContains(t, svc.EndpointState, testPod1Info.InfraContainerID())
+	require.Contains(t, svc.EndpointDeleteIntents, testPod1Info.InfraContainerID())
+}
+
+func TestExpiredDeleteIntentIsPrunedAndDoesNotBlockAdd(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	enableManagedEndpointState(svc)
+	require.NoError(t, seedAvailableIPs(t, svc, testNCID, map[string]string{testIPID1: testIP1}))
+
+	req := newTestIPConfigsRequest(t, testPod1Info)
+	svc.EndpointDeleteIntents[testPod1Info.InfraContainerID()] = EndpointDeleteIntent{
+		CreatedAt: time.Now().Add(-endpointDeleteIntentTTL - time.Minute),
+	}
+	require.NoError(t, svc.EndpointStateStore.Write(EndpointDeleteIntentStoreKey, svc.EndpointDeleteIntents))
+
+	resp, err := svc.requestIPConfigHandlerHelper(context.Background(), req)
+	require.NoError(t, err)
+	require.Equal(t, types.Success, resp.Response.ReturnCode)
+	require.Len(t, resp.PodIPInfo, 1)
+	require.NotContains(t, svc.EndpointDeleteIntents, testPod1Info.InfraContainerID())
+	ipState := svc.PodIPConfigState[testIPID1]
+	require.Equal(t, types.Assigned, ipState.GetState())
+}
+
+func TestExpiredDeleteIntentWriteFailureReturnsUnexpectedError(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	enableManagedEndpointState(svc)
+	require.NoError(t, seedAvailableIPs(t, svc, testNCID, map[string]string{testIPID1: testIP1}))
+	req := newTestIPConfigsRequest(t, testPod1Info)
+	svc.EndpointDeleteIntents[testPod1Info.InfraContainerID()] = EndpointDeleteIntent{
+		CreatedAt: time.Now().Add(-endpointDeleteIntentTTL - time.Minute),
+	}
+	require.NoError(t, svc.EndpointStateStore.Write(EndpointDeleteIntentStoreKey, svc.EndpointDeleteIntents))
+	svc.EndpointStateStore = keyWriteFailStore{
+		KeyValueStore: svc.EndpointStateStore,
+		failKey:       EndpointDeleteIntentStoreKey,
+		err:           errForcedDeleteIntentWrite,
+	}
+
+	resp, err := svc.requestIPConfigHandlerHelper(context.Background(), req)
+
+	require.ErrorIs(t, err, ErrDeleteIntentUpdate)
+	require.ErrorIs(t, err, errForcedDeleteIntentWrite)
+	require.Equal(t, types.UnexpectedError, resp.Response.ReturnCode)
+	ipState := svc.PodIPConfigState[testIPID1]
+	require.Equal(t, types.Available, ipState.GetState())
+	require.Empty(t, svc.EndpointState)
+}
+
+func TestRequestIPConfigsRollsBackAssignmentWhenEndpointWriteFails(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	enableManagedEndpointState(svc)
+	require.NoError(t, seedAvailableIPs(t, svc, testNCID, map[string]string{testIPID1: testIP1}))
+	svc.EndpointStateStore = endpointWriteFailStore{KeyValueStore: svc.EndpointStateStore}
+
+	req := newTestIPConfigsRequest(t, testPod1Info)
+	resp, err := svc.requestIPConfigHandlerHelper(context.Background(), req)
+	require.Error(t, err)
+	require.Equal(t, types.UnexpectedError, resp.Response.ReturnCode)
+
+	ipState := svc.PodIPConfigState[testIPID1]
+	require.Equal(t, types.Available, ipState.GetState())
+	require.Empty(t, svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()])
+	require.Empty(t, svc.EndpointState)
+}
+
+func TestRequestIPConfigsDoesNotReleaseExistingAssignmentWhenEndpointWriteFails(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	enableManagedEndpointState(svc)
+	require.NoError(t, seedAvailableIPs(t, svc, testNCID, map[string]string{testIPID1: testIP1}))
+
+	req := newTestIPConfigsRequest(t, testPod1Info)
+	resp, err := svc.requestIPConfigHandlerHelper(context.Background(), req)
+	require.NoError(t, err)
+	require.Equal(t, types.Success, resp.Response.ReturnCode)
+
+	svc.EndpointState = make(map[string]*EndpointInfo)
+	svc.EndpointStateStore = endpointWriteFailStore{KeyValueStore: svc.EndpointStateStore}
+
+	resp, err = svc.requestIPConfigHandlerHelper(context.Background(), req)
+	require.Error(t, err)
+	require.Equal(t, types.UnexpectedError, resp.Response.ReturnCode)
+
+	ipState := svc.PodIPConfigState[testIPID1]
+	require.Equal(t, types.Assigned, ipState.GetState())
+	require.Equal(t, []string{testIPID1}, svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()])
+}
+
+func TestUpdateEndpointStateDoesNotPersistPartialState(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	enableManagedEndpointState(svc)
+	countingStore := &endpointWriteCountingStore{KeyValueStore: svc.EndpointStateStore}
+	svc.EndpointStateStore = countingStore
+	req := newTestIPConfigsRequest(t, testPod1Info)
+	podIPInfo := []cns.PodIpInfo{
+		{PodIPConfig: cns.IPSubnet{IPAddress: testIP1, PrefixLength: ipPrefixBitsv4}},
+		{PodIPConfig: cns.IPSubnet{IPAddress: "not-an-ip", PrefixLength: ipPrefixBitsv4}},
+	}
+
+	svc.Lock()
+	err := svc.updateEndpointStateUntransacted(req, testPod1Info, podIPInfo)
+	svc.Unlock()
+
+	require.ErrorIs(t, err, ErrParsePodIPFailed)
+	require.Zero(t, countingStore.endpointWrites)
+	require.Empty(t, svc.EndpointState)
+}
+
+func TestUpdateEndpointStateWritesMultiIPStateOnce(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	enableManagedEndpointState(svc)
+	countingStore := &endpointWriteCountingStore{KeyValueStore: svc.EndpointStateStore}
+	svc.EndpointStateStore = countingStore
+	req := newTestIPConfigsRequest(t, testPod1Info)
+	podIPInfo := []cns.PodIpInfo{
+		{PodIPConfig: cns.IPSubnet{IPAddress: testIP1, PrefixLength: ipPrefixBitsv4}},
+		{PodIPConfig: cns.IPSubnet{IPAddress: testIP1v6, PrefixLength: ipPrefixBitsv6}},
+	}
+
+	svc.Lock()
+	err := svc.updateEndpointStateUntransacted(req, testPod1Info, podIPInfo)
+	svc.Unlock()
+
+	require.NoError(t, err)
+	require.Equal(t, 1, countingStore.endpointWrites)
+	ipInfo := svc.EndpointState[testPod1Info.InfraContainerID()].IfnameToIPMap[req.Ifname]
+	require.Len(t, ipInfo.IPv4, 1)
+	require.Len(t, ipInfo.IPv6, 1)
+}
+
+func TestUpdateEndpointRejectsTombstonedContainer(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	enableManagedEndpointState(svc)
+	req := newTestIPConfigsRequest(t, testPod1Info)
+	_, err := svc.ReleaseIPConfigHandlerHelper(context.Background(), req)
+	require.NoError(t, err)
+
+	svc.Lock()
+	err = svc.UpdateEndpointHelper(testPod1Info.InfraContainerID(), map[string]*IPInfo{
+		req.Ifname: {IPv4: []net.IPNet{{IP: net.ParseIP(testIP1), Mask: net.CIDRMask(int(ipPrefixBitsv4), 32)}}},
+	})
+	svc.Unlock()
+
+	require.ErrorIs(t, err, ErrEndpointDeleteIntent)
+	require.Empty(t, svc.EndpointState)
+}
+
+func TestCanceledRequestDoesNotAssignIP(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	enableManagedEndpointState(svc)
+	require.NoError(t, seedAvailableIPs(t, svc, testNCID, map[string]string{testIPID1: testIP1}))
+	req := newTestIPConfigsRequest(t, testPod1Info)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	resp, err := svc.requestIPConfigHandlerHelper(ctx, req)
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.Equal(t, types.FailedToAllocateIPConfig, resp.Response.ReturnCode)
+	ipState := svc.PodIPConfigState[testIPID1]
+	require.Equal(t, types.Available, ipState.GetState())
+	require.Empty(t, svc.EndpointState)
+}
+
+func TestConcurrentAddThenDeleteLeavesNoAssignment(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	enableManagedEndpointState(svc)
+	require.NoError(t, seedAvailableIPs(t, svc, testNCID, map[string]string{testIPID1: testIP1}))
+	req := newTestIPConfigsRequest(t, testPod1Info)
+	blockingStore := newBlockingEndpointWriteStore(svc.EndpointStateStore)
+	svc.EndpointStateStore = blockingStore
+	defer blockingStore.unblock()
+
+	addDone := make(chan error, 1)
+	go func() {
+		_, err := svc.requestIPConfigHandlerHelper(context.Background(), req)
+		addDone <- err
+	}()
+	<-blockingStore.entered
+	require.False(t, svc.TryLock(), "ADD must hold the service lock while endpoint state is persisted")
+
+	deleteStarted := make(chan struct{})
+	deleteDone := make(chan error, 1)
+	go func() {
+		close(deleteStarted)
+		_, err := svc.ReleaseIPConfigHandlerHelper(context.Background(), req)
+		deleteDone <- err
+	}()
+	<-deleteStarted
+	select {
+	case err := <-deleteDone:
+		t.Fatalf("DEL completed while ADD endpoint write was blocked: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	blockingStore.unblock()
+	require.NoError(t, <-addDone)
+	require.NoError(t, <-deleteDone)
+
+	ipState := svc.PodIPConfigState[testIPID1]
+	require.Equal(t, types.Available, ipState.GetState())
+	require.NotContains(t, svc.EndpointState, testPod1Info.InfraContainerID())
+	require.Contains(t, svc.EndpointDeleteIntents, testPod1Info.InfraContainerID())
+}
+
+func newTestIPConfigsRequest(t *testing.T, podInfo cns.PodInfo) cns.IPConfigsRequest {
+	t.Helper()
+	orc, err := podInfo.OrchestratorContext()
+	require.NoError(t, err)
+	return cns.IPConfigsRequest{
+		PodInterfaceID:      podInfo.InterfaceID(),
+		InfraContainerID:    podInfo.InfraContainerID(),
+		OrchestratorContext: orc,
+		Ifname:              "eth0",
+	}
+}
+
+func seedAvailableIPs(t *testing.T, svc *HTTPRestService, ncID string, ips map[string]string) error {
+	t.Helper()
+	ipconfigs := make(map[string]cns.IPConfigurationStatus, len(ips))
+	for id, ip := range ips {
+		ipconfigs[id] = newPodState(ip, id, ncID, types.Available, 0)
+	}
+	return updatePodIPConfigState(t, svc, ipconfigs, ncID)
+}
+
+func enableManagedEndpointState(svc *HTTPRestService) {
+	svc.Options[acn.OptManageEndpointState] = true
+}
+
+type endpointWriteFailStore struct {
+	store.KeyValueStore
+}
+
+func (s endpointWriteFailStore) Write(key string, value interface{}) error {
+	if key == EndpointStoreKey {
+		return errForcedEndpointWrite
+	}
+	if err := s.KeyValueStore.Write(key, value); err != nil {
+		return fmt.Errorf("writing key %q: %w", key, err)
+	}
+	return nil
+}
+
+var errForcedDeleteIntentWrite = errors.New("forced endpoint delete intent write failure")
+
+type keyWriteFailStore struct {
+	store.KeyValueStore
+	failKey string
+	err     error
+}
+
+func (s keyWriteFailStore) Write(key string, value interface{}) error {
+	if key == s.failKey {
+		return s.err
+	}
+	if err := s.KeyValueStore.Write(key, value); err != nil {
+		return fmt.Errorf("writing key %q: %w", key, err)
+	}
+	return nil
+}
+
+type endpointWriteCountingStore struct {
+	store.KeyValueStore
+	endpointWrites int
+}
+
+func (s *endpointWriteCountingStore) Write(key string, value interface{}) error {
+	if key == EndpointStoreKey {
+		s.endpointWrites++
+	}
+	if err := s.KeyValueStore.Write(key, value); err != nil {
+		return fmt.Errorf("writing key %q: %w", key, err)
+	}
+	return nil
+}
+
+type blockingEndpointWriteStore struct {
+	store.KeyValueStore
+	entered     chan struct{}
+	release     chan struct{}
+	blockOnce   sync.Once
+	unblockOnce sync.Once
+}
+
+func newBlockingEndpointWriteStore(kvs store.KeyValueStore) *blockingEndpointWriteStore {
+	return &blockingEndpointWriteStore{
+		KeyValueStore: kvs,
+		entered:       make(chan struct{}),
+		release:       make(chan struct{}),
+	}
+}
+
+func (s *blockingEndpointWriteStore) Write(key string, value interface{}) error {
+	if key == EndpointStoreKey {
+		s.blockOnce.Do(func() {
+			close(s.entered)
+			<-s.release
+		})
+	}
+	if err := s.KeyValueStore.Write(key, value); err != nil {
+		return fmt.Errorf("writing key %q: %w", key, err)
+	}
+	return nil
+}
+
+func (s *blockingEndpointWriteStore) unblock() {
+	s.unblockOnce.Do(func() {
+		close(s.release)
+	})
 }
 
 // assign the available IP to the new pod

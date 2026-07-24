@@ -1,7 +1,10 @@
 package restserver
 
 import (
+	"errors"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
@@ -173,7 +176,7 @@ func TestRestoreState(t *testing.T) {
 				EndpointState:      make(map[string]*EndpointInfo),
 			}
 
-			svc.restoreState()
+			require.NoError(t, svc.restoreState())
 
 			if tt.wantEndpointRestored {
 				require.Len(t, svc.EndpointState, 1)
@@ -183,6 +186,142 @@ func TestRestoreState(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRestoreStateLoadsAndPrunesEndpointDeleteIntents(t *testing.T) {
+	mainStore := store.NewMockStore("")
+	endpointStore := store.NewMockStore("")
+	require.NoError(t, endpointStore.Write(EndpointStoreKey, map[string]*EndpointInfo{
+		"current":   {PodName: "current-pod"},
+		"expired":   {PodName: "expired-pod"},
+		"zero":      {PodName: "zero-pod"},
+		"untouched": {PodName: "untouched-pod"},
+	}))
+	require.NoError(t, endpointStore.Write(EndpointDeleteIntentStoreKey, map[string]EndpointDeleteIntent{
+		"expired": {CreatedAt: time.Now().Add(-endpointDeleteIntentTTL - time.Minute)},
+		"current": {CreatedAt: time.Now()},
+		"zero":    {},
+	}))
+
+	svc := HTTPRestService{
+		Service: &cns.Service{
+			Service: &common.Service{Options: map[string]interface{}{acn.OptManageEndpointState: true}},
+		},
+		store:                 mainStore,
+		state:                 &httpRestServiceState{},
+		EndpointStateStore:    endpointStore,
+		EndpointState:         make(map[string]*EndpointInfo),
+		EndpointDeleteIntents: make(map[string]EndpointDeleteIntent),
+	}
+
+	require.NoError(t, svc.restoreState())
+
+	require.NotContains(t, svc.EndpointState, "current")
+	require.Contains(t, svc.EndpointState, "expired")
+	require.Contains(t, svc.EndpointState, "zero")
+	require.Contains(t, svc.EndpointState, "untouched")
+	require.Contains(t, svc.EndpointDeleteIntents, "current")
+	require.NotContains(t, svc.EndpointDeleteIntents, "expired")
+	require.NotContains(t, svc.EndpointDeleteIntents, "zero")
+
+	var stored map[string]EndpointDeleteIntent
+	require.NoError(t, endpointStore.Read(EndpointDeleteIntentStoreKey, &stored))
+	require.Contains(t, stored, "current")
+	require.NotContains(t, stored, "expired")
+	require.NotContains(t, stored, "zero")
+
+	var storedEndpoints map[string]*EndpointInfo
+	require.NoError(t, endpointStore.Read(EndpointStoreKey, &storedEndpoints))
+	require.NotContains(t, storedEndpoints, "current")
+	require.Contains(t, storedEndpoints, "expired")
+	require.Contains(t, storedEndpoints, "zero")
+	require.Contains(t, storedEndpoints, "untouched")
+}
+
+func TestRestoreStateToleratesMissingEndpointDeleteIntents(t *testing.T) {
+	mainStore := store.NewMockStore("")
+	endpointStore := store.NewMockStore("")
+	require.NoError(t, endpointStore.Write(EndpointStoreKey, map[string]*EndpointInfo{
+		"container1": {PodName: "pod1"},
+	}))
+
+	svc := HTTPRestService{
+		Service: &cns.Service{
+			Service: &common.Service{Options: map[string]interface{}{acn.OptManageEndpointState: true}},
+		},
+		store:                 mainStore,
+		state:                 &httpRestServiceState{},
+		EndpointStateStore:    endpointStore,
+		EndpointState:         make(map[string]*EndpointInfo),
+		EndpointDeleteIntents: make(map[string]EndpointDeleteIntent),
+	}
+
+	require.NoError(t, svc.restoreState())
+
+	require.Contains(t, svc.EndpointState, "container1")
+	require.Empty(t, svc.EndpointDeleteIntents)
+}
+
+func TestRestoreStateFailsClosedWhenDeleteIntentsCannotBeRead(t *testing.T) {
+	mainStore := store.NewMockStore("")
+	endpointStore := store.NewMockStore("")
+	require.NoError(t, endpointStore.Write(EndpointStoreKey, map[string]*EndpointInfo{}))
+	svc := HTTPRestService{
+		Service: &cns.Service{
+			Service: &common.Service{Options: map[string]interface{}{acn.OptManageEndpointState: true}},
+		},
+		store: mainStore,
+		state: &httpRestServiceState{},
+		EndpointStateStore: keyReadFailStore{
+			KeyValueStore: endpointStore,
+			failKey:       EndpointDeleteIntentStoreKey,
+			err:           errForcedDeleteIntentRead,
+		},
+		EndpointState: make(map[string]*EndpointInfo),
+	}
+
+	require.ErrorIs(t, svc.restoreState(), errForcedDeleteIntentRead)
+}
+
+func TestRestoreStateFailsClosedWhenEndpointStateCannotBeRead(t *testing.T) {
+	mainStore := store.NewMockStore("")
+	endpointStore := store.NewMockStore("")
+	svc := HTTPRestService{
+		Service: &cns.Service{
+			Service: &common.Service{Options: map[string]interface{}{acn.OptManageEndpointState: true}},
+		},
+		store: mainStore,
+		state: &httpRestServiceState{},
+		EndpointStateStore: keyReadFailStore{
+			KeyValueStore: endpointStore,
+			failKey:       EndpointStoreKey,
+			err:           errForcedEndpointStateRead,
+		},
+		EndpointState: make(map[string]*EndpointInfo),
+	}
+
+	require.ErrorIs(t, svc.restoreState(), errForcedEndpointStateRead)
+}
+
+var (
+	errForcedDeleteIntentRead  = errors.New("forced endpoint delete intent read failure")
+	errForcedEndpointStateRead = errors.New("forced endpoint state read failure")
+)
+
+type keyReadFailStore struct {
+	store.KeyValueStore
+	failKey string
+	err     error
+}
+
+func (s keyReadFailStore) Read(key string, value interface{}) error {
+	if key == s.failKey {
+		return s.err
+	}
+	if err := s.KeyValueStore.Read(key, value); err != nil {
+		return fmt.Errorf("reading key %q: %w", key, err)
+	}
+	return nil
 }
 
 // test to check if nc can be deleted from ncList for Delete() method
