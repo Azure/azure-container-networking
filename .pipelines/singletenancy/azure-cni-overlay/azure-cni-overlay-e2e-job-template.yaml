@@ -60,7 +60,7 @@ stages:
     displayName: E2E-${{ parameters.displayName }}
     dependsOn:
     - setup
-    - publish
+    - containerize
     - ${{ parameters.clusterName }}
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
@@ -150,4 +150,3 @@ stages:
           os: ${{ parameters.os }}
           cni: cniv2
           dependsOnJob: failedE2ELogs_${{ parameters.os }}
-

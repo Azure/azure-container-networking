@@ -78,7 +78,7 @@ stages:
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
     dependsOn:
       - setup
-      - publish
+      - containerize
       - ${{ parameters.clusterName }}
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
@@ -127,4 +127,3 @@ stages:
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
           cni: cilium
-

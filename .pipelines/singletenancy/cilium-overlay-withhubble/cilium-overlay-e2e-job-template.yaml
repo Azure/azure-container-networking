@@ -55,7 +55,7 @@ stages:
     condition: and(succeeded(), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true'))
     dependsOn:
     - setup
-    - publish
+    - containerize
     - ${{ parameters.clusterName }}
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
@@ -114,4 +114,3 @@ stages:
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
           cni: cilium
-

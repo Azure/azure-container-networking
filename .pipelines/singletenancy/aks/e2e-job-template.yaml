@@ -73,7 +73,7 @@ stages:
       CNI_IMAGE_NAME_OVERRIDE: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cniImageNameOverride'] ]
     dependsOn:
     - setup
-    - publish
+    - containerize
     - ${{ parameters.clusterName }}
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
@@ -144,4 +144,3 @@ stages:
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
           cni: cniv1
-

@@ -7,8 +7,6 @@ jobs:
 - ${{ each job_data in parameters.generate }}:
   - job: ${{ job_data.job }}_generate_manifest
     displayName: "Generate Image Manifest - ${{ job_data.job }}"
-    ${{ if job_data.dependsOn }}:
-      dependsOn: ${{ job_data.dependsOn }}
     pool:
       type: linux
     variables:

@@ -52,7 +52,7 @@ stages:
     condition: and(succeeded(), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true'))
     dependsOn:
     - setup
-    - publish
+    - containerize
     - ${{ parameters.clusterName }}
     variables:
       GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
@@ -111,4 +111,3 @@ stages:
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
           cni: cilium
-

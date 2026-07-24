@@ -280,6 +280,46 @@ stages:
                 arch: $(arch)
                 name: $(name)
                 os: $(os)
+        - job: manifest
+          displayName: Compile Manifests
+          dependsOn:
+            - containerize_amd64
+            - containerize_linux_arm64
+          pool:
+            name: "$(BUILD_POOL_NAME_DEFAULT)"
+          variables:
+            Packaging.EnableSBOMSigning: true
+          strategy:
+            matrix:
+              ${{ if eq(parameters.buildIpam, true) }}:
+                azure_ipam:
+                  name: azure-ipam
+                  platforms: linux/amd64 linux/arm64 windows/amd64
+              ${{ if eq(parameters.buildCni, true) }}:
+                cni:
+                  name: cni
+                  platforms: linux/amd64 linux/arm64 windows/amd64
+              ${{ if eq(parameters.buildCns, true) }}:
+                cns:
+                  name: cns
+                  platforms: linux/amd64 linux/arm64 windows/amd64
+              ipv6_hp_bpf:
+                name: ipv6-hp-bpf
+                platforms: linux/amd64 linux/arm64
+              azure_ip_masq_merger:
+                name: azure-ip-masq-merger
+                platforms: linux/amd64 linux/arm64
+              azure_iptables_monitor:
+                name: azure-iptables-monitor
+                platforms: linux/amd64 linux/arm64
+              cilium_log_collector:
+                name: cilium-log-collector
+                platforms: linux/amd64 linux/arm64
+          steps:
+            - template: containers/manifest-template.yaml
+              parameters:
+                name: $(name)
+                platforms: $(platforms)
 
     - stage: containerize_npm
       displayName: Build NPM Images
@@ -323,6 +363,18 @@ stages:
                 arch: $(arch)
                 name: $(name)
                 os: $(os)
+        - job: npm_manifest
+          displayName: Compile NPM Manifest
+          dependsOn:
+            - containerize_npm_amd64
+            - containerize_npm_linux_arm64
+          pool:
+            name: "$(BUILD_POOL_NAME_DEFAULT)"
+          steps:
+            - template: containers/manifest-template.yaml
+              parameters:
+                name: npm
+                platforms: linux/amd64 linux/arm64 windows/amd64
 
     - stage: build_failure_analysis
       displayName: Build Failure Analysis
@@ -335,64 +387,6 @@ stages:
         - template: templates/pipeline-failure-analysis.job.yaml
           parameters:
             scope: build
-
-    - stage: publish
-      displayName: Publish Multiarch Manifests
-      dependsOn:
-        - containerize
-      variables:
-        Packaging.EnableSBOMSigning: true
-      jobs:
-        - job: manifest
-          displayName: Compile Manifests
-          pool:
-            name: "$(BUILD_POOL_NAME_DEFAULT)"
-          strategy:
-            matrix:
-              ${{ if eq(parameters.buildIpam, true) }}:
-                azure_ipam:
-                  name: azure-ipam
-                  platforms: linux/amd64 linux/arm64 windows/amd64
-              ${{ if eq(parameters.buildCni, true) }}:
-                cni:
-                  name: cni
-                  platforms: linux/amd64 linux/arm64 windows/amd64
-              ${{ if eq(parameters.buildCns, true) }}:
-                cns:
-                  name: cns
-                  platforms: linux/amd64 linux/arm64 windows/amd64
-              ipv6_hp_bpf:
-                name: ipv6-hp-bpf
-                platforms: linux/amd64 linux/arm64
-              azure_ip_masq_merger:
-                name: azure-ip-masq-merger
-                platforms: linux/amd64 linux/arm64
-              azure_iptables_monitor:
-                name: azure-iptables-monitor
-                platforms: linux/amd64 linux/arm64
-              cilium_log_collector:
-                name: cilium-log-collector
-                platforms: linux/amd64 linux/arm64
-          steps:
-            - template: containers/manifest-template.yaml
-              parameters:
-                name: $(name)
-                platforms: $(platforms)
-    
-    - stage: publish_npm
-      displayName: Publish NPM Multiarch Manifest
-      dependsOn:
-        - containerize_npm
-      jobs:
-        - job: npm_manifest
-          displayName: Compile NPM Manifest
-          pool:
-            name: "$(BUILD_POOL_NAME_DEFAULT)"
-          steps:
-            - template: containers/manifest-template.yaml
-              parameters:
-                name: npm
-                platforms: linux/amd64 linux/arm64 windows/amd64
 
     # Cilium Podsubnet E2E tests
     - template: singletenancy/cilium/cilium-e2e-job-template.yaml
@@ -613,7 +607,9 @@ stages:
       - template: multitenancy/swiftv2-manifold-e2e.stages.yaml
         parameters:
           name: "swiftv2_manifold_e2e"
-          dependsOn: publish
+          dependsOn: containerize
+          additionalDependsOn: containerize_npm
+          useBuiltImages: true
 
     # Delete All Clusters (cilium + windows + linux) — unified stage.
     # Async delete with leak detection; safe to attempt against clusters that

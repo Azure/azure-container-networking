@@ -45,34 +45,6 @@ stages:
     CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
     IPV6_HP_BPF_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfVersion'] ]
     NPM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.npmVersion'] ]
-
-    IPAM_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/azure-ipam:$(Build.BuildNumber)
-    IPAM_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/azure-ipam:$(Build.BuildNumber)
-    IPAM_WINDOWS_AMD64_REF: $(IMAGE_REPO_PATH)/windows-amd64/azure-ipam:$(Build.BuildNumber)
-
-    IP_MASQ_MERGER_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/azure-ip-masq-merger:$(Build.BuildNumber)
-    IP_MASQ_MERGER_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/azure-ip-masq-merger:$(Build.BuildNumber)
-
-    IPTABLES_MONITOR_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/azure-iptables-monitor:$(Build.BuildNumber)
-    IPTABLES_MONITOR_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/azure-iptables-monitor:$(Build.BuildNumber)
-
-    CILIUM_LOG_COLLECTOR_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/cilium-log-collector:$(Build.BuildNumber)
-    CILIUM_LOG_COLLECTOR_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/cilium-log-collector:$(Build.BuildNumber)
-
-    CNI_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/cni:$(Build.BuildNumber)
-    CNI_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/cni:$(Build.BuildNumber)
-    CNI_WINDOWS_AMD64_REF: $(IMAGE_REPO_PATH)/windows-amd64/cni:$(Build.BuildNumber)
-
-    CNS_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/cns:$(Build.BuildNumber)
-    CNS_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/cns:$(Build.BuildNumber)
-    CNS_WINDOWS_AMD64_REF: $(IMAGE_REPO_PATH)/windows-amd64/cns:$(Build.BuildNumber)
-
-    IPV6_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/ipv6-hp-bpf:$(Build.BuildNumber)
-    IPV6_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/ipv6-hp-bpf:$(Build.BuildNumber)
-
-    NPM_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/npm:$(Build.BuildNumber)
-    NPM_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/npm:$(Build.BuildNumber)
-    NPM_WINDOWS_AMD64_REF: $(IMAGE_REPO_PATH)/windows-amd64/npm:$(Build.BuildNumber)
   jobs:
   - template: /.pipelines/build/images.jobs.yaml
     parameters:
@@ -233,15 +205,59 @@ stages:
             #   archiveVersion: $(NPM_VERSION)
             #   imageTag: $(Build.BuildNumber)
 
-  - ${{ if not(contains(variables['Build.SourceBranch'], 'refs/pull')) }}:
+
+- ${{ if not(contains(variables['Build.SourceBranch'], 'refs/pull')) }}:
+  - stage: manifests
+    displayName: "Image Manifests"
+    dependsOn:
+    - setup
+    - build
+    variables:
+      IMAGE_REPO_PATH: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.imageRepositoryPath'] ]
+
+      AZURE_IPAM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpamVersion'] ]
+      AZURE_IP_MASQ_MERGER_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpMasqMergerVersion'] ]
+      AZURE_IPTABLES_MONITOR_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIptablesMonitorVersion'] ]
+      AZURE_BLOCK_IPTABLES_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureBlockIptablesVersion'] ]
+      CILIUM_LOG_COLLECTOR_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ciliumLogCollectorVersion'] ]
+      CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
+      CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
+      IPV6_HP_BPF_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfVersion'] ]
+      NPM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.npmVersion'] ]
+
+      IPAM_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/azure-ipam:$(Build.BuildNumber)
+      IPAM_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/azure-ipam:$(Build.BuildNumber)
+      IPAM_WINDOWS_AMD64_REF: $(IMAGE_REPO_PATH)/windows-amd64/azure-ipam:$(Build.BuildNumber)
+
+      IP_MASQ_MERGER_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/azure-ip-masq-merger:$(Build.BuildNumber)
+      IP_MASQ_MERGER_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/azure-ip-masq-merger:$(Build.BuildNumber)
+
+      IPTABLES_MONITOR_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/azure-iptables-monitor:$(Build.BuildNumber)
+      IPTABLES_MONITOR_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/azure-iptables-monitor:$(Build.BuildNumber)
+
+      CILIUM_LOG_COLLECTOR_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/cilium-log-collector:$(Build.BuildNumber)
+      CILIUM_LOG_COLLECTOR_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/cilium-log-collector:$(Build.BuildNumber)
+
+      CNI_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/cni:$(Build.BuildNumber)
+      CNI_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/cni:$(Build.BuildNumber)
+      CNI_WINDOWS_AMD64_REF: $(IMAGE_REPO_PATH)/windows-amd64/cni:$(Build.BuildNumber)
+
+      CNS_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/cns:$(Build.BuildNumber)
+      CNS_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/cns:$(Build.BuildNumber)
+      CNS_WINDOWS_AMD64_REF: $(IMAGE_REPO_PATH)/windows-amd64/cns:$(Build.BuildNumber)
+
+      IPV6_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/ipv6-hp-bpf:$(Build.BuildNumber)
+      IPV6_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/ipv6-hp-bpf:$(Build.BuildNumber)
+
+      NPM_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/npm:$(Build.BuildNumber)
+      NPM_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/npm:$(Build.BuildNumber)
+      NPM_WINDOWS_AMD64_REF: $(IMAGE_REPO_PATH)/windows-amd64/npm:$(Build.BuildNumber)
+    jobs:
+
     - template: build/manifests.jobs.yaml
       parameters:
         generate:
         - job: azure_ipam
-          dependsOn:
-          - images_linux_amd64
-          - images_linux_arm64
-          - images_windows_amd64
           templateContext:
             name: azure-ipam
             image_tag: $(AZURE_IPAM_VERSION)
@@ -253,9 +269,6 @@ stages:
             - platform: windows/amd64
               imageReference: $(IPAM_WINDOWS_AMD64_REF)
         - job: azure_ip_masq_merger
-          dependsOn:
-          - images_linux_amd64
-          - images_linux_arm64
           templateContext:
             name: azure-ip-masq-merger
             image_tag: $(AZURE_IP_MASQ_MERGER_VERSION)
@@ -265,9 +278,6 @@ stages:
             - platform: linux/arm64
               imageReference: $(IP_MASQ_MERGER_LINUX_ARM64_REF)
         - job: azure_iptables_monitor
-          dependsOn:
-          - images_linux_amd64
-          - images_linux_arm64
           templateContext:
             name: azure-iptables-monitor
             image_tag: $(AZURE_IPTABLES_MONITOR_VERSION)
@@ -277,9 +287,6 @@ stages:
             - platform: linux/arm64
               imageReference: $(IPTABLES_MONITOR_LINUX_ARM64_REF)
         - job: cilium_log_collector
-          dependsOn:
-          - images_linux_amd64
-          - images_linux_arm64
           templateContext:
             name: cilium-log-collector
             image_tag: $(CILIUM_LOG_COLLECTOR_VERSION)
@@ -289,10 +296,6 @@ stages:
             - platform: linux/arm64
               imageReference: $(CILIUM_LOG_COLLECTOR_LINUX_ARM64_REF)
         - job: cni
-          dependsOn:
-          - images_linux_amd64
-          - images_linux_arm64
-          - images_windows_amd64
           templateContext:
             name: cni
             image_tag: $(CNI_VERSION)
@@ -304,10 +307,6 @@ stages:
             - platform: windows/amd64
               imageReference: $(CNI_WINDOWS_AMD64_REF)
         - job: cns
-          dependsOn:
-          - images_linux_amd64
-          - images_linux_arm64
-          - images_windows_amd64
           templateContext:
             name: cns
             image_tag: $(CNS_VERSION)
@@ -319,9 +318,6 @@ stages:
             - platform: windows/amd64
               imageReference: $(CNS_WINDOWS_AMD64_REF)
         - job: ipv6_hp_bpf
-          dependsOn:
-          - images_linux_amd64
-          - images_linux_arm64
           templateContext:
             name: ipv6-hp-bpf
             image_tag: $(IPV6_HP_BPF_VERSION)
@@ -331,10 +327,6 @@ stages:
             - platform: linux/arm64
               imageReference: $(IPV6_LINUX_ARM64_REF)
         # - job: npm
-        #   dependsOn:
-        #   - images_linux_amd64
-        #   - images_linux_arm64
-        #   - images_windows_amd64
         #   templateContext:
         #     name: npm
         #     image_tag: $(NPM_VERSION)
@@ -347,7 +339,6 @@ stages:
         #       imageReference: $(NPM_WINDOWS_AMD64_REF)
 
 
-- ${{ if not(contains(variables['Build.SourceBranch'], 'refs/pull')) }}:
   # Cilium Podsubnet E2E tests
   - template: singletenancy/cilium/cilium-e2e.stages.yaml
     parameters:
@@ -357,7 +348,7 @@ stages:
       clusterName: "ciliume2e"
       vmSize: Standard_B2ms
       k8sVersion: ""
-      dependsOn: build
+      dependsOn: manifests
 
   # Cilium Nodesubnet E2E tests
   - template: singletenancy/cilium-nodesubnet/cilium-nodesubnet-e2e.stages.yaml
@@ -368,7 +359,7 @@ stages:
       clusterName: "cilndsubnete2e"
       vmSize: Standard_B2s
       k8sVersion: ""
-      dependsOn: build
+      dependsOn: manifests
 
   # Cilium Overlay E2E tests
   - template: singletenancy/cilium-overlay/cilium-overlay-e2e.stages.yaml
@@ -379,7 +370,7 @@ stages:
       clusterName: "cilovere2e"
       vmSize: Standard_B2ms
       k8sVersion: ""
-      dependsOn: build
+      dependsOn: manifests
 
   # Cilium Dualstack Overlay E2E tests
   - template: singletenancy/cilium-dualstack-overlay/cilium-dualstackoverlay-e2e.stages.yaml
@@ -391,7 +382,7 @@ stages:
       clusterName: "cildsovere2e"
       vmSize: Standard_B2ms
       k8sVersion: ""
-      dependsOn: build
+      dependsOn: manifests
 
       # Cilium Overlay with hubble E2E tests
   - template: singletenancy/cilium-overlay-withhubble/cilium-overlay-e2e.stages.yaml
@@ -402,7 +393,7 @@ stages:
       clusterName: "cilwhleovere2e"
       vmSize: Standard_B2ms
       k8sVersion: ""
-      dependsOn: build
+      dependsOn: manifests
       testHubble: true
 
   # Azure Overlay E2E tests
@@ -415,7 +406,7 @@ stages:
       clusterName: "linuxazovere2e"
       vmSize: Standard_B2ms
       k8sVersion: ""
-      dependsOn: build
+      dependsOn: manifests
       scaleup: 100
 
   - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e.stages.yaml
@@ -427,7 +418,7 @@ stages:
       clusterName: "winazovere2e"
       vmSize: Standard_B2ms
       k8sVersion: ""
-      dependsOn: build
+      dependsOn: manifests
       scaleup: 50
 
   # Azure Overlay E2E Stateless CNI tests
@@ -439,7 +430,7 @@ stages:
       clusterType: overlay-byocni-up
       clusterName: "statelesswin"
       vmSize: Standard_B2ms
-      dependsOn: build
+      dependsOn: manifests
 
   # AKS Swift E2E tests
   - template: singletenancy/aks-swift/e2e.stages.yaml
@@ -451,7 +442,7 @@ stages:
       clusterName: "swifte2e"
       vmSize: Standard_B2ms
       k8sVersion: ""
-      dependsOn: build
+      dependsOn: manifests
 
   # AKS Swift Vnet Scale E2E tests
   - template: singletenancy/aks-swift/e2e.stages.yaml
@@ -463,7 +454,7 @@ stages:
       clusterName: "vscaleswifte2e"
       vmSize: Standard_B2ms
       k8sVersion: "1.30"
-      dependsOn: build
+      dependsOn: manifests
 
   # CNIv1 E2E tests
   - template: singletenancy/aks/e2e.stages.yaml
@@ -477,7 +468,7 @@ stages:
       vmSize: Standard_B2s
       k8sVersion: 1.25
       scaleup: 100
-      dependsOn: build
+      dependsOn: manifests
 
   - template: singletenancy/aks/e2e.stages.yaml
     parameters:
@@ -490,7 +481,7 @@ stages:
       vmSize: Standard_B2ms
       os_version: "ltsc2022"
       scaleup: 50
-      dependsOn: build
+      dependsOn: manifests
 
   # CNI dual stack overlay E2E tests
   - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e.stages.yaml
@@ -501,7 +492,7 @@ stages:
       clusterType: dualstack-overlay-byocni-up
       clusterName: "linuxdsovere2e"
       vmSize: Standard_B2ms
-      dependsOn: build
+      dependsOn: manifests
       scaleup: 100
 
   - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e.stages.yaml
@@ -512,14 +503,14 @@ stages:
       clusterType: dualstack-overlay-byocni-up
       clusterName: "windsovere2e"
       vmSize: Standard_B2ms
-      dependsOn: build
+      dependsOn: manifests
       scaleup: 50
     
   # AKS Swiftv2 Manifold E2E tests
   - template: multitenancy/swiftv2-manifold-e2e.stages.yaml
     parameters:
       name: "swiftv2_manifold_e2e"
-      dependsOn: build
+      dependsOn: manifests
 
   - stage: delete
     displayName: Delete Clusters

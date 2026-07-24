@@ -3,6 +3,12 @@ parameters:
     type: string
   - name: dependsOn
     type: string
+  - name: useBuiltImages
+    type: boolean
+    default: false
+  - name: additionalDependsOn
+    type: string
+    default: ""
 
 stages:
   - stage: manifold_e2e
@@ -11,7 +17,7 @@ stages:
       - name: IMAGE_REPO_PATH
         value: $[ format('{0}/', stageDependencies.setup.env.outputs['EnvironmentalVariables.imageRepositoryPath']) ]
       # Azure Container Networking PR Pipeline
-      - ${{ if eq(parameters.dependsOn, 'publish') }}:
+      - ${{ if eq(parameters.useBuiltImages, true) }}:
         # Use azure-npm, azure-cni, and azure-cns images
         - name: IMAGE_REPO_PATH_REF
           value: 'azure-'
@@ -20,7 +26,7 @@ stages:
         - name: CNS_VERSION
           value: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
       # ACN Official Build Pipeline
-      - ${{ if ne(parameters.dependsOn, 'publish') }}:
+      - ${{ if eq(parameters.useBuiltImages, false) }}:
         # Use /official/cni and /official/cns images
         - name: IMAGE_REPO_PATH_REF
           value: $(IMAGE_REPO_PATH)
@@ -31,6 +37,8 @@ stages:
           value: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
     dependsOn:
       - ${{ parameters.dependsOn }}
+      - ${{ if ne(parameters.additionalDependsOn, '') }}:
+        - ${{ parameters.additionalDependsOn }}
       - setup
     jobs:
       - job: ${{ parameters.name }}

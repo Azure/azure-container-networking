@@ -37,7 +37,7 @@ stages:
     condition: and(succeeded(), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true'))
     dependsOn:
     - setup
-    - publish
+    - containerize
     - ${{ parameters.clusterName }}
     variables:
       TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
