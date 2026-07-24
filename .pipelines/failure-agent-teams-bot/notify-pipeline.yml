@@ -1,0 +1,116 @@
+# ----------------------------------------------------------------------------
+# failure-agent-teams-bot — Teams notification pipeline
+#
+# Posts pipeline status to the shared ACN Pipeline Notifier bot. Each
+# (NOTIFY_SOURCE, NOTIFY_RUN_ID) pair renders one Adaptive Card in Teams that
+# updates in place across stages, plus threaded replies for narrative events.
+#
+# BEFORE THIS RUNS you MUST fill in:
+#   1. pipeline-constants.yml → notifyTeamId, notifyChannelId
+#   2. Every AzureCLI@2 `azureSubscription:` below → your WIF service connection
+#   3. Backend allow-list (in the notifier repo, not here): add the WIF
+#      service-principal appid to ALLOWED_CALLERS and the team groupId to
+#      ALLOWED_TEAMS, and install the bot in your Teams team.
+#
+# Requirements on the agent: Azure CLI and jq.
+# ----------------------------------------------------------------------------
+
+pr: none
+trigger: none
+
+variables:
+  - template: pipeline-constants.yml
+
+  # WIF (Workload Identity Federation) service connection used to mint the AAD
+  # bearer scoped to notifierApiAudience.
+  - name: serviceConnection
+    value: acn-dalec-test
+
+stages:
+  - stage: run
+    displayName: "Run with Teams notifications"
+    jobs:
+      - job: work
+        displayName: "Work + notify"
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        steps:
+          # --- Notify: running -------------------------------------------------
+          - task: AzureCLI@2
+            displayName: "Notify Teams — running"
+            inputs:
+              azureSubscription: $(serviceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              addSpnToEnvironment: true
+              inlineScript: |
+                source .pipelines/failure-agent-teams-bot/scripts/notify-bot.sh
+                notify_status \
+                  --status running --stage init \
+                  --title "failure-agent-teams-bot | $(Build.BuildNumber)" \
+                  --summary "Pipeline started." \
+                  --run-url "$(System.CollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)"
+            env:
+              NOTIFIER_ENDPOINT: $(notifierEndpoint)
+              NOTIFIER_API_AUDIENCE: $(notifierApiAudience)
+              NOTIFY_SOURCE: $(notifySource)
+              NOTIFY_RUN_ID: $(Build.BuildId)
+              NOTIFY_TEAM_ID: $(notifyTeamId)
+              NOTIFY_CHANNEL_ID: $(notifyChannelId)
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+
+          # --- Actual work goes here ------------------------------------------
+          - bash: |
+              set -euo pipefail
+              echo "Replace this step with the real pipeline work."
+            displayName: "Do the work"
+
+          # --- Notify: succeeded ----------------------------------------------
+          - task: AzureCLI@2
+            displayName: "Notify Teams — succeeded"
+            condition: succeeded()
+            inputs:
+              azureSubscription: $(serviceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              addSpnToEnvironment: true
+              inlineScript: |
+                source .pipelines/failure-agent-teams-bot/scripts/notify-bot.sh
+                notify_status \
+                  --status succeeded --stage done --severity success \
+                  --title "failure-agent-teams-bot | $(Build.BuildNumber)" \
+                  --summary "Pipeline completed successfully." \
+                  --run-url "$(System.CollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)"
+            env:
+              NOTIFIER_ENDPOINT: $(notifierEndpoint)
+              NOTIFIER_API_AUDIENCE: $(notifierApiAudience)
+              NOTIFY_SOURCE: $(notifySource)
+              NOTIFY_RUN_ID: $(Build.BuildId)
+              NOTIFY_TEAM_ID: $(notifyTeamId)
+              NOTIFY_CHANNEL_ID: $(notifyChannelId)
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+
+          # --- Notify: failed -------------------------------------------------
+          - task: AzureCLI@2
+            displayName: "Notify Teams — failed"
+            condition: failed()
+            inputs:
+              azureSubscription: $(serviceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              addSpnToEnvironment: true
+              inlineScript: |
+                source .pipelines/failure-agent-teams-bot/scripts/notify-bot.sh
+                notify_status \
+                  --status failed --stage done --severity failure \
+                  --title "failure-agent-teams-bot | $(Build.BuildNumber)" \
+                  --summary "Pipeline failed." \
+                  --run-url "$(System.CollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)"
+            env:
+              NOTIFIER_ENDPOINT: $(notifierEndpoint)
+              NOTIFIER_API_AUDIENCE: $(notifierApiAudience)
+              NOTIFY_SOURCE: $(notifySource)
+              NOTIFY_RUN_ID: $(Build.BuildId)
+              NOTIFY_TEAM_ID: $(notifyTeamId)
+              NOTIFY_CHANNEL_ID: $(notifyChannelId)
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
