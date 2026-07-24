@@ -80,6 +80,19 @@ type durableCacheProjection struct {
 	pnpIDByMACAddress map[string]string
 }
 
+// NewDurableStateLifecycle binds the Bolt durable-state adapter to the service
+// while leaving lifecycle ownership with the startup coordinator.
+func NewDurableStateLifecycle(
+	service *HTTPRestService,
+	db *state.DB,
+) (restore func(context.Context) error, close func() error, err error) {
+	adapter, err := newDurableStateAdapter(service, db)
+	if err != nil {
+		return nil, nil, err
+	}
+	return adapter.restore, adapter.Close, nil
+}
+
 func newDurableStateAdapter(service *HTTPRestService, db *state.DB) (*durableStateAdapter, error) {
 	if db == nil {
 		return nil, errNilDurableStateDB
