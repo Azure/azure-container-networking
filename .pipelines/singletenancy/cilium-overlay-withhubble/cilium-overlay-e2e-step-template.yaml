@@ -28,28 +28,15 @@ steps:
     inputs:
       kubectlVersion: latest
 
-  - template: ../../templates/cilium-cli.yaml
-
   - task: AzureCLI@2
+    displayName: Set cluster credentials
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-      scriptLocation: "inlineScript"
-      scriptType: "bash"
-      addSpnToEnvironment: true
-      inlineScript: |
-        set -e
-        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
-        ls -lah
-        # makefile manages cilium version
-        unset DIR
-        unset CILIUM_VERSION_TAG
-        make -C ./hack/aks deploy-cilium-hubble
-        export CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY=acnpublic.azurecr.io
-        export CILIUM_LOG_COLLECTOR_VERSION_TAG=$(make cilium-log-collector-version)
-        make -C ./hack/aks add-cilium-log-collector
-    name: "installCilium"
-    displayName: "Install Cilium on AKS Overlay"
-    retryCountOnTaskFailure: 2
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+
+  - template: ../../templates/cilium-cli.yaml
 
   - script: |
       echo "Start Azilium E2E Tests on Overlay Cluster"
@@ -64,7 +51,7 @@ steps:
         CNS=$(make cns-version)
         IPAM=$(make azure-ipam-version)
       fi
-      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_OVERLAY=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CLEANUP=true
+      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true INSTALL_OVERLAY=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CLEANUP=true
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E on AKS Overlay"

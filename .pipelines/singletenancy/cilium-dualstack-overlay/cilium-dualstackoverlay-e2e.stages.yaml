@@ -15,17 +15,44 @@ stages:
       - setup
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      IMAGE_REPO_PATH: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.imageRepositoryPath'] ]
+      AZURE_IPAM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpamVersion'] ]
+      IPV6_HP_BPF_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfVersion'] ]
+      CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
+      CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
+      IPAM_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/azure-ipam
+      CNS_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cns
+      CNI_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cni
+      CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY_OVERRIDE: acnpublic.azurecr.io/$(IMAGE_REPO_PATH)
+      CILIUM_LOG_COLLECTOR_VERSION_TAG_OVERRIDE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ciliumLogCollectorVersion'] ]
+      IPAM_IMAGE_REPO: ACN
+      CNS_IMAGE_REPO: ACN
+      CNI_IMAGE_REPO: ACN
+      IPV6_IMAGE_REGISTRY: acnpublic.azurecr.io/$(IMAGE_REPO_PATH)
     jobs:
-      - template: ../../templates/create-cluster.jobs.yaml
-        parameters:
-          name: ${{ parameters.name }}
-          displayName: ${{ parameters.displayName }}
-          clusterType: ${{ parameters.clusterType }}
-          clusterName: ${{ parameters.clusterName }}-$(commitID)
-          vmSize: ${{ parameters.vmSize }}
-          k8sVersion: ${{ parameters.k8sVersion }}
-          dependsOn: ${{ parameters.dependsOn }}
-          region: $(REGION_AKS_CLUSTER_TEST) # Dualstack has a specific region requirement
+      - job: ${{ parameters.name }}
+        displayName: Cluster - ${{ parameters.name }}
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          isCustom: true
+          type: linux
+        steps:
+          - checkout: azure-container-networking
+          - template: ../../templates/create-cluster-steps.yaml
+            parameters:
+              clusterType: ${{ parameters.clusterType }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              vmSize: ${{ parameters.vmSize }}
+              k8sVersion: ${{ parameters.k8sVersion }}
+              region: $(REGION_AKS_CLUSTER_TEST)
+          - template: ../../templates/network-install.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              networkType: cilium-dualstack
+              azureIpamVersion: $(AZURE_IPAM_VERSION)
+              cnsVersion: $(CNS_VERSION)
+              cniVersion: $(CNI_VERSION)
+              installFlag: INSTALL_OVERLAY
 
   - stage: ${{ parameters.name }}
     displayName: E2E - ${{ parameters.displayName }}
@@ -37,9 +64,8 @@ stages:
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
-
-      IPV6_IMAGE_REGISTRY: acnpublic.azurecr.io
       IMAGE_REPO_PATH: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.imageRepositoryPath'] ]
+      IPV6_IMAGE_REGISTRY: acnpublic.azurecr.io
       AZURE_IPAM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpamVersion'] ]
       IPV6_HP_BPF_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfVersion'] ]
       CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
@@ -47,9 +73,6 @@ stages:
       IPAM_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/azure-ipam
       CNS_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cns
       CNI_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cni
-      CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY_OVERRIDE: acnpublic.azurecr.io/$(IMAGE_REPO_PATH)
-      CILIUM_LOG_COLLECTOR_VERSION_TAG_OVERRIDE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ciliumLogCollectorVersion'] ]
-      IPV6_HP_BPF_IMAGE_REPO_PATH: $(IMAGE_REPO_PATH)
     jobs:
       - job: ${{ parameters.name }}
         displayName: Cilium Dualstack Overlay Test Suite - (${{ parameters.name }})

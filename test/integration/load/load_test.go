@@ -29,6 +29,7 @@ type TestConfig struct {
 	// PoolLabelSelector optionally restricts state validation to nodes matching
 	// this label selector (e.g. "agentpool=pool1"). Empty validates all nodes.
 	PoolLabelSelector string `env:"POOL_LABEL_SELECTOR" default:""`
+	WaitForCNS        bool   `env:"WAIT_FOR_CNS" default:"true"`
 }
 
 const (
