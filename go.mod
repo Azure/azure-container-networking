@@ -47,7 +47,7 @@ require (
 	k8s.io/client-go v0.35.6
 	k8s.io/klog v1.0.0
 	k8s.io/klog/v2 v2.140.0
-	k8s.io/utils v0.0.0-20260507154919-ff6756f316d2
+	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3
 	sigs.k8s.io/controller-runtime v0.23.3
 )
 
@@ -120,8 +120,8 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitorworkspaces v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v5 v5.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0
-	github.com/cilium/cilium v1.19.5
-	github.com/cilium/ebpf v0.20.1-0.20260218191617-ee67e7f43dd9
+	github.com/cilium/cilium v1.19.6
+	github.com/cilium/ebpf v0.22.0
 	github.com/jsternberg/zap-logfmt v1.3.0
 	golang.org/x/sync v0.21.0
 	gotest.tools/v3 v3.5.2
@@ -133,7 +133,7 @@ require (
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cilium/hive v0.0.0-20260108104938-97756f6ff54c // indirect
 	github.com/cilium/proxy v0.0.0-20250623105955-2136f59a4ea1 // indirect
-	github.com/cilium/statedb v0.5.8 // indirect
+	github.com/cilium/statedb v0.5.9 // indirect
 	github.com/cilium/stream v0.0.1 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/typeurl/v2 v2.2.0 // indirect
