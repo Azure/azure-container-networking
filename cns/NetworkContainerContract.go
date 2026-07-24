@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 )
 
 // Container Network Service DNC Contract
@@ -21,6 +22,7 @@ const (
 	GetHomeAz                                = "/homeaz"
 	GetNCList                                = "/nclist"
 	GetVMUniqueID                            = "/metadata/vmuniqueid"
+	GetNICResources                          = "/network/nicresources"
 	CreateOrUpdateNetworkContainer           = "/network/createorupdatenetworkcontainer"
 	DeleteNetworkContainer                   = "/network/deletenetworkcontainer"
 	PublishNetworkContainer                  = "/network/publishnetworkcontainer"
@@ -33,6 +35,7 @@ const (
 	DetachContainerFromNetwork               = "/network/detachcontainerfromnetwork"
 	RequestIPConfig                          = "/network/requestipconfig"
 	RequestIPConfigs                         = "/network/requestipconfigs"
+	RequestClaimConfig                       = "/network/requestclaimconfig"
 	ReleaseIPConfig                          = "/network/releaseipconfig"
 	ReleaseIPConfigs                         = "/network/releaseipconfigs"
 	PathDebugIPAddresses                     = "/debug/ipaddresses"
@@ -525,6 +528,8 @@ type PodIpInfo struct {
 	InterfaceName              string
 	// MacAddress of interface
 	MacAddress string
+	// SharedNIC indicates the delegated NIC is shared and should not be managed by CNI.
+	SharedNIC bool `json:"sharedNic,omitempty"`
 	// SkipDefaultRoutes is true if default routes should not be added on interface
 	SkipDefaultRoutes bool
 	// Routes to configure on interface
@@ -577,6 +582,24 @@ type IPConfigResponse struct {
 type IPConfigsResponse struct {
 	PodIPInfo []PodIpInfo `json:"podIPInfo"`
 	Response  Response    `json:"response"`
+}
+
+// ClaimConfigRequest is the request for the RequestClaimConfig API. ClaimUID identifies
+// the DRA ResourceClaim; CNS resolves it to the owning pod by finding the pod's MTPNC
+// whose Spec.ResourceClaims contains this claim.
+type ClaimConfigRequest struct {
+	ClaimUID k8stypes.UID `json:"claimUID"`
+}
+
+// ClaimConfigResponse is the response for the RequestClaimConfig API.
+// It returns the pod's IP configs (the same set RequestIPConfigs produces, but
+// WITHOUT the IsScheduledWithDRA filtering, so delegated NIC configs are always
+// included) together with the resource-slice properties (networkID/subnetGUID/
+// subnetName/capacity/...) of every NIC allocated to the pod.
+type ClaimConfigResponse struct {
+	Response     Response      `json:"response"`
+	PodIPInfo    []PodIpInfo   `json:"podIPInfo"`
+	NICResources []NICResource `json:"nicResources"`
 }
 
 // GetIPAddressesRequest is used in CNS IPAM mode to get the states of IPConfigs

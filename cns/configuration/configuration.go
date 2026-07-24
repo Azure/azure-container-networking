@@ -41,6 +41,7 @@ type CNSConfig struct {
 	EnableStaleHNSCleanupOnNCCreate bool
 	EnableSwiftV1DualStack          bool
 	EnableSwiftV2                   bool
+	EnableSwiftV2PrefixAllocation   bool
 	IPv6PrefixClamp                 int
 	InitializeFromCNI               bool
 	KeyVaultSettings                KeyVaultSettings

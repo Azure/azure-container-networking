@@ -2,6 +2,8 @@ package middlewares
 
 import (
 	"context"
+	"net"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/configuration"
@@ -10,6 +12,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -29,10 +32,22 @@ var (
 	errInvalidSWIFTv2NICType    = errors.New("invalid NIC type for SWIFT v2 scenario")
 	errInvalidMTPNCPrefixLength = errors.New("invalid prefix length for MTPNC primaryIP, must be 32")
 	errMTPNCDeleting            = errors.New(NetworkNotReadyErrorMsg + " - mtpnc for previous pod is being deleted, waiting for new mtpnc to be ready")
+	errMTPNCNotFoundForClaim    = errors.New(NetworkNotReadyErrorMsg + " - no mtpnc found for resource claim")
 )
 
 type K8sSWIFTv2Middleware struct {
-	Cli client.Client
+	Cli      client.Client
+	NodeName string
+	Logger   *zap.Logger
+}
+
+// log returns the middleware's logger, or a no-op logger when one was not set
+// (e.g. in unit tests that construct the middleware directly).
+func (k *K8sSWIFTv2Middleware) log() *zap.Logger {
+	if k.Logger != nil {
+		return k.Logger
+	}
+	return zap.NewNop()
 }
 
 // Verify interface compliance at compile time
@@ -72,6 +87,13 @@ func (k *K8sSWIFTv2Middleware) GetPodInfoForIPConfigsRequest(ctx context.Context
 
 // getIPConfig returns the pod's SWIFT V2 IP configuration.
 func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodInfo) ([]cns.PodIpInfo, error) {
+	return k.getIPConfigHelper(ctx, podInfo, false)
+}
+
+// getIPConfigHelper builds the pod's SWIFT V2 delegated IP configs from its MTPNC.
+// When includeDRAAllocations is false, pods scheduled with DRA are skipped.
+// when true, DRA-delegated NICs are included.
+func (k *K8sSWIFTv2Middleware) getIPConfigHelper(ctx context.Context, podInfo cns.PodInfo, includeDRAAllocations bool) ([]cns.PodIpInfo, error) {
 	// Check if the MTPNC CRD exists for the pod, if not, return error
 	mtpnc := v1alpha1.MultitenantPodNetworkConfig{}
 	mtpncNamespacedName := k8stypes.NamespacedName{Namespace: podInfo.Namespace(), Name: podInfo.Name()}
@@ -84,6 +106,16 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 		return nil, errMTPNCNotReady
 	}
 	logger.Printf("[SWIFTv2Middleware] mtpnc for pod %s is : %+v", podInfo.Name(), mtpnc)
+
+	// When the pod was scheduled with Dynamic Resource Allocation (DRA), dranet
+	// owns the delegated NIC via NRI and configures it out of band. CNS must not
+	// return the delegated NIC IP config to the CNI invoker, so skip it here unless the
+	// caller explicitly asks to include DRA allocations.
+	// A swiftv2 pod is either scheduled with DRA using ResourceClaims or using the legacy PN/PNI annotation, regardless of how many NICs/Networks it connects to.
+	if !includeDRAAllocations && mtpnc.IsScheduledWithDRA() {
+		k.log().Debug("pod scheduled with DRA; skipping delegated NIC IP config for CNI", zap.String("pod", podInfo.Name()))
+		return []cns.PodIpInfo{}, nil
+	}
 
 	var podIPInfos []cns.PodIpInfo
 
@@ -140,6 +172,7 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 					},
 					MacAddress:        interfaceInfo.MacAddress,
 					NICType:           nicType,
+					SharedNIC:         interfaceInfo.SharedNIC,
 					SkipDefaultRoutes: false,
 					// InterfaceName is empty for DelegatedVMNIC and AccelnetFrontendNIC
 				}
@@ -157,6 +190,27 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 	}
 
 	return podIPInfos, nil
+}
+
+// GetAllIPConfigs returns the pod's SWIFT V2 delegated IP configs INCLUDING DRA-scheduled
+// NICs (unlike getIPConfig, which skips them).
+func (k *K8sSWIFTv2Middleware) GetAllIPConfigs(ctx context.Context, podInfo cns.PodInfo) ([]cns.PodIpInfo, error) {
+	return k.getIPConfigHelper(ctx, podInfo, true)
+}
+
+// GetPodNICMACs returns the MAC addresses of the NICs allocated to the pod, read
+// from its MultitenantPodNetworkConfig. It is self-contained and does not share code
+// with the existing getIPConfig path.
+func (k *K8sSWIFTv2Middleware) GetPodNICMACs(ctx context.Context, podInfo cns.PodInfo) ([]string, error) {
+	mtpnc := v1alpha1.MultitenantPodNetworkConfig{}
+	mtpncNamespacedName := k8stypes.NamespacedName{Namespace: podInfo.Namespace(), Name: podInfo.Name()}
+	if err := k.Cli.Get(ctx, mtpncNamespacedName, &mtpnc); err != nil {
+		return nil, errors.Wrap(err, errGetMTPNC.Error())
+	}
+	if !mtpnc.IsReady() {
+		return nil, errMTPNCNotReady
+	}
+	return mtpncMACs(&mtpnc), nil
 }
 
 func (k *K8sSWIFTv2Middleware) Type() cns.SWIFTV2Mode {
@@ -201,6 +255,33 @@ func (k *K8sSWIFTv2Middleware) getMTPNC(ctx context.Context, podInfo cns.PodInfo
 		return v1alpha1.MultitenantPodNetworkConfig{}, types.UnexpectedError, errMTPNCNotReady.Error()
 	}
 	return mtpnc, types.Success, ""
+}
+
+// GetPodInfoByClaimUID finds the MTPNC on this node whose Spec.ResourceClaims contains
+// claimUID and returns PodInfo for the pod that owns it. It is used by RequestClaimConfig
+// to resolve a DRA ResourceClaim to its pod, and is scoped to this node's MTPNCs.
+func (k *K8sSWIFTv2Middleware) GetPodInfoByClaimUID(ctx context.Context, claimUID k8stypes.UID) (cns.PodInfo, types.ResponseCode, string) {
+	var mtpncList v1alpha1.MultitenantPodNetworkConfigList
+	if err := k.Cli.List(ctx, &mtpncList); err != nil {
+		return nil, types.UnexpectedError, errors.Wrap(err, "failed to list mtpncs").Error()
+	}
+	for i := range mtpncList.Items {
+		mtpnc := &mtpncList.Items[i]
+		// Only consider MTPNCs scheduled on this node.
+		// TODO When the ctrl.manager is modified to watch only MTPNCs for this node, this check needs to be removed.
+		if mtpnc.Status.NodeName != k.NodeName {
+			continue
+		}
+		for _, claim := range mtpnc.Spec.ResourceClaims {
+			if claim == string(claimUID) {
+				if mtpnc.IsDeleting() {
+					return nil, types.UnexpectedError, errMTPNCDeleting.Error()
+				}
+				return cns.NewPodInfo("", "", mtpnc.Spec.PodName, mtpnc.Namespace), types.Success, ""
+			}
+		}
+	}
+	return nil, types.UnexpectedError, errMTPNCNotFoundForClaim.Error()
 }
 
 // Updates Ip Config Request
@@ -277,4 +358,142 @@ func (k *K8sSWIFTv2Middleware) GetInfravnetAndServiceCidrs() ([]string, []string
 	v6Cidrs = append(v6Cidrs, serviceCIDRsV6...)
 
 	return v4Cidrs, v6Cidrs, nil
+}
+
+// mtpncMACs returns the NIC MAC addresses referenced by an MTPNC, taken from
+// Status.InterfaceInfos and falling back to the deprecated Status.MacAddress.
+func mtpncMACs(mtpnc *v1alpha1.MultitenantPodNetworkConfig) []string {
+	var macs []string
+	for i := range mtpnc.Status.InterfaceInfos {
+		if mac := mtpnc.Status.InterfaceInfos[i].MacAddress; mac != "" {
+			macs = append(macs, mac)
+		}
+	}
+	if len(macs) == 0 && mtpnc.Status.MacAddress != "" {
+		macs = append(macs, mtpnc.Status.MacAddress)
+	}
+	return macs
+}
+
+// subnetNameFromResourceID extracts the trailing subnet name from an ARM resource ID.
+// e.g. ".../subnets/mySubnet" → "mySubnet"
+func subnetNameFromResourceID(resourceID string) string {
+	if resourceID == "" {
+		return ""
+	}
+	parts := strings.Split(resourceID, "/")
+	if len(parts) < 2 {
+		return resourceID
+	}
+	return parts[len(parts)-1]
+}
+
+// canonicalMAC parses raw and returns its canonical (lowercase, colon-separated)
+// form so map keys built from different CRDs compare equal regardless of the
+// original formatting. Returns false if raw is empty or not a valid MAC address.
+func canonicalMAC(raw string) (string, bool) {
+	hw, err := net.ParseMAC(raw)
+	if err != nil {
+		return "", false
+	}
+	return hw.String(), true
+}
+
+// sharedNICDRACapacity is the resource-slice capacity advertised for a DRA-managed
+// prefix-on-NIC (shared) NIC: the scheduler can place up to this many pods on it.
+const sharedNICDRACapacity = 16
+
+// dedicatedNICDRACapacity is the resource-slice capacity advertised for a dedicated
+// (single-allocation) NIC scheduled with DRA: the scheduler tallies one resource claim
+// against the slice.
+const dedicatedNICDRACapacity = 1
+
+// GetNICResourceNetworkInfoFromNICNC lists the NICNetworkConfigs on this node and returns a map keyed by
+// canonical NIC MAC address with the NIC's network/subnet info and resource-slice
+// capacity from Spec.
+func (k *K8sSWIFTv2Middleware) GetNICResourceNetworkInfoFromNICNC(ctx context.Context) (map[string]*cns.NICResourceNetworkInfo, error) {
+	var nicNCList v1alpha1.NICNetworkConfigList
+	if err := k.Cli.List(ctx, &nicNCList); err != nil {
+		return nil, errors.Wrap(err, "failed to list nicnetworkconfigs")
+	}
+
+	result := make(map[string]*cns.NICResourceNetworkInfo, len(nicNCList.Items))
+	for i := range nicNCList.Items {
+		spec := &nicNCList.Items[i].Spec
+		// Only consider NICs on this node.
+		// TODO when the ctrl.manager is modified to watch only NICNCs for this node, this check needs to be removed.
+		if spec.NodeName != k.NodeName {
+			continue
+		}
+		key, ok := canonicalMAC(spec.MACAddress)
+		if !ok {
+			continue
+		}
+
+		// Presence of NICNC indicates that the NIC is created on a PN with PrefixBlock Allocation.
+		// If its not scheduled with DRA, its existence means that it was created for a pod without resourceclaims.
+		// And consequently it has no capacity to advertise to scheduler.
+		// we will mark it as 0 so the scheduler will not try to put further pods on this NIC.
+		// When the non DRA pod is deleted, NICNC is deleted, then the slice shall be recreated by DRA with capacity = 1
+		capacity := 0
+		if spec.ScheduledByDRA {
+			capacity = sharedNICDRACapacity
+		}
+		result[key] = &cns.NICResourceNetworkInfo{
+			NetworkID:  spec.NetworkID,
+			SubnetGUID: spec.SubnetGUID,
+			SubnetName: subnetNameFromResourceID(spec.SubnetResourceID),
+			Capacity:   capacity,
+		}
+	}
+
+	return result, nil
+}
+
+// GetNICResourceNetworkInfoFromMTPNC lists the MTPNCs scheduled on this node and returns a map keyed by
+// canonical NIC MAC address with the NIC's network/subnet info and resource-slice
+// capacity from the MTPNC Spec. Dedicated NICs (single-allocation PodNetworks) usually
+// have no NICNetworkConfig and are served from here as a fallback.
+//
+// It intentionally does NOT wait for the MTPNC to be Ready: a not-yet-ready MTPNC may
+// have empty Spec NetworkID/SubnetGUID/SubnetResourceID, which are surfaced as-is (empty)
+// rather than treated as an error. Entries whose MAC is empty or unparseable are skipped.
+func (k *K8sSWIFTv2Middleware) GetNICResourceNetworkInfoFromMTPNC(ctx context.Context) (map[string]*cns.NICResourceNetworkInfo, error) {
+	var mtpncList v1alpha1.MultitenantPodNetworkConfigList
+	if err := k.Cli.List(ctx, &mtpncList); err != nil {
+		return nil, errors.Wrap(err, "failed to list mtpncs")
+	}
+
+	result := make(map[string]*cns.NICResourceNetworkInfo)
+	for i := range mtpncList.Items {
+		mtpnc := &mtpncList.Items[i]
+		// Only consider MTPNCs scheduled on this node.
+		if mtpnc.Status.NodeName != k.NodeName {
+			continue
+		}
+
+		// A dedicated NIC scheduled with DRA advertises the dedicated capacity; a NIC
+		// created without DRA has no capacity to advertise to the scheduler (marked 0).
+		capacity := 0
+		if mtpnc.IsScheduledWithDRA() {
+			capacity = dedicatedNICDRACapacity
+		}
+		info := &cns.NICResourceNetworkInfo{
+			NetworkID:  mtpnc.Spec.NetworkID,
+			SubnetGUID: mtpnc.Spec.SubnetGUID,
+			SubnetName: subnetNameFromResourceID(mtpnc.Spec.SubnetResourceID),
+			Capacity:   capacity,
+		}
+		for _, mac := range mtpncMACs(mtpnc) {
+			key, ok := canonicalMAC(mac)
+			if !ok {
+				continue
+			}
+			if _, exists := result[key]; !exists { // first-seen wins
+				result[key] = info
+			}
+		}
+	}
+
+	return result, nil
 }

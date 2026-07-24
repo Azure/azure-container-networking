@@ -20,6 +20,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types/bounded"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	nma "github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/pkg/errors"
@@ -55,6 +56,21 @@ type imdsClient interface {
 	GetVMUniqueID(ctx context.Context) (string, error)
 	GetNetworkInterfaces(ctx context.Context) ([]imds.NetworkInterface, error)
 	GetIMDSVersions(ctx context.Context) (*imds.APIVersionsResponse, error)
+}
+
+// nicncClient enriches NICResource data with NICNetworkConfig CRD information (e.g., NetworkID, SubnetGUID).
+type nicncClient interface {
+	GetNICResourceNetworkInfoFromNICNC(ctx context.Context) (map[string]*cns.NICResourceNetworkInfo, error)
+}
+
+// mtpncClient enriches NICResource data with MTPNC CRD information for dedicated NICs.
+type mtpncClient interface {
+	GetNICResourceNetworkInfoFromMTPNC(ctx context.Context) (map[string]*cns.NICResourceNetworkInfo, error)
+}
+
+// nodeinfoClient reads NodeInfo CRDs to get NIC device info and VM metadata.
+type nodeinfoClient interface {
+	Get(ctx context.Context, name string) (*v1alpha1.NodeInfo, error)
 }
 
 type iptablesClient interface {
@@ -102,6 +118,10 @@ type HTTPRestService struct {
 	PnpIDByMacAddress          map[string]string
 	imdsClient                 imdsClient
 	nodesubnetIPFetcher        *nodesubnet.IPFetcher
+	nicncClient                nicncClient
+	mtpncClient                mtpncClient
+	nodeinfoClient             nodeinfoClient
+	nodeName                   string
 }
 
 type CNIConflistGenerator interface {
@@ -303,6 +323,8 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.NetworkContainersURLPath, service.getOrRefreshNetworkContainers)
 	listener.AddHandler(cns.GetHomeAz, service.getHomeAz)
 	listener.AddHandler(cns.EndpointPath, service.EndpointHandlerAPI)
+	listener.AddHandler(cns.GetNICResources, service.getNICResources)
+	listener.AddHandler(cns.RequestClaimConfig, service.requestClaimConfig)
 	// This API is only needed for Direct channel mode.
 	if config.ChannelMode == cns.Direct {
 		listener.AddHandler(cns.GetVMUniqueID, service.getVMUniqueID)
@@ -398,4 +420,17 @@ func (service *HTTPRestService) MustGenerateCNIConflistOnce() {
 
 func (service *HTTPRestService) AttachIPConfigsHandlerMiddleware(middleware cns.IPConfigsHandlerMiddleware) {
 	service.IPConfigsHandlerMiddleware = middleware
+}
+
+func (service *HTTPRestService) AttachNICNCClient(client nicncClient) {
+	service.nicncClient = client
+}
+
+func (service *HTTPRestService) AttachMTPNCClient(client mtpncClient) {
+	service.mtpncClient = client
+}
+
+func (service *HTTPRestService) AttachNodeInfoClient(client nodeinfoClient, nodeName string) {
+	service.nodeinfoClient = client
+	service.nodeName = nodeName
 }

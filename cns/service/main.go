@@ -37,6 +37,7 @@ import (
 	ipampoolv2 "github.com/Azure/azure-container-networking/cns/ipampool/v2"
 	cssctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/clustersubnetstate"
 	mtpncctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/multitenantpodnetworkconfig"
+	nicncctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/nicnetworkconfig"
 	nncctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/nodenetworkconfig"
 	podctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/pod"
 	"github.com/Azure/azure-container-networking/cns/logger"
@@ -1485,6 +1486,12 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 					"kube-system": {FieldSelector: fields.SelectorFromSet(fields.Set{"metadata.name": nodeName})},
 				},
 			},
+			// NodeInfo is cluster-scoped and named after the node; CNS only reads
+			// its own node's NodeInfo, so scope the informer to this node instead
+			// of caching and watching every node's NodeInfo cluster-wide.
+			&mtv1alpha1.NodeInfo{}: {
+				Field: fields.SelectorFromSet(fields.Set{"metadata.name": nodeName}),
+			},
 		},
 	}
 
@@ -1584,8 +1591,27 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		}
 		// if SWIFT v2 is enabled on CNS, attach multitenant middleware to rest service
 		// switch here for AKS(K8s) swiftv2 middleware to process IP configs requests
-		swiftV2Middleware := &middlewares.K8sSWIFTv2Middleware{Cli: manager.GetClient()}
+		swiftV2Middleware := &middlewares.K8sSWIFTv2Middleware{Cli: manager.GetClient(), NodeName: nodeName, Logger: z.With(zap.String("component", "swiftv2-middleware"))}
 		httpRestService.AttachIPConfigsHandlerMiddleware(swiftV2Middleware)
+
+		// SWIFT v2 prefix-on-NIC allocation (delegated NIC sharing via DRA) is an
+		// opt-in extension of SWIFT v2. Only when it is enabled do we warm the
+		// NICNetworkConfig informer and wire up the clients that back the
+		// NIC-resources APIs (getNICResources / requestClaimConfig).
+		if cnsconfig.EnableSwiftV2PrefixAllocation {
+			// Register a noop NICNetworkConfig reconciler so the informer/cache is
+			// warm before the middleware reads it via the cached client.
+			if err := nicncctrl.SetupWithManager(manager); err != nil {
+				return errors.Wrapf(err, "failed to setup nicnetworkconfig reconciler with manager")
+			}
+			httpRestServiceImplementation.AttachNICNCClient(swiftV2Middleware)
+			httpRestServiceImplementation.AttachMTPNCClient(swiftV2Middleware)
+
+			// Attach the NodeInfo client used to read NIC device info from the
+			// NodeInfo CRD when serving the NIC-resources APIs.
+			nodeInfoCli := &multitenancy.NodeInfoClient{Cli: manager.GetClient()}
+			httpRestServiceImplementation.AttachNodeInfoClient(nodeInfoCli, nodeName)
+		}
 	}
 
 	// start the pool Monitor before the Reconciler, since it needs to be ready to receive an
