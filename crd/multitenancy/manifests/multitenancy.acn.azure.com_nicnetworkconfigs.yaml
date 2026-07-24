@@ -122,6 +122,11 @@ spec:
                 items:
                   type: string
                 type: array
+              consumableCapacity:
+                description: |-
+                  ConsumableCapacity indicates the number of pods that can share this NIC.
+                  Total number of pods.
+                type: integer
               cooldownPeriodInSeconds:
                 default: 30
                 description: CooldownPeriodInSeconds is the cooldown duration before

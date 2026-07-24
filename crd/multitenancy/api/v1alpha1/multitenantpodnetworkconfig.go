@@ -52,18 +52,6 @@ type MultitenantPodNetworkConfigSpec struct {
 	IBMACAddresses []string `json:"IBMACAddresses,omitempty"`
 	// PodUID is the UID of the pod
 	PodUID types.UID `json:"podUID,omitempty"`
-	// NetworkID identifies the network (e.g. VNet GUID) this pod belongs to.
-	// Denormalized from PodNetwork.Spec.NetworkID.
-	// +kubebuilder:validation:Optional
-	NetworkID string `json:"networkID,omitempty"`
-	// SubnetGUID is the GUID of the subnet this pod belongs to.
-	// Denormalized from PodNetwork.Spec.SubnetGUID.
-	// +kubebuilder:validation:Optional
-	SubnetGUID string `json:"subnetGUID,omitempty"`
-	// SubnetResourceID is the ARM resource ID of the subnet this pod belongs to.
-	// Denormalized from PodNetwork.Spec.SubnetResourceID.
-	// +kubebuilder:validation:Optional
-	SubnetResourceID string `json:"subnetResourceID,omitempty"`
 	// ResourceClaims lists the names of ResourceClaims allocated to the pod that
 	// were created for the multitenancy DRA driver.
 	// +kubebuilder:validation:Optional
@@ -131,6 +119,18 @@ type InterfaceInfo struct {
 	// it determines if CNI will need to keep this NIC in the pod / node namespace
 	// +kubebuilder:validation:Optional
 	SharedNIC bool `json:"sharedNic,omitempty"`
+	// NetworkID identifies the network (e.g. VNet GUID) this pod belongs to.
+	// Denormalized from PodNetwork.Spec.NetworkID.
+	// +kubebuilder:validation:Optional
+	NetworkID string `json:"networkID,omitempty"`
+	// SubnetGUID is the GUID of the subnet this pod belongs to.
+	// Denormalized from PodNetwork.Spec.SubnetGUID.
+	// +kubebuilder:validation:Optional
+	SubnetGUID string `json:"subnetGUID,omitempty"`
+	// SubnetResourceID is the ARM resource ID of the subnet this pod belongs to.
+	// Denormalized from PodNetwork.Spec.SubnetResourceID.
+	// +kubebuilder:validation:Optional
+	SubnetResourceID string `json:"subnetResourceID,omitempty"`
 }
 
 // MultitenantPodNetworkConfigStatus defines the observed state of PodNetworkConfig

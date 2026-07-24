@@ -116,6 +116,10 @@ type NICNetworkConfigStatus struct {
 	// AccelnetEnabled determines if the CNI will provision the NIC with accelerated networking enabled
 	// +kubebuilder:validation:Optional
 	AccelnetEnabled bool `json:"accelnetEnabled,omitempty"`
+	// ConsumableCapacity indicates the number of pods that can share this NIC.
+	// Total number of pods.
+	// +kubebuilder:validation:Optional
+	ConsumableCapacity int `json:"consumableCapacity,omitempty"`
 }
 
 // NICNCStatus indicates the status of NIC Network Config
