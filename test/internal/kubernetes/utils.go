@@ -269,13 +269,8 @@ func MustSetupCNP(ctx context.Context, clientset *cilium.Clientset, cnpPath stri
 
 func Int32ToPtr(i int32) *int32 { return &i }
 
-func WaitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, namespace, labelselector string, excludeNamespaces []string) error {
+func WaitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, namespace, labelselector string) error {
 	podsClient := clientset.CoreV1().Pods(namespace)
-
-	excludeSet := make(map[string]struct{}, len(excludeNamespaces))
-	for _, ns := range excludeNamespaces {
-		excludeSet[ns] = struct{}{}
-	}
 
 	checkPodIPsFn := func() error {
 		podList, err := podsClient.List(ctx, metav1.ListOptions{LabelSelector: labelselector})
@@ -289,9 +284,6 @@ func WaitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, na
 
 		for index := range podList.Items {
 			pod := podList.Items[index]
-			if _, excluded := excludeSet[pod.Namespace]; excluded {
-				continue
-			}
 			if pod.Status.Phase == corev1.PodPending {
 				return errors.New("some pods still pending")
 			}
@@ -299,9 +291,6 @@ func WaitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, na
 
 		for index := range podList.Items {
 			pod := podList.Items[index]
-			if _, excluded := excludeSet[pod.Namespace]; excluded {
-				continue
-			}
 			if pod.Status.PodIP == "" {
 				return errors.Errorf("Pod %s/%s has not been allocated an IP yet with reason %s", pod.Namespace, pod.Name, pod.Status.Message)
 			}
