@@ -74,6 +74,17 @@ var (
 	}
 )
 
+// ruleIPSetsWithCIDR returns testPolicyobj's rule sets with a distinct CIDR set name so
+// cloned test policies each own their own ipblock set (label/namespace sets stay shared).
+func ruleIPSetsWithCIDR(cidrName string) []*ipsets.TranslatedIPSet {
+	return []*ipsets.TranslatedIPSet{
+		{Metadata: ipsets.NewIPSetMetadata("setns2", ipsets.Namespace)},
+		{Metadata: ipsets.NewIPSetMetadata("setpodkey2", ipsets.KeyLabelOfPod)},
+		{Metadata: ipsets.NewIPSetMetadata("setpodkeyval2", ipsets.KeyValueLabelOfPod)},
+		{Metadata: ipsets.NewIPSetMetadata(cidrName, ipsets.CIDRBlocks), Members: []string{"10.0.0.0/8"}},
+	}
+}
+
 func TestNewDataPlane(t *testing.T) {
 	metrics.InitializeAll()
 

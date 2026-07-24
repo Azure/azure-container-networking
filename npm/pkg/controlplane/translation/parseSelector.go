@@ -278,8 +278,10 @@ func parsePodSelector(policyKey string, selector *metav1.LabelSelector) ([]label
 				setType = ipsets.KeyValueLabelOfPod
 			} else {
 				// "(!) + matchKey + : + multiple matchVals" case
-				// see caveat in definition of TranslatedIPSet for why the policy key must be included in the set name
-				setName = fmt.Sprintf("%s-%s", policyKey, req.Key)
+				// The policy key must be included so each policy owns its own nested list
+				// (see caveat in TranslatedIPSet). Length-prefix the policy key and match
+				// key so distinct (policy, key) pairs always produce distinct set names.
+				setName = fmt.Sprintf("%d-%s-%d-%s", len(policyKey), policyKey, len(req.Key), req.Key)
 				for _, val := range req.Values {
 					setName = util.GetIpSetFromLabelKV(setName, val)
 					members = append(members, util.GetIpSetFromLabelKV(req.Key, val))

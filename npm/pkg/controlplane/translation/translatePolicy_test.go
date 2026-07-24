@@ -322,17 +322,17 @@ func TestIPBlockSetName(t *testing.T) {
 		{
 			name:        "default/test (ingress)",
 			ipBlockInfo: createIPBlockInfo("test", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0),
-			want:        "test-in-ns-default-0-0IN",
+			want:        "4-test-in-ns-7-default-0-0IN",
 		},
 		{
 			name:        "default/test (ingress)",
 			ipBlockInfo: createIPBlockInfo("test", defaultNS, policies.Ingress, policies.SrcMatch, 1, 0),
-			want:        "test-in-ns-default-1-0IN",
+			want:        "4-test-in-ns-7-default-1-0IN",
 		},
 		{
 			name:        "testns/test (egress)",
 			ipBlockInfo: createIPBlockInfo("test", "testns", policies.Egress, policies.DstMatch, 0, 1),
-			want:        "test-in-ns-testns-0-1OUT",
+			want:        "4-test-in-ns-6-testns-0-1OUT",
 		},
 	}
 
@@ -344,6 +344,172 @@ func TestIPBlockSetName(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// TestIPBlockSetNameUnambiguous checks that distinct (policy, namespace) pairs always
+// produce distinct set names, including when a name contains the "-in-ns-" separator.
+func TestIPBlockSetNameUnambiguous(t *testing.T) {
+	t.Parallel()
+
+	a := ipBlockSetName("a-in-ns-b", "c", policies.Ingress, 0, 0)
+	b := ipBlockSetName("a", "b-in-ns-c", policies.Ingress, 0, 0)
+	require.NotEqual(t, a, b, "distinct (policy, namespace) pairs must produce distinct set names")
+
+	// Distinct pairs whose names contain the "-in-ns-" separator must each be unique.
+	tuples := []struct{ policy, ns string }{
+		{"a-in-ns-b", "c"},
+		{"a", "b-in-ns-c"},
+		{"a-in-ns-b-in-ns-c", "d"},
+		{"a", "b-in-ns-c-in-ns-d"},
+		{"a-in-ns-b", "c-in-ns-d"},
+		{"a-in-ns", "b-c"},
+		{"a", "in-ns-b-c"},
+	}
+	seen := make(map[string]string, len(tuples))
+	for _, tp := range tuples {
+		name := ipBlockSetName(tp.policy, tp.ns, policies.Ingress, 0, 0)
+		if prev, ok := seen[name]; ok {
+			t.Fatalf("(%q,%q) and %q both produced %q", tp.policy, tp.ns, prev, name)
+		}
+		seen[name] = tp.policy + "|" + tp.ns
+	}
+}
+
+// ingressIPBlockPolicy builds a NetworkPolicy with a single ingress ipBlock CIDR peer.
+func ingressIPBlockPolicy(name, ns, cidr string) *networkingv1.NetworkPolicy {
+	return &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{
+				{From: []networkingv1.NetworkPolicyPeer{{IPBlock: &networkingv1.IPBlock{CIDR: cidr}}}},
+			},
+		},
+	}
+}
+
+// cidrSet returns the single CIDRBlocks TranslatedIPSet from a translated policy.
+func cidrSet(t *testing.T, npmNetPol *policies.NPMNetworkPolicy) *ipsets.TranslatedIPSet {
+	t.Helper()
+	var found *ipsets.TranslatedIPSet
+	for _, s := range npmNetPol.RuleIPSets {
+		if s.Metadata.Type == ipsets.CIDRBlocks {
+			require.Nil(t, found, "expected exactly one CIDR set per policy")
+			found = s
+		}
+	}
+	require.NotNil(t, found, "policy %s produced no CIDR set", npmNetPol.PolicyKey)
+	return found
+}
+
+// TestIPBlockTwoPolicyIsolation translates two policies whose (name, namespace) pairs
+// serialize around the "-in-ns-" separator and asserts they resolve to distinct kernel
+// sets, that each policy's ACL references its own set, and that neither set carries the
+// other's CIDR members.
+func TestIPBlockTwoPolicyIsolation(t *testing.T) {
+	t.Parallel()
+
+	// Both pairs would share a pre-hash name under the old ambiguous format.
+	first := ingressIPBlockPolicy("a-in-ns-b", "c", "198.51.100.10/32")
+	second := ingressIPBlockPolicy("a", "b-in-ns-c", "0.0.0.0/0")
+
+	firstNetPol, err := TranslatePolicy(first, false)
+	require.NoError(t, err)
+	secondNetPol, err := TranslatePolicy(second, false)
+	require.NoError(t, err)
+
+	firstSet := cidrSet(t, firstNetPol)
+	secondSet := cidrSet(t, secondNetPol)
+
+	// Distinct kernel (hashed) names: the two policies never share one IPSet.
+	require.NotEqual(t, firstSet.Metadata.GetHashedName(), secondSet.Metadata.GetHashedName(),
+		"distinct policies must map to distinct kernel sets")
+
+	// Each policy's ingress ACL references its own CIDR set.
+	requireIngressRefersTo(t, firstNetPol, firstSet.Metadata.GetHashedName())
+	requireIngressRefersTo(t, secondNetPol, secondSet.Metadata.GetHashedName())
+
+	// Members stay separated: neither set carries the other's CIDRs.
+	require.Equal(t, []string{"198.51.100.10/32"}, firstSet.Members)
+	require.ElementsMatch(t, []string{"0.0.0.0/1", "128.0.0.0/1"}, secondSet.Members)
+	require.NotContains(t, secondSet.Members, "198.51.100.10/32")
+	require.NotContains(t, firstSet.Members, "0.0.0.0/1")
+}
+
+// requireIngressRefersTo asserts that some ingress ACL source references the given set.
+func requireIngressRefersTo(t *testing.T, npmNetPol *policies.NPMNetworkPolicy, hashedName string) {
+	t.Helper()
+	for _, acl := range npmNetPol.ACLs {
+		if acl.Direction != policies.Ingress {
+			continue
+		}
+		for _, si := range acl.SrcList {
+			if si.IPSet.GetHashedName() == hashedName {
+				return
+			}
+		}
+	}
+	t.Fatalf("policy %s has no ingress ACL referencing set %s", npmNetPol.PolicyKey, hashedName)
+}
+
+// multiValueSelectorPolicy builds a policy whose target podSelector has a single
+// matchExpression (key In values) with multiple values, producing a nested-label set.
+func multiValueSelectorPolicy(name, ns, key string, values ...string) *networkingv1.NetworkPolicy {
+	return &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{Key: key, Operator: metav1.LabelSelectorOpIn, Values: values},
+				},
+			},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+			Ingress:     []networkingv1.NetworkPolicyIngressRule{{}},
+		},
+	}
+}
+
+// nestedSet returns the single NestedLabelOfPod TranslatedIPSet from a translated policy.
+func nestedSet(t *testing.T, npmNetPol *policies.NPMNetworkPolicy) *ipsets.TranslatedIPSet {
+	t.Helper()
+	var found *ipsets.TranslatedIPSet
+	for _, s := range npmNetPol.PodSelectorIPSets {
+		if s.Metadata.Type == ipsets.NestedLabelOfPod {
+			require.Nil(t, found, "expected exactly one nested set per policy")
+			found = s
+		}
+	}
+	require.NotNil(t, found, "policy %s produced no nested set", npmNetPol.PolicyKey)
+	return found
+}
+
+// TestNestedSelectorTwoPolicyIsolation translates two policies whose (name, matchKey)
+// pairs serialize around the "-" separator and asserts their multi-value selector sets
+// resolve to distinct kernel sets while sharing the same child member sets.
+func TestNestedSelectorTwoPolicyIsolation(t *testing.T) {
+	t.Parallel()
+
+	// Both pairs would share a pre-hash nested name under the old ambiguous format:
+	// (ns/a-b, key c) and (ns/a, key b-c) both produced "ns/a-b-c:x:y".
+	first := multiValueSelectorPolicy("a-b", "ns", "c", "x", "y")
+	second := multiValueSelectorPolicy("a", "ns", "b-c", "x", "y")
+
+	firstNetPol, err := TranslatePolicy(first, false)
+	require.NoError(t, err)
+	secondNetPol, err := TranslatePolicy(second, false)
+	require.NoError(t, err)
+
+	firstSet := nestedSet(t, firstNetPol)
+	secondSet := nestedSet(t, secondNetPol)
+
+	// Distinct kernel (hashed) names: the two policies never share one nested set.
+	require.NotEqual(t, firstSet.Metadata.GetHashedName(), secondSet.Metadata.GetHashedName(),
+		"distinct policies must map to distinct nested sets")
+
+	// Child member sets are keyed by matchKey:value and are unaffected by the fix.
+	require.ElementsMatch(t, []string{"c:x", "c:y"}, firstSet.Members)
+	require.ElementsMatch(t, []string{"b-c:x", "b-c:y"}, secondSet.Members)
 }
 
 // Specific testsets for 0.0.0.0/0 cidr since it has special handling in the code due to limitation of ipset on linux.
@@ -376,7 +542,7 @@ func TestIPBlockIPSet(t *testing.T) {
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR: "172.17.0.0/16",
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("4-test-in-ns-7-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16"}...),
 		},
 		{
 			name:        "one cidr and one element in except",
@@ -385,7 +551,7 @@ func TestIPBlockIPSet(t *testing.T) {
 				CIDR:   "172.17.0.0/16",
 				Except: []string{"172.17.1.0/24"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("4-test-in-ns-7-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch"}...),
 			skipWindows:     true,
 		},
 		{
@@ -395,7 +561,7 @@ func TestIPBlockIPSet(t *testing.T) {
 				CIDR:   "172.17.0.0/16",
 				Except: []string{"172.17.1.0/24", "172.17.2.0/24"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test-network-policy-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch", "172.17.2.0/24 nomatch"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("19-test-network-policy-in-ns-7-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch", "172.17.2.0/24 nomatch"}...),
 			skipWindows:     true,
 		},
 		{
@@ -405,7 +571,7 @@ func TestIPBlockIPSet(t *testing.T) {
 				CIDR:   "172.17.0.0/16",
 				Except: []string{"172.17.1.0/24", "172.17.2.0/24", "172.17.2.0/24"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test-network-policy-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch", "172.17.2.0/24 nomatch"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("19-test-network-policy-in-ns-7-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch", "172.17.2.0/24 nomatch"}...),
 			skipWindows:     true,
 		},
 		{
@@ -414,7 +580,7 @@ func TestIPBlockIPSet(t *testing.T) {
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR: "0.0.0.0/0",
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1", "128.0.0.0/1"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("4-test-in-ns-7-default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1", "128.0.0.0/1"}...),
 		},
 		{
 			name:        "cidr: 0.0.0.0/0 and except: 10.0.0.0/1",
@@ -423,7 +589,7 @@ func TestIPBlockIPSet(t *testing.T) {
 				CIDR:   "0.0.0.0/0",
 				Except: []string{"10.0.0.0/1"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1", "128.0.0.0/1", "10.0.0.0/1 nomatch"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("4-test-in-ns-7-default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1", "128.0.0.0/1", "10.0.0.0/1 nomatch"}...),
 			skipWindows:     true,
 		},
 		{
@@ -433,7 +599,7 @@ func TestIPBlockIPSet(t *testing.T) {
 				CIDR:   "0.0.0.0/0",
 				Except: []string{"0.0.0.0/1"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1 nomatch", "128.0.0.0/1"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("4-test-in-ns-7-default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1 nomatch", "128.0.0.0/1"}...),
 			skipWindows:     true,
 		},
 		{
@@ -443,7 +609,7 @@ func TestIPBlockIPSet(t *testing.T) {
 				CIDR:   "0.0.0.0/0",
 				Except: []string{"128.0.0.0/1"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1", "128.0.0.0/1 nomatch"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("4-test-in-ns-7-default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1", "128.0.0.0/1 nomatch"}...),
 			skipWindows:     true,
 		},
 		{
@@ -453,7 +619,7 @@ func TestIPBlockIPSet(t *testing.T) {
 				CIDR:   "0.0.0.0/0",
 				Except: []string{"0.0.0.0/1", "128.0.0.0/1"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1 nomatch", "128.0.0.0/1 nomatch"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("4-test-in-ns-7-default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1 nomatch", "128.0.0.0/1 nomatch"}...),
 			skipWindows:     true,
 		},
 		{
@@ -463,7 +629,7 @@ func TestIPBlockIPSet(t *testing.T) {
 				CIDR:   "0.0.0.0/0",
 				Except: []string{"0.0.0.0/1", "128.0.0.0/1", "128.0.0.0/1"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1 nomatch", "128.0.0.0/1 nomatch"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("4-test-in-ns-7-default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1 nomatch", "128.0.0.0/1 nomatch"}...),
 			skipWindows:     true,
 		},
 	}
@@ -516,8 +682,8 @@ func TestIPBlockRule(t *testing.T) {
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR: "172.17.0.0/16",
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16"}...),
-			setInfo:         policies.NewSetInfo("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, included, policies.SrcMatch),
+			translatedIPSet: ipsets.NewTranslatedIPSet("4-test-in-ns-7-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16"}...),
+			setInfo:         policies.NewSetInfo("4-test-in-ns-7-default-0-0IN", ipsets.CIDRBlocks, included, policies.SrcMatch),
 		},
 		{
 			name:        "one cidr and one element in except",
@@ -526,8 +692,8 @@ func TestIPBlockRule(t *testing.T) {
 				CIDR:   "172.17.0.0/16",
 				Except: []string{"172.17.1.0/24"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch"}...),
-			setInfo:         policies.NewSetInfo("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, included, policies.SrcMatch),
+			translatedIPSet: ipsets.NewTranslatedIPSet("4-test-in-ns-7-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch"}...),
+			setInfo:         policies.NewSetInfo("4-test-in-ns-7-default-0-0IN", ipsets.CIDRBlocks, included, policies.SrcMatch),
 			skipWindows:     true,
 		},
 		{
@@ -537,8 +703,8 @@ func TestIPBlockRule(t *testing.T) {
 				CIDR:   "172.17.0.0/16",
 				Except: []string{"172.17.1.0/24", "172.17.2.0/24"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test-network-policy-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch", "172.17.2.0/24 nomatch"}...),
-			setInfo:         policies.NewSetInfo("test-network-policy-in-ns-default-0-0IN", ipsets.CIDRBlocks, included, policies.SrcMatch),
+			translatedIPSet: ipsets.NewTranslatedIPSet("19-test-network-policy-in-ns-7-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch", "172.17.2.0/24 nomatch"}...),
+			setInfo:         policies.NewSetInfo("19-test-network-policy-in-ns-7-default-0-0IN", ipsets.CIDRBlocks, included, policies.SrcMatch),
 			skipWindows:     true,
 		},
 		{
@@ -588,7 +754,6 @@ func TestIPBlockRule(t *testing.T) {
 func TestPodSelector(t *testing.T) {
 	matchType := policies.DstMatch
 	policyKey := "test-ns/test-policy"
-	policyKeyWithDash := policyKey + "-"
 	tests := []struct {
 		name                    string
 		namespace               string
@@ -750,7 +915,7 @@ func TestPodSelector(t *testing.T) {
 			},
 			podSelectorIPSets: []*ipsets.TranslatedIPSet{
 				ipsets.NewTranslatedIPSet("k0:v0", ipsets.KeyValueLabelOfPod),
-				ipsets.NewTranslatedIPSet(policyKeyWithDash+"k1:v10:v11", ipsets.NestedLabelOfPod, []string{"k1:v10", "k1:v11"}...),
+				ipsets.NewTranslatedIPSet("19-test-ns/test-policy-2-k1:v10:v11", ipsets.NestedLabelOfPod, []string{"k1:v10", "k1:v11"}...),
 				ipsets.NewTranslatedIPSet("k2", ipsets.KeyLabelOfPod),
 			},
 			childPodSelectorIPSets: []*ipsets.TranslatedIPSet{
@@ -759,7 +924,7 @@ func TestPodSelector(t *testing.T) {
 			},
 			podSelectorList: []policies.SetInfo{
 				policies.NewSetInfo("k0:v0", ipsets.KeyValueLabelOfPod, included, matchType),
-				policies.NewSetInfo(policyKeyWithDash+"k1:v10:v11", ipsets.NestedLabelOfPod, included, matchType),
+				policies.NewSetInfo("19-test-ns/test-policy-2-k1:v10:v11", ipsets.NestedLabelOfPod, included, matchType),
 				policies.NewSetInfo("k2", ipsets.KeyLabelOfPod, nonIncluded, matchType),
 			},
 			skipWindows: true,
@@ -790,7 +955,7 @@ func TestPodSelector(t *testing.T) {
 			},
 			podSelectorIPSets: []*ipsets.TranslatedIPSet{
 				ipsets.NewTranslatedIPSet("k0:v0", ipsets.KeyValueLabelOfPod),
-				ipsets.NewTranslatedIPSet(policyKeyWithDash+"k1:v10:v11", ipsets.NestedLabelOfPod, []string{"k1:v10", "k1:v11"}...),
+				ipsets.NewTranslatedIPSet("19-test-ns/test-policy-2-k1:v10:v11", ipsets.NestedLabelOfPod, []string{"k1:v10", "k1:v11"}...),
 				ipsets.NewTranslatedIPSet("k2", ipsets.KeyLabelOfPod),
 				ipsets.NewTranslatedIPSet(defaultNS, ipsets.Namespace),
 			},
@@ -800,7 +965,7 @@ func TestPodSelector(t *testing.T) {
 			},
 			podSelectorList: []policies.SetInfo{
 				policies.NewSetInfo("k0:v0", ipsets.KeyValueLabelOfPod, included, matchType),
-				policies.NewSetInfo(policyKeyWithDash+"k1:v10:v11", ipsets.NestedLabelOfPod, included, matchType),
+				policies.NewSetInfo("19-test-ns/test-policy-2-k1:v10:v11", ipsets.NestedLabelOfPod, included, matchType),
 				policies.NewSetInfo("k2", ipsets.KeyLabelOfPod, nonIncluded, matchType),
 				policies.NewSetInfo(defaultNS, ipsets.Namespace, included, matchType),
 			},
@@ -1266,7 +1431,7 @@ func TestPeerAndPortRule(t *testing.T) {
 			{},
 		},
 		{
-			policies.NewSetInfo("test-in-ns-default-0IN", ipsets.CIDRBlocks, included, matchType),
+			policies.NewSetInfo("4-test-in-ns-7-default-0IN", ipsets.CIDRBlocks, included, matchType),
 		},
 		{
 			policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfNamespace, included, matchType),
@@ -1362,7 +1527,7 @@ func TestPeerAndPortRule(t *testing.T) {
 						Target:    policies.Allowed,
 						Direction: policies.Ingress,
 						SrcList: []policies.SetInfo{
-							policies.NewSetInfo("test-in-ns-default-0IN", ipsets.CIDRBlocks, included, matchType),
+							policies.NewSetInfo("4-test-in-ns-7-default-0IN", ipsets.CIDRBlocks, included, matchType),
 						},
 						DstList: []policies.SetInfo{
 							policies.NewSetInfo("serve-tcp", ipsets.NamedPorts, included, policies.DstDstMatch),
@@ -1739,14 +1904,14 @@ func TestIngressPolicy(t *testing.T) {
 					policies.NewSetInfo(defaultNS, ipsets.Namespace, included, targetPodMatchType),
 				},
 				RuleIPSets: []*ipsets.TranslatedIPSet{
-					ipsets.NewTranslatedIPSet("only-ipblock-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch"}...),
+					ipsets.NewTranslatedIPSet("12-only-ipblock-in-ns-7-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch"}...),
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
 						Target:    policies.Allowed,
 						Direction: policies.Ingress,
 						SrcList: []policies.SetInfo{
-							policies.NewSetInfo("only-ipblock-in-ns-default-0-0IN", ipsets.CIDRBlocks, included, peerMatchType),
+							policies.NewSetInfo("12-only-ipblock-in-ns-7-default-0-0IN", ipsets.CIDRBlocks, included, peerMatchType),
 						},
 					},
 					defaultDropACL(policies.Ingress),
@@ -1898,8 +2063,8 @@ func TestIngressPolicy(t *testing.T) {
 				},
 				RuleIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace),
-					ipsets.NewTranslatedIPSet("only-peer-nsSelector-in-ns-default-0-1IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch", "172.17.2.0/24 nomatch"}...),
-					ipsets.NewTranslatedIPSet("only-peer-nsSelector-in-ns-default-0-2IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16"}...),
+					ipsets.NewTranslatedIPSet("20-only-peer-nsSelector-in-ns-7-default-0-1IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch", "172.17.2.0/24 nomatch"}...),
+					ipsets.NewTranslatedIPSet("20-only-peer-nsSelector-in-ns-7-default-0-2IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16"}...),
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
@@ -1913,14 +2078,14 @@ func TestIngressPolicy(t *testing.T) {
 						Target:    policies.Allowed,
 						Direction: policies.Ingress,
 						SrcList: []policies.SetInfo{
-							policies.NewSetInfo("only-peer-nsSelector-in-ns-default-0-1IN", ipsets.CIDRBlocks, included, peerMatchType),
+							policies.NewSetInfo("20-only-peer-nsSelector-in-ns-7-default-0-1IN", ipsets.CIDRBlocks, included, peerMatchType),
 						},
 					},
 					{
 						Target:    policies.Allowed,
 						Direction: policies.Ingress,
 						SrcList: []policies.SetInfo{
-							policies.NewSetInfo("only-peer-nsSelector-in-ns-default-0-2IN", ipsets.CIDRBlocks, included, peerMatchType),
+							policies.NewSetInfo("20-only-peer-nsSelector-in-ns-7-default-0-2IN", ipsets.CIDRBlocks, included, peerMatchType),
 						},
 					},
 					defaultDropACL(policies.Ingress),
@@ -2096,7 +2261,7 @@ func TestIngressPolicy(t *testing.T) {
 				ACLPolicyID: "azure-acl-default-serve-tcp",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("k0:v0", ipsets.KeyValueLabelOfPod),
-					ipsets.NewTranslatedIPSet("default/serve-tcp-k1:v10:v11", ipsets.NestedLabelOfPod, "k1:v10", "k1:v11"),
+					ipsets.NewTranslatedIPSet("17-default/serve-tcp-2-k1:v10:v11", ipsets.NestedLabelOfPod, "k1:v10", "k1:v11"),
 					ipsets.NewTranslatedIPSet("k2", ipsets.KeyLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
 				},
@@ -2106,7 +2271,7 @@ func TestIngressPolicy(t *testing.T) {
 				},
 				PodSelectorList: []policies.SetInfo{
 					policies.NewSetInfo("k0:v0", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
-					policies.NewSetInfo("default/serve-tcp-k1:v10:v11", ipsets.NestedLabelOfPod, included, targetPodMatchType),
+					policies.NewSetInfo("17-default/serve-tcp-2-k1:v10:v11", ipsets.NestedLabelOfPod, included, targetPodMatchType),
 					policies.NewSetInfo("k2", ipsets.KeyLabelOfPod, nonIncluded, targetPodMatchType),
 					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
 				},
@@ -2161,7 +2326,7 @@ func TestIngressPolicy(t *testing.T) {
 					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
 				},
 				RuleIPSets: []*ipsets.TranslatedIPSet{
-					ipsets.NewTranslatedIPSet("default/serve-tcp-k1:v10:v11", ipsets.NestedLabelOfPod, "k1:v10", "k1:v11"),
+					ipsets.NewTranslatedIPSet("17-default/serve-tcp-2-k1:v10:v11", ipsets.NestedLabelOfPod, "k1:v10", "k1:v11"),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
 					ipsets.NewTranslatedIPSet("k1:v10", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("k1:v11", ipsets.KeyValueLabelOfPod),
@@ -2171,7 +2336,7 @@ func TestIngressPolicy(t *testing.T) {
 						Target:    policies.Allowed,
 						Direction: policies.Ingress,
 						SrcList: []policies.SetInfo{
-							policies.NewSetInfo("default/serve-tcp-k1:v10:v11", ipsets.NestedLabelOfPod, included, peerMatchType),
+							policies.NewSetInfo("17-default/serve-tcp-2-k1:v10:v11", ipsets.NestedLabelOfPod, included, peerMatchType),
 							policies.NewSetInfo("default", ipsets.Namespace, included, peerMatchType),
 						},
 					},
@@ -2228,7 +2393,7 @@ func TestIngressPolicy(t *testing.T) {
 					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
 				},
 				RuleIPSets: []*ipsets.TranslatedIPSet{
-					ipsets.NewTranslatedIPSet("default/serve-tcp-k1:v10:v11", ipsets.NestedLabelOfPod, "k1:v10", "k1:v11"),
+					ipsets.NewTranslatedIPSet("17-default/serve-tcp-2-k1:v10:v11", ipsets.NestedLabelOfPod, "k1:v10", "k1:v11"),
 					ipsets.NewTranslatedIPSet("k1:v10", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("k1:v11", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace),
@@ -2239,7 +2404,7 @@ func TestIngressPolicy(t *testing.T) {
 						Direction: policies.Ingress,
 						SrcList: []policies.SetInfo{
 							policies.NewSetInfo("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace, included, peerMatchType),
-							policies.NewSetInfo("default/serve-tcp-k1:v10:v11", ipsets.NestedLabelOfPod, included, peerMatchType),
+							policies.NewSetInfo("17-default/serve-tcp-2-k1:v10:v11", ipsets.NestedLabelOfPod, included, peerMatchType),
 						},
 					},
 					{
@@ -2470,14 +2635,14 @@ func TestEgressPolicy(t *testing.T) {
 				},
 				ChildPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
 				RuleIPSets: []*ipsets.TranslatedIPSet{
-					ipsets.NewTranslatedIPSet("only-ipblock-in-ns-default-0-0OUT", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch"}...),
+					ipsets.NewTranslatedIPSet("12-only-ipblock-in-ns-7-default-0-0OUT", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch"}...),
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
 						Target:    policies.Allowed,
 						Direction: policies.Egress,
 						DstList: []policies.SetInfo{
-							policies.NewSetInfo("only-ipblock-in-ns-default-0-0OUT", ipsets.CIDRBlocks, included, peerMatchType),
+							policies.NewSetInfo("12-only-ipblock-in-ns-7-default-0-0OUT", ipsets.CIDRBlocks, included, peerMatchType),
 						},
 					},
 					defaultDropACL(policies.Egress),
@@ -2725,8 +2890,8 @@ func TestEgressPolicy(t *testing.T) {
 				},
 				RuleIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace),
-					ipsets.NewTranslatedIPSet("only-peer-nsSelector-in-ns-default-0-1OUT", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch", "172.17.2.0/24 nomatch"}...),
-					ipsets.NewTranslatedIPSet("only-peer-nsSelector-in-ns-default-0-2OUT", ipsets.CIDRBlocks, []string{"172.17.0.0/16"}...),
+					ipsets.NewTranslatedIPSet("20-only-peer-nsSelector-in-ns-7-default-0-1OUT", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch", "172.17.2.0/24 nomatch"}...),
+					ipsets.NewTranslatedIPSet("20-only-peer-nsSelector-in-ns-7-default-0-2OUT", ipsets.CIDRBlocks, []string{"172.17.0.0/16"}...),
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
@@ -2740,14 +2905,14 @@ func TestEgressPolicy(t *testing.T) {
 						Target:    policies.Allowed,
 						Direction: policies.Egress,
 						DstList: []policies.SetInfo{
-							policies.NewSetInfo("only-peer-nsSelector-in-ns-default-0-1OUT", ipsets.CIDRBlocks, included, peerMatchType),
+							policies.NewSetInfo("20-only-peer-nsSelector-in-ns-7-default-0-1OUT", ipsets.CIDRBlocks, included, peerMatchType),
 						},
 					},
 					{
 						Target:    policies.Allowed,
 						Direction: policies.Egress,
 						DstList: []policies.SetInfo{
-							policies.NewSetInfo("only-peer-nsSelector-in-ns-default-0-2OUT", ipsets.CIDRBlocks, included, peerMatchType),
+							policies.NewSetInfo("20-only-peer-nsSelector-in-ns-7-default-0-2OUT", ipsets.CIDRBlocks, included, peerMatchType),
 						},
 					},
 					defaultDropACL(policies.Egress),
@@ -2827,7 +2992,7 @@ func TestEgressPolicy(t *testing.T) {
 				ACLPolicyID: "azure-acl-default-serve-tcp",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("k0:v0", ipsets.KeyValueLabelOfPod),
-					ipsets.NewTranslatedIPSet("default/serve-tcp-k1:v10:v11", ipsets.NestedLabelOfPod, "k1:v10", "k1:v11"),
+					ipsets.NewTranslatedIPSet("17-default/serve-tcp-2-k1:v10:v11", ipsets.NestedLabelOfPod, "k1:v10", "k1:v11"),
 					ipsets.NewTranslatedIPSet("k2", ipsets.KeyLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
 				},
@@ -2837,7 +3002,7 @@ func TestEgressPolicy(t *testing.T) {
 				},
 				PodSelectorList: []policies.SetInfo{
 					policies.NewSetInfo("k0:v0", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
-					policies.NewSetInfo("default/serve-tcp-k1:v10:v11", ipsets.NestedLabelOfPod, included, targetPodMatchType),
+					policies.NewSetInfo("17-default/serve-tcp-2-k1:v10:v11", ipsets.NestedLabelOfPod, included, targetPodMatchType),
 					policies.NewSetInfo("k2", ipsets.KeyLabelOfPod, nonIncluded, targetPodMatchType),
 					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
 				},
@@ -2892,7 +3057,7 @@ func TestEgressPolicy(t *testing.T) {
 					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
 				},
 				RuleIPSets: []*ipsets.TranslatedIPSet{
-					ipsets.NewTranslatedIPSet("default/serve-tcp-k1:v10:v11", ipsets.NestedLabelOfPod, "k1:v10", "k1:v11"),
+					ipsets.NewTranslatedIPSet("17-default/serve-tcp-2-k1:v10:v11", ipsets.NestedLabelOfPod, "k1:v10", "k1:v11"),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
 					ipsets.NewTranslatedIPSet("k1:v10", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("k1:v11", ipsets.KeyValueLabelOfPod),
@@ -2902,7 +3067,7 @@ func TestEgressPolicy(t *testing.T) {
 						Target:    policies.Allowed,
 						Direction: policies.Egress,
 						DstList: []policies.SetInfo{
-							policies.NewSetInfo("default/serve-tcp-k1:v10:v11", ipsets.NestedLabelOfPod, included, peerMatchType),
+							policies.NewSetInfo("17-default/serve-tcp-2-k1:v10:v11", ipsets.NestedLabelOfPod, included, peerMatchType),
 							policies.NewSetInfo("default", ipsets.Namespace, included, peerMatchType),
 						},
 					},
@@ -2959,7 +3124,7 @@ func TestEgressPolicy(t *testing.T) {
 					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
 				},
 				RuleIPSets: []*ipsets.TranslatedIPSet{
-					ipsets.NewTranslatedIPSet("default/serve-tcp-k1:v10:v11", ipsets.NestedLabelOfPod, "k1:v10", "k1:v11"),
+					ipsets.NewTranslatedIPSet("17-default/serve-tcp-2-k1:v10:v11", ipsets.NestedLabelOfPod, "k1:v10", "k1:v11"),
 					ipsets.NewTranslatedIPSet("k1:v10", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("k1:v11", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace),
@@ -2970,7 +3135,7 @@ func TestEgressPolicy(t *testing.T) {
 						Direction: policies.Egress,
 						DstList: []policies.SetInfo{
 							policies.NewSetInfo("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace, included, peerMatchType),
-							policies.NewSetInfo("default/serve-tcp-k1:v10:v11", ipsets.NestedLabelOfPod, included, peerMatchType),
+							policies.NewSetInfo("17-default/serve-tcp-2-k1:v10:v11", ipsets.NestedLabelOfPod, included, peerMatchType),
 						},
 					},
 					{

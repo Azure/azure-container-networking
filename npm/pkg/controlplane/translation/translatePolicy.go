@@ -47,10 +47,13 @@ type podSelectorResult struct {
 type netpolPortType string
 
 const (
-	numericPortType      netpolPortType = "validport"
-	namedPortType        netpolPortType = "namedport"
-	included             bool           = true
-	ipBlocksetNameFormat                = "%s-in-ns-%s-%d-%d%s"
+	numericPortType netpolPortType = "validport"
+	namedPortType   netpolPortType = "namedport"
+	included        bool           = true
+	// ipBlocksetNameFormat length-prefixes the policy name and namespace so distinct
+	// (policy, namespace) pairs always produce distinct set names.
+	// Format: "<len(policy)>-<policy>-in-ns-<len(ns)>-<ns>-<setIndex>-<peerIndex><direction>".
+	ipBlocksetNameFormat = "%d-%s-in-ns-%d-%s-%d-%d%s"
 )
 
 // portType returns type of ports (e.g., numeric port or namedPort) given NetworkPolicyPort object.
@@ -134,16 +137,11 @@ func portRule(ruleIPSets []*ipsets.TranslatedIPSet, acl *policies.ACLPolicy, por
 	return ruleIPSets
 }
 
-// ipBlockSetName returns ipset name of the IPBlock.
-// It is our contract to format "<policyname>-in-ns-<namespace>-<ipblock index><direction of ipblock (i.e., ingress: IN, egress: OUT>"
-// as ipset name of the IPBlock.
-// For example, in case network policy object has
-// name: "test"
-// namespace: "default"
-// ingress rule
-// it returns "test-in-ns-default-0IN".
+// ipBlockSetName returns the ipset name of the IPBlock, formed from the length-prefixed
+// policy name and namespace (see ipBlocksetNameFormat).
+// e.g. name "test", namespace "default", ingress (setIndex 0, peerIndex 0) -> "4-test-in-ns-7-default-0-0IN".
 func ipBlockSetName(policyName, ns string, direction policies.Direction, ipBlockSetIndex, ipBlockPeerIndex int) string {
-	return fmt.Sprintf(ipBlocksetNameFormat, policyName, ns, ipBlockSetIndex, ipBlockPeerIndex, direction)
+	return fmt.Sprintf(ipBlocksetNameFormat, len(policyName), policyName, len(ns), ns, ipBlockSetIndex, ipBlockPeerIndex, direction)
 }
 
 // exceptCidr returns "cidr + " " (space) + nomatch" format.
