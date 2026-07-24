@@ -610,7 +610,7 @@ func TestMarshalSetMapJSON(t *testing.T) {
 	require.NoError(t, err)
 	fmt.Println(string(setMapRaw))
 
-	expect := []byte(`{"azure-npm-922816856":"test-set"}`)
+	expect := []byte(`{"azure-npm-4943607206264814840":"test-set"}`)
 	for key, val := range ipsMgr.setMap {
 		fmt.Printf("key: %s value: %+v\n", key, val)
 	}

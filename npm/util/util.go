@@ -60,11 +60,14 @@ func GetClusterID(nodeName string) string {
 	return s[2]
 }
 
-// Hash hashes a string to another string with length <= 32.
+// Hash hashes a string to a decimal string. The widest output is
+// "azure-npm-" (10) + a 20-digit uint64 = 30 chars, within the 31-char
+// kernel ipset name limit. 64 bits keeps the odds of two distinct set
+// names hashing to the same kernel name negligible.
 func Hash(s string) string {
-	h := fnv.New32a()
+	h := fnv.New64a()
 	h.Write([]byte(s))
-	return fmt.Sprint(h.Sum32())
+	return fmt.Sprint(h.Sum64())
 }
 
 // SortMap sorts the map by key in alphabetical order.
