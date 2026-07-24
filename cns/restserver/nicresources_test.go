@@ -3,6 +3,7 @@ package restserver
 import (
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,22 +12,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
-)
-
-// Shared test fixtures. Kept as constants so the repeated literals don't trip goconst.
-const (
-	testMAC01    = "aa:aa:aa:aa:aa:01"
-	testMAC02    = "aa:aa:aa:aa:aa:02"
-	testMAC03    = "aa:aa:aa:aa:aa:03"
-	testMAC04    = "aa:aa:aa:aa:aa:04"
-	testMAC05    = "aa:aa:aa:aa:aa:05"
-	testMAC07    = "AA:AA:AA:AA:AA:07"
-	testMAC08    = "aa:aa:aa:aa:aa:08"
-	testNodeName = "node1"
-	testNet1     = "net1"
-	testNet2     = "net2"
-	testGUID1    = "guid1"
-	testSubnet1  = "subnet1"
 )
 
 // getNICResources must not panic when the NodeInfo client / node name are unset
@@ -61,51 +46,111 @@ func (f *fakeNodeInfoClient) Get(context.Context, string) (*v1alpha1.NodeInfo, e
 }
 
 type fakeNICNCClient struct {
-	m map[string]*cns.NICResourceSliceInfo
+	m map[string]*cns.NICResourceNetworkInfo
 }
 
-func (f *fakeNICNCClient) GetNICResourceSliceInfoByMAC(context.Context) (map[string]*cns.NICResourceSliceInfo, error) {
+func (f *fakeNICNCClient) GetNICResourceNetworkInfoFromNICNC(context.Context) (map[string]*cns.NICResourceNetworkInfo, error) {
 	return f.m, nil
 }
 
 type fakeMTPNCClient struct {
-	m map[string]*cns.NICResourceSliceInfo
+	m map[string]*cns.NICResourceNetworkInfo
 }
 
-func (f *fakeMTPNCClient) GetMTPNCResourceSliceInfoByMAC(context.Context) (map[string]*cns.NICResourceSliceInfo, error) {
+func (f *fakeMTPNCClient) GetNICResourceNetworkInfoFromMTPNC(context.Context) (map[string]*cns.NICResourceNetworkInfo, error) {
 	return f.m, nil
 }
 
 func TestGetNICResources(t *testing.T) {
-	nodeInfo := &v1alpha1.NodeInfo{
-		Spec: v1alpha1.NodeInfoSpec{VMUniqueID: "vm-1"},
-		Status: v1alpha1.NodeInfoStatus{DeviceInfos: []v1alpha1.DeviceInfo{
-			{MacAddress: testMAC01}, // NICNC DRA                     → 16
-			{MacAddress: testMAC02}, // NICNC non-DRA                 → 0
-			{MacAddress: testMAC03}, // MTPNC dedicated DRA           → 1
-			{MacAddress: testMAC04}, // MTPNC dedicated non-DRA       → 0
-			{MacAddress: testMAC05}, // no NICNetworkConfig/MTPNC     → 0
-			{MacAddress: testMAC07}, // NICNC via canonical MAC match → 16
-			{MacAddress: testMAC08}, // in NICNC and MTPNC; NICNC wins → 16
-		}},
+	tests := []struct {
+		name       string
+		deviceMAC  string              // MAC as reported by NodeInfo (may be uppercase)
+		deviceType v1alpha1.DeviceType // defaults to Vnet NIC when empty
+		nicnc      *cns.NICResourceNetworkInfo
+		mtpnc      *cns.NICResourceNetworkInfo
+		wantCap    string
+		wantNet    string
+		wantGUID   string
+		wantSubnet string
+	}{
+		{
+			name:      "NICNetworkConfig DRA NIC advertises shared capacity",
+			deviceMAC: "aa:aa:aa:aa:aa:01",
+			nicnc:     &cns.NICResourceNetworkInfo{NetworkID: "net1", SubnetGUID: "guid1", SubnetName: "subnet1", Capacity: 16},
+			wantCap:   "16", wantNet: "net1", wantGUID: "guid1", wantSubnet: "subnet1",
+		},
+		{
+			name:      "NICNetworkConfig non-DRA NIC has zero capacity",
+			deviceMAC: "aa:aa:aa:aa:aa:02",
+			nicnc:     &cns.NICResourceNetworkInfo{NetworkID: "net2", SubnetGUID: "guid2", SubnetName: "subnet2", Capacity: 0},
+			wantCap:   "0", wantNet: "net2", wantGUID: "guid2", wantSubnet: "subnet2",
+		},
+		{
+			name:      "MTPNC dedicated DRA NIC fallback advertises capacity 1",
+			deviceMAC: "aa:aa:aa:aa:aa:03",
+			mtpnc:     &cns.NICResourceNetworkInfo{NetworkID: "net3", SubnetGUID: "guid3", SubnetName: "subnet3", Capacity: 1},
+			wantCap:   "1", wantNet: "net3", wantGUID: "guid3", wantSubnet: "subnet3",
+		},
+		{
+			name:      "MTPNC dedicated non-DRA NIC has zero capacity",
+			deviceMAC: "aa:aa:aa:aa:aa:04",
+			mtpnc:     &cns.NICResourceNetworkInfo{NetworkID: "net4", SubnetGUID: "guid4", SubnetName: "subnet4", Capacity: 0},
+			wantCap:   "0", wantNet: "net4", wantGUID: "guid4", wantSubnet: "subnet4",
+		},
+		{
+			name:      "free NIC in neither NICNetworkConfig nor MTPNC has no capacity set",
+			deviceMAC: "aa:aa:aa:aa:aa:05",
+			wantCap:   "",
+		},
+		{
+			name:      "uppercase NodeInfo MAC matches canonical NICNetworkConfig key",
+			deviceMAC: "AA:AA:AA:AA:AA:07",
+			nicnc:     &cns.NICResourceNetworkInfo{NetworkID: "net7", SubnetGUID: "guid7", SubnetName: "subnet7", Capacity: 16},
+			wantCap:   "16", wantNet: "net7", wantGUID: "guid7", wantSubnet: "subnet7",
+		},
+		{
+			name:      "NIC in both NICNetworkConfig and MTPNC: NICNetworkConfig wins",
+			deviceMAC: "aa:aa:aa:aa:aa:08",
+			nicnc:     &cns.NICResourceNetworkInfo{NetworkID: "net8", SubnetGUID: "guid8", SubnetName: "subnet8", Capacity: 16},
+			mtpnc:     &cns.NICResourceNetworkInfo{NetworkID: "net8mtpnc", SubnetGUID: "guid8mtpnc", SubnetName: "subnet8mtpnc", Capacity: 1},
+			wantCap:   "16", wantNet: "net8", wantGUID: "guid8", wantSubnet: "subnet8",
+		},
+		{
+			name:       "InfiniBand NIC is skipped (DRA NIC sharing is vnet-only)",
+			deviceMAC:  "aa:aa:aa:aa:aa:06",
+			deviceType: v1alpha1.DeviceTypeInfiniBandNIC,
+		},
 	}
-	nicNC := map[string]*cns.NICResourceSliceInfo{
-		testMAC01: {NetworkID: testNet1, SubnetGUID: testGUID1, SubnetName: testSubnet1, Capacity: 16},
-		testMAC02: {NetworkID: testNet2, SubnetGUID: "guid2", SubnetName: "subnet2", Capacity: 0},
-		// CRD stores the canonical (lowercase) MAC; NodeInfo reports it uppercase.
-		"aa:aa:aa:aa:aa:07": {NetworkID: "net7", SubnetGUID: "guid7", SubnetName: "subnet7", Capacity: 16},
-		testMAC08:           {NetworkID: "net8", SubnetGUID: "guid8", SubnetName: "subnet8", Capacity: 16},
-	}
-	mtpnc := map[string]*cns.NICResourceSliceInfo{
-		testMAC03: {NetworkID: "net3", SubnetGUID: "guid3", SubnetName: "subnet3", Capacity: 1},
-		testMAC04: {NetworkID: "net4", SubnetGUID: "guid4", SubnetName: "subnet4", Capacity: 0},
-		// Also present in NICNetworkConfig above; NICNetworkConfig must win over this.
-		testMAC08: {NetworkID: "net8mtpnc", SubnetGUID: "guid8mtpnc", SubnetName: "subnet8mtpnc", Capacity: 1},
+
+	nodeInfo := &v1alpha1.NodeInfo{Spec: v1alpha1.NodeInfoSpec{VMUniqueID: "vm-1"}}
+	nicNC := map[string]*cns.NICResourceNetworkInfo{}
+	mtpnc := map[string]*cns.NICResourceNetworkInfo{}
+	wantCount := 0
+	for _, tc := range tests {
+		deviceType := tc.deviceType
+		if deviceType == "" {
+			deviceType = v1alpha1.DeviceTypeVnetNIC
+		}
+		nodeInfo.Status.DeviceInfos = append(nodeInfo.Status.DeviceInfos, v1alpha1.DeviceInfo{MacAddress: tc.deviceMAC, DeviceType: deviceType})
+		if deviceType == v1alpha1.DeviceTypeVnetNIC {
+			wantCount++
+		}
+		hw, err := net.ParseMAC(tc.deviceMAC)
+		if err != nil {
+			t.Fatalf("invalid test MAC %q: %v", tc.deviceMAC, err)
+		}
+		key := hw.String()
+		if tc.nicnc != nil {
+			nicNC[key] = tc.nicnc
+		}
+		if tc.mtpnc != nil {
+			mtpnc[key] = tc.mtpnc
+		}
 	}
 
 	svc := &HTTPRestService{
 		Service:        &cns.Service{Service: &common.Service{}},
-		nodeName:       testNodeName,
+		nodeName:       "nicresnode",
 		nodeinfoClient: &fakeNodeInfoClient{nodeInfo: nodeInfo},
 		nicncClient:    &fakeNICNCClient{m: nicNC},
 		mtpncClient:    &fakeMTPNCClient{m: mtpnc},
@@ -122,47 +167,38 @@ func TestGetNICResources(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-
-	gotCap := map[string]string{}
-	gotNet := map[string]string{}
-	gotSubGUID := map[string]string{}
-	gotSubName := map[string]string{}
+	if len(resp.NICResources) != wantCount {
+		t.Fatalf("got %d NIC resources, want %d", len(resp.NICResources), wantCount)
+	}
+	got := make(map[string]cns.NICResource, len(resp.NICResources))
 	for _, nic := range resp.NICResources {
-		gotCap[nic.MacAddress] = nic.Capacity
-		gotNet[nic.MacAddress] = nic.NetworkID
-		gotSubGUID[nic.MacAddress] = nic.SubnetGUID
-		gotSubName[nic.MacAddress] = nic.SubnetName
+		got[nic.MacAddress] = nic
 	}
-	wantCap := map[string]string{
-		testMAC01: "16",
-		testMAC02: "0",
-		testMAC03: "1",  // MTPNC dedicated DRA
-		testMAC04: "0",  // MTPNC dedicated non-DRA
-		testMAC05: "0",  // no NICNetworkConfig/MTPNC → zero capacity
-		testMAC07: "16", // NodeInfo reports uppercase; enriched via canonical NICNC key
-		testMAC08: "16", // NICNetworkConfig wins over MTPNC
-	}
-	if len(resp.NICResources) != len(wantCap) {
-		t.Fatalf("got %d NIC resources, want %d (%+v)", len(resp.NICResources), len(wantCap), gotCap)
-	}
-	for mac, want := range wantCap {
-		if gotCap[mac] != want {
-			t.Errorf("MAC %s capacity = %s, want %s", mac, gotCap[mac], want)
-		}
-	}
-	if gotNet[testMAC01] != testNet1 {
-		t.Errorf("MAC 01 networkID = %q, want %s", gotNet[testMAC01], testNet1)
-	}
-	if gotNet[testMAC03] != "net3" {
-		t.Errorf("MAC 03 (MTPNC fallback) networkID = %q, want net3", gotNet[testMAC03])
-	}
-	if gotNet[testMAC08] != "net8" {
-		t.Errorf("MAC 08 (NICNC wins over MTPNC) networkID = %q, want net8", gotNet[testMAC08])
-	}
-	if gotNet[testMAC07] != "net7" {
-		t.Errorf("MAC 07 (uppercase, canonical match) networkID = %q, want net7", gotNet[testMAC07])
-	}
-	if gotSubGUID[testMAC01] != testGUID1 || gotSubName[testMAC01] != testSubnet1 {
-		t.Errorf("MAC 01 subnet = (%q,%q), want (%s,%s)", gotSubGUID[testMAC01], gotSubName[testMAC01], testGUID1, testSubnet1)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			nic, ok := got[tc.deviceMAC]
+			if tc.deviceType != "" && tc.deviceType != v1alpha1.DeviceTypeVnetNIC {
+				if ok {
+					t.Errorf("non-vnet NIC %s should be excluded, got %+v", tc.deviceMAC, nic)
+				}
+				return
+			}
+			if !ok {
+				t.Fatalf("MAC %s missing from response", tc.deviceMAC)
+			}
+			if nic.Capacity != tc.wantCap {
+				t.Errorf("capacity = %s, want %s", nic.Capacity, tc.wantCap)
+			}
+			if nic.NetworkID != tc.wantNet {
+				t.Errorf("networkID = %q, want %q", nic.NetworkID, tc.wantNet)
+			}
+			if nic.SubnetGUID != tc.wantGUID {
+				t.Errorf("subnetGUID = %q, want %q", nic.SubnetGUID, tc.wantGUID)
+			}
+			if nic.SubnetName != tc.wantSubnet {
+				t.Errorf("subnetName = %q, want %q", nic.SubnetName, tc.wantSubnet)
+			}
+		})
 	}
 }

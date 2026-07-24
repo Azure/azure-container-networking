@@ -406,9 +406,9 @@ type GetNICResourcesResponse struct {
 	NICResources []NICResource `json:"nicResources"`
 }
 
-// NICResourceSliceInfo holds the network/subnet data and resource-slice capacity for a
+// NICResourceNetworkInfo holds the network/subnet data and resource-slice capacity for a
 // single NIC, derived from its NICNetworkConfig, and used to enrich a NICResource.
-type NICResourceSliceInfo struct {
+type NICResourceNetworkInfo struct {
 	NetworkID  string
 	SubnetGUID string
 	SubnetName string

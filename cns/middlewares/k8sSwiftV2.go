@@ -32,7 +32,7 @@ var (
 	errInvalidSWIFTv2NICType    = errors.New("invalid NIC type for SWIFT v2 scenario")
 	errInvalidMTPNCPrefixLength = errors.New("invalid prefix length for MTPNC primaryIP, must be 32")
 	errMTPNCDeleting            = errors.New(NetworkNotReadyErrorMsg + " - mtpnc for previous pod is being deleted, waiting for new mtpnc to be ready")
-	errClaimNotFound            = errors.New(NetworkNotReadyErrorMsg + " - no mtpnc found for resource claim")
+	errMTPNCNotFoundForClaim    = errors.New(NetworkNotReadyErrorMsg + " - no mtpnc found for resource claim")
 )
 
 type K8sSWIFTv2Middleware struct {
@@ -281,7 +281,7 @@ func (k *K8sSWIFTv2Middleware) GetPodInfoByClaimUID(ctx context.Context, claimUI
 			}
 		}
 	}
-	return nil, types.UnexpectedError, errClaimNotFound.Error()
+	return nil, types.UnexpectedError, errMTPNCNotFoundForClaim.Error()
 }
 
 // Updates Ip Config Request
@@ -408,16 +408,16 @@ const sharedNICDRACapacity = 16
 // against the slice.
 const dedicatedNICDRACapacity = 1
 
-// GetNICResourceSliceInfoByMAC lists the NICNetworkConfigs on this node and returns a map keyed by
+// GetNICResourceNetworkInfoFromNICNC lists the NICNetworkConfigs on this node and returns a map keyed by
 // canonical NIC MAC address with the NIC's network/subnet info and resource-slice
 // capacity from Spec.
-func (k *K8sSWIFTv2Middleware) GetNICResourceSliceInfoByMAC(ctx context.Context) (map[string]*cns.NICResourceSliceInfo, error) {
+func (k *K8sSWIFTv2Middleware) GetNICResourceNetworkInfoFromNICNC(ctx context.Context) (map[string]*cns.NICResourceNetworkInfo, error) {
 	var nicNCList v1alpha1.NICNetworkConfigList
 	if err := k.Cli.List(ctx, &nicNCList); err != nil {
 		return nil, errors.Wrap(err, "failed to list nicnetworkconfigs")
 	}
 
-	result := make(map[string]*cns.NICResourceSliceInfo, len(nicNCList.Items))
+	result := make(map[string]*cns.NICResourceNetworkInfo, len(nicNCList.Items))
 	for i := range nicNCList.Items {
 		spec := &nicNCList.Items[i].Spec
 		// Only consider NICs on this node.
@@ -430,13 +430,16 @@ func (k *K8sSWIFTv2Middleware) GetNICResourceSliceInfoByMAC(ctx context.Context)
 			continue
 		}
 
-		// A DRA-managed NIC advertises the shared capacity; otherwise it has none. Presence of NICNC indicates that the NIC is created on a PN with PrefixBlock Allocation.
-		// If its not scheduled with DRA, it is not shared and has no capacity to advertise to scheduler. we will mark it as 0 so the scheduler will not try to put further pods on this NIC.
+		// Presence of NICNC indicates that the NIC is created on a PN with PrefixBlock Allocation.
+		// If its not scheduled with DRA, its existence means that it was created for a pod without resourceclaims.
+		// And consequently it has no capacity to advertise to scheduler.
+		// we will mark it as 0 so the scheduler will not try to put further pods on this NIC.
+		// When the non DRA pod is deleted, NICNC is deleted, then the slice shall be recreated by DRA with capacity = 1
 		capacity := 0
 		if spec.ScheduledByDRA {
 			capacity = sharedNICDRACapacity
 		}
-		result[key] = &cns.NICResourceSliceInfo{
+		result[key] = &cns.NICResourceNetworkInfo{
 			NetworkID:  spec.NetworkID,
 			SubnetGUID: spec.SubnetGUID,
 			SubnetName: subnetNameFromResourceID(spec.SubnetResourceID),
@@ -447,7 +450,7 @@ func (k *K8sSWIFTv2Middleware) GetNICResourceSliceInfoByMAC(ctx context.Context)
 	return result, nil
 }
 
-// GetMTPNCResourceSliceInfoByMAC lists the MTPNCs scheduled on this node and returns a map keyed by
+// GetNICResourceNetworkInfoFromMTPNC lists the MTPNCs scheduled on this node and returns a map keyed by
 // canonical NIC MAC address with the NIC's network/subnet info and resource-slice
 // capacity from the MTPNC Spec. Dedicated NICs (single-allocation PodNetworks) usually
 // have no NICNetworkConfig and are served from here as a fallback.
@@ -455,13 +458,13 @@ func (k *K8sSWIFTv2Middleware) GetNICResourceSliceInfoByMAC(ctx context.Context)
 // It intentionally does NOT wait for the MTPNC to be Ready: a not-yet-ready MTPNC may
 // have empty Spec NetworkID/SubnetGUID/SubnetResourceID, which are surfaced as-is (empty)
 // rather than treated as an error. Entries whose MAC is empty or unparseable are skipped.
-func (k *K8sSWIFTv2Middleware) GetMTPNCResourceSliceInfoByMAC(ctx context.Context) (map[string]*cns.NICResourceSliceInfo, error) {
+func (k *K8sSWIFTv2Middleware) GetNICResourceNetworkInfoFromMTPNC(ctx context.Context) (map[string]*cns.NICResourceNetworkInfo, error) {
 	var mtpncList v1alpha1.MultitenantPodNetworkConfigList
 	if err := k.Cli.List(ctx, &mtpncList); err != nil {
 		return nil, errors.Wrap(err, "failed to list mtpncs")
 	}
 
-	result := make(map[string]*cns.NICResourceSliceInfo)
+	result := make(map[string]*cns.NICResourceNetworkInfo)
 	for i := range mtpncList.Items {
 		mtpnc := &mtpncList.Items[i]
 		// Only consider MTPNCs scheduled on this node.
@@ -475,7 +478,7 @@ func (k *K8sSWIFTv2Middleware) GetMTPNCResourceSliceInfoByMAC(ctx context.Contex
 		if mtpnc.IsScheduledWithDRA() {
 			capacity = dedicatedNICDRACapacity
 		}
-		info := &cns.NICResourceSliceInfo{
+		info := &cns.NICResourceNetworkInfo{
 			NetworkID:  mtpnc.Spec.NetworkID,
 			SubnetGUID: mtpnc.Spec.SubnetGUID,
 			SubnetName: subnetNameFromResourceID(mtpnc.Spec.SubnetResourceID),

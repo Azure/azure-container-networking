@@ -67,7 +67,7 @@ func (service *HTTPRestService) requestClaimConfig(w http.ResponseWriter, r *htt
 	// 1) IP configs: the pod's SWIFT v2 delegated configs, including DRA allocations.
 	podIPInfo, err := mw.GetAllIPConfigs(ctx, podInfo)
 	if err != nil {
-		l.Error("failed to get SWIFT v2 IP configs", zap.Error(err))
+		l.Error("failed to get SWIFT v2 IP configs", zap.String("pod", podInfo.Name()), zap.String("namespace", podInfo.Namespace()), zap.Error(err))
 		respondJSON(w, http.StatusInternalServerError, cns.ClaimConfigResponse{
 			Response: cns.Response{ReturnCode: types.FailedToAllocateIPConfig, Message: errors.Wrap(err, "failed to get SWIFT v2 IP configs").Error()},
 		})
@@ -77,7 +77,7 @@ func (service *HTTPRestService) requestClaimConfig(w http.ResponseWriter, r *htt
 	// 2) NIC resources: resource-slice properties for every NIC allocated to the pod.
 	nicResources, err := service.podNICResources(ctx, l, mw, podInfo)
 	if err != nil {
-		l.Error("failed to get pod nic resources", zap.Error(err))
+		l.Error("failed to get pod nic resources", zap.String("pod", podInfo.Name()), zap.String("namespace", podInfo.Namespace()), zap.Error(err))
 		respondJSON(w, http.StatusInternalServerError, cns.ClaimConfigResponse{
 			Response: cns.Response{ReturnCode: types.UnexpectedError, Message: errors.Wrap(err, "failed to get pod nic resources").Error()},
 		})
@@ -101,26 +101,26 @@ func (service *HTTPRestService) podNICResources(ctx context.Context, l *zap.Logg
 		return nil, errors.Wrap(err, "failed to get pod NIC MACs")
 	}
 
-	var nicResourceSliceInfoByMAC, mtpncResourceSliceInfoByMAC map[string]*cns.NICResourceSliceInfo
+	var nicResourceNetworkInfoByMAC, mtpncResourceNetworkInfoByMAC map[string]*cns.NICResourceNetworkInfo
 	if service.nicncClient != nil {
-		if nicResourceSliceInfoByMAC, err = service.nicncClient.GetNICResourceSliceInfoByMAC(ctx); err != nil {
+		if nicResourceNetworkInfoByMAC, err = service.nicncClient.GetNICResourceNetworkInfoFromNICNC(ctx); err != nil {
 			l.Warn("failed to fetch NICNetworkConfig data", zap.Error(err))
 		}
 	}
 	if service.mtpncClient != nil {
-		if mtpncResourceSliceInfoByMAC, err = service.mtpncClient.GetMTPNCResourceSliceInfoByMAC(ctx); err != nil {
+		if mtpncResourceNetworkInfoByMAC, err = service.mtpncClient.GetNICResourceNetworkInfoFromMTPNC(ctx); err != nil {
 			l.Warn("failed to fetch MTPNC data", zap.Error(err))
 		}
 	}
 
 	nicResources := make([]cns.NICResource, 0, len(macs))
 	for _, mac := range macs {
-		res := cns.NICResource{MacAddress: mac}
+		res := cns.NICResource{MacAddress: mac, Capacity: "1"} // default capacity is 1 if no NICNC or MTPNC is found
 		key := mac
 		if hw, parseErr := net.ParseMAC(mac); parseErr == nil {
 			key = hw.String()
 		}
-		enrichNICResource(&res, key, nicResourceSliceInfoByMAC, mtpncResourceSliceInfoByMAC)
+		enrichNICResource(&res, key, nicResourceNetworkInfoByMAC, mtpncResourceNetworkInfoByMAC)
 		nicResources = append(nicResources, res)
 	}
 	return nicResources, nil

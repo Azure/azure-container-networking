@@ -3,6 +3,7 @@ package restserver
 import (
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,8 +15,6 @@ import (
 	"go.uber.org/zap"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 )
-
-const testMAC01Upper = "AA:AA:AA:AA:AA:01"
 
 type fakeSwiftV2NICMiddleware struct{ macs []string }
 
@@ -34,55 +33,91 @@ func (f *fakeSwiftV2NICMiddleware) GetPodNICMACs(context.Context, cns.PodInfo) (
 // podNICResources enriches each of the pod's NICs from NICNetworkConfig, falling back to
 // MTPNC for dedicated NICs; the pod's NIC MACs come from its MTPNC via the middleware.
 func TestPodNICResources(t *testing.T) {
-	svc := &HTTPRestService{
-		Service: &cns.Service{Service: &common.Service{}},
-		nicncClient: &fakeNICNCClient{m: map[string]*cns.NICResourceSliceInfo{
-			testMAC01: {NetworkID: testNet1, SubnetGUID: testGUID1, SubnetName: testSubnet1, Capacity: 16},
-		}},
-		mtpncClient: &fakeMTPNCClient{m: map[string]*cns.NICResourceSliceInfo{
-			testMAC02: {NetworkID: testNet2, SubnetGUID: "guid2", SubnetName: "subnet2", Capacity: 1},
-		}},
+	tests := []struct {
+		name     string
+		mac      string // MAC the middleware returns for the pod (from its MTPNC)
+		nicnc    *cns.NICResourceNetworkInfo
+		mtpnc    *cns.NICResourceNetworkInfo
+		wantCap  string
+		wantNet  string
+		wantGUID string
+	}{
+		{
+			name:     "NICNetworkConfig NIC, uppercase MAC matches canonical key",
+			mac:      "AA:BB:CC:DD:EE:01",
+			nicnc:    &cns.NICResourceNetworkInfo{NetworkID: "nicnc-net", SubnetGUID: "nicnc-guid", Capacity: 16},
+			wantCap:  "16",
+			wantNet:  "nicnc-net",
+			wantGUID: "nicnc-guid",
+		},
+		{
+			name:     "MTPNC dedicated NIC fallback",
+			mac:      "aa:bb:cc:dd:ee:02",
+			mtpnc:    &cns.NICResourceNetworkInfo{NetworkID: "mtpnc-net", SubnetGUID: "mtpnc-guid", Capacity: 1},
+			wantCap:  "1",
+			wantNet:  "mtpnc-net",
+			wantGUID: "mtpnc-guid",
+		},
+		{
+			name:    "free NIC in neither advertises placeholder capacity",
+			mac:     "aa:bb:cc:dd:ee:03",
+			wantCap: "1",
+		},
 	}
-	mw := &fakeSwiftV2NICMiddleware{macs: []string{
-		testMAC01Upper, // uppercase; matches canonical NICNC key → 16
-		testMAC02,      // dedicated NIC via MTPNC fallback → 1
-		testMAC03,      // no NICNetworkConfig/MTPNC → 0
-	}}
 
-	got, err := svc.podNICResources(context.Background(), zap.NewNop(), mw, nil)
+	nicNC := map[string]*cns.NICResourceNetworkInfo{}
+	mtpnc := map[string]*cns.NICResourceNetworkInfo{}
+	macs := make([]string, 0, len(tests))
+	for _, tc := range tests {
+		macs = append(macs, tc.mac)
+		hw, err := net.ParseMAC(tc.mac)
+		if err != nil {
+			t.Fatalf("invalid test MAC %q: %v", tc.mac, err)
+		}
+		key := hw.String()
+		if tc.nicnc != nil {
+			nicNC[key] = tc.nicnc
+		}
+		if tc.mtpnc != nil {
+			mtpnc[key] = tc.mtpnc
+		}
+	}
+
+	svc := &HTTPRestService{
+		Service:     &cns.Service{Service: &common.Service{}},
+		nicncClient: &fakeNICNCClient{m: nicNC},
+		mtpncClient: &fakeMTPNCClient{m: mtpnc},
+	}
+	mw := &fakeSwiftV2NICMiddleware{macs: macs}
+
+	gotNICs, err := svc.podNICResources(context.Background(), zap.NewNop(), mw, nil)
 	if err != nil {
 		t.Fatalf("podNICResources: %v", err)
 	}
-	if len(got) != 3 {
-		t.Fatalf("got %d NICs, want 3: %+v", len(got), got)
+	if len(gotNICs) != len(tests) {
+		t.Fatalf("got %d NICs, want %d: %+v", len(gotNICs), len(tests), gotNICs)
+	}
+	got := make(map[string]cns.NICResource, len(gotNICs))
+	for _, n := range gotNICs {
+		got[n.MacAddress] = n
 	}
 
-	gotCap := map[string]string{}
-	gotNet := map[string]string{}
-	gotSub := map[string]string{}
-	for _, n := range got {
-		gotCap[n.MacAddress] = n.Capacity
-		gotNet[n.MacAddress] = n.NetworkID
-		gotSub[n.MacAddress] = n.SubnetGUID
-	}
-	wantCap := map[string]string{
-		testMAC01Upper: "16", // NICNetworkConfig
-		testMAC02:      "1",  // MTPNC dedicated fallback
-		testMAC03:      "0",  // no NICNetworkConfig/MTPNC
-	}
-	for mac, want := range wantCap {
-		if gotCap[mac] != want {
-			t.Errorf("MAC %s capacity = %s, want %s", mac, gotCap[mac], want)
-		}
-	}
-	if gotNet[testMAC01Upper] != testNet1 {
-		t.Errorf("MAC 01 networkID = %q, want %s", gotNet[testMAC01Upper], testNet1)
-	}
-	if gotSub[testMAC01Upper] != testGUID1 {
-		t.Errorf("MAC 01 subnetGUID = %q, want %s", gotSub[testMAC01Upper], testGUID1)
-	}
-	if gotNet[testMAC02] != testNet2 {
-		t.Errorf("MAC 02 (MTPNC fallback) networkID = %q, want %s", gotNet[testMAC02], testNet2)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			n, ok := got[tc.mac]
+			if !ok {
+				t.Fatalf("MAC %s missing", tc.mac)
+			}
+			if n.Capacity != tc.wantCap {
+				t.Errorf("capacity = %s, want %s", n.Capacity, tc.wantCap)
+			}
+			if n.NetworkID != tc.wantNet {
+				t.Errorf("networkID = %q, want %q", n.NetworkID, tc.wantNet)
+			}
+			if n.SubnetGUID != tc.wantGUID {
+				t.Errorf("subnetGUID = %q, want %q", n.SubnetGUID, tc.wantGUID)
+			}
+		})
 	}
 }
 

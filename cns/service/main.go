@@ -1604,7 +1604,7 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		if cnsconfig.EnableSwiftV2PrefixAllocation {
 			// Register a noop NICNetworkConfig reconciler so the informer/cache is
 			// warm before the middleware reads it via the cached client.
-			if err := nicncctrl.SetupWithManager(manager, nodeName); err != nil {
+			if err := nicncctrl.SetupWithManager(manager); err != nil {
 				return errors.Wrapf(err, "failed to setup nicnetworkconfig reconciler with manager")
 			}
 			httpRestServiceImplementation.AttachNICNCClient(swiftV2Middleware)

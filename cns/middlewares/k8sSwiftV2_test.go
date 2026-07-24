@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -19,80 +20,103 @@ const (
 	canonMAC03     = "aa:bb:cc:dd:ee:03"
 )
 
-// GetMTPNCResourceSliceInfoByMAC must node-scope, compute capacity from DRA state, and tolerate a
-// not-ready MTPNC (empty Spec network/subnet) without erroring — empty values flow
-// through as-is.
-func TestGetMTPNCResourceSliceInfoByMAC(t *testing.T) {
+// GetNICResourceNetworkInfoFromMTPNC must node-scope, compute capacity from DRA state, and
+// tolerate a not-ready MTPNC (empty Spec network/subnet) without erroring — empty values
+// flow through as-is.
+func TestGetNICResourceNetworkInfoFromMTPNC(t *testing.T) {
 	scheme := runtime.NewScheme()
 	if err := v1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatalf("add scheme: %v", err)
 	}
 
-	mtpncs := []v1alpha1.MultitenantPodNetworkConfig{
+	tests := []struct {
+		name  string
+		mtpnc v1alpha1.MultitenantPodNetworkConfig
+		mac   string                      // MAC to look up in the result
+		want  *cns.NICResourceNetworkInfo // nil means the MAC must be absent (excluded)
+	}{
 		{
-			ObjectMeta: metav1.ObjectMeta{Name: "ready-dra", Namespace: "ns"},
-			Spec: v1alpha1.MultitenantPodNetworkConfigSpec{
-				NetworkID:        "net-a",
-				SubnetGUID:       "guid-a",
-				SubnetResourceID: "/subscriptions/x/subnets/subA",
-				ResourceClaims:   []string{"claim-a"}, // scheduled with DRA
+			name: "ready DRA MTPNC advertises dedicated capacity",
+			mtpnc: v1alpha1.MultitenantPodNetworkConfig{
+				ObjectMeta: metav1.ObjectMeta{Name: "ready-dra", Namespace: "ns"},
+				Spec: v1alpha1.MultitenantPodNetworkConfigSpec{
+					NetworkID:        "net-a",
+					SubnetGUID:       "guid-a",
+					SubnetResourceID: "/subscriptions/x/subnets/subA",
+					ResourceClaims:   []string{"claim-a"}, // scheduled with DRA
+				},
+				Status: v1alpha1.MultitenantPodNetworkConfigStatus{
+					NodeName:       testNode,
+					InterfaceInfos: []v1alpha1.InterfaceInfo{{MacAddress: "aa:bb:cc:dd:ee:0a"}},
+				},
 			},
-			Status: v1alpha1.MultitenantPodNetworkConfigStatus{
-				NodeName:       testNode,
-				InterfaceInfos: []v1alpha1.InterfaceInfo{{MacAddress: "aa:bb:cc:dd:ee:0a"}},
-			},
+			mac:  "aa:bb:cc:dd:ee:0a",
+			want: &cns.NICResourceNetworkInfo{NetworkID: "net-a", SubnetGUID: "guid-a", SubnetName: "subA", Capacity: 1},
 		},
 		{
-			// Not-ready: has a MAC but empty Spec network/subnet and no DRA claims.
-			ObjectMeta: metav1.ObjectMeta{Name: "partial", Namespace: "ns"},
-			Status: v1alpha1.MultitenantPodNetworkConfigStatus{
-				NodeName:       testNode,
-				InterfaceInfos: []v1alpha1.InterfaceInfo{{MacAddress: "aa:bb:cc:dd:ee:0b"}},
+			name: "not-ready MTPNC surfaces empty fields with zero capacity",
+			mtpnc: v1alpha1.MultitenantPodNetworkConfig{
+				ObjectMeta: metav1.ObjectMeta{Name: "partial", Namespace: "ns"},
+				Status: v1alpha1.MultitenantPodNetworkConfigStatus{
+					NodeName:       testNode,
+					InterfaceInfos: []v1alpha1.InterfaceInfo{{MacAddress: "aa:bb:cc:dd:ee:0b"}},
+				},
 			},
+			mac:  "aa:bb:cc:dd:ee:0b",
+			want: &cns.NICResourceNetworkInfo{}, // all empty, capacity 0
 		},
 		{
-			// On a different node — must be excluded.
-			ObjectMeta: metav1.ObjectMeta{Name: "othernode", Namespace: "ns"},
-			Spec:       v1alpha1.MultitenantPodNetworkConfigSpec{NetworkID: "net-c"},
-			Status: v1alpha1.MultitenantPodNetworkConfigStatus{
-				NodeName:       "node2",
-				InterfaceInfos: []v1alpha1.InterfaceInfo{{MacAddress: "aa:bb:cc:dd:ee:0c"}},
+			name: "MTPNC on another node is excluded",
+			mtpnc: v1alpha1.MultitenantPodNetworkConfig{
+				ObjectMeta: metav1.ObjectMeta{Name: "othernode", Namespace: "ns"},
+				Spec:       v1alpha1.MultitenantPodNetworkConfigSpec{NetworkID: "net-c"},
+				Status: v1alpha1.MultitenantPodNetworkConfigStatus{
+					NodeName:       "node2",
+					InterfaceInfos: []v1alpha1.InterfaceInfo{{MacAddress: "aa:bb:cc:dd:ee:0c"}},
+				},
 			},
+			mac:  "aa:bb:cc:dd:ee:0c",
+			want: nil,
 		},
+	}
+
+	mtpncs := make([]v1alpha1.MultitenantPodNetworkConfig, 0, len(tests))
+	wantCount := 0
+	for _, tc := range tests {
+		mtpncs = append(mtpncs, tc.mtpnc)
+		if tc.want != nil {
+			wantCount++
+		}
 	}
 
 	cli := fake.NewClientBuilder().WithScheme(scheme).
 		WithLists(&v1alpha1.MultitenantPodNetworkConfigList{Items: mtpncs}).Build()
 	mw := &K8sSWIFTv2Middleware{Cli: cli, NodeName: testNode}
 
-	got, err := mw.GetMTPNCResourceSliceInfoByMAC(context.Background())
+	got, err := mw.GetNICResourceNetworkInfoFromMTPNC(context.Background())
 	if err != nil {
-		t.Fatalf("GetMTPNCResourceSliceInfoByMAC: %v", err)
+		t.Fatalf("GetNICResourceNetworkInfoFromMTPNC: %v", err)
 	}
-	if len(got) != 2 {
-		t.Fatalf("got %d entries, want 2: %+v", len(got), got)
-	}
-
-	ready := got["aa:bb:cc:dd:ee:0a"]
-	if ready == nil {
-		t.Fatal("ready MTPNC MAC missing")
-	}
-	if ready.NetworkID != "net-a" || ready.SubnetGUID != "guid-a" || ready.SubnetName != "subA" || ready.Capacity != 1 {
-		t.Errorf("ready entry = %+v, want net-a/guid-a/subA/cap 1", *ready)
+	if len(got) != wantCount {
+		t.Fatalf("got %d entries, want %d: %+v", len(got), wantCount, got)
 	}
 
-	// The not-ready MTPNC must be included with empty network/subnet and zero capacity,
-	// and must not have caused an error.
-	partial := got["aa:bb:cc:dd:ee:0b"]
-	if partial == nil {
-		t.Fatal("partial MTPNC MAC missing")
-	}
-	if partial.NetworkID != "" || partial.SubnetGUID != "" || partial.SubnetName != "" || partial.Capacity != 0 {
-		t.Errorf("partial entry = %+v, want all-empty/cap 0", *partial)
-	}
-
-	if _, ok := got["aa:bb:cc:dd:ee:0c"]; ok {
-		t.Error("MTPNC on another node should be excluded")
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			entry, ok := got[tc.mac]
+			if tc.want == nil {
+				if ok {
+					t.Errorf("MAC %s should be excluded, got %+v", tc.mac, *entry)
+				}
+				return
+			}
+			if !ok {
+				t.Fatalf("MAC %s missing from result", tc.mac)
+			}
+			if *entry != *tc.want {
+				t.Errorf("entry = %+v, want %+v", *entry, *tc.want)
+			}
+		})
 	}
 }
 
