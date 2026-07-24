@@ -8,13 +8,13 @@ import (
 	context "context"
 	reflect "reflect"
 
-	client "sigs.k8s.io/controller-runtime/pkg/client"
 	gomock "github.com/golang/mock/gomock"
 	meta "k8s.io/apimachinery/pkg/api/meta"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
+	client "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // MockPatch is a mock of Patch interface.
@@ -151,6 +151,25 @@ func NewMockWriter(ctrl *gomock.Controller) *MockWriter {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockWriter) EXPECT() *MockWriterMockRecorder {
 	return m.recorder
+}
+
+// Apply mocks base method.
+func (m *MockWriter) Apply(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.ApplyOption) error {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, obj}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "Apply", varargs...)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Apply indicates an expected call of Apply.
+func (mr *MockWriterMockRecorder) Apply(ctx, obj interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, obj}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Apply", reflect.TypeOf((*MockWriter)(nil).Apply), varargs...)
 }
 
 // Create mocks base method.
@@ -387,6 +406,25 @@ func (m *MockSubResourceWriter) EXPECT() *MockSubResourceWriterMockRecorder {
 	return m.recorder
 }
 
+// Apply mocks base method.
+func (m *MockSubResourceWriter) Apply(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.SubResourceApplyOption) error {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, obj}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "Apply", varargs...)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Apply indicates an expected call of Apply.
+func (mr *MockSubResourceWriterMockRecorder) Apply(ctx, obj interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, obj}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Apply", reflect.TypeOf((*MockSubResourceWriter)(nil).Apply), varargs...)
+}
+
 // Create mocks base method.
 func (m *MockSubResourceWriter) Create(ctx context.Context, obj, subResource client.Object, opts ...client.SubResourceCreateOption) error {
 	m.ctrl.T.Helper()
@@ -465,6 +503,25 @@ func NewMockSubResourceClient(ctrl *gomock.Controller) *MockSubResourceClient {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockSubResourceClient) EXPECT() *MockSubResourceClientMockRecorder {
 	return m.recorder
+}
+
+// Apply mocks base method.
+func (m *MockSubResourceClient) Apply(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.SubResourceApplyOption) error {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, obj}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "Apply", varargs...)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Apply indicates an expected call of Apply.
+func (mr *MockSubResourceClientMockRecorder) Apply(ctx, obj interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, obj}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Apply", reflect.TypeOf((*MockSubResourceClient)(nil).Apply), varargs...)
 }
 
 // Create mocks base method.
@@ -564,6 +621,25 @@ func NewMockClient(ctrl *gomock.Controller) *MockClient {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockClient) EXPECT() *MockClientMockRecorder {
 	return m.recorder
+}
+
+// Apply mocks base method.
+func (m *MockClient) Apply(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.ApplyOption) error {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, obj}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "Apply", varargs...)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Apply indicates an expected call of Apply.
+func (mr *MockClientMockRecorder) Apply(ctx, obj interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, obj}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Apply", reflect.TypeOf((*MockClient)(nil).Apply), varargs...)
 }
 
 // Create mocks base method.
@@ -806,6 +882,25 @@ func NewMockWithWatch(ctrl *gomock.Controller) *MockWithWatch {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockWithWatch) EXPECT() *MockWithWatchMockRecorder {
 	return m.recorder
+}
+
+// Apply mocks base method.
+func (m *MockWithWatch) Apply(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.ApplyOption) error {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, obj}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "Apply", varargs...)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Apply indicates an expected call of Apply.
+func (mr *MockWithWatchMockRecorder) Apply(ctx, obj interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, obj}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Apply", reflect.TypeOf((*MockWithWatch)(nil).Apply), varargs...)
 }
 
 // Create mocks base method.
