@@ -26,6 +26,7 @@ type TestConfig struct {
 	RestartCase       bool   `env:"RESTART_CASE" default:"false"`
 	Cleanup           bool   `env:"CLEANUP" default:"false"`
 	CNSOnly           bool   `env:"CNS_ONLY" default:"false"`
+	WaitForCNS        bool   `env:"WAIT_FOR_CNS" default:"true"`
 }
 
 const (
