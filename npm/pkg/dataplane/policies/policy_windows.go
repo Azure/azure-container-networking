@@ -3,6 +3,7 @@ package policies
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
@@ -28,6 +29,45 @@ var (
 	ErrNegativeMatchsNotSupported = errors.New("Negative match types is not supported in windows dataplane")
 	ErrProtocolNotSupported       = errors.New("Protocol mentioned is not supported")
 )
+
+func validatePlatformPolicy(aclPolicy *ACLPolicy) error {
+	if aclPolicy.Protocol == SCTP {
+		return errors.New("has unsupported SCTP protocol on Windows")
+	}
+
+	hasSrcDirectIPs := len(aclPolicy.SrcDirectIPs) > 0
+	hasDstDirectIPs := len(aclPolicy.DstDirectIPs) > 0
+	if !hasSrcDirectIPs && !hasDstDirectIPs {
+		return nil
+	}
+	if len(aclPolicy.SrcList) > 0 || len(aclPolicy.DstList) > 0 {
+		return errors.New("mixes direct IP matching with IPSet matching")
+	}
+	if hasSrcDirectIPs && hasDstDirectIPs {
+		return errors.New("has both source and destination direct IPs")
+	}
+	if aclPolicy.Direction == Ingress && !hasSrcDirectIPs {
+		return errors.New("has destination direct IPs for ingress")
+	}
+	if aclPolicy.Direction == Egress && !hasDstDirectIPs {
+		return errors.New("has source direct IPs for egress")
+	}
+	if aclPolicy.Direction == Both {
+		return errors.New("uses direct IP matching with both directions")
+	}
+
+	directIPs := aclPolicy.SrcDirectIPs
+	if hasDstDirectIPs {
+		directIPs = aclPolicy.DstDirectIPs
+	}
+	for _, cidr := range directIPs {
+		prefix, err := netip.ParsePrefix(cidr)
+		if err != nil || !prefix.Addr().Is4() {
+			return fmt.Errorf("has invalid direct IPv4 CIDR %q", cidr)
+		}
+	}
+	return nil
+}
 
 // aclPolicyID returns azure-acl-<network policy namespace>-<network policy name> format
 // to differentiate ACLs among different network policies,
