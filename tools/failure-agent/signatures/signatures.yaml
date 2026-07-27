@@ -71,6 +71,31 @@ signatures:
       - "(?i)(Preempt|Evict)ed.*node"
       - "(?i)node\\.kubernetes\\.io/unreachable"
 
+  - id: daemonset-init-container-crashloop-package-install
+    category: pipeline_infra_config
+    description: >-
+      A kube-system DaemonSet init container (for example the AzSecPack/Defender
+      init-package-installer running install-packages.sh) exited non-zero and
+      entered CrashLoopBackOff, blocking the kube-system readiness gate
+      (SynchronizedBeforeSuite). This is a node-image/security-agent failure, not
+      an ACN/CNS regression.
+    owner: aks-node-image
+    recommendation: >-
+      Route to the node-image / AzSecPack (Defender) owner, not ACN/CNS. The
+      failing unit is the DaemonSet init container's package installer
+      (install-packages.sh run under chroot), not CNS. A coincident CNS
+      "connection refused" is a downstream symptom of the same node disruption,
+      not the cause. Capture the literal installer failure before the ~1h
+      Kubernetes event TTL expires: `kubectl logs <pod> -c <init-container>
+      --previous`, or the in-pod install log (e.g.
+      /upper/upper/tmp/install-packages.log).
+    confidence: 0.6
+    anyOf:
+      - "PackageInstallFailed"
+      - "install-packages.sh failed with exit code"
+      - "(?i)init[- ]?package[- ]?installer"
+      - "(?i)azuresecuritylinuxagent"
+
   - id: cns-crashloop
     category: pr_regression
     description: The CNS pod entered CrashLoopBackOff during the run.
