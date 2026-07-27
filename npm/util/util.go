@@ -195,7 +195,14 @@ func AppendMap(base, new map[string]string) map[string]string {
 // hashedNameDigestLen (20) = 30 chars, within the 31-char kernel ipset name limit.
 func GetHashedName(name string) string {
 	sum := sha256.Sum256([]byte(name))
-	return AzureNpmPrefix + new(big.Int).SetBytes(sum[:]).Text(36)[:hashedNameDigestLen]
+	// Text(36) omits leading zeros, so a small digest could be shorter than
+	// hashedNameDigestLen; left-pad to a fixed width before slicing so the result is always
+	// exactly hashedNameDigestLen characters and the slice can never panic.
+	digest := new(big.Int).SetBytes(sum[:]).Text(36)
+	if len(digest) < hashedNameDigestLen {
+		digest = strings.Repeat("0", hashedNameDigestLen-len(digest)) + digest
+	}
+	return AzureNpmPrefix + digest[:hashedNameDigestLen]
 }
 
 // CompareK8sVer compares two k8s versions.
