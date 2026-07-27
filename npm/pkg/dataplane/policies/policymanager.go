@@ -62,6 +62,9 @@ type PolicyManager struct {
 	ioShim           *common.IOShim
 	staleChains      *staleChains
 	reconcileManager *reconcileManager
+	// chainNameOwner maps an enforcement chain name to the policy key that owns it, so two
+	// distinct policies can't resolve to the same chain. Only used on Linux.
+	chainNameOwner map[string]string
 	*PolicyManagerCfg
 }
 
@@ -75,6 +78,7 @@ func NewPolicyManager(ioShim *common.IOShim, cfg *PolicyManagerCfg) *PolicyManag
 		reconcileManager: &reconcileManager{
 			releaseLockSignal: make(chan struct{}, 1),
 		},
+		chainNameOwner:   make(map[string]string),
 		PolicyManagerCfg: cfg,
 	}
 }
@@ -151,6 +155,15 @@ func (pMgr *PolicyManager) AddPolicies(policies []*NPMNetworkPolicy, endpointLis
 	pMgr.policyMap.Lock()
 	defer pMgr.policyMap.Unlock()
 
+	// Fail closed before touching the dataplane if any policy would take over a chain that
+	// already belongs to a different policy, so a colliding chain name can never override
+	// another policy's rules.
+	if err := pMgr.claimChainNames(nonEmptyPolicies); err != nil {
+		msg := fmt.Sprintf("failed to add policy: %s", err.Error())
+		metrics.SendErrorLogAndMetric(util.IptmID, "error: %s", msg)
+		return npmerrors.Errorf(npmerrors.AddPolicy, false, msg)
+	}
+
 	// Call actual dataplane function to apply changes
 	timer := metrics.StartNewTimer()
 	err := pMgr.addPolicies(nonEmptyPolicies, endpointList)
@@ -220,6 +233,8 @@ func (pMgr *PolicyManager) RemovePolicy(policyKey string) error {
 
 	// remove policy from cache
 	delete(pMgr.policyMap.cache, policyKey)
+	// release the policy's chain names so they can be reused
+	pMgr.releaseChainNames(policy)
 	return nil
 }
 

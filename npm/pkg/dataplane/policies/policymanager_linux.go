@@ -7,6 +7,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
+	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"github.com/Azure/azure-container-networking/npm/util/ioutil"
 	"k8s.io/klog"
 )
@@ -134,6 +135,40 @@ func chainNames(networkPolicies []*NPMNetworkPolicy) []string {
 		}
 	}
 	return chainNames
+}
+
+// claimChainNames records each policy's enforcement chain names as owned by that policy's
+// key. It fails closed, without recording anything, if a chain name is already owned by a
+// different policy (whether already applied or another policy in the same batch), so two
+// distinct policies can never resolve to the same enforcement chain. Re-claiming by the same
+// owner is a no-op. Callers must hold the policyMap lock.
+func (pMgr *PolicyManager) claimChainNames(networkPolicies []*NPMNetworkPolicy) error {
+	pending := make(map[string]string)
+	for _, networkPolicy := range networkPolicies {
+		for _, chain := range chainNames([]*NPMNetworkPolicy{networkPolicy}) {
+			if owner, ok := pMgr.chainNameOwner[chain]; ok && owner != networkPolicy.PolicyKey {
+				return npmerrors.Errorf(npmerrors.AddPolicy, false,
+					fmt.Sprintf("policy %q resolves to chain %s already owned by policy %q", networkPolicy.PolicyKey, chain, owner))
+			}
+			if owner, ok := pending[chain]; ok && owner != networkPolicy.PolicyKey {
+				return npmerrors.Errorf(npmerrors.AddPolicy, false,
+					fmt.Sprintf("policies %q and %q both resolve to chain %s", networkPolicy.PolicyKey, owner, chain))
+			}
+			pending[chain] = networkPolicy.PolicyKey
+		}
+	}
+	for chain, policyKey := range pending {
+		pMgr.chainNameOwner[chain] = policyKey
+	}
+	return nil
+}
+
+// releaseChainNames drops a policy's chain-name ownership so the chains can be reused. Callers
+// must hold the policyMap lock.
+func (pMgr *PolicyManager) releaseChainNames(networkPolicy *NPMNetworkPolicy) {
+	for _, chain := range chainNames([]*NPMNetworkPolicy{networkPolicy}) {
+		delete(pMgr.chainNameOwner, chain)
+	}
 }
 
 func (pMgr *PolicyManager) newCreatorWithChains(chainNames []string) *ioutil.FileCreator {

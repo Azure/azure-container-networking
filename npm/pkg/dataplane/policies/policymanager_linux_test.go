@@ -212,6 +212,33 @@ func TestChainNames(t *testing.T) {
 		"distinct policies must produce distinct chain names")
 }
 
+// TestChainNameOwnershipGuard verifies the fail-closed invariant: an enforcement chain is
+// owned by a single policy, so a second, distinct policy that resolves to the same chain is
+// rejected before any dataplane change, the owner (and re-claims) are accepted, and the chain
+// is released on delete.
+func TestChainNameOwnershipGuard(t *testing.T) {
+	metrics.ReinitializeAll()
+	victim := ingressNetPol
+	chain := victim.ingressChainName()
+
+	// A different policy that resolves to the victim's chain is rejected (fail closed).
+	pMgr := NewPolicyManager(common.NewMockIOShim(nil), ipsetConfig)
+	pMgr.chainNameOwner[chain] = "some-other/policy"
+	require.Error(t, pMgr.claimChainNames([]*NPMNetworkPolicy{victim}),
+		"a chain owned by a different policy must not be claimable")
+
+	// The owner re-claiming its own chain is a no-op.
+	pMgr = NewPolicyManager(common.NewMockIOShim(nil), ipsetConfig)
+	require.NoError(t, pMgr.claimChainNames([]*NPMNetworkPolicy{victim}), "first claim should succeed")
+	require.Equal(t, victim.PolicyKey, pMgr.chainNameOwner[chain], "claim must record the owner")
+	require.NoError(t, pMgr.claimChainNames([]*NPMNetworkPolicy{victim}), "re-claim by the same owner should be a no-op")
+
+	// The chain is released on delete, so it can be owned again afterward.
+	pMgr.releaseChainNames(victim)
+	_, owned := pMgr.chainNameOwner[chain]
+	require.False(t, owned, "chain must be released on delete")
+}
+
 // similar to TestAddPolicy in policymanager.go except an error occurs
 func TestAddPolicyFailure(t *testing.T) {
 	metrics.ReinitializeAll()

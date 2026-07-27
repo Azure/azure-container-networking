@@ -618,3 +618,12 @@ func isNotFoundErr(err error) bool {
 	var notFoundErr hcn.EndpointNotFoundError
 	return errors.As(err, &notFoundErr)
 }
+
+// claimChainNames is a no-op on Windows, which does not use iptables enforcement chains.
+func (pMgr *PolicyManager) claimChainNames(_ []*NPMNetworkPolicy) error {
+	return nil
+}
+
+// releaseChainNames is a no-op on Windows, which does not use iptables enforcement chains.
+func (pMgr *PolicyManager) releaseChainNames(_ *NPMNetworkPolicy) {
+}
