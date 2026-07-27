@@ -21,6 +21,7 @@ steps:
       kubectlVersion: latest
 
   - task: AzureCLI@2
+    displayName: Set cluster credentials
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
@@ -62,7 +63,7 @@ steps:
       echo "Start Azilium E2E Tests on Overlay Cluster"
       sudo -E env "PATH=$PATH" make test-load \
         SCALE_UP=32 OS_TYPE=linux CNI_TYPE=cilium_dualstack VALIDATE_STATEFILE=true \
-        INSTALL_CNS=true INSTALL_OVERLAY=true CLEANUP=true \
+        INSTALL_OVERLAY=true CLEANUP=true \
         AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION) CNS_VERSION=$(CNS_VERSION) \
         IPAM_IMAGE_NAME_OVERRIDE=$(IPAM_IMAGE_NAME_OVERRIDE) CNS_IMAGE_NAME_OVERRIDE=$(CNS_IMAGE_NAME_OVERRIDE) 
     retryCountOnTaskFailure: 3
