@@ -198,10 +198,18 @@ var (
 var allTestNetworkPolicies = []*NPMNetworkPolicy{bothDirectionsNetPol, ingressNetPol, egressNetPol}
 
 func TestChainNames(t *testing.T) {
-	expectedName := fmt.Sprintf("AZURE-NPM-INGRESS-%s", util.Hash(bothDirectionsNetPol.PolicyKey))
+	expectedName := fmt.Sprintf("AZURE-NPM-INGRESS-%s", util.GetHashedChainName(bothDirectionsNetPol.PolicyKey))
 	require.Equal(t, expectedName, bothDirectionsNetPol.ingressChainName())
-	expectedName = fmt.Sprintf("AZURE-NPM-EGRESS-%s", util.Hash(bothDirectionsNetPol.PolicyKey))
+	expectedName = fmt.Sprintf("AZURE-NPM-EGRESS-%s", util.GetHashedChainName(bothDirectionsNetPol.PolicyKey))
 	require.Equal(t, expectedName, bothDirectionsNetPol.egressChainName())
+
+	// Chain names must stay within the 28-character iptables limit.
+	require.LessOrEqual(t, len(bothDirectionsNetPol.ingressChainName()), 28, "ingress chain name must fit the iptables limit")
+	require.LessOrEqual(t, len(bothDirectionsNetPol.egressChainName()), 28, "egress chain name must fit the iptables limit")
+
+	// Distinct policies must map to distinct chain names.
+	require.NotEqual(t, ingressNetPol.ingressChainName(), egressNetPol.ingressChainName(),
+		"distinct policies must produce distinct chain names")
 }
 
 // similar to TestAddPolicy in policymanager.go except an error occurs

@@ -451,3 +451,20 @@ func TestNodeIP(t *testing.T) {
 	_, err := NodeIP()
 	require.Nil(t, err, "NodeIP() returned error")
 }
+
+func TestGetHashedChainName(t *testing.T) {
+	// Deterministic and fixed width.
+	name := GetHashedChainName("x/test1")
+	require.Equal(t, name, GetHashedChainName("x/test1"), "hashed chain name must be deterministic")
+	require.Len(t, GetHashedChainName(""), hashedChainDigestLen, "digest must be left-padded to a fixed width")
+	for _, in := range []string{"x/test1", "y/test2", "z/test3", "a-in-ns-b/c"} {
+		require.Len(t, GetHashedChainName(in), hashedChainDigestLen, "digest must be fixed width for %q", in)
+		// Longest chain prefix + dash + digest must fit the 28-char iptables chain limit.
+		require.LessOrEqual(t, len(IptablesAzureIngressPolicyChainPrefix)+1+len(GetHashedChainName(in)), 28,
+			"chain name must fit the iptables limit for %q", in)
+	}
+
+	// Distinct policy keys produce distinct digests.
+	require.NotEqual(t, GetHashedChainName("y/test2"), GetHashedChainName("z/test3"))
+	require.NotEqual(t, GetHashedChainName("ns-a/p"), GetHashedChainName("ns-b/p"))
+}
