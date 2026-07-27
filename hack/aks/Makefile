@@ -42,17 +42,14 @@ VNET       ?= $(CLUSTER)
 # "auto" enables LTS only for LTS-only minors -- those whose supportPlan lists
 # AKSLongTermSupport but not KubernetesOfficial and which therefore cannot be
 # created without it; still-supported minors resolve to the standard tier, so
-# their creates are unchanged. "true"/"false" force LTS on/off. The az
-# get-versions query runs only for "auto" and is deferred to recipe time
-# (help/offline/true/false never call az).
+# their creates are unchanged. "true"/"false" force LTS on/off.
 LTS_PREMIUM_ARGS = --k8s-support-plan AKSLongTermSupport --tier premium
 ifeq ($(LTS),true)
 	LTS_ARGS=$(LTS_PREMIUM_ARGS)
 else ifeq ($(LTS),auto)
-	LTS_ARGS=$(shell m=$$(echo "$(K8S_VER)" | awk -F. '{print $$1"."$$2}'); \
-		$(AZCLI) aks get-versions --location $(REGION) \
-			--query "values[?contains(capabilities.supportPlan,'AKSLongTermSupport') && !contains(capabilities.supportPlan,'KubernetesOfficial')].version" \
-			-o tsv 2>/dev/null | grep -Fqx "$$m" && echo "$(LTS_PREMIUM_ARGS)")
+	# aks-lts-args.sh queries az and echoes LTS_PREMIUM_ARGS iff K8S_VER's minor
+	# is LTS-only. Deferred to recipe time, so help/offline never call az.
+	LTS_ARGS=$(shell AZCLI="$(AZCLI)" REGION="$(REGION)" K8S_VER="$(K8S_VER)" LTS_PREMIUM_ARGS="$(LTS_PREMIUM_ARGS)" sh ../scripts/aks-lts-args.sh)
 else
 	LTS_ARGS=
 endif
