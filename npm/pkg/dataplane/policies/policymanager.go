@@ -83,6 +83,14 @@ func NewPolicyManager(ioShim *common.IOShim, cfg *PolicyManagerCfg) *PolicyManag
 	}
 }
 
+// releaseClaimedChains drops ownership of the given chain names. It is used to roll back a
+// claim when the dataplane apply fails. Callers must hold the policyMap lock.
+func (pMgr *PolicyManager) releaseClaimedChains(chains []string) {
+	for _, chain := range chains {
+		delete(pMgr.chainNameOwner, chain)
+	}
+}
+
 func (pMgr *PolicyManager) ResetEndpoint(epID string) error {
 	if util.IsWindowsDP() {
 		return pMgr.bootup([]string{epID})
@@ -158,7 +166,8 @@ func (pMgr *PolicyManager) AddPolicies(policies []*NPMNetworkPolicy, endpointLis
 	// Fail closed before touching the dataplane if any policy would take over a chain that
 	// already belongs to a different policy, so a colliding chain name can never override
 	// another policy's rules.
-	if err := pMgr.claimChainNames(nonEmptyPolicies); err != nil {
+	claimedChains, err := pMgr.claimChainNames(nonEmptyPolicies)
+	if err != nil {
 		msg := fmt.Sprintf("failed to add policy: %s", err.Error())
 		metrics.SendErrorLogAndMetric(util.IptmID, "error: %s", msg)
 		return npmerrors.Errorf(npmerrors.AddPolicy, false, msg)
@@ -166,9 +175,12 @@ func (pMgr *PolicyManager) AddPolicies(policies []*NPMNetworkPolicy, endpointLis
 
 	// Call actual dataplane function to apply changes
 	timer := metrics.StartNewTimer()
-	err := pMgr.addPolicies(nonEmptyPolicies, endpointList)
+	err = pMgr.addPolicies(nonEmptyPolicies, endpointList)
 	metrics.RecordACLRuleExecTime(timer) // record execution time regardless of failure
 	if err != nil {
+		// The policies were not applied and won't be cached, so release the chain names we
+		// just claimed; otherwise they would stay owned with no policy to release them.
+		pMgr.releaseClaimedChains(claimedChains)
 		// NOTE: in Linux, Prometheus metrics may be off at this point since some ACL rules may have been applied successfully
 		// In Windows, Prometheus metrics may be off at this point since we don't know how many endpoints had rules applied successfully.
 		msg := fmt.Sprintf("failed to add policy: %s", err.Error())

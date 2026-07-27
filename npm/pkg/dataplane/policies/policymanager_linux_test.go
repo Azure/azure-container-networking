@@ -221,22 +221,46 @@ func TestChainNameOwnershipGuard(t *testing.T) {
 	victim := ingressNetPol
 	chain := victim.ingressChainName()
 
-	// A different policy that resolves to the victim's chain is rejected (fail closed).
+	// A different policy that resolves to the victim's chain is rejected (fail closed) and the
+	// existing owner is left untouched.
 	pMgr := NewPolicyManager(common.NewMockIOShim(nil), ipsetConfig)
 	pMgr.chainNameOwner[chain] = "some-other/policy"
-	require.Error(t, pMgr.claimChainNames([]*NPMNetworkPolicy{victim}),
-		"a chain owned by a different policy must not be claimable")
+	_, err := pMgr.claimChainNames([]*NPMNetworkPolicy{victim})
+	require.Error(t, err, "a chain owned by a different policy must not be claimable")
+	require.Equal(t, "some-other/policy", pMgr.chainNameOwner[chain], "a rejected claim must not overwrite the owner")
 
-	// The owner re-claiming its own chain is a no-op.
+	// The owner re-claiming its own chain is a no-op, and the first claim reports itself as
+	// newly claimed (so it can be rolled back on apply failure) while the re-claim does not.
 	pMgr = NewPolicyManager(common.NewMockIOShim(nil), ipsetConfig)
-	require.NoError(t, pMgr.claimChainNames([]*NPMNetworkPolicy{victim}), "first claim should succeed")
+	claimed, err := pMgr.claimChainNames([]*NPMNetworkPolicy{victim})
+	require.NoError(t, err, "first claim should succeed")
 	require.Equal(t, victim.PolicyKey, pMgr.chainNameOwner[chain], "claim must record the owner")
-	require.NoError(t, pMgr.claimChainNames([]*NPMNetworkPolicy{victim}), "re-claim by the same owner should be a no-op")
+	require.Contains(t, claimed, chain, "first claim must report the newly claimed chain")
+	reclaimed, err := pMgr.claimChainNames([]*NPMNetworkPolicy{victim})
+	require.NoError(t, err, "re-claim by the same owner should be a no-op")
+	require.NotContains(t, reclaimed, chain, "re-claim by the same owner must not report the chain as newly claimed")
 
 	// The chain is released on delete, so it can be owned again afterward.
 	pMgr.releaseChainNames(victim)
 	_, owned := pMgr.chainNameOwner[chain]
 	require.False(t, owned, "chain must be released on delete")
+}
+
+// TestChainNameClaimRolledBackOnApplyFailure verifies that when the dataplane apply fails, the
+// chain names claimed for that add are released, so they are never left owned with no policy in
+// the cache to release them.
+func TestChainNameClaimRolledBackOnApplyFailure(t *testing.T) {
+	metrics.ReinitializeAll()
+	testNetPol := testNetworkPolicy()
+	calls := GetAddPolicyFailureTestCalls(testNetPol)
+	ioshim := common.NewMockIOShim(calls)
+	defer ioshim.VerifyCalls(t, calls)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
+
+	require.Error(t, pMgr.AddPolicies([]*NPMNetworkPolicy{testNetPol}, nil))
+	_, cached := pMgr.GetPolicy(testNetPol.PolicyKey)
+	require.False(t, cached, "policy must not be cached after a failed add")
+	require.Empty(t, pMgr.chainNameOwner, "chain claims must be rolled back when the apply fails")
 }
 
 // similar to TestAddPolicy in policymanager.go except an error occurs

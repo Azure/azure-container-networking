@@ -141,26 +141,31 @@ func chainNames(networkPolicies []*NPMNetworkPolicy) []string {
 // key. It fails closed, without recording anything, if a chain name is already owned by a
 // different policy (whether already applied or another policy in the same batch), so two
 // distinct policies can never resolve to the same enforcement chain. Re-claiming by the same
-// owner is a no-op. Callers must hold the policyMap lock.
-func (pMgr *PolicyManager) claimChainNames(networkPolicies []*NPMNetworkPolicy) error {
+// owner is a no-op. It returns the chain names it newly recorded so the caller can release
+// them if the dataplane apply later fails. Callers must hold the policyMap lock.
+func (pMgr *PolicyManager) claimChainNames(networkPolicies []*NPMNetworkPolicy) ([]string, error) {
 	pending := make(map[string]string)
 	for _, networkPolicy := range networkPolicies {
 		for _, chain := range chainNames([]*NPMNetworkPolicy{networkPolicy}) {
 			if owner, ok := pMgr.chainNameOwner[chain]; ok && owner != networkPolicy.PolicyKey {
-				return npmerrors.Errorf(npmerrors.AddPolicy, false,
+				return nil, npmerrors.Errorf(npmerrors.AddPolicy, false,
 					fmt.Sprintf("policy %q resolves to chain %s already owned by policy %q", networkPolicy.PolicyKey, chain, owner))
 			}
 			if owner, ok := pending[chain]; ok && owner != networkPolicy.PolicyKey {
-				return npmerrors.Errorf(npmerrors.AddPolicy, false,
+				return nil, npmerrors.Errorf(npmerrors.AddPolicy, false,
 					fmt.Sprintf("policies %q and %q both resolve to chain %s", networkPolicy.PolicyKey, owner, chain))
 			}
 			pending[chain] = networkPolicy.PolicyKey
 		}
 	}
+	newlyClaimed := make([]string, 0, len(pending))
 	for chain, policyKey := range pending {
+		if _, alreadyOwned := pMgr.chainNameOwner[chain]; !alreadyOwned {
+			newlyClaimed = append(newlyClaimed, chain)
+		}
 		pMgr.chainNameOwner[chain] = policyKey
 	}
-	return nil
+	return newlyClaimed, nil
 }
 
 // releaseChainNames drops a policy's chain-name ownership so the chains can be reused. Callers
