@@ -249,8 +249,8 @@ func InstallIPMasqAgent(ctx context.Context, clientset *kubernetes.Clientset) er
 	return nil
 }
 
-func InstallCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, logDir string) (func() error, error) {
-	cnsLinux, cnsLinuxDetails, err := loadCNSDaemonset(ctx, clientset, corev1.Linux)
+func InstallCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, logDir string, waitForReady bool) (func() error, error) {
+	cnsLinux, cnsLinuxDetails, err := loadCNSDaemonset(ctx, clientset, corev1.Linux, waitForReady)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to load linux CNS daemonset")
 	}
@@ -262,7 +262,7 @@ func InstallCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, l
 		return nil, errors.Wrap(err, "failed to check if cluster has windows nodes")
 	}
 	if hasWinNodes {
-		cnsWindows, cnsWindowsDetails, err = loadCNSDaemonset(ctx, clientset, corev1.Windows)
+		cnsWindows, cnsWindowsDetails, err = loadCNSDaemonset(ctx, clientset, corev1.Windows, waitForReady)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to load windows CNS daemonset")
 		}
@@ -619,12 +619,12 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 	return cnsScenarioMap, nil
 }
 
-func loadCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, nodeOS corev1.OSName) (appsv1.DaemonSet, cnsDetails, error) {
+func loadCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, nodeOS corev1.OSName, waitForReady bool) (appsv1.DaemonSet, cnsDetails, error) {
 	cnsScenarioMap, err := initCNSScenarioVars()
 	if err != nil {
 		return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to initialize cns scenario map")
 	}
-	cns, cnsScenarioDetails, err := setupCNSDaemonset(ctx, clientset, cnsScenarioMap, nodeOS)
+	cns, cnsScenarioDetails, err := setupCNSDaemonset(ctx, clientset, cnsScenarioMap, nodeOS, waitForReady)
 	if err != nil {
 		return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to setup cns daemonset")
 	}
@@ -634,7 +634,7 @@ func loadCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, node
 
 // setupCNSDaemonset installs the first CNSScenario encountered by env var
 // if no CNSScenario env var is set, returns an error
-func setupCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, cnsScenarioMap map[CNSScenario]map[corev1.OSName]cnsDetails, nodeOS corev1.OSName) (appsv1.DaemonSet, cnsDetails, error) { //nolint:lll // ignore
+func setupCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, cnsScenarioMap map[CNSScenario]map[corev1.OSName]cnsDetails, nodeOS corev1.OSName, waitForReady bool) (appsv1.DaemonSet, cnsDetails, error) { //nolint:lll // ignore
 	cns, cnsScenarioDetails, err := parseCNSDaemonset(cnsScenarioMap, nodeOS)
 	if err != nil {
 		return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to parse cns daemonset")
@@ -660,8 +660,10 @@ func setupCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, cns
 	MustSetUpRBAC(ctx, clientset, cnsScenarioDetails.rolePath, cnsScenarioDetails.roleBindingPath)
 	MustCreateDaemonset(ctx, cnsDaemonsetClient, cns)
 
-	if err := WaitForPodDaemonset(ctx, clientset, cns.Namespace, cns.Name, cnsScenarioDetails.labelSelector); err != nil {
-		return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to check daemonset running")
+	if waitForReady {
+		if err := WaitForPodDaemonset(ctx, clientset, cns.Namespace, cns.Name, cnsScenarioDetails.labelSelector); err != nil {
+			return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to check daemonset running")
+		}
 	}
 	return cns, cnsScenarioDetails, nil
 }

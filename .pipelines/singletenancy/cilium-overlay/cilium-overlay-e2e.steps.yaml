@@ -25,36 +25,14 @@ steps:
       kubectlVersion: latest
 
   - task: AzureCLI@2
+    displayName: Set cluster credentials
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-      scriptLocation: "inlineScript"
-      scriptType: "bash"
-      addSpnToEnvironment: true
-      inlineScript: |
-        set -e
-        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
-        ls -lah
-        pwd
-        kubectl cluster-info
-        kubectl get po -owide -A
-        if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
-          echo "Running nightly"
-          # makefile manages cilium version (nightly doesn't use DIR)
-          unset CILIUM_VERSION_TAG
-          make -C ./hack/aks deploy-cilium-nightly
-        else
-          # makefile manages cilium version
-          unset DIR
-          unset CILIUM_VERSION_TAG
-          make -C ./hack/aks deploy-cilium
-        fi
-        export CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY=$(CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY_OVERRIDE)
-        export CILIUM_LOG_COLLECTOR_VERSION_TAG=$(CILIUM_LOG_COLLECTOR_VERSION_TAG_OVERRIDE)
-        make -C ./hack/aks add-cilium-log-collector
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
 
-        kubectl get po -owide -A
-    name: "installCilium"
-    displayName: "Install Cilium on AKS Overlay"
+  - template: ../../templates/cilium-cli.yaml
 
   - template: ../../templates/cilium-cli.yaml
 
@@ -69,7 +47,7 @@ steps:
       kubectl get po -owide -A
       sudo -E env "PATH=$PATH" make test-load \
         SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true \
-        INSTALL_CNS=true INSTALL_OVERLAY=true CLEANUP=true \
+        INSTALL_OVERLAY=true CLEANUP=true \
         AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION) CNS_VERSION=$(CNS_VERSION) \
         IPAM_IMAGE_NAME_OVERRIDE=$(IPAM_IMAGE_NAME_OVERRIDE) CNS_IMAGE_NAME_OVERRIDE=$(CNS_IMAGE_NAME_OVERRIDE)
     retryCountOnTaskFailure: 3
@@ -206,5 +184,3 @@ steps:
       displayName: "Verify Async Delete when CNS is down"
 
   - template: ../../templates/cilium-mtu-check.yaml
-
-
