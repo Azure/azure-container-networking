@@ -38,9 +38,17 @@ CLUSTER    ?= $(USER)-$(REGION)
 GROUP      ?= $(CLUSTER)
 VNET       ?= $(CLUSTER)
 
-# Long Term Support (LTS)
+# Long Term Support (LTS): true | false | auto.
+# "auto" enables LTS only for LTS-only minors (supportPlan has AKSLongTermSupport
+# but not KubernetesOfficial); the az query is deferred to recipe time.
+LTS_PREMIUM_ARGS = --k8s-support-plan AKSLongTermSupport --tier premium
 ifeq ($(LTS),true)
-	LTS_ARGS=--k8s-support-plan AKSLongTermSupport --tier premium
+	LTS_ARGS=$(LTS_PREMIUM_ARGS)
+else ifeq ($(LTS),auto)
+	LTS_ARGS=$(shell m=$$(echo "$(K8S_VER)" | awk -F. '{print $$1"."$$2}'); \
+		$(AZCLI) aks get-versions --location $(REGION) \
+			--query "values[?contains(capabilities.supportPlan,'AKSLongTermSupport') && !contains(capabilities.supportPlan,'KubernetesOfficial')].version" \
+			-o tsv 2>/dev/null | grep -Fqx "$$m" && echo "$(LTS_PREMIUM_ARGS)")
 else
 	LTS_ARGS=
 endif
