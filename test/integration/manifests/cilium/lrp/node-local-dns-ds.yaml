@@ -25,7 +25,7 @@ spec:
       # POOL_NODESELECTOR is set (e.g. "agentpool: pool1").
       nodeSelector: {${POOL_NODESELECTOR}}
       priorityClassName: system-node-critical
-      serviceAccountName: node-local-dns
+      serviceAccountName: node-local-dns${POOL}
       dnsPolicy: Default # Don't use cluster DNS.
       tolerations:
         - key: "CriticalAddonsOnly"
@@ -48,7 +48,7 @@ spec:
               "-conf",
               "/etc/Corefile",
               "-upstreamsvc",
-              "kube-dns-upstream",
+              "kube-dns-upstream${POOL}",
               "-skipteardown=true",
               "-setupinterface=false",
               "-setupiptables=false",
@@ -81,7 +81,7 @@ spec:
             optional: true
         - name: config-volume
           configMap:
-            name: node-local-dns
+            name: node-local-dns${POOL}
             items:
               - key: Corefile
                 path: Corefile.base
