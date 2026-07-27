@@ -1031,6 +1031,29 @@ func TestCidrExceptMembers(t *testing.T) {
 	require.False(t, wasFileAltered, "file should not be altered")
 }
 
+// TestReportedPairRendersDistinctKernelSets drives two logical sets whose 32-bit names
+// previously collided all the way to the rendered restore file, and confirms each keeps its
+// own kernel set and member instead of the two being unioned into one set.
+func TestReportedPairRendersDistinctKernelSets(t *testing.T) {
+	iMgr := NewIPSetManager(applyAlwaysCfg, common.NewMockIOShim(nil))
+
+	nsSet := NewIPSetMetadata("msobb-target", Namespace)            // prefixed "ns-msobb-target"
+	podLabelSet := NewIPSetMetadata("x:YMaaIZ", KeyValueLabelOfPod) // prefixed "podlabel-x:YMaaIZ"
+	require.NotEqual(t, nsSet.GetHashedName(), podLabelSet.GetHashedName(),
+		"the two logical sets must render to distinct kernel names")
+
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{nsSet}, "10.0.0.10", "a"))
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{podLabelSet}, "10.0.0.20", "b"))
+
+	rendered := iMgr.fileCreatorForApply(1).ToString()
+
+	// Each member lands only in its own kernel set; neither set absorbs the other's IP.
+	require.Contains(t, rendered, fmt.Sprintf("-A %s 10.0.0.10", nsSet.GetHashedName()))
+	require.Contains(t, rendered, fmt.Sprintf("-A %s 10.0.0.20", podLabelSet.GetHashedName()))
+	require.NotContains(t, rendered, fmt.Sprintf("-A %s 10.0.0.20", nsSet.GetHashedName()))
+	require.NotContains(t, rendered, fmt.Sprintf("-A %s 10.0.0.10", podLabelSet.GetHashedName()))
+}
+
 func TestUpdateWithIdenticalSaveFile(t *testing.T) {
 	calls := []testutils.TestCmd{fakeRestoreSuccessCommand}
 	ioshim := common.NewMockIOShim(calls)
