@@ -114,9 +114,9 @@ type ACLPolicy struct {
 	SrcList []SetInfo
 	// DstList destination IPSets condition setinfos
 	DstList []SetInfo
-	// SrcDirectIPs holds direct IPs for source matching on Windows with NPM Lite enabled.
+	// SrcDirectIPs holds direct IPs for source matching (used for /32 CIDRs on Windows with npm lite enabled)
 	SrcDirectIPs []string
-	// DstDirectIPs holds direct IPs for destination matching on Windows with NPM Lite enabled.
+	// DstDirectIPs holds direct IPs for destination matching (used for /32 CIDRs on Windows with npm lite enabled)
 	DstDirectIPs []string
 	// Target defines a target in iptables for linux. i,e, Mark, Accept, Drop
 	// in windows, this is either ALLOW or DENY
@@ -155,8 +155,8 @@ func ValidatePolicy(networkPolicy *NPMNetworkPolicy) error {
 		if !aclPolicy.hasKnownProtocol() {
 			return npmerrors.SimpleError(fmt.Sprintf("ACL policy for NetPol %s has unknown protocol [%s]", networkPolicy.PolicyKey, aclPolicy.Protocol))
 		}
-		if err := validatePlatformPolicy(aclPolicy); err != nil {
-			return npmerrors.SimpleError(fmt.Sprintf("ACL policy for NetPol %s %s", networkPolicy.PolicyKey, err))
+		if util.IsWindowsDP() && aclPolicy.Protocol == SCTP {
+			return npmerrors.SimpleError(fmt.Sprintf("ACL policy for NetPol %s has unsupported SCTP protocol on Windows", networkPolicy.PolicyKey))
 		}
 
 		if !aclPolicy.satisifiesPortAndProtocolConstraints() {

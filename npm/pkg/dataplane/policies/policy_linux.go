@@ -1,7 +1,6 @@
 package policies
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -24,13 +23,6 @@ const (
 // the NPMNetworkPolicy ACLPolicyID field is unnused in Linux
 func aclPolicyID(_, _ string) string {
 	return ""
-}
-
-func validatePlatformPolicy(aclPolicy *ACLPolicy) error {
-	if len(aclPolicy.SrcDirectIPs) > 0 || len(aclPolicy.DstDirectIPs) > 0 {
-		return errors.New("uses direct IP matching, which is unsupported on Linux")
-	}
-	return nil
 }
 
 // returns two booleans indicating whether the network policy has ingress and egress respectively

@@ -363,13 +363,9 @@ func peerAndPortRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Di
 }
 
 func directPeerAndPortAllowRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Direction, ports []networkingv1.NetworkPolicyPort, cidr string, npmLiteToggle bool) error {
-	if !util.IsIPV4(cidr) {
-		return ErrUnsupportedIPAddress
-	}
-
 	if len(ports) == 0 {
 		acl := policies.NewACLPolicy(policies.Allowed, direction)
-		// Bypass IPSet creation and create an ACL with the CIDR directly.
+		// bypasses ipset creation for /32 cidrs and directly creates an acl with the cidr
 		if direction == policies.Ingress {
 			acl.SrcDirectIPs = []string{cidr}
 		} else {
@@ -453,10 +449,7 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy,
 		// #2.1 Handle IPBlock and port if exist
 		if peer.IPBlock != nil {
 			if len(peer.IPBlock.CIDR) > 0 {
-				if useDirectIPBlockRules(npmLiteToggle) {
-					if len(peer.IPBlock.Except) > 0 {
-						return ErrUnsupportedExceptCIDR
-					}
+				if npmLiteToggle && util.IsWindowsDP() {
 					err = directPeerAndPortAllowRule(npmNetPol, direction, ports, peer.IPBlock.CIDR, npmLiteToggle)
 					if err != nil {
 						return err
