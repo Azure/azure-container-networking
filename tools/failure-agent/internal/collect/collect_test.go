@@ -113,6 +113,56 @@ func TestIsNodeEvidenceFile(t *testing.T) {
 	}
 }
 
+func TestParseEvidenceSurfacesDatapathStateWithoutErrors(t *testing.T) {
+	dir := t.TempDir()
+	// cnsCache.txt is pure IP-allocation state with no error keywords, but is
+	// decisive datapath evidence and must be surfaced as an excerpt.
+	writeFile(t, dir, "cnsCache.txt", "NCID: abc123\nTotal IPs: 256\nAllocated: 256\nAvailable: 0\n")
+	writeFile(t, dir, "unrelated.txt", "everything healthy\nready\n")
+
+	ev, err := ParseEvidence(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	excerpt, ok := ev.Excerpts["cnsCache.txt"]
+	if !ok {
+		t.Fatalf("expected cnsCache.txt to be surfaced as an excerpt, got %v", ev.Excerpts)
+	}
+	if !strings.Contains(excerpt, "Available: 0") {
+		t.Errorf("expected IP-allocation state in excerpt: %q", excerpt)
+	}
+	if _, ok := ev.Excerpts["unrelated.txt"]; ok {
+		t.Error("did not expect excerpt for a non-datapath file with no errors")
+	}
+}
+
+func TestIsDatapathEvidenceFile(t *testing.T) {
+	yes := []string{
+		"CNS-output/azure-cns.json", "cnsCache.txt", "CNS-output/azure-endpoints.json",
+		"HNS-output/hns-endpoint.json", "HNS-output/hns-network.json",
+		"log-output/azure-cns.log", "log-output/azure-vnet.log",
+		"full-windows-logs/extracted/endpoint.txt", "full-windows-logs/extracted/routes.txt",
+		"full-windows-logs/extracted/ports.txt", "full-windows-logs/extracted/vfpOutput.txt",
+		"full-windows-logs/extracted/ip.txt",
+	}
+	for _, n := range yes {
+		if !isDatapathEvidenceFile(n) {
+			t.Errorf("expected %q to be datapath evidence", n)
+		}
+	}
+	no := []string{
+		"node-status.txt", "full-windows-logs/extracted/arp.txt",
+		"full-windows-logs/extracted/firewall.txt", "full-windows-logs/extracted/reservedports.txt",
+		"log-output/azure-vnet-telemetry.log", "full-windows-logs/extracted/adapters/Ethernet 3_int.txt",
+	}
+	for _, n := range no {
+		if isDatapathEvidenceFile(n) {
+			t.Errorf("did not expect %q to be datapath evidence", n)
+		}
+	}
+}
+
 func writeFile(t *testing.T, dir, name, content string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {

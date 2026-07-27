@@ -70,6 +70,29 @@ func TestWriteExcerptsPrioritizesNodeEvidence(t *testing.T) {
 	}
 }
 
+func TestWriteExcerptsPrioritizesDatapathEvidence(t *testing.T) {
+	filler := strings.Repeat("x", maxExcerptChars)
+	excerpts := map[string]string{
+		"aaa_logs/a.log": filler,
+		"aab_logs/b.log": filler,
+		"aac_logs/c.log": filler,
+		"aad_logs/d.log": filler,
+		"aae_logs/e.log": filler,
+		"live/nnc":       "NNC nodepool1: requested 256 allocated 0",
+		"aksnpwin000000_logs/CNS-output/azure-cns.json": "IPAMPoolMonitor cached 0 free 0",
+	}
+	var b strings.Builder
+	writeExcerpts(&b, excerpts)
+	out := b.String()
+
+	if !strings.Contains(out, "live/nnc") || !strings.Contains(out, "requested 256 allocated 0") {
+		t.Error("expected NNC allocation state to survive the excerpt budget")
+	}
+	if !strings.Contains(out, "CNS-output/azure-cns.json") {
+		t.Error("expected bundle datapath state to be prioritized into the budget")
+	}
+}
+
 func TestLLMClassifierValidResponse(t *testing.T) {
 	fc := &fakeCompleter{response: `{
 		"category": "pr_regression",
@@ -137,6 +160,8 @@ func TestSystemPromptEncodesInvestigationPolicy(t *testing.T) {
 		"Falsification via cross-dimension correlation",
 		"FINAL VERDICT",
 		"finalVerdict",
+		"DATAPATH / IP-PLANE EVIDENCE",
+		"live/nnc",
 		"failingUnit",
 		"knownUnknowns",
 		"~1h TTL",

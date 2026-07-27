@@ -25,8 +25,11 @@ const maxExcerptBytes = 2 << 10 // 2 KiB
 // maxTopErrorLines caps how many distinct error lines are retained.
 const maxTopErrorLines = 25
 
-// maxExcerptFiles caps how many file excerpts are retained.
-const maxExcerptFiles = 15
+// maxExcerptFiles caps how many file excerpts are retained. It is set above the
+// error-excerpt working set so datapath/IP-plane state dumps (which carry no
+// error keywords) can be surfaced as head excerpts without crowding out the
+// error excerpts that drive the primary root-cause read.
+const maxExcerptFiles = 24
 
 // maxSnippetsPerFile caps how many context snippets are retained per file.
 const maxSnippetsPerFile = 3
@@ -103,7 +106,7 @@ func ParseEvidence(root string) (model.Evidence, error) {
 			seen[key] = true
 			errorLines = append(errorLines, l)
 		}
-		if len(snippets) == 0 && isNodeEvidenceFile(rel) {
+		if len(snippets) == 0 && (isNodeEvidenceFile(rel) || isDatapathEvidenceFile(rel)) {
 			if head := headExcerpt(path); head != "" {
 				snippets = []model.ErrorSnippet{{Line: 1, Snippet: head}}
 			}
@@ -143,6 +146,22 @@ var nodeEvidenceNameRE = regexp.MustCompile(`(?i)(^|/)(node-status|node-conditio
 // isNodeEvidenceFile reports whether rel is a node/nodepool health file.
 func isNodeEvidenceFile(rel string) bool {
 	return nodeEvidenceNameRE.MatchString(rel)
+}
+
+// datapathEvidenceNameRE matches high-signal IP-plane / datapath state dumps.
+// Like node-health files, these describe *state* (IP allocation, endpoints,
+// routes, VFP policy) rather than errors, so they never match errorLineRE and
+// must be surfaced explicitly. The allowlist is deliberately narrow: it targets
+// the CNS/CNI IPAM view (azure-cns, cnsCache, azure-endpoints), the Windows
+// dataplane (hns-endpoint, hns-network) and the core extracted network dumps
+// (endpoint, routes, ports, vfpOutput, ip), while excluding low-signal noise
+// (per-adapter interface dumps, arp, firewall, dism/cbs) that would otherwise
+// exhaust the excerpt budget.
+var datapathEvidenceNameRE = regexp.MustCompile(`(?i)(^|/)(azure-cns|azure-vnet|cnscache|azure-endpoints|hns-endpoint|hns-network|endpoint|routes|ports|vfpoutput|ip)(\.[a-z]+)?$`)
+
+// isDatapathEvidenceFile reports whether rel is an IP-plane/datapath state file.
+func isDatapathEvidenceFile(rel string) bool {
+	return datapathEvidenceNameRE.MatchString(rel)
 }
 
 // headExcerpt returns the first lines of a file as a line-numbered snippet, used

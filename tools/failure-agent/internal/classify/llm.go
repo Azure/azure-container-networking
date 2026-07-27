@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -252,6 +253,8 @@ INVESTIGATION LOOP (follow in order):
 
 NODE/NODEPOOL HEALTH: always investigate node and nodepool health before blaming the change under test — Ready/NotReady, reboots, reimage, resource pressure (Memory/Disk/PIDPressure), evictions, node-scoped events. A component restart (e.g. CNS logging "caught exit signal terminated" then restarting) is expected when a node reboots, is reimaged, drains, or goes NotReady; when a restart coincides with a node lifecycle event, prefer pipeline_infra_config or cluster_bringup_failure over pr_regression. Record findings in nodeAssessment (state explicitly if the nodes were healthy).
 
+DATAPATH / IP-PLANE EVIDENCE: for connectivity, IP-allocation, or endpoint failures, reason across the whole allocation chain (DNC-RC -> NNC -> CNS -> endpoints), not a single log line. Read the control-plane request (live/nnc: nodenetworkconfigs requested vs allocated IP/NC counts, and live/clustersubnetstate: overlay IP-pool exhaustion/scaling) and reconcile it against CNS's own view (azure-cns.json, cnsCache.txt, azure-endpoints.json) and the actual dataplane (HNS/CNS endpoints, hns-endpoint.json/hns-network.json, extracted endpoint/routes/ports/vfpOutput/ip). Look for: IP-pool exhaustion (no free IPs, NNC requested < demand, clustersubnetstate exhausted), a mismatch between allocated IPs and realized endpoints (stale/leaked/duplicate endpoints, endpoint present in CNS but missing in HNS or vice versa), missing routes or VFP policy, and NC/subnet assignment mismatches. An "IP allocation failed"/"endpoint not found"/"connection refused" line is a SYMPTOM until you have read this state and shown where the chain actually broke. Two caveats: live probes (live/nnc, live/clustersubnetstate) reflect CURRENT cluster state, which may have drifted or self-healed since failure time — corroborate with failure-time bundle artifacts; and the Windows dataplane (HNS/VFP) is available ONLY from the collected bundle, never from kubectl. Treat every state dump as a point-in-time snapshot.
+
 ANTI-PATTERNS (never do these):
 - Reporting a dependency/connection error as root cause without checking that dependency's own status.
 - Emitting a verdict that leaves the highest-severity collected artifact unexplained.
@@ -307,6 +310,7 @@ func userPrompt(rc model.RunContext, ev model.Evidence, fp model.Fingerprint, ma
 	b.WriteString("\n## Evidence retention notes\n")
 	b.WriteString("- Kubernetes events have a ~1h TTL; an empty `kubectl get events` captured long after the failure is inconclusive, not proof of absence.\n")
 	b.WriteString("- Durable corroborators that survive TTL: node condition lastTransitionTime, container restart counts/ages, Started/Finished timestamps, file mtimes.\n")
+	b.WriteString("- Datapath state dumps (azure-cns.json, cnsCache.txt, hns-endpoint.json, extracted endpoint/routes/ports/vfpOutput) and live IP-plane probes (live/nnc, live/clustersubnetstate) are point-in-time snapshots: live probes show CURRENT state that may have drifted since failure, and Windows HNS/VFP state exists only in the collected bundle.\n")
 	b.WriteString("- If the decisive log or event has expired or was never collected, name where it lives and the exact command to capture it next run.\n")
 
 	b.WriteString("\n## Evidence excerpts\n")
@@ -327,13 +331,28 @@ var nodeEvidenceKeys = []string{
 	"node-network-configs.txt",
 }
 
+// datapathEvidenceKeys are exact live-probe excerpt names for the IP
+// control-plane. Like node evidence, they are pinned to the front of the excerpt
+// budget so the requested-vs-allocated allocation and IP-exhaustion state is
+// never starved out of the prompt.
+var datapathEvidenceKeys = []string{
+	"live/nnc",
+	"live/clustersubnetstate",
+}
+
+// datapathEvidenceRE matches bundle datapath/IP-plane excerpt paths, which are
+// node-name-prefixed and therefore cannot be pinned by exact key. It mirrors the
+// collector allowlist so surfaced IP-state dumps (CNS/CNI IPAM view, endpoints,
+// routes, VFP) are prioritized into the prompt budget alongside node evidence.
+var datapathEvidenceRE = regexp.MustCompile(`(?i)(^|/)(azure-cns|azure-vnet|cnscache|azure-endpoints|hns-endpoint|hns-network|endpoint|routes|ports|vfpoutput|ip)(\.[a-z]+)?$`)
+
 func writeExcerpts(b *strings.Builder, excerpts map[string]string) {
 	names := make([]string, 0, len(excerpts))
 	for name := range excerpts {
 		names = append(names, name)
 	}
 	sort.Strings(names)
-	names = prioritizeNodeEvidence(names)
+	names = prioritizeEvidence(names)
 
 	total := 0
 	for _, name := range names {
@@ -349,17 +368,30 @@ func writeExcerpts(b *strings.Builder, excerpts map[string]string) {
 	}
 }
 
-// prioritizeNodeEvidence moves present node-evidence keys to the front of names,
-// preserving the relative order of everything else.
-func prioritizeNodeEvidence(names []string) []string {
-	priority := make(map[string]bool, len(nodeEvidenceKeys))
-	for _, k := range nodeEvidenceKeys {
+// prioritizeEvidence moves node- and datapath-evidence names to the front of
+// names so infra and IP-plane state survive the excerpt budget, preserving the
+// relative order of everything else. Exact node/datapath live keys are pinned
+// first (in declared order), then bundle datapath paths matched by regex (in
+// sorted input order), then the remainder.
+func prioritizeEvidence(names []string) []string {
+	pinned := append(append([]string(nil), nodeEvidenceKeys...), datapathEvidenceKeys...)
+	priority := make(map[string]bool, len(pinned))
+	for _, k := range pinned {
 		priority[k] = true
 	}
 	ordered := make([]string, 0, len(names))
-	for _, k := range nodeEvidenceKeys {
+	for _, k := range pinned {
 		if _, ok := indexOf(names, k); ok {
 			ordered = append(ordered, k)
+		}
+	}
+	for _, n := range names {
+		if priority[n] {
+			continue
+		}
+		if datapathEvidenceRE.MatchString(n) {
+			ordered = append(ordered, n)
+			priority[n] = true
 		}
 	}
 	for _, n := range names {

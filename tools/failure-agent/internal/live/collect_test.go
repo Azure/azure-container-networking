@@ -28,6 +28,36 @@ func (f *fakeRunner) Run(_ context.Context, argv []string) (string, error) {
 	return f.outputs[key], nil
 }
 
+func TestCollectRunsDatapathIPProbes(t *testing.T) {
+	r := &fakeRunner{outputs: map[string]string{}}
+	res := NewCollector(r).Collect(context.Background())
+
+	for _, name := range []string{"nnc", "clustersubnetstate"} {
+		if _, ok := res.Outputs[name]; !ok {
+			t.Errorf("expected datapath probe %q to be collected", name)
+		}
+	}
+
+	want := map[string]bool{
+		"kubectl get nodenetworkconfigs -A -o wide":  false,
+		"kubectl get clustersubnetstates -A -o yaml": false,
+	}
+	for _, argv := range r.calls {
+		cmd := CommandString(argv)
+		if _, ok := want[cmd]; ok {
+			want[cmd] = true
+			if err := command.Validate(argv); err != nil {
+				t.Errorf("datapath probe %q rejected by policy: %v", cmd, err)
+			}
+		}
+	}
+	for cmd, ran := range want {
+		if !ran {
+			t.Errorf("expected datapath probe command to run: %q", cmd)
+		}
+	}
+}
+
 func TestCollectRunsNodeEventsDiagnostic(t *testing.T) {
 	r := &fakeRunner{outputs: map[string]string{}}
 	res := NewCollector(r).Collect(context.Background())

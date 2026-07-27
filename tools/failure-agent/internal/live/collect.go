@@ -30,6 +30,13 @@ type diagnostic struct {
 // (k8s-app=azure-cns) and Windows (k8s-app=azure-cns-win) CNS label selectors
 // are included; the one that does not match the cluster's OS simply returns no
 // pods and is recorded as empty, best-effort.
+//
+// The nnc and clustersubnetstate probes read the IP control-plane CRDs
+// (nodenetworkconfigs, clustersubnetstates). They are the top of the datapath
+// allocation chain (DNC-RC -> NNC -> CNS -> endpoints): NNC carries requested
+// vs allocated IP/NC counts and clustersubnetstate carries overlay IP-pool
+// exhaustion. On clusters/OSes where those CRDs are absent (or the cluster is
+// already gone), kubectl returns an error that is recorded as output, best-effort.
 var diagnostics = []diagnostic{
 	{"pods", []string{"kubectl", "get", "pods", "-A", "-o", "wide"}},
 	{"nodes", []string{"kubectl", "get", "nodes", "-o", "wide"}},
@@ -40,6 +47,8 @@ var diagnostics = []diagnostic{
 	{"cns-logs", []string{"kubectl", "logs", "-n", "kube-system", "-l", "k8s-app=azure-cns", "--tail=200", "--prefix"}},
 	{"cns-logs-windows", []string{"kubectl", "logs", "-n", "kube-system", "-l", "k8s-app=azure-cns-win", "--tail=200", "--prefix"}},
 	{"cilium-logs", []string{"kubectl", "logs", "-n", "kube-system", "-l", "k8s-app=cilium", "--tail=200", "--prefix"}},
+	{"nnc", []string{"kubectl", "get", "nodenetworkconfigs", "-A", "-o", "wide"}},
+	{"clustersubnetstate", []string{"kubectl", "get", "clustersubnetstates", "-A", "-o", "yaml"}},
 }
 
 // Result is the collected live evidence.
