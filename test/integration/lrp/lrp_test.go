@@ -387,9 +387,11 @@ func validateCiliumLRP(t *testing.T, ctx context.Context, cs *k8sclient.Clientse
 	lrpOutput, _, err := kubernetes.ExecCmdOnPod(ctx, cs, ciliumPod.Namespace, ciliumPod.Name, "cilium-agent", lrpListCmd, config, false)
 	require.NoError(t, err)
 
-	// Validate the LRP output structure more thoroughly
+	// Validate the LRP output structure more thoroughly. The LRP name is
+	// suffixed per pool (${POOL}), so scope the assertions to this run's name.
+	lrpName := "nodelocaldns" + poolSuffix()
 	lrpOutputStr := string(lrpOutput)
-	require.Contains(t, lrpOutputStr, "nodelocaldns", "LRP not found in cilium lrp list")
+	require.Contains(t, lrpOutputStr, lrpName, "LRP not found in cilium lrp list")
 
 	// Parse LRP list output to validate structure
 	lrpLines := strings.Split(lrpOutputStr, "\n")
@@ -397,16 +399,16 @@ func validateCiliumLRP(t *testing.T, ctx context.Context, cs *k8sclient.Clientse
 
 	for _, line := range lrpLines {
 		line = strings.TrimSpace(line)
-		if strings.Contains(line, "nodelocaldns") && strings.Contains(line, "kube-system") {
+		if strings.Contains(line, lrpName) && strings.Contains(line, "kube-system") {
 			// Validate that the line contains expected components
 			require.Contains(t, line, "kube-dns", "LRP line should reference kube-dns service")
 			nodelocaldnsFound = true
-			t.Logf("Found nodelocaldns LRP entry: %s", line)
+			t.Logf("Found %s LRP entry: %s", lrpName, line)
 			break
 		}
 	}
 
-	require.True(t, nodelocaldnsFound, "nodelocaldns LRP entry not found with expected structure in output: %s", lrpOutputStr)
+	require.True(t, nodelocaldnsFound, "%s LRP entry not found with expected structure in output: %s", lrpName, lrpOutputStr)
 
 	// Check cilium service list for localredirect
 	serviceListCmd := []string{"cilium", "service", "list"}
