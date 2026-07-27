@@ -52,6 +52,13 @@ func Build(now time.Time, rc model.RunContext, fp model.Fingerprint, c model.Cla
 		RootCauseSummary:     c.RootCauseSummary,
 		RecommendedOwner:     c.RecommendedOwner,
 		NodeAssessment:       c.NodeAssessment,
+		TopAnomaly:           c.TopAnomaly,
+		FailingUnit:          c.FailingUnit,
+		CausalChain:          c.CausalChain,
+		SymptomVsCause:       c.SymptomVsCause,
+		Falsification:        c.Falsification,
+		EvidenceGaps:         c.EvidenceGaps,
+		KnownUnknowns:        c.KnownUnknowns,
 		TopEvidence:          c.TopEvidence,
 		SignatureMatches:     matches,
 		EvidenceFiles:        ev.Files,
@@ -100,8 +107,20 @@ func RenderMarkdown(inc model.Incident) string {
 	writeRow(&b, "Commit", inc.Commit)
 	b.WriteString("\n")
 
+	if strings.TrimSpace(inc.TopAnomaly) != "" {
+		b.WriteString("### Most severe anomaly\n\n")
+		fmt.Fprintf(&b, "%s\n\n", inc.TopAnomaly)
+	}
+
 	b.WriteString("### Likely root cause\n\n")
 	fmt.Fprintf(&b, "%s\n\n", emptyDash(inc.RootCauseSummary))
+	if strings.TrimSpace(inc.FailingUnit) != "" {
+		fmt.Fprintf(&b, "**Failing unit:** %s\n\n", inc.FailingUnit)
+	}
+
+	writeCausalChain(&b, inc.CausalChain)
+	writeSymptomVsCause(&b, inc.SymptomVsCause)
+	writeFalsification(&b, inc.Falsification)
 
 	if strings.TrimSpace(inc.NodeAssessment) != "" {
 		b.WriteString("### Node / nodepool health\n\n")
@@ -136,6 +155,9 @@ func RenderMarkdown(inc model.Incident) string {
 		b.WriteString("\n")
 	}
 
+	writeEvidenceGaps(&b, inc.EvidenceGaps)
+	writeKnownUnknowns(&b, inc.KnownUnknowns)
+
 	if inc.ProposedFix != "" {
 		b.WriteString("### Proposed fix\n\n")
 		fmt.Fprintf(&b, "%s\n\n", inc.ProposedFix)
@@ -144,7 +166,11 @@ func RenderMarkdown(inc model.Incident) string {
 	b.WriteString("### Recommended next action\n\n")
 	fmt.Fprintf(&b, "%s\n\n", emptyDash(inc.RecommendedAction))
 	if inc.RecommendedOwner != "" {
-		fmt.Fprintf(&b, "**Suggested owner:** %s\n\n", inc.RecommendedOwner)
+		if strings.TrimSpace(inc.FailingUnit) != "" {
+			fmt.Fprintf(&b, "**Suggested owner:** %s (owns the failing unit: %s)\n\n", inc.RecommendedOwner, inc.FailingUnit)
+		} else {
+			fmt.Fprintf(&b, "**Suggested owner:** %s\n\n", inc.RecommendedOwner)
+		}
 	}
 	fmt.Fprintf(&b, "**Retention recommendation:** `%s` (advisory only — teardown is unaffected)\n\n", inc.RetentionDecision)
 
@@ -194,4 +220,109 @@ func nonEmpty(vals ...string) []string {
 		}
 	}
 	return out
+}
+
+// writeCausalChain renders the ordered, timestamped, cited cause->effect chain.
+func writeCausalChain(b *strings.Builder, hops []model.CausalHop) {
+	if len(hops) == 0 {
+		return
+	}
+	b.WriteString("### Causal chain\n\n")
+	for i, h := range hops {
+		fmt.Fprintf(b, "%d. %s", i+1, emptyDash(h.Step))
+		if ts := strings.TrimSpace(h.Timestamp); ts != "" {
+			fmt.Fprintf(b, " _(%s)_", ts)
+		}
+		if cite := strings.TrimSpace(h.Citation); cite != "" {
+			fmt.Fprintf(b, " — cite: `%s`", oneLine(cite))
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString("\n")
+}
+
+// writeSymptomVsCause renders the symptom/cause classification table.
+func writeSymptomVsCause(b *strings.Builder, rows []model.SymptomCause) {
+	if len(rows) == 0 {
+		return
+	}
+	b.WriteString("### Symptom vs cause\n\n")
+	b.WriteString("| Signal | Classification | Why |\n|---|---|---|\n")
+	for _, r := range rows {
+		fmt.Fprintf(b, "| %s | %s | %s |\n", cell(r.Signal), cell(r.Classification), cell(r.Justification))
+	}
+	b.WriteString("\n")
+}
+
+// writeFalsification renders the disconfirmation test applied to the hypothesis.
+func writeFalsification(b *strings.Builder, f *model.Falsification) {
+	if f == nil {
+		return
+	}
+	b.WriteString("### Falsification\n\n")
+	if strings.TrimSpace(f.Hypothesis) != "" {
+		fmt.Fprintf(b, "**Hypothesis tested:** %s\n\n", f.Hypothesis)
+	}
+	if strings.TrimSpace(f.IfTrueExpect) != "" {
+		fmt.Fprintf(b, "- If true, expect: %s\n", f.IfTrueExpect)
+	}
+	if strings.TrimSpace(f.IfFalseExpect) != "" {
+		fmt.Fprintf(b, "- If false, expect: %s\n", f.IfFalseExpect)
+	}
+	if strings.TrimSpace(f.CorrelationResult) != "" {
+		fmt.Fprintf(b, "- Observed correlation: %s\n", f.CorrelationResult)
+	}
+	if strings.TrimSpace(f.Outcome) != "" {
+		fmt.Fprintf(b, "\n**Outcome:** `%s`\n", f.Outcome)
+	}
+	b.WriteString("\n")
+}
+
+// writeEvidenceGaps renders missing/expired evidence and how to capture it next run.
+func writeEvidenceGaps(b *strings.Builder, gaps []model.EvidenceGap) {
+	if len(gaps) == 0 {
+		return
+	}
+	b.WriteString("### Evidence gaps\n\n")
+	for _, g := range gaps {
+		fmt.Fprintf(b, "- **%s**", emptyDash(g.Missing))
+		if strings.TrimSpace(g.WhereItLives) != "" {
+			fmt.Fprintf(b, " — lives in: %s", g.WhereItLives)
+		}
+		if strings.TrimSpace(g.WhyMissing) != "" {
+			fmt.Fprintf(b, "; missing because: %s", g.WhyMissing)
+		}
+		b.WriteString("\n")
+		if strings.TrimSpace(g.HowToCapture) != "" {
+			fmt.Fprintf(b, "  - Capture next run: `%s`\n", oneLine(g.HowToCapture))
+		}
+	}
+	b.WriteString("\n")
+}
+
+// writeKnownUnknowns renders the calibrated known-unknowns holding confidence down.
+func writeKnownUnknowns(b *strings.Builder, items []string) {
+	if len(items) == 0 {
+		return
+	}
+	b.WriteString("### Known-unknowns\n\n")
+	b.WriteString("Unexplained anomalies or disconfirming evidence that hold the confidence down:\n\n")
+	for _, it := range items {
+		fmt.Fprintf(b, "- %s\n", it)
+	}
+	b.WriteString("\n")
+}
+
+// cell escapes a value for a Markdown table cell.
+func cell(s string) string {
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.ReplaceAll(s, "|", "\\|")
+	if strings.TrimSpace(s) == "" {
+		return "—"
+	}
+	return s
+}
+
+func oneLine(s string) string {
+	return strings.TrimSpace(strings.ReplaceAll(s, "\n", " "))
 }

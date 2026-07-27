@@ -83,6 +83,64 @@ func TestRenderMarkdownShowsAnalysisFailedBanner(t *testing.T) {
 	}
 }
 
+func TestRenderMarkdownRendersContractSections(t *testing.T) {
+	inc := Build(time.Unix(0, 0), model.RunContext{PipelineName: "ACN"}, model.Fingerprint{Hash: "deadbeef"},
+		model.Classification{
+			Category:         model.CategoryPipelineInfraConfig,
+			Confidence:       0.72,
+			RootCauseSummary: "Defender init container install-packages.sh exited 1 and crashlooped.",
+			TopAnomaly:       "kube-system Defender init container CrashLoopBackOff x289 over 75m",
+			FailingUnit:      "install-packages.sh in the azsecpack init-package-installer container",
+			RecommendedOwner: "aks-node-image",
+			CausalChain: []model.CausalHop{
+				{Step: "Nodes rebooted", Timestamp: "2026-07-27T08:59:00Z", Citation: "node-conditions.txt"},
+				{Step: "install-packages.sh exited 1", Citation: "bad-pod-describe.txt line 1048"},
+			},
+			SymptomVsCause: []model.SymptomCause{
+				{Signal: "CNS connection refused", Classification: "symptom", Justification: "CNS restarted during the node disruption"},
+				{Signal: "install-packages.sh exit 1", Classification: "cause", Justification: "primary init failure"},
+			},
+			Falsification: &model.Falsification{
+				Hypothesis:        "CNS IPAM regression",
+				CorrelationResult: "identical signature across 2 nodes and 2 stages, same commit and image",
+				Outcome:           "refuted",
+			},
+			EvidenceGaps: []model.EvidenceGap{
+				{Missing: "literal dpkg error", WhereItLives: "expired k8s event", WhyMissing: "events ~1h TTL", HowToCapture: "kubectl logs <pod> -c init-package-installer --previous"},
+			},
+			KnownUnknowns: []string{"exact failing .deb postinst step not captured"},
+			Source:        "llm",
+		}, nil, model.Evidence{})
+
+	md := RenderMarkdown(inc)
+	for _, want := range []string{
+		"### Most severe anomaly",
+		"### Causal chain",
+		"### Symptom vs cause",
+		"### Falsification",
+		"### Evidence gaps",
+		"### Known-unknowns",
+		"**Failing unit:**",
+		"connection refused",
+		"refuted",
+		"--previous",
+		"owns the failing unit",
+	} {
+		if !strings.Contains(md, want) {
+			t.Errorf("expected %q in markdown, got:\n%s", want, md)
+		}
+	}
+}
+
+func TestRenderMarkdownOmitsContractSectionsWhenEmpty(t *testing.T) {
+	md := RenderMarkdown(Build(time.Unix(0, 0), model.RunContext{}, model.Fingerprint{Hash: "x"}, sampleClassification(), nil, model.Evidence{}))
+	for _, unwanted := range []string{"### Causal chain", "### Symptom vs cause", "### Falsification", "### Evidence gaps", "### Known-unknowns", "### Most severe anomaly"} {
+		if strings.Contains(md, unwanted) {
+			t.Errorf("did not expect %q when contract fields are empty", unwanted)
+		}
+	}
+}
+
 func TestRenderMarkdownContainsMarkerAndFields(t *testing.T) {
 	inc := Build(time.Unix(0, 0), model.RunContext{PipelineName: "ACN"}, model.Fingerprint{Hash: "deadbeef"}, sampleClassification(), nil, model.Evidence{})
 	md := RenderMarkdown(inc)
