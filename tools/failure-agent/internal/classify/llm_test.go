@@ -135,6 +135,8 @@ func TestSystemPromptEncodesInvestigationPolicy(t *testing.T) {
 		"most severe anomaly",
 		"Symptom vs cause",
 		"Falsification via cross-dimension correlation",
+		"FINAL VERDICT",
+		"finalVerdict",
 		"failingUnit",
 		"knownUnknowns",
 		"~1h TTL",
@@ -150,7 +152,7 @@ func TestSystemPromptEncodesInvestigationPolicy(t *testing.T) {
 func TestClassificationSchemaIncludesContractFields(t *testing.T) {
 	def := string(classificationSchema().Definition)
 	for _, want := range []string{
-		"topAnomaly", "failingUnit", "causalChain", "symptomVsCause",
+		"finalVerdict", "topAnomaly", "failingUnit", "causalChain", "symptomVsCause",
 		"falsification", "evidenceGaps", "knownUnknowns",
 	} {
 		if !strings.Contains(def, want) {
@@ -166,6 +168,7 @@ func TestLLMClassifierParsesFullContract(t *testing.T) {
 		"category": "pipeline_infra_config",
 		"confidence": 0.72,
 		"rootCauseSummary": "Defender init container install-packages.sh exited 1 under chroot and crashlooped the DaemonSet.",
+		"finalVerdict": "Root cause - confirmed from the pod's embedded init script\n\nThe describe output embeds the installer exit path and shows PackageInstallFailed before exit 1.\n\nPlain text:\n1044 emit_k8s_event \"Warning\" \"PackageInstallFailed\" \"$_msg\"\n1045 echo \"ERROR: install-packages.sh failed with exit code $install_rc\"\n1048 exit $install_rc\n\nVerdict: AzSecPack/node-image infra, not an ACN/CNS regression. Capture kubectl logs <pod> -c init-package-installer --previous before event TTL.",
 		"topAnomaly": "kube-system Defender init container CrashLoopBackOff x289 over 75m",
 		"failingUnit": "install-packages.sh in the azsecpack init-package-installer container",
 		"topEvidence": ["install-packages.sh failed with exit code", "Init:CrashLoopBackOff x289"],
@@ -203,6 +206,9 @@ func TestLLMClassifierParsesFullContract(t *testing.T) {
 	}
 	if !strings.Contains(got.FailingUnit, "install-packages.sh") {
 		t.Errorf("failingUnit: got %q", got.FailingUnit)
+	}
+	if !strings.Contains(got.FinalVerdict, "Root cause") || !strings.Contains(got.FinalVerdict, "PackageInstallFailed") {
+		t.Errorf("finalVerdict not parsed with source-confirmed narrative: %q", got.FinalVerdict)
 	}
 	if len(got.CausalChain) != 3 || got.CausalChain[0].Timestamp == "" || got.CausalChain[0].Citation == "" {
 		t.Errorf("causalChain not parsed with timestamp/citation: %+v", got.CausalChain)

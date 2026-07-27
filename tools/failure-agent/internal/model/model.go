@@ -122,9 +122,13 @@ type Classification struct {
 	Category         FailureCategory `json:"category"`
 	Confidence       float64         `json:"confidence"`
 	RootCauseSummary string          `json:"rootCauseSummary"`
-	TopEvidence      []string        `json:"topEvidence"`
-	RecommendedOwner string          `json:"recommendedOwner,omitempty"`
-	ProposedFix      string          `json:"proposedFix,omitempty"`
+	// FinalVerdict is the self-contained human answer rendered at the top of the
+	// report. It summarizes the confirmed mechanism, evidence gaps, owner routing,
+	// and immediate next actions in prose.
+	FinalVerdict     string   `json:"finalVerdict,omitempty"`
+	TopEvidence      []string `json:"topEvidence"`
+	RecommendedOwner string   `json:"recommendedOwner,omitempty"`
+	ProposedFix      string   `json:"proposedFix,omitempty"`
 	// NodeAssessment records what node/nodepool health showed and whether a node
 	// lifecycle event (reboot, reimage, NotReady, eviction) contributed to the
 	// failure. It exists so a CNS/agent restart is not misattributed to a PR
@@ -224,6 +228,7 @@ type Incident struct {
 	Confidence       float64         `json:"confidence"`
 	ConfidenceBand   ConfidenceBand  `json:"confidenceBand"`
 	RootCauseSummary string          `json:"rootCauseSummary"`
+	FinalVerdict     string          `json:"finalVerdict,omitempty"`
 	RecommendedOwner string          `json:"recommendedOwner,omitempty"`
 	NodeAssessment   string          `json:"nodeAssessment,omitempty"`
 

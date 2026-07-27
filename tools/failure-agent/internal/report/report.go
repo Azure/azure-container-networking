@@ -50,6 +50,7 @@ func Build(now time.Time, rc model.RunContext, fp model.Fingerprint, c model.Cla
 		Confidence:           c.Confidence,
 		ConfidenceBand:       policy.Band(c.Confidence),
 		RootCauseSummary:     c.RootCauseSummary,
+		FinalVerdict:         c.FinalVerdict,
 		RecommendedOwner:     c.RecommendedOwner,
 		NodeAssessment:       c.NodeAssessment,
 		TopAnomaly:           c.TopAnomaly,
@@ -93,6 +94,8 @@ func RenderMarkdown(inc model.Incident) string {
 	}
 	fmt.Fprintf(&b, "**Category:** `%s`  |  **Confidence:** %s (%.2f)  |  **Fingerprint:** `%s`\n\n",
 		inc.Category, inc.ConfidenceBand, inc.Confidence, inc.Fingerprint)
+
+	writeFinalVerdict(&b, inc.FinalVerdict)
 
 	b.WriteString("### Where\n\n")
 	b.WriteString("| Field | Value |\n|---|---|\n")
@@ -220,6 +223,16 @@ func nonEmpty(vals ...string) []string {
 		}
 	}
 	return out
+}
+
+// writeFinalVerdict renders the self-contained human verdict before details.
+func writeFinalVerdict(b *strings.Builder, verdict string) {
+	if strings.TrimSpace(verdict) == "" {
+		return
+	}
+	b.WriteString("### Final verdict\n\n")
+	b.WriteString(strings.TrimSpace(verdict))
+	b.WriteString("\n\n")
 }
 
 // writeCausalChain renders the ordered, timestamped, cited cause->effect chain.

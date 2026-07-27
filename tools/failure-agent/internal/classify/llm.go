@@ -63,6 +63,7 @@ type llmResult struct {
 	Category         string               `json:"category"`
 	Confidence       float64              `json:"confidence"`
 	RootCauseSummary string               `json:"rootCauseSummary"`
+	FinalVerdict     string               `json:"finalVerdict"`
 	TopAnomaly       string               `json:"topAnomaly"`
 	FailingUnit      string               `json:"failingUnit"`
 	TopEvidence      []string             `json:"topEvidence"`
@@ -91,6 +92,7 @@ func (r llmResult) toClassification() (model.Classification, error) {
 		Category:         cat,
 		Confidence:       r.Confidence,
 		RootCauseSummary: r.RootCauseSummary,
+		FinalVerdict:     r.FinalVerdict,
 		TopAnomaly:       r.TopAnomaly,
 		FailingUnit:      r.FailingUnit,
 		TopEvidence:      r.TopEvidence,
@@ -137,11 +139,12 @@ func classificationSchema() *Schema {
 	def := `{
   "type": "object",
   "additionalProperties": false,
-  "required": ["category", "confidence", "rootCauseSummary", "topAnomaly", "failingUnit", "topEvidence", "causalChain", "symptomVsCause", "falsification", "evidenceGaps", "knownUnknowns", "recommendedOwner", "proposedFix", "nodeAssessment"],
+  "required": ["category", "confidence", "rootCauseSummary", "finalVerdict", "topAnomaly", "failingUnit", "topEvidence", "causalChain", "symptomVsCause", "falsification", "evidenceGaps", "knownUnknowns", "recommendedOwner", "proposedFix", "nodeAssessment"],
   "properties": {
     "category": {"type": "string", "enum": ["pr_regression", "cluster_bringup_failure", "pipeline_infra_config", "known_flake", "unknown_needs_human"]},
     "confidence": {"type": "number", "minimum": 0, "maximum": 1},
     "rootCauseSummary": {"type": "string"},
+    "finalVerdict": {"type": "string"},
     "topAnomaly": {"type": "string"},
     "failingUnit": {"type": "string"},
     "topEvidence": {"type": "array", "items": {"type": "string"}},
@@ -220,6 +223,14 @@ const investigationPolicy = `You are an expert Azure Container Networking (ACN) 
 
 CORE PRINCIPLE: evidence-first, verdict-last. Explain the single most severe anomaly across ALL evidence, ground every claim in a specific cited artifact (file plus line or field), and actively try to FALSIFY your leading hypothesis before you emit it. Treat the incoming signal and the deterministic signature pre-matches as hypotheses to disprove, not as answers.
 
+FINAL VERDICT: finalVerdict is the first section a human reads. Make it a self-contained answer, not a generic summary. Use concise Markdown paragraphs/tables/code fences when useful. It must include:
+- A direct verdict heading/sentence (for example: "Root cause — confirmed from the pods' own embedded init script" or "Verdict: AKS node lifecycle instability, not an ACN/CNS regression").
+- The decisive source-confirmed mechanism, citing the artifact(s) and line/field references. If an artifact embeds a script/config/manifest that explains the failure, quote the exact relevant lines in a fenced code block and explain the exit/config path.
+- Why the leading wrong hypothesis is rejected (for example CNS/IPAM regression vs node/security-agent failure), including symptom-vs-cause reasoning for dependency errors.
+- Why missing or expired evidence is a gap rather than disproof, including TTL/capture-time reasoning when applicable and the exact next command/path to capture it.
+- Owner routing and concrete next actions: who should own it, what evidence to hand them, what to capture next time, and how to unblock CI.
+- When cross-node/stage/OS/image uniformity is the falsification signal, include a compact Markdown table showing the dimensions that match/differ.
+
 CATEGORIES:
 - pr_regression: the change under test broke it. Choose this ONLY after a cross-commit/cross-stage check shows the failure is actually new and code-correlated.
 - cluster_bringup_failure: provisioning/readiness of the cluster failed.
@@ -249,7 +260,7 @@ ANTI-PATTERNS (never do these):
 - Emitting high confidence (>0.8) while disconfirming evidence or unexplained anomalies exist.
 - Inferring a failure mechanism that is plainly readable in a collected script/config.
 
-When prior validated resolutions are provided and clearly match the evidence, prefer them; treat in-flight (unvalidated) incidents as context only. Base your answer ONLY on the provided evidence, fill every field of the required JSON schema (use empty arrays, or "none"/"not_applicable" for text, where genuinely N/A), and respond strictly in that schema.`
+When prior validated resolutions are provided and clearly match the evidence, prefer them; treat in-flight (unvalidated) incidents as context only. Base your answer ONLY on the provided evidence, fill every field of the required JSON schema (use empty arrays, or "none"/"not_applicable" for text, where genuinely N/A), ensure finalVerdict is consistent with the structured fields, and respond strictly in that schema.`
 
 func userPrompt(rc model.RunContext, ev model.Evidence, fp model.Fingerprint, matches []model.SignatureMatch, prior PriorContext) string {
 	var b strings.Builder
