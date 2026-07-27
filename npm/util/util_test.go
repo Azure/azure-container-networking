@@ -477,6 +477,14 @@ func TestGetHashedName(t *testing.T) {
 	require.LessOrEqual(t, len(name), 31, "hashed name must fit the kernel ipset name limit")
 	require.True(t, strings.HasPrefix(name, AzureNpmPrefix), "hashed name must carry the azure-npm- prefix")
 
+	// The digest is left-padded to a fixed width, so every name is exactly
+	// prefix + hashedNameDigestLen characters regardless of input (a short digest can never
+	// shorten the slice and panic).
+	wantLen := len(AzureNpmPrefix) + hashedNameDigestLen
+	for _, in := range []string{"", "a", "ns-some-namespace", "podlabel-x:YMaaIZ", strings.Repeat("z", 300)} {
+		require.Len(t, GetHashedName(in), wantLen, "hashed name must be fixed width for %q", in)
+	}
+
 	// Distinct inputs (incl. the reported pair) produce distinct kernel names.
 	require.NotEqual(t, GetHashedName("ns-msobb-target"), GetHashedName("podlabel-x:YMaaIZ"))
 	require.NotEqual(t, GetHashedName("ns-a"), GetHashedName("ns-b"))
