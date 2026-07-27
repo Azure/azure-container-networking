@@ -274,7 +274,7 @@ jobs:
 
       - name: Configure git credentials
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -475,7 +475,15 @@ jobs:
           PR_LATEST_GO_VERSION: ${{ needs.check-go-update.outputs.latest_go_version }}
           REPO: ${{ github.repository }}
         run: |
-          git push origin "$BRANCH" --force-with-lease
+          # Push branch, recovering from stale remote refs or other transient failures.
+          # 1. Fetch existing remote branch so --force-with-lease has current ref info
+          # 2. If that still fails, delete the stale remote branch and retry as a fresh push
+          git fetch origin "$BRANCH" 2>/dev/null || true
+          if ! git push origin "$BRANCH" --force-with-lease 2>&1; then
+            echo "::warning::force-with-lease failed, deleting stale remote branch and retrying"
+            git push origin --delete "$BRANCH" 2>/dev/null || true
+            git push origin "$BRANCH"
+          fi
 
           if [ "$UPDATE_TYPE" = "patch" ]; then
             TITLE="chore: bump Go ${PR_GO_MINOR} → ${PR_LATEST_PATCH}"
@@ -556,7 +564,7 @@ jobs:
 
       - name: Configure git credentials
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -924,7 +932,13 @@ jobs:
           PR_LATEST_PATCH: ${{ needs.check-go-update.outputs.latest_patch }}
           REPO: ${{ github.repository }}
         run: |
-          git push origin "$BRANCH" --force-with-lease
+          # Push branch, recovering from stale remote refs or other transient failures.
+          git fetch origin "$BRANCH" 2>/dev/null || true
+          if ! git push origin "$BRANCH" --force-with-lease 2>&1; then
+            echo "::warning::force-with-lease failed, deleting stale remote branch and retrying"
+            git push origin --delete "$BRANCH" 2>/dev/null || true
+            git push origin "$BRANCH"
+          fi
 
           if [ "$UPDATE_TYPE" = "patch" ]; then
             TITLE="chore(${MATRIX_BRANCH}): bump Go ${PR_GO_MINOR} → ${PR_LATEST_PATCH}"
