@@ -78,11 +78,14 @@ func Hash(s string) string {
 const hashedChainDigestLen = 10
 
 // GetHashedChainName returns a fixed-width base36 digest of name for use as the variable part
-// of an iptables policy chain name. It derives from a wide digest and is left-padded so the
-// result is always exactly hashedChainDigestLen characters and the slice can never panic.
+// of an iptables policy chain name. It reduces a wide (SHA-256) digest modulo
+// 36^hashedChainDigestLen so every base36 digit is uniform (truncating the leading digits of
+// the full integer would be slightly biased), and left-pads so the result is always exactly
+// hashedChainDigestLen characters.
 func GetHashedChainName(name string) string {
 	sum := sha256.Sum256([]byte(name))
-	digest := new(big.Int).SetBytes(sum[:]).Text(36)
+	mod := new(big.Int).Exp(big.NewInt(36), big.NewInt(hashedChainDigestLen), nil)
+	digest := new(big.Int).Mod(new(big.Int).SetBytes(sum[:]), mod).Text(36)
 	if len(digest) < hashedChainDigestLen {
 		digest = strings.Repeat("0", hashedChainDigestLen-len(digest)) + digest
 	}
