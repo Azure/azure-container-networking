@@ -38,9 +38,13 @@ CLUSTER    ?= $(USER)-$(REGION)
 GROUP      ?= $(CLUSTER)
 VNET       ?= $(CLUSTER)
 
-# Long Term Support (LTS): true | false | auto.
-# "auto" enables LTS only for LTS-only minors (supportPlan has AKSLongTermSupport
-# but not KubernetesOfficial); the az query is deferred to recipe time.
+# Long Term Support (LTS): auto (default) | true | false.
+# "auto" enables LTS only for LTS-only minors -- those whose supportPlan lists
+# AKSLongTermSupport but not KubernetesOfficial and which therefore cannot be
+# created without it; still-supported minors resolve to the standard tier, so
+# their creates are unchanged. "true"/"false" force LTS on/off. The az
+# get-versions query runs only for "auto" and is deferred to recipe time
+# (help/offline/true/false never call az).
 LTS_PREMIUM_ARGS = --k8s-support-plan AKSLongTermSupport --tier premium
 ifeq ($(LTS),true)
 	LTS_ARGS=$(LTS_PREMIUM_ARGS)
