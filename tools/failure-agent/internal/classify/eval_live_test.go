@@ -3,7 +3,6 @@ package classify
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -12,15 +11,17 @@ import (
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/model"
 )
 
-// TestGoldenCaseLiveEval runs the golden regression case against a REAL Azure
-// OpenAI deployment. It is skipped unless FAA_LIVE_EVAL=1 and the AOAI
-// environment is configured, so it never runs in normal CI. This is the true
-// behavioral check that the investigation policy produces the infra verdict
-// (not a CNS pr_regression) on the golden bundle.
+// TestGoldenCaseLiveEval runs a downloaded failure evidence bundle against a
+// REAL Azure OpenAI deployment. It is skipped unless FAA_LIVE_EVAL=1, the AOAI
+// environment is configured, and FAA_LIVE_EVAL_INPUT points at the bundle, so it
+// never runs in normal CI. This is the live behavioral check that the
+// investigation policy produces the infra verdict (not a CNS pr_regression) on a
+// Defender/AzSecPack crashloop case.
 //
 // Run it with:
 //
 //	FAA_LIVE_EVAL=1 \
+//	FAA_LIVE_EVAL_INPUT=/path/to/failed-e2e-logs \
 //	AZURE_OPENAI_ENDPOINT=... AZURE_OPENAI_DEPLOYMENT=... AZURE_OPENAI_API_KEY=... \
 //	go test ./internal/classify -run TestGoldenCaseLiveEval -v
 //
@@ -42,13 +43,19 @@ func TestGoldenCaseLiveEval(t *testing.T) {
 	if endpoint == "" || deployment == "" || apiKey == "" {
 		t.Skip("AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_DEPLOYMENT, and AZURE_OPENAI_API_KEY are required")
 	}
+	bundle := os.Getenv("FAA_LIVE_EVAL_INPUT")
+	if bundle == "" {
+		t.Skip("FAA_LIVE_EVAL_INPUT must point at the evidence bundle for the live golden eval")
+	}
+	if _, err := os.Stat(bundle); err != nil {
+		t.Fatalf("checking FAA_LIVE_EVAL_INPUT %q: %v", bundle, err)
+	}
 
 	client, err := NewAzureClient(endpoint, deployment, apiVersion, apiKey)
 	if err != nil {
 		t.Fatalf("building azure client: %v", err)
 	}
 
-	bundle := filepath.Join("..", "..", "testdata", "golden-defender-crashloop")
 	ev, err := collect.ParseEvidence(bundle)
 	if err != nil {
 		t.Fatalf("parsing golden bundle: %v", err)
