@@ -130,7 +130,72 @@ type Classification struct {
 	// failure. It exists so a CNS/agent restart is not misattributed to a PR
 	// regression when the node itself went down.
 	NodeAssessment string `json:"nodeAssessment,omitempty"`
-	Source         string `json:"source"` // "llm" or "none" when analysis failed
+
+	// TopAnomaly is the single most severe anomaly across all evidence. The
+	// verdict must explain it; a verdict that leaves it unexplained is not
+	// grounded.
+	TopAnomaly string `json:"topAnomaly,omitempty"`
+	// FailingUnit is the concrete failing binary/container/image that the owner
+	// is derived from (for example "install-packages.sh in the AzSecPack init
+	// container"), independent of which pipeline stage surfaced the failure.
+	FailingUnit string `json:"failingUnit,omitempty"`
+	// CausalChain is the ordered, timestamped, cited cause->effect sequence that
+	// connects the root cause to the observed pipeline failure.
+	CausalChain []CausalHop `json:"causalChain,omitempty"`
+	// SymptomVsCause labels each major error as a symptom or a cause so a
+	// downstream casualty (e.g. "connection refused") is not reported as the root.
+	SymptomVsCause []SymptomCause `json:"symptomVsCause,omitempty"`
+	// Falsification is the disconfirmation test applied to the leading
+	// hypothesis before the verdict was emitted.
+	Falsification *Falsification `json:"falsification,omitempty"`
+	// EvidenceGaps lists evidence that was missing or expired and how to capture
+	// it on the next run.
+	EvidenceGaps []EvidenceGap `json:"evidenceGaps,omitempty"`
+	// KnownUnknowns lists unexplained anomalies or disconfirming evidence that
+	// hold the confidence down.
+	KnownUnknowns []string `json:"knownUnknowns,omitempty"`
+
+	Source string `json:"source"` // "llm" or "none" when analysis failed
+}
+
+// CausalHop is one ordered, cited step in the failure's cause->effect chain.
+// Timestamp is a durable field (condition lastTransitionTime, restart age,
+// Started/Finished, file mtime) when one is available; Citation grounds the hop
+// in a specific artifact plus line/field.
+type CausalHop struct {
+	Step      string `json:"step"`
+	Timestamp string `json:"timestamp,omitempty"`
+	Citation  string `json:"citation"`
+}
+
+// SymptomCause classifies one observed error as a symptom or a cause. Any
+// dependency/connection error (connection refused, timeout, not ready) is a
+// symptom unless the dependency's own health was checked and shown healthy.
+type SymptomCause struct {
+	Signal         string `json:"signal"`
+	Classification string `json:"classification"` // "symptom" or "cause"
+	Justification  string `json:"justification"`
+}
+
+// Falsification records the test applied to the leading hypothesis: what would
+// be expected if it were true versus false, the cross-dimension correlation
+// that was actually observed, and the resulting outcome.
+type Falsification struct {
+	Hypothesis        string `json:"hypothesis"`
+	IfTrueExpect      string `json:"ifTrueExpect"`
+	IfFalseExpect     string `json:"ifFalseExpect"`
+	CorrelationResult string `json:"correlationResult"`
+	Outcome           string `json:"outcome"` // "confirmed", "refuted", or "inconclusive"
+}
+
+// EvidenceGap names evidence that would have strengthened the verdict but was
+// missing, why it was missing (retention/TTL or not collected), and the exact
+// command or path to capture it on the next run.
+type EvidenceGap struct {
+	Missing      string `json:"missing"`
+	WhereItLives string `json:"whereItLives"`
+	WhyMissing   string `json:"whyMissing"`
+	HowToCapture string `json:"howToCapture"`
 }
 
 // Incident is the full structured result written to incident.json.
@@ -161,6 +226,15 @@ type Incident struct {
 	RootCauseSummary string          `json:"rootCauseSummary"`
 	RecommendedOwner string          `json:"recommendedOwner,omitempty"`
 	NodeAssessment   string          `json:"nodeAssessment,omitempty"`
+
+	// Structured triage contract (populated on analyzed incidents).
+	TopAnomaly     string         `json:"topAnomaly,omitempty"`
+	FailingUnit    string         `json:"failingUnit,omitempty"`
+	CausalChain    []CausalHop    `json:"causalChain,omitempty"`
+	SymptomVsCause []SymptomCause `json:"symptomVsCause,omitempty"`
+	Falsification  *Falsification `json:"falsification,omitempty"`
+	EvidenceGaps   []EvidenceGap  `json:"evidenceGaps,omitempty"`
+	KnownUnknowns  []string       `json:"knownUnknowns,omitempty"`
 
 	TopEvidence      []string         `json:"topEvidence"`
 	SignatureMatches []SignatureMatch `json:"signatureMatches"`

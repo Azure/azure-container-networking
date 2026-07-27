@@ -128,6 +128,131 @@ func TestLLMClassifierPropagatesCompleterError(t *testing.T) {
 	}
 }
 
+func TestSystemPromptEncodesInvestigationPolicy(t *testing.T) {
+	sp := systemPrompt()
+	for _, want := range []string{
+		"evidence-first, verdict-last",
+		"most severe anomaly",
+		"Symptom vs cause",
+		"Falsification via cross-dimension correlation",
+		"failingUnit",
+		"knownUnknowns",
+		"~1h TTL",
+		"cross-commit/cross-stage",
+		"ANTI-PATTERNS",
+	} {
+		if !strings.Contains(sp, want) {
+			t.Errorf("system prompt missing investigation-policy element %q", want)
+		}
+	}
+}
+
+func TestClassificationSchemaIncludesContractFields(t *testing.T) {
+	def := string(classificationSchema().Definition)
+	for _, want := range []string{
+		"topAnomaly", "failingUnit", "causalChain", "symptomVsCause",
+		"falsification", "evidenceGaps", "knownUnknowns",
+	} {
+		if !strings.Contains(def, want) {
+			t.Errorf("classification schema missing contract field %q", want)
+		}
+	}
+}
+
+// TestLLMClassifierParsesFullContract feeds a golden-shaped response and asserts
+// the structured triage contract is parsed onto the Classification.
+func TestLLMClassifierParsesFullContract(t *testing.T) {
+	fc := &fakeCompleter{response: `{
+		"category": "pipeline_infra_config",
+		"confidence": 0.72,
+		"rootCauseSummary": "Defender init container install-packages.sh exited 1 under chroot and crashlooped the DaemonSet.",
+		"topAnomaly": "kube-system Defender init container CrashLoopBackOff x289 over 75m",
+		"failingUnit": "install-packages.sh in the azsecpack init-package-installer container",
+		"topEvidence": ["install-packages.sh failed with exit code", "Init:CrashLoopBackOff x289"],
+		"causalChain": [
+			{"step": "Nodes rebooted", "timestamp": "2026-07-27T08:59:00Z", "citation": "node-conditions.txt"},
+			{"step": "install-packages.sh exited 1", "timestamp": "", "citation": "bad-pod-describe.txt line 1048"},
+			{"step": "init container CrashLoopBackOff blocked SynchronizedBeforeSuite", "timestamp": "", "citation": "pods.txt"}
+		],
+		"symptomVsCause": [
+			{"signal": "CNS connection refused", "classification": "symptom", "justification": "CNS restarted during the same node disruption"},
+			{"signal": "install-packages.sh exit 1", "classification": "cause", "justification": "primary init failure quoted from the script"}
+		],
+		"falsification": {
+			"hypothesis": "CNS IPAM code regression",
+			"ifTrueExpect": "failure localized to CNS on the changed datapath",
+			"ifFalseExpect": "identical signature across nodes/stages independent of the change",
+			"correlationResult": "identical init exit 1 across 2 nodepools and 2 stages on the same commit and image tag",
+			"outcome": "refuted"
+		},
+		"evidenceGaps": [
+			{"missing": "literal dpkg PackageInstallFailed message", "whereItLives": "expired k8s event and in-pod install log", "whyMissing": "events ~1h TTL; capture was 75m in", "howToCapture": "kubectl logs <pod> -c init-package-installer --previous"}
+		],
+		"knownUnknowns": ["exact failing .deb postinst step not captured this run"],
+		"recommendedOwner": "aks-node-image",
+		"proposedFix": "Route to node-image/AzSecPack; capture the installer log next run.",
+		"nodeAssessment": "Both nodes rebooted ~08:59 (durable Kubelet transition time); CNS/Defender restarts are side effects."
+	}`}
+
+	got, err := NewLLMClassifier(fc).Classify(context.Background(), model.RunContext{}, model.Evidence{}, model.Fingerprint{}, nil, PriorContext{})
+	if err != nil {
+		t.Fatalf("Classify: %v", err)
+	}
+	if got.Category != model.CategoryPipelineInfraConfig {
+		t.Errorf("category: got %s, want pipeline_infra_config", got.Category)
+	}
+	if !strings.Contains(got.FailingUnit, "install-packages.sh") {
+		t.Errorf("failingUnit: got %q", got.FailingUnit)
+	}
+	if len(got.CausalChain) != 3 || got.CausalChain[0].Timestamp == "" || got.CausalChain[0].Citation == "" {
+		t.Errorf("causalChain not parsed with timestamp/citation: %+v", got.CausalChain)
+	}
+	var sawSymptom bool
+	for _, s := range got.SymptomVsCause {
+		if strings.Contains(s.Signal, "connection refused") && s.Classification == "symptom" {
+			sawSymptom = true
+		}
+	}
+	if !sawSymptom {
+		t.Errorf("expected connection-refused labeled as symptom, got %+v", got.SymptomVsCause)
+	}
+	if got.Falsification == nil || got.Falsification.Outcome != "refuted" {
+		t.Errorf("expected falsification outcome refuted, got %+v", got.Falsification)
+	}
+	if len(got.EvidenceGaps) != 1 || !strings.Contains(got.EvidenceGaps[0].HowToCapture, "--previous") {
+		t.Errorf("expected an evidence gap with capture command, got %+v", got.EvidenceGaps)
+	}
+	if len(got.KnownUnknowns) != 1 {
+		t.Errorf("expected one known-unknown, got %+v", got.KnownUnknowns)
+	}
+}
+
+// TestLLMClassifierDropsEmptyFalsification verifies an all-empty falsification
+// object is normalized to nil so the report does not render an empty section.
+func TestLLMClassifierDropsEmptyFalsification(t *testing.T) {
+	fc := &fakeCompleter{response: `{
+		"category": "known_flake",
+		"confidence": 0.5,
+		"rootCauseSummary": "transient",
+		"topEvidence": [],
+		"causalChain": [],
+		"symptomVsCause": [],
+		"falsification": {"hypothesis": "", "ifTrueExpect": "", "ifFalseExpect": "", "correlationResult": "", "outcome": ""},
+		"evidenceGaps": [],
+		"knownUnknowns": [],
+		"recommendedOwner": "acn-cni",
+		"proposedFix": "retry",
+		"nodeAssessment": "healthy"
+	}`}
+	got, err := NewLLMClassifier(fc).Classify(context.Background(), model.RunContext{}, model.Evidence{}, model.Fingerprint{}, nil, PriorContext{})
+	if err != nil {
+		t.Fatalf("Classify: %v", err)
+	}
+	if got.Falsification != nil {
+		t.Errorf("expected empty falsification to be dropped, got %+v", got.Falsification)
+	}
+}
+
 func TestLLMClassifierInjectsPriorKnowledge(t *testing.T) {
 	fc := &fakeCompleter{response: `{
 		"category": "known_flake",

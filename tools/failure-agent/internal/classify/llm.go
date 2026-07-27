@@ -60,13 +60,20 @@ func (c *LLMClassifier) Classify(ctx context.Context, rc model.RunContext, ev mo
 }
 
 type llmResult struct {
-	Category         string   `json:"category"`
-	Confidence       float64  `json:"confidence"`
-	RootCauseSummary string   `json:"rootCauseSummary"`
-	TopEvidence      []string `json:"topEvidence"`
-	RecommendedOwner string   `json:"recommendedOwner"`
-	ProposedFix      string   `json:"proposedFix"`
-	NodeAssessment   string   `json:"nodeAssessment"`
+	Category         string               `json:"category"`
+	Confidence       float64              `json:"confidence"`
+	RootCauseSummary string               `json:"rootCauseSummary"`
+	TopAnomaly       string               `json:"topAnomaly"`
+	FailingUnit      string               `json:"failingUnit"`
+	TopEvidence      []string             `json:"topEvidence"`
+	CausalChain      []model.CausalHop    `json:"causalChain"`
+	SymptomVsCause   []model.SymptomCause `json:"symptomVsCause"`
+	Falsification    *model.Falsification `json:"falsification"`
+	EvidenceGaps     []model.EvidenceGap  `json:"evidenceGaps"`
+	KnownUnknowns    []string             `json:"knownUnknowns"`
+	RecommendedOwner string               `json:"recommendedOwner"`
+	ProposedFix      string               `json:"proposedFix"`
+	NodeAssessment   string               `json:"nodeAssessment"`
 }
 
 func (r llmResult) toClassification() (model.Classification, error) {
@@ -84,12 +91,33 @@ func (r llmResult) toClassification() (model.Classification, error) {
 		Category:         cat,
 		Confidence:       r.Confidence,
 		RootCauseSummary: r.RootCauseSummary,
+		TopAnomaly:       r.TopAnomaly,
+		FailingUnit:      r.FailingUnit,
 		TopEvidence:      r.TopEvidence,
+		CausalChain:      r.CausalChain,
+		SymptomVsCause:   r.SymptomVsCause,
+		Falsification:    nilIfEmpty(r.Falsification),
+		EvidenceGaps:     r.EvidenceGaps,
+		KnownUnknowns:    r.KnownUnknowns,
 		RecommendedOwner: r.RecommendedOwner,
 		ProposedFix:      r.ProposedFix,
 		NodeAssessment:   r.NodeAssessment,
 		Source:           "llm",
 	}, nil
+}
+
+// nilIfEmpty drops a falsification object that the model returned with no
+// meaningful content so it does not render an empty section.
+func nilIfEmpty(f *model.Falsification) *model.Falsification {
+	if f == nil {
+		return nil
+	}
+	if strings.TrimSpace(f.Hypothesis) == "" && strings.TrimSpace(f.CorrelationResult) == "" &&
+		strings.TrimSpace(f.Outcome) == "" && strings.TrimSpace(f.IfTrueExpect) == "" &&
+		strings.TrimSpace(f.IfFalseExpect) == "" {
+		return nil
+	}
+	return f
 }
 
 func validCategory(c model.FailureCategory) bool {
@@ -109,12 +137,67 @@ func classificationSchema() *Schema {
 	def := `{
   "type": "object",
   "additionalProperties": false,
-  "required": ["category", "confidence", "rootCauseSummary", "topEvidence", "recommendedOwner", "proposedFix", "nodeAssessment"],
+  "required": ["category", "confidence", "rootCauseSummary", "topAnomaly", "failingUnit", "topEvidence", "causalChain", "symptomVsCause", "falsification", "evidenceGaps", "knownUnknowns", "recommendedOwner", "proposedFix", "nodeAssessment"],
   "properties": {
     "category": {"type": "string", "enum": ["pr_regression", "cluster_bringup_failure", "pipeline_infra_config", "known_flake", "unknown_needs_human"]},
     "confidence": {"type": "number", "minimum": 0, "maximum": 1},
     "rootCauseSummary": {"type": "string"},
+    "topAnomaly": {"type": "string"},
+    "failingUnit": {"type": "string"},
     "topEvidence": {"type": "array", "items": {"type": "string"}},
+    "causalChain": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["step", "timestamp", "citation"],
+        "properties": {
+          "step": {"type": "string"},
+          "timestamp": {"type": "string"},
+          "citation": {"type": "string"}
+        }
+      }
+    },
+    "symptomVsCause": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["signal", "classification", "justification"],
+        "properties": {
+          "signal": {"type": "string"},
+          "classification": {"type": "string", "enum": ["symptom", "cause"]},
+          "justification": {"type": "string"}
+        }
+      }
+    },
+    "falsification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hypothesis", "ifTrueExpect", "ifFalseExpect", "correlationResult", "outcome"],
+      "properties": {
+        "hypothesis": {"type": "string"},
+        "ifTrueExpect": {"type": "string"},
+        "ifFalseExpect": {"type": "string"},
+        "correlationResult": {"type": "string"},
+        "outcome": {"type": "string", "enum": ["confirmed", "refuted", "inconclusive"]}
+      }
+    },
+    "evidenceGaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["missing", "whereItLives", "whyMissing", "howToCapture"],
+        "properties": {
+          "missing": {"type": "string"},
+          "whereItLives": {"type": "string"},
+          "whyMissing": {"type": "string"},
+          "howToCapture": {"type": "string"}
+        }
+      }
+    },
+    "knownUnknowns": {"type": "array", "items": {"type": "string"}},
     "recommendedOwner": {"type": "string"},
     "proposedFix": {"type": "string"},
     "nodeAssessment": {"type": "string"}
@@ -124,22 +207,49 @@ func classificationSchema() *Schema {
 }
 
 func systemPrompt() string {
-	return "You are an expert Azure Container Networking (ACN) CI failure analyst. " +
-		"Given evidence from a failed pipeline run, identify the single most likely root-cause category, " +
-		"a concise root-cause summary, the most relevant evidence lines, a recommended owning team, " +
-		"and a proposed fix with concrete, actionable steps the developer should take to resolve the failure. " +
-		"Categories: pr_regression (the change under test broke it), cluster_bringup_failure (provisioning/readiness), " +
-		"pipeline_infra_config (agent/quota/credentials/connectivity, not product code), known_flake (recognized intermittent), " +
-		"unknown_needs_human (cannot determine). Treat the deterministic signature pre-matches as strong hints, not ground truth. " +
-		"Always investigate node and nodepool health before blaming the change under test: inspect node Ready/NotReady status, " +
-		"reboots, reimage, resource pressure (MemoryPressure/DiskPressure/PIDPressure), evictions, and node-scoped events. " +
-		"A component restart (for example CNS logging \"caught exit signal terminated\" followed by a restart) is expected when a node " +
-		"reboots, is reimaged, drains, or goes NotReady; when such a restart coincides with a node lifecycle event, prefer " +
-		"pipeline_infra_config or cluster_bringup_failure over pr_regression. Record your node/nodepool findings in nodeAssessment " +
-		"(state explicitly if the nodes were healthy and node health was not a factor). " +
-		"When prior validated resolutions are provided and clearly match the evidence, prefer them; treat in-flight (unvalidated) incidents as context only. " +
-		"Base your answer only on the provided evidence and respond strictly in the required JSON schema."
+	return investigationPolicy
 }
+
+// investigationPolicy is the failure-agent's investigation contract. It enforces
+// an evidence-first, verdict-last method: explain the most severe anomaly, cite a
+// primary source for every causal hop, falsify the leading hypothesis via
+// cross-dimension correlation, reason about expired/absent evidence, and route by
+// the actual failing unit. Confidence is calibrated by the model against listed
+// known-unknowns (no deterministic override downstream).
+const investigationPolicy = `You are an expert Azure Container Networking (ACN) CI failure analyst. Produce an evidence-grounded root-cause analysis of a failed pipeline run and route it to the correct owner.
+
+CORE PRINCIPLE: evidence-first, verdict-last. Explain the single most severe anomaly across ALL evidence, ground every claim in a specific cited artifact (file plus line or field), and actively try to FALSIFY your leading hypothesis before you emit it. Treat the incoming signal and the deterministic signature pre-matches as hypotheses to disprove, not as answers.
+
+CATEGORIES:
+- pr_regression: the change under test broke it. Choose this ONLY after a cross-commit/cross-stage check shows the failure is actually new and code-correlated.
+- cluster_bringup_failure: provisioning/readiness of the cluster failed.
+- pipeline_infra_config: agent/quota/credentials/connectivity/node-image/security-agent issue, not product code.
+- known_flake: recognized intermittent failure.
+- unknown_needs_human: evidence is insufficient to decide.
+
+INVESTIGATION LOOP (follow in order):
+1. Inventory every collected artifact and record its single most severe anomaly. Do not proceed on one signal.
+2. Rank anomalies by severity, not by how well they match the first guess. Your verdict MUST explain the top-severity anomaly (record it in topAnomaly). If your leading hypothesis does not explain it, the hypothesis is wrong.
+3. Symptom vs cause: classify every major error as "symptom" or "cause" with justification (symptomVsCause). Any dependency/connection error (connection refused, timeout, NotReady) is a SYMPTOM until you have checked that dependency's OWN health and shown it healthy. Never report a connectivity/dependency error as the root cause without that check.
+4. Primary-source read: when an artifact embeds source (a script, manifest, or config), read and QUOTE the exact code path that emits the error. Never infer a mechanism you could have read.
+5. Timeline: build a timestamped, cause-before-effect chain (causalChain) from DURABLE fields (condition lastTransitionTime, restart counts/ages, Started/Finished, file mtimes). Every hop cites an artifact.
+6. Falsification via cross-dimension correlation (falsification): state what you would expect if the verdict were TRUE vs FALSE, then test it. If the SAME signature reproduces across nodes / stages / commits / image tags that SHOULD differ under a code regression, that uniformity indicates an environmental/infra cause, not a PR regression; a failure that predates the change is not a regression.
+7. Evidence-absence reasoning: know each source's retention/TTL and the capture time. Kubernetes events have a ~1h TTL; an empty events query captured long after the failure is INCONCLUSIVE, not proof the event never happened. Fall back to durable corroborators (node conditions, restart counters).
+8. Gap statement (evidenceGaps): for any missing or expired evidence, output exactly where it lives and the command/path to capture it next run, e.g. kubectl logs <pod> -c <init> --previous or a specific in-pod log path.
+9. Owner routing by failing unit: name the actual failing binary/container/image (failingUnit) and map IT to its owning team (recommendedOwner), independent of which pipeline stage surfaced it.
+10. Confidence calibration: lower confidence for every unexplained top anomaly or piece of disconfirming evidence and list them in knownUnknowns. Do not emit high confidence while the most severe anomaly is unexplained or disconfirming evidence exists.
+
+NODE/NODEPOOL HEALTH: always investigate node and nodepool health before blaming the change under test — Ready/NotReady, reboots, reimage, resource pressure (Memory/Disk/PIDPressure), evictions, node-scoped events. A component restart (e.g. CNS logging "caught exit signal terminated" then restarting) is expected when a node reboots, is reimaged, drains, or goes NotReady; when a restart coincides with a node lifecycle event, prefer pipeline_infra_config or cluster_bringup_failure over pr_regression. Record findings in nodeAssessment (state explicitly if the nodes were healthy).
+
+ANTI-PATTERNS (never do these):
+- Reporting a dependency/connection error as root cause without checking that dependency's own status.
+- Emitting a verdict that leaves the highest-severity collected artifact unexplained.
+- Concluding "X did not happen" solely from an empty query of a TTL-bound source.
+- Classifying pr_regression without a cross-commit/cross-stage check that the failure is new and code-correlated.
+- Emitting high confidence (>0.8) while disconfirming evidence or unexplained anomalies exist.
+- Inferring a failure mechanism that is plainly readable in a collected script/config.
+
+When prior validated resolutions are provided and clearly match the evidence, prefer them; treat in-flight (unvalidated) incidents as context only. Base your answer ONLY on the provided evidence, fill every field of the required JSON schema (use empty arrays, or "none"/"not_applicable" for text, where genuinely N/A), and respond strictly in that schema.`
 
 func userPrompt(rc model.RunContext, ev model.Evidence, fp model.Fingerprint, matches []model.SignatureMatch, prior PriorContext) string {
 	var b strings.Builder
@@ -159,6 +269,15 @@ func userPrompt(rc model.RunContext, ev model.Evidence, fp model.Fingerprint, ma
 	}
 	fmt.Fprintf(&b, "Fingerprint: %s\n\n", fp.Hash)
 
+	if len(ev.Files) > 0 {
+		b.WriteString("## Collected artifacts (inventory)\n")
+		b.WriteString("Account for the most severe anomaly in EACH of these before concluding; do not stop at the first matching signal.\n")
+		for _, f := range ev.Files {
+			fmt.Fprintf(&b, "- %s\n", f)
+		}
+		b.WriteString("\n")
+	}
+
 	writePriorContext(&b, prior)
 
 	if len(matches) > 0 {
@@ -173,6 +292,11 @@ func userPrompt(rc model.RunContext, ev model.Evidence, fp model.Fingerprint, ma
 	for _, l := range ev.TopErrorLines {
 		fmt.Fprintf(&b, "- %s\n", l)
 	}
+
+	b.WriteString("\n## Evidence retention notes\n")
+	b.WriteString("- Kubernetes events have a ~1h TTL; an empty `kubectl get events` captured long after the failure is inconclusive, not proof of absence.\n")
+	b.WriteString("- Durable corroborators that survive TTL: node condition lastTransitionTime, container restart counts/ages, Started/Finished timestamps, file mtimes.\n")
+	b.WriteString("- If the decisive log or event has expired or was never collected, name where it lives and the exact command to capture it next run.\n")
 
 	b.WriteString("\n## Evidence excerpts\n")
 	writeExcerpts(&b, ev.Excerpts)
