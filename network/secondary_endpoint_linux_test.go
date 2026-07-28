@@ -25,6 +25,7 @@ func (m *mockDHCPFail) DiscoverRequest(context.Context, net.HardwareAddr, string
 }
 
 func TestSecondaryAddEndpoints(t *testing.T) {
+	stubMasterResolution(t) // resolve testMasterIface ("eth1") to itself; VF to its master
 	nl := netlink.NewMockNetlink(false, "")
 	plc := platform.NewMockExecClient(false)
 	mac, _ := net.ParseMAC("ab:cd:ef:12:34:56")

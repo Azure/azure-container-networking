@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/pkg/errors"
+	vishnetlink "github.com/vishvananda/netlink"
 	"go.uber.org/zap"
 )
 
@@ -57,15 +58,67 @@ func NewSecondaryEndpointClient(
 	return client
 }
 
+// linkResolver abstracts the vishvananda/netlink link lookups used by
+// resolveMasterInterface so it can be unit tested without a real netlink socket.
+type linkResolver interface {
+	LinkByName(name string) (vishnetlink.Link, error)
+	LinkByIndex(index int) (vishnetlink.Link, error)
+}
+
+type vishLinkResolver struct{}
+
+func (vishLinkResolver) LinkByName(name string) (vishnetlink.Link, error) {
+	return vishnetlink.LinkByName(name)
+}
+
+func (vishLinkResolver) LinkByIndex(index int) (vishnetlink.Link, error) {
+	return vishnetlink.LinkByIndex(index)
+}
+
+// masterNl is the netlink client used by resolveMasterInterface. Overridable in tests.
+var masterNl linkResolver = vishLinkResolver{}
+
+// resolveMasterInterface returns the netvsc upper (master) device name for the given
+// interface. On accelerated-networking nodes the SR-IOV VF and its netvsc master share
+// a MAC; the VF has a non-zero MasterIndex while the master does not. Only the master may
+// be moved into a pod netns, so a VF name is resolved up to its master. A name that is
+// already the master (or has no master) is returned unchanged.
+func resolveMasterInterface(name string) (string, error) {
+	link, err := masterNl.LinkByName(name)
+	if err != nil {
+		return "", errors.Wrapf(err, "get link %q", name)
+	}
+	masterIndex := link.Attrs().MasterIndex
+	if masterIndex == 0 {
+		return name, nil
+	}
+	master, err := masterNl.LinkByIndex(masterIndex)
+	if err != nil {
+		return "", errors.Wrapf(err, "get master link by index %d", masterIndex)
+	}
+	return master.Attrs().Name, nil
+}
+
 func (client *SecondaryEndpointClient) AddEndpoints(epInfo *EndpointInfo) error {
 	iface, err := client.netioshim.GetNetworkInterfaceByMac(epInfo.MacAddress)
 	if err != nil {
 		return newErrorSecondaryEndpointClient(err)
 	}
 
-	epInfo.IfName = iface.Name
-	if _, exists := client.ep.SecondaryInterfaces[iface.Name]; exists {
-		return newErrorSecondaryEndpointClient(errors.New(iface.Name + " already exists"))
+	// On accelerated-networking nodes the MAC is shared by the SR-IOV VF and its
+	// netvsc upper (master) device, and GetNetworkInterfaceByMac may return either
+	// one depending on kernel enumeration order. Only the upper device may be moved
+	// into the pod network namespace; moving the bare VF breaks the bond and fails
+	// later with "no such network interface". Resolve to the upper device here so
+	// the rest of the flow operates on the correct interface regardless of order.
+	ifName, err := resolveMasterInterface(iface.Name)
+	if err != nil {
+		return newErrorSecondaryEndpointClient(err)
+	}
+
+	epInfo.IfName = ifName
+	if _, exists := client.ep.SecondaryInterfaces[ifName]; exists {
+		return newErrorSecondaryEndpointClient(errors.New(ifName + " already exists"))
 	}
 
 	ipconfigs := make([]*IPConfig, len(epInfo.IPAddresses))
@@ -73,8 +126,8 @@ func (client *SecondaryEndpointClient) AddEndpoints(epInfo *EndpointInfo) error 
 		ipconfigs[i] = &IPConfig{Address: ipconfig}
 	}
 
-	client.ep.SecondaryInterfaces[iface.Name] = &InterfaceInfo{
-		Name:              iface.Name,
+	client.ep.SecondaryInterfaces[ifName] = &InterfaceInfo{
+		Name:              ifName,
 		MacAddress:        epInfo.MacAddress,
 		IPConfigs:         ipconfigs,
 		NICType:           epInfo.NICType,
