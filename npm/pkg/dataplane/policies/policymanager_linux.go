@@ -137,13 +137,13 @@ func chainNames(networkPolicies []*NPMNetworkPolicy) []string {
 	return chainNames
 }
 
-// claimChainNames records each policy's enforcement chain names as owned by that policy's
-// key. It fails closed, without recording anything, if a chain name is already owned by a
-// different policy (whether already applied or another policy in the same batch), so two
-// distinct policies can never resolve to the same enforcement chain. Re-claiming by the same
-// owner is a no-op. It returns the chain names it newly recorded so the caller can release
-// them if the dataplane apply later fails. Callers must hold the policyMap lock.
-func (pMgr *PolicyManager) claimChainNames(networkPolicies []*NPMNetworkPolicy) ([]string, error) {
+// checkChainNameCollisions validates that none of the given policies would take over an
+// enforcement chain owned by a different policy — whether already applied or another policy in
+// the same batch — so two distinct policies can never resolve to the same chain. It records
+// nothing (the caller commits ownership only after the dataplane apply succeeds) and returns
+// the chain-name -> policy-key claims to commit. Re-claiming by the same owner is allowed.
+// Callers must hold the policyMap lock.
+func (pMgr *PolicyManager) checkChainNameCollisions(networkPolicies []*NPMNetworkPolicy) (map[string]string, error) {
 	pending := make(map[string]string)
 	for _, networkPolicy := range networkPolicies {
 		for _, chain := range chainNames([]*NPMNetworkPolicy{networkPolicy}) {
@@ -158,14 +158,7 @@ func (pMgr *PolicyManager) claimChainNames(networkPolicies []*NPMNetworkPolicy) 
 			pending[chain] = networkPolicy.PolicyKey
 		}
 	}
-	newlyClaimed := make([]string, 0, len(pending))
-	for chain, policyKey := range pending {
-		if _, alreadyOwned := pMgr.chainNameOwner[chain]; !alreadyOwned {
-			newlyClaimed = append(newlyClaimed, chain)
-		}
-		pMgr.chainNameOwner[chain] = policyKey
-	}
-	return newlyClaimed, nil
+	return pending, nil
 }
 
 // releaseChainNames drops a policy's chain-name ownership so the chains can be reused. Callers

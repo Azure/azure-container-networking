@@ -214,8 +214,8 @@ func TestChainNames(t *testing.T) {
 
 // TestChainNameOwnershipGuard verifies the fail-closed invariant: an enforcement chain is
 // owned by a single policy, so a second, distinct policy that resolves to the same chain is
-// rejected before any dataplane change, the owner (and re-claims) are accepted, and the chain
-// is released on delete.
+// rejected before any dataplane change, the collision check records nothing until committed,
+// the owner (and re-checks) are accepted, and the chain is released on delete.
 func TestChainNameOwnershipGuard(t *testing.T) {
 	metrics.ReinitializeAll()
 	victim := ingressNetPol
@@ -225,20 +225,23 @@ func TestChainNameOwnershipGuard(t *testing.T) {
 	// existing owner is left untouched.
 	pMgr := NewPolicyManager(common.NewMockIOShim(nil), ipsetConfig)
 	pMgr.chainNameOwner[chain] = "some-other/policy"
-	_, err := pMgr.claimChainNames([]*NPMNetworkPolicy{victim})
+	_, err := pMgr.checkChainNameCollisions([]*NPMNetworkPolicy{victim})
 	require.Error(t, err, "a chain owned by a different policy must not be claimable")
-	require.Equal(t, "some-other/policy", pMgr.chainNameOwner[chain], "a rejected claim must not overwrite the owner")
+	require.Equal(t, "some-other/policy", pMgr.chainNameOwner[chain], "a rejected check must not overwrite the owner")
 
-	// The owner re-claiming its own chain is a no-op, and the first claim reports itself as
-	// newly claimed (so it can be rolled back on apply failure) while the re-claim does not.
+	// The collision check records nothing on its own; ownership is recorded only by commit.
 	pMgr = NewPolicyManager(common.NewMockIOShim(nil), ipsetConfig)
-	claimed, err := pMgr.claimChainNames([]*NPMNetworkPolicy{victim})
-	require.NoError(t, err, "first claim should succeed")
-	require.Equal(t, victim.PolicyKey, pMgr.chainNameOwner[chain], "claim must record the owner")
-	require.Contains(t, claimed, chain, "first claim must report the newly claimed chain")
-	reclaimed, err := pMgr.claimChainNames([]*NPMNetworkPolicy{victim})
-	require.NoError(t, err, "re-claim by the same owner should be a no-op")
-	require.NotContains(t, reclaimed, chain, "re-claim by the same owner must not report the chain as newly claimed")
+	pending, err := pMgr.checkChainNameCollisions([]*NPMNetworkPolicy{victim})
+	require.NoError(t, err, "check should succeed")
+	require.Equal(t, victim.PolicyKey, pending[chain], "check must return the pending owner")
+	require.Empty(t, pMgr.chainNameOwner, "check must not record ownership before commit")
+
+	pMgr.commitChainNames(pending)
+	require.Equal(t, victim.PolicyKey, pMgr.chainNameOwner[chain], "commit must record the owner")
+
+	// The owner re-checking its own chain is allowed (no-op).
+	_, err = pMgr.checkChainNameCollisions([]*NPMNetworkPolicy{victim})
+	require.NoError(t, err, "re-check by the same owner should be allowed")
 
 	// The chain is released on delete, so it can be owned again afterward.
 	pMgr.releaseChainNames(victim)
@@ -246,10 +249,10 @@ func TestChainNameOwnershipGuard(t *testing.T) {
 	require.False(t, owned, "chain must be released on delete")
 }
 
-// TestChainNameClaimRolledBackOnApplyFailure verifies that when the dataplane apply fails, the
-// chain names claimed for that add are released, so they are never left owned with no policy in
-// the cache to release them.
-func TestChainNameClaimRolledBackOnApplyFailure(t *testing.T) {
+// TestChainNameNotCommittedOnApplyFailure verifies that when the dataplane apply fails, chain
+// ownership is never recorded, so a failed add can't leave a chain owned with no cached policy
+// to release it later.
+func TestChainNameNotCommittedOnApplyFailure(t *testing.T) {
 	metrics.ReinitializeAll()
 	testNetPol := testNetworkPolicy()
 	calls := GetAddPolicyFailureTestCalls(testNetPol)
@@ -260,7 +263,27 @@ func TestChainNameClaimRolledBackOnApplyFailure(t *testing.T) {
 	require.Error(t, pMgr.AddPolicies([]*NPMNetworkPolicy{testNetPol}, nil))
 	_, cached := pMgr.GetPolicy(testNetPol.PolicyKey)
 	require.False(t, cached, "policy must not be cached after a failed add")
-	require.Empty(t, pMgr.chainNameOwner, "chain claims must be rolled back when the apply fails")
+	require.Empty(t, pMgr.chainNameOwner, "chain ownership must not be committed when the apply fails")
+}
+
+// TestChainNameOwnershipLifecycle verifies the happy path: a successful add commits chain
+// ownership in lock-step with the policy cache, and removing the policy releases it.
+func TestChainNameOwnershipLifecycle(t *testing.T) {
+	metrics.ReinitializeAll()
+	testNetPol := testNetworkPolicy()
+	calls := append(GetAddPolicyTestCalls(testNetPol), GetRemovePolicyTestCalls(testNetPol)...)
+	ioshim := common.NewMockIOShim(calls)
+	defer ioshim.VerifyCalls(t, calls)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
+	util.SetIptablesToNft()
+
+	require.NoError(t, pMgr.AddPolicies([]*NPMNetworkPolicy{testNetPol}, epList))
+	for _, chain := range chainNames([]*NPMNetworkPolicy{testNetPol}) {
+		require.Equal(t, testNetPol.PolicyKey, pMgr.chainNameOwner[chain], "successful add must commit chain ownership")
+	}
+
+	require.NoError(t, pMgr.RemovePolicy(testNetPol.PolicyKey))
+	require.Empty(t, pMgr.chainNameOwner, "removing the policy must release its chain ownership")
 }
 
 // similar to TestAddPolicy in policymanager.go except an error occurs

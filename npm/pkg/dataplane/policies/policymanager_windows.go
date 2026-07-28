@@ -619,8 +619,8 @@ func isNotFoundErr(err error) bool {
 	return errors.As(err, &notFoundErr)
 }
 
-// claimChainNames is a no-op on Windows, which does not use iptables enforcement chains.
-func (pMgr *PolicyManager) claimChainNames(_ []*NPMNetworkPolicy) ([]string, error) {
+// checkChainNameCollisions is a no-op on Windows, which does not use iptables enforcement chains.
+func (pMgr *PolicyManager) checkChainNameCollisions(_ []*NPMNetworkPolicy) (map[string]string, error) {
 	return nil, nil
 }
 

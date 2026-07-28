@@ -83,11 +83,12 @@ func NewPolicyManager(ioShim *common.IOShim, cfg *PolicyManagerCfg) *PolicyManag
 	}
 }
 
-// releaseClaimedChains drops ownership of the given chain names. It is used to roll back a
-// claim when the dataplane apply fails. Callers must hold the policyMap lock.
-func (pMgr *PolicyManager) releaseClaimedChains(chains []string) {
-	for _, chain := range chains {
-		delete(pMgr.chainNameOwner, chain)
+// commitChainNames records the given chain-name -> policy-key ownership after a successful
+// apply, keeping chainNameOwner in lock-step with policyMap.cache. Callers must hold the
+// policyMap lock.
+func (pMgr *PolicyManager) commitChainNames(chainOwners map[string]string) {
+	for chain, policyKey := range chainOwners {
+		pMgr.chainNameOwner[chain] = policyKey
 	}
 }
 
@@ -165,8 +166,9 @@ func (pMgr *PolicyManager) AddPolicies(policies []*NPMNetworkPolicy, endpointLis
 
 	// Fail closed before touching the dataplane if any policy would take over a chain that
 	// already belongs to a different policy, so a colliding chain name can never override
-	// another policy's rules.
-	claimedChains, err := pMgr.claimChainNames(nonEmptyPolicies)
+	// another policy's rules. Ownership is committed only after the apply succeeds (below), so
+	// a failed apply never leaves a chain reserved for a policy that isn't cached.
+	pendingChainOwners, err := pMgr.checkChainNameCollisions(nonEmptyPolicies)
 	if err != nil {
 		msg := fmt.Sprintf("failed to add policy: %s", err.Error())
 		metrics.SendErrorLogAndMetric(util.IptmID, "error: %s", msg)
@@ -178,15 +180,16 @@ func (pMgr *PolicyManager) AddPolicies(policies []*NPMNetworkPolicy, endpointLis
 	err = pMgr.addPolicies(nonEmptyPolicies, endpointList)
 	metrics.RecordACLRuleExecTime(timer) // record execution time regardless of failure
 	if err != nil {
-		// The policies were not applied and won't be cached, so release the chain names we
-		// just claimed; otherwise they would stay owned with no policy to release them.
-		pMgr.releaseClaimedChains(claimedChains)
+		// Nothing to undo: chain ownership hasn't been committed yet.
 		// NOTE: in Linux, Prometheus metrics may be off at this point since some ACL rules may have been applied successfully
 		// In Windows, Prometheus metrics may be off at this point since we don't know how many endpoints had rules applied successfully.
 		msg := fmt.Sprintf("failed to add policy: %s", err.Error())
 		metrics.SendErrorLogAndMetric(util.IptmID, "error: %s", msg)
 		return npmerrors.Errorf(npmerrors.AddPolicy, false, msg)
 	}
+
+	// The apply succeeded, so commit chain ownership in lock-step with the policy cache below.
+	pMgr.commitChainNames(pendingChainOwners)
 
 	for _, policy := range nonEmptyPolicies {
 		// update Prometheus metrics on success
