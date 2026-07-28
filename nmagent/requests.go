@@ -74,6 +74,9 @@ type PutNetworkContainerRequest struct {
 
 	// AZREnabled denotes whether AZR is enabled for network container or not
 	AZREnabled bool
+
+	// UseRNCPublisher denotes whether NC should be published via RNC (used for auth)
+	UseRNCPublisher bool
 }
 
 type internalNC struct {
@@ -83,27 +86,29 @@ type internalNC struct {
 	Version string `json:"version"`
 
 	// The rest of these are copied verbatim from the above struct and should be kept in sync.
-	VNetID     string   `json:"virtualNetworkId"`
-	SubnetName string   `json:"subnetName"`
-	IPv4Addrs  []string `json:"ipV4Addresses"`
-	Policies   []Policy `json:"policies"`
-	VlanID     int      `json:"vlanId"`
-	GREKey     uint16   `json:"greKey"`
-	AzID       uint     `json:"azID"`
-	AZREnabled bool     `json:"azrEnabled"`
+	VNetID          string   `json:"virtualNetworkId"`
+	SubnetName      string   `json:"subnetName"`
+	IPv4Addrs       []string `json:"ipV4Addresses"`
+	Policies        []Policy `json:"policies"`
+	VlanID          int      `json:"vlanId"`
+	GREKey          uint16   `json:"greKey"`
+	AzID            uint     `json:"azID"`
+	AZREnabled      bool     `json:"azrEnabled"`
+	UseRNCPublisher bool     `json:"useRNCPublisher"`
 }
 
 func (p *PutNetworkContainerRequest) MarshalJSON() ([]byte, error) {
 	pBody := internalNC{
-		Version:    strconv.Itoa(int(p.Version)),
-		VNetID:     p.VNetID,
-		SubnetName: p.SubnetName,
-		IPv4Addrs:  p.IPv4Addrs,
-		Policies:   p.Policies,
-		VlanID:     p.VlanID,
-		GREKey:     p.GREKey,
-		AzID:       p.AzID,
-		AZREnabled: p.AZREnabled,
+		Version:         strconv.Itoa(int(p.Version)),
+		VNetID:          p.VNetID,
+		SubnetName:      p.SubnetName,
+		IPv4Addrs:       p.IPv4Addrs,
+		Policies:        p.Policies,
+		VlanID:          p.VlanID,
+		GREKey:          p.GREKey,
+		AzID:            p.AzID,
+		AZREnabled:      p.AZREnabled,
+		UseRNCPublisher: p.UseRNCPublisher,
 	}
 
 	body, err := json.Marshal(pBody)
@@ -135,6 +140,7 @@ func (p *PutNetworkContainerRequest) UnmarshalJSON(in []byte) error {
 	p.GREKey = req.GREKey
 	p.AzID = req.AzID
 	p.AZREnabled = req.AZREnabled
+	p.UseRNCPublisher = req.UseRNCPublisher
 
 	return nil
 }
@@ -317,9 +323,10 @@ var _ Request = DeleteContainerRequest{}
 // DeleteContainerRequest represents all information necessary to request that
 // NMAgent delete a particular network container
 type DeleteContainerRequest struct {
-	NCID       string `json:"-"`          // the Network Container ID
-	AzID       uint   `json:"azID"`       // home AZ of the Network Container
-	AZREnabled bool   `json:"azrEnabled"` // whether AZR is enabled or not
+	NCID            string `json:"-"`          // the Network Container ID
+	AzID            uint   `json:"azID"`       // home AZ of the Network Container
+	AZREnabled      bool   `json:"azrEnabled"` // whether AZR is enabled or not
+	UseRNCPublisher bool   `json:"useRNCPublisher"`
 
 	// PrimaryAddress is the primary customer address of the interface in the
 	// management VNET
