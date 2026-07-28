@@ -20,9 +20,9 @@ const (
 	canonMAC03     = "aa:bb:cc:dd:ee:03"
 )
 
-// GetNICResourceNetworkInfoFromMTPNC must node-scope, compute capacity from DRA state, and
-// tolerate a not-ready MTPNC (empty Spec network/subnet) without erroring — empty values
-// flow through as-is.
+// GetNICResourceNetworkInfoFromMTPNC must node-scope and compute capacity from DRA state.
+// It must NOT populate NetworkID/SubnetGUID/SubnetName from the MTPNC Spec (dedicated NICs
+// don't need them), and must tolerate a not-ready MTPNC without erroring.
 func TestGetNICResourceNetworkInfoFromMTPNC(t *testing.T) {
 	scheme := runtime.NewScheme()
 	if err := v1alpha1.AddToScheme(scheme); err != nil {
@@ -50,8 +50,9 @@ func TestGetNICResourceNetworkInfoFromMTPNC(t *testing.T) {
 					InterfaceInfos: []v1alpha1.InterfaceInfo{{MacAddress: "aa:bb:cc:dd:ee:0a"}},
 				},
 			},
-			mac:  "aa:bb:cc:dd:ee:0a",
-			want: &cns.NICResourceNetworkInfo{NetworkID: "net-a", SubnetGUID: "guid-a", SubnetName: "subA", Capacity: 1},
+			mac: "aa:bb:cc:dd:ee:0a",
+			// MTPNC's NetworkID/SubnetGUID/SubnetResourceID are intentionally NOT propagated.
+			want: &cns.NICResourceNetworkInfo{Capacity: 1},
 		},
 		{
 			name: "not-ready MTPNC surfaces empty fields with zero capacity",
@@ -162,7 +163,7 @@ func TestCanonicalMAC(t *testing.T) {
 	}
 }
 
-func TestMTPNCMACs(t *testing.T) {
+func TestDedicatedNICMACs(t *testing.T) {
 	tests := []struct {
 		name  string
 		mtpnc v1alpha1.MultitenantPodNetworkConfig
@@ -179,6 +180,18 @@ func TestMTPNCMACs(t *testing.T) {
 				},
 			},
 			want: []string{canonMAC01, canonMAC02},
+		},
+		{
+			name: "skips SharedNIC (prefix-on-NIC) interfaces",
+			mtpnc: v1alpha1.MultitenantPodNetworkConfig{
+				Status: v1alpha1.MultitenantPodNetworkConfigStatus{
+					InterfaceInfos: []v1alpha1.InterfaceInfo{
+						{MacAddress: canonMAC01, SharedNIC: true},
+						{MacAddress: canonMAC02},
+					},
+				},
+			},
+			want: []string{canonMAC02},
 		},
 		{
 			name: "skips empty MACs in InterfaceInfos",
@@ -207,13 +220,13 @@ func TestMTPNCMACs(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := mtpncMACs(&tc.mtpnc)
+			got := dedicatedNICMACs(&tc.mtpnc)
 			if len(got) != len(tc.want) {
-				t.Fatalf("mtpncMACs() = %v, want %v", got, tc.want)
+				t.Fatalf("dedicatedNICMACs() = %v, want %v", got, tc.want)
 			}
 			for i := range got {
 				if got[i] != tc.want[i] {
-					t.Errorf("mtpncMACs()[%d] = %q, want %q", i, got[i], tc.want[i])
+					t.Errorf("dedicatedNICMACs()[%d] = %q, want %q", i, got[i], tc.want[i])
 				}
 			}
 		})

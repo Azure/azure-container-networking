@@ -98,9 +98,9 @@ func TestGetNICResources(t *testing.T) {
 			wantCap:   "0", wantNet: "net4", wantGUID: "guid4", wantSubnet: "subnet4",
 		},
 		{
-			name:      "free NIC in neither NICNetworkConfig nor MTPNC has no capacity set",
+			name:      "free NIC in neither NICNetworkConfig nor MTPNC keeps placeholder capacity",
 			deviceMAC: "aa:aa:aa:aa:aa:05",
-			wantCap:   "",
+			wantCap:   "1",
 		},
 		{
 			name:      "uppercase NodeInfo MAC matches canonical NICNetworkConfig key",

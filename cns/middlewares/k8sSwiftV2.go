@@ -210,7 +210,7 @@ func (k *K8sSWIFTv2Middleware) GetPodNICMACs(ctx context.Context, podInfo cns.Po
 	if !mtpnc.IsReady() {
 		return nil, errMTPNCNotReady
 	}
-	return mtpncMACs(&mtpnc), nil
+	return dedicatedNICMACs(&mtpnc), nil
 }
 
 func (k *K8sSWIFTv2Middleware) Type() cns.SWIFTV2Mode {
@@ -360,13 +360,19 @@ func (k *K8sSWIFTv2Middleware) GetInfravnetAndServiceCidrs() ([]string, []string
 	return v4Cidrs, v6Cidrs, nil
 }
 
-// mtpncMACs returns the NIC MAC addresses referenced by an MTPNC, taken from
-// Status.InterfaceInfos and falling back to the deprecated Status.MacAddress.
-func mtpncMACs(mtpnc *v1alpha1.MultitenantPodNetworkConfig) []string {
+// dedicatedNICMACs returns the MAC addresses of an MTPNC's dedicated NICs: the
+// Status.InterfaceInfos entries whose SharedNIC is not set. Shared (prefix-on-NIC) NICs
+// are served from NICNetworkConfig, so they are excluded here. Falls back to the deprecated
+// Status.MacAddress (a legacy single dedicated NIC) when there are no InterfaceInfos.
+func dedicatedNICMACs(mtpnc *v1alpha1.MultitenantPodNetworkConfig) []string {
 	var macs []string
 	for i := range mtpnc.Status.InterfaceInfos {
-		if mac := mtpnc.Status.InterfaceInfos[i].MacAddress; mac != "" {
-			macs = append(macs, mac)
+		ifInfo := &mtpnc.Status.InterfaceInfos[i]
+		if ifInfo.SharedNIC {
+			continue // shared NICs come from NICNetworkConfig, not MTPNC
+		}
+		if ifInfo.MacAddress != "" {
+			macs = append(macs, ifInfo.MacAddress)
 		}
 	}
 	if len(macs) == 0 && mtpnc.Status.MacAddress != "" {
@@ -401,6 +407,8 @@ func canonicalMAC(raw string) (string, bool) {
 
 // sharedNICDRACapacity is the resource-slice capacity advertised for a DRA-managed
 // prefix-on-NIC (shared) NIC: the scheduler can place up to this many pods on it.
+// TODO: this value is hardcoded for now; in the future it will be driven by
+// NICNetworkConfig (NICNC) CRD fields rather than a constant.
 const sharedNICDRACapacity = 16
 
 // dedicatedNICDRACapacity is the resource-slice capacity advertised for a dedicated
@@ -434,7 +442,7 @@ func (k *K8sSWIFTv2Middleware) GetNICResourceNetworkInfoFromNICNC(ctx context.Co
 		// If its not scheduled with DRA, its existence means that it was created for a pod without resourceclaims.
 		// And consequently it has no capacity to advertise to scheduler.
 		// we will mark it as 0 so the scheduler will not try to put further pods on this NIC.
-		// When the non DRA pod is deleted, NICNC is deleted, then the slice shall be recreated by DRA with capacity = 1
+		// When the non DRA pod is deleted, NICNC is deleted, then the slice shall be recreated by DRA with the shared capacity.
 		capacity := 0
 		if spec.ScheduledByDRA {
 			capacity = sharedNICDRACapacity
@@ -450,14 +458,9 @@ func (k *K8sSWIFTv2Middleware) GetNICResourceNetworkInfoFromNICNC(ctx context.Co
 	return result, nil
 }
 
-// GetNICResourceNetworkInfoFromMTPNC lists the MTPNCs scheduled on this node and returns a map keyed by
-// canonical NIC MAC address with the NIC's network/subnet info and resource-slice
-// capacity from the MTPNC Spec. Dedicated NICs (single-allocation PodNetworks) usually
-// have no NICNetworkConfig and are served from here as a fallback.
-//
-// It intentionally does NOT wait for the MTPNC to be Ready: a not-yet-ready MTPNC may
-// have empty Spec NetworkID/SubnetGUID/SubnetResourceID, which are surfaced as-is (empty)
-// rather than treated as an error. Entries whose MAC is empty or unparseable are skipped.
+// GetNICResourceNetworkInfoFromMTPNC lists the MTPNCs scheduled on this node and returns a
+// map keyed by canonical NIC MAC address with the NIC's resource-slice capacity. Dedicated
+// NICs (single-allocation PodNetworks) have no NICNetworkConfig and are served from here.
 func (k *K8sSWIFTv2Middleware) GetNICResourceNetworkInfoFromMTPNC(ctx context.Context) (map[string]*cns.NICResourceNetworkInfo, error) {
 	var mtpncList v1alpha1.MultitenantPodNetworkConfigList
 	if err := k.Cli.List(ctx, &mtpncList); err != nil {
@@ -478,13 +481,13 @@ func (k *K8sSWIFTv2Middleware) GetNICResourceNetworkInfoFromMTPNC(ctx context.Co
 		if mtpnc.IsScheduledWithDRA() {
 			capacity = dedicatedNICDRACapacity
 		}
+		// Only capacity is populated. NetworkID/SubnetGUID/SubnetName are intentionally not
+		// read from the MTPNC Spec: a dedicated NIC does not need them (and those fields are
+		// going away from MTPNC).
 		info := &cns.NICResourceNetworkInfo{
-			NetworkID:  mtpnc.Spec.NetworkID,
-			SubnetGUID: mtpnc.Spec.SubnetGUID,
-			SubnetName: subnetNameFromResourceID(mtpnc.Spec.SubnetResourceID),
-			Capacity:   capacity,
+			Capacity: capacity,
 		}
-		for _, mac := range mtpncMACs(mtpnc) {
+		for _, mac := range dedicatedNICMACs(mtpnc) {
 			key, ok := canonicalMAC(mac)
 			if !ok {
 				continue
