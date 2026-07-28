@@ -34,6 +34,13 @@ func (service *HTTPRestService) requestClaimResourceInfo(w http.ResponseWriter, 
 	}
 	ctx := r.Context()
 
+	if !service.swiftV2PrefixAllocationEnabled() {
+		respondJSON(w, http.StatusNotFound, cns.ClaimResourceInfoResponse{
+			Response: cns.Response{ReturnCode: types.UnsupportedAPI, Message: "requestClaimResourceInfo: SwiftV2 prefix allocation is not enabled"},
+		})
+		return
+	}
+
 	if r.Method != http.MethodPost {
 		respondJSON(w, http.StatusBadRequest, cns.ClaimResourceInfoResponse{
 			Response: cns.Response{ReturnCode: types.UnsupportedVerb, Message: "requestClaimResourceInfo only supports POST"},

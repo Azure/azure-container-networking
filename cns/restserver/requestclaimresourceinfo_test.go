@@ -123,7 +123,12 @@ func TestPodNICResources(t *testing.T) {
 
 // requestClaimResourceInfo must reject non-POST verbs before doing any work.
 func TestRequestClaimResourceInfoMethodNotPost(t *testing.T) {
-	svc := &HTTPRestService{Service: &cns.Service{Service: &common.Service{}}}
+	svc := &HTTPRestService{
+		Service:        &cns.Service{Service: &common.Service{}},
+		nicncClient:    &fakeNICNCClient{},
+		mtpncClient:    &fakeMTPNCClient{},
+		nodeinfoClient: &fakeNodeInfoClient{},
+	}
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, cns.RequestClaimResourceInfo, http.NoBody)
@@ -144,7 +149,12 @@ func TestRequestClaimResourceInfoMethodNotPost(t *testing.T) {
 // requestClaimResourceInfo must return a clear error when the SWIFT v2 middleware
 // is not configured, rather than panicking.
 func TestRequestClaimResourceInfoMiddlewareNotConfigured(t *testing.T) {
-	svc := &HTTPRestService{Service: &cns.Service{Service: &common.Service{}}} // IPConfigsHandlerMiddleware nil
+	svc := &HTTPRestService{
+		Service:        &cns.Service{Service: &common.Service{}},
+		nicncClient:    &fakeNICNCClient{},
+		mtpncClient:    &fakeMTPNCClient{},
+		nodeinfoClient: &fakeNodeInfoClient{},
+	} // IPConfigsHandlerMiddleware nil
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, cns.RequestClaimResourceInfo, strings.NewReader("{}"))
@@ -159,5 +169,26 @@ func TestRequestClaimResourceInfoMiddlewareNotConfigured(t *testing.T) {
 	}
 	if resp.Response.ReturnCode != types.UnexpectedError {
 		t.Errorf("ReturnCode = %v, want %v", resp.Response.ReturnCode, types.UnexpectedError)
+	}
+}
+
+// requestClaimResourceInfo must return 404 UnsupportedAPI when SwiftV2 prefix
+// allocation is disabled (its clients are not wired), before any other processing.
+func TestRequestClaimResourceInfoFeatureDisabled(t *testing.T) {
+	svc := &HTTPRestService{Service: &cns.Service{Service: &common.Service{}}} // no NIC-resources clients wired
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, cns.RequestClaimResourceInfo, strings.NewReader("{}"))
+	svc.requestClaimResourceInfo(w, r)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusNotFound)
+	}
+	var resp cns.ClaimResourceInfoResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil { //nolint:musttag // response embeds pre-existing PodIpInfo type
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Response.ReturnCode != types.UnsupportedAPI {
+		t.Errorf("ReturnCode = %v, want %v", resp.Response.ReturnCode, types.UnsupportedAPI)
 	}
 }

@@ -434,3 +434,9 @@ func (service *HTTPRestService) AttachNodeInfoClient(client nodeinfoClient, node
 	service.nodeinfoClient = client
 	service.nodeName = nodeName
 }
+
+// swiftV2PrefixAllocationEnabled is true if all the necessary CRD clients are
+// initialized, which happens only when CNSConfig.EnableSwiftV2PrefixAllocation is enabled.
+func (service *HTTPRestService) swiftV2PrefixAllocationEnabled() bool {
+	return service.nicncClient != nil && service.mtpncClient != nil && service.nodeinfoClient != nil
+}

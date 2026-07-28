@@ -14,28 +14,24 @@ import (
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 )
 
-// getNICResources must not panic when the NodeInfo client / node name are unset
-// (e.g. AttachNodeInfoClient was never called); it should return a clear error
-// response instead.
-func TestGetNICResourcesNotConfigured(t *testing.T) {
-	svc := &HTTPRestService{
-		Service: &cns.Service{Service: &common.Service{}},
-	} // nodeinfoClient nil, nodeName ""
+// getNICResources must return 404 UnsupportedAPI when SwiftV2 prefix allocation
+// is disabled, before any other processing.
+func TestGetNICResourcesFeatureDisabled(t *testing.T) {
+	svc := &HTTPRestService{Service: &cns.Service{Service: &common.Service{}}} // no NIC-resources clients wired
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, cns.GetNICResources, http.NoBody)
 	svc.getNICResources(w, r)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Fatalf("status = %d, want %d", w.Code, http.StatusInternalServerError)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusNotFound)
 	}
-
 	var resp cns.GetNICResourcesResponse
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
+		t.Fatalf("decode: %v", err)
 	}
-	if resp.Response.ReturnCode != types.UnexpectedError {
-		t.Errorf("ReturnCode = %v, want %v", resp.Response.ReturnCode, types.UnexpectedError)
+	if resp.Response.ReturnCode != types.UnsupportedAPI {
+		t.Errorf("ReturnCode = %v, want %v", resp.Response.ReturnCode, types.UnsupportedAPI)
 	}
 }
 

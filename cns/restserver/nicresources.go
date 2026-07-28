@@ -24,6 +24,13 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 	}
 	ctx := r.Context()
 
+	if !service.swiftV2PrefixAllocationEnabled() {
+		respondJSON(w, http.StatusNotFound, cns.GetNICResourcesResponse{
+			Response: cns.Response{ReturnCode: types.UnsupportedAPI, Message: "getNICResources: SwiftV2 prefix allocation is not enabled"},
+		})
+		return
+	}
+
 	if r.Method != http.MethodGet {
 		returnMessage := fmt.Sprintf("[Azure CNS] Error. getNICResources did not receive a GET."+
 			" Received: %s", r.Method)
@@ -31,22 +38,6 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 		service.setResponse(w, returnCode, cns.GetNICResourcesResponse{
 			Response: cns.Response{ReturnCode: returnCode, Message: returnMessage},
 		})
-		return
-	}
-
-	// The NodeInfo client and node name are required to serve this endpoint.
-	// They may be unset if AttachNodeInfoClient was never called (e.g. the
-	// feature is not configured), so guard against a nil client / empty name
-	// instead of panicking.
-	if service.nodeinfoClient == nil || service.nodeName == "" {
-		l.Error("getNICResources not configured", zap.Bool("nodeinfoClientSet", service.nodeinfoClient != nil), zap.Bool("nodeNameSet", service.nodeName != ""))
-		resp := cns.GetNICResourcesResponse{
-			Response: cns.Response{
-				ReturnCode: types.UnexpectedError,
-				Message:    "getNICResources: NodeInfo client or node name is not configured",
-			},
-		}
-		respondJSON(w, http.StatusInternalServerError, resp)
 		return
 	}
 
