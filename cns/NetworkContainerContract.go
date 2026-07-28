@@ -35,7 +35,7 @@ const (
 	DetachContainerFromNetwork               = "/network/detachcontainerfromnetwork"
 	RequestIPConfig                          = "/network/requestipconfig"
 	RequestIPConfigs                         = "/network/requestipconfigs"
-	RequestClaimConfig                       = "/network/requestclaimconfig"
+	RequestClaimResourceInfo                 = "/network/requestclaimresourceinfo"
 	ReleaseIPConfig                          = "/network/releaseipconfig"
 	ReleaseIPConfigs                         = "/network/releaseipconfigs"
 	PathDebugIPAddresses                     = "/debug/ipaddresses"
@@ -584,19 +584,19 @@ type IPConfigsResponse struct {
 	Response  Response    `json:"response"`
 }
 
-// ClaimConfigRequest is the request for the RequestClaimConfig API. ClaimUID identifies
+// ClaimResourceInfoRequest is the request for the RequestClaimResourceInfo API. ClaimUID identifies
 // the DRA ResourceClaim; CNS resolves it to the owning pod by finding the pod's MTPNC
 // whose Spec.ResourceClaims contains this claim.
-type ClaimConfigRequest struct {
+type ClaimResourceInfoRequest struct {
 	ClaimUID k8stypes.UID `json:"claimUID"`
 }
 
-// ClaimConfigResponse is the response for the RequestClaimConfig API.
+// ClaimResourceInfoResponse is the response for the RequestClaimResourceInfo API.
 // It returns the pod's IP configs (the same set RequestIPConfigs produces, but
 // WITHOUT the IsScheduledWithDRA filtering, so delegated NIC configs are always
 // included) together with the resource-slice properties (networkID/subnetGUID/
 // subnetName/capacity/...) of every NIC allocated to the pod.
-type ClaimConfigResponse struct {
+type ClaimResourceInfoResponse struct {
 	Response     Response      `json:"response"`
 	PodIPInfo    []PodIpInfo   `json:"podIPInfo"`
 	NICResources []NICResource `json:"nicResources"`

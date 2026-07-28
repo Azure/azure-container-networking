@@ -22,7 +22,7 @@ func (f *fakeSwiftV2NICMiddleware) GetPodInfoByClaimUID(context.Context, k8stype
 	return nil, types.Success, ""
 }
 
-func (f *fakeSwiftV2NICMiddleware) GetAllIPConfigs(context.Context, cns.PodInfo) ([]cns.PodIpInfo, error) {
+func (f *fakeSwiftV2NICMiddleware) GetSwiftV2IPConfigs(context.Context, cns.PodInfo) ([]cns.PodIpInfo, error) {
 	return nil, nil
 }
 
@@ -36,8 +36,8 @@ func TestPodNICResources(t *testing.T) {
 	tests := []struct {
 		name     string
 		mac      string // MAC the middleware returns for the pod (from its MTPNC)
-		nicnc    *cns.NICResourceNetworkInfo
-		mtpnc    *cns.NICResourceNetworkInfo
+		nicnc    *cns.NICResourceInfo
+		mtpnc    *cns.NICResourceInfo
 		wantCap  string
 		wantNet  string
 		wantGUID string
@@ -45,7 +45,7 @@ func TestPodNICResources(t *testing.T) {
 		{
 			name:     "NICNetworkConfig NIC, uppercase MAC matches canonical key",
 			mac:      "AA:BB:CC:DD:EE:01",
-			nicnc:    &cns.NICResourceNetworkInfo{NetworkID: "nicnc-net", SubnetGUID: "nicnc-guid", Capacity: 16},
+			nicnc:    &cns.NICResourceInfo{NetworkID: "nicnc-net", SubnetGUID: "nicnc-guid", Capacity: 16},
 			wantCap:  "16",
 			wantNet:  "nicnc-net",
 			wantGUID: "nicnc-guid",
@@ -53,7 +53,7 @@ func TestPodNICResources(t *testing.T) {
 		{
 			name:     "MTPNC dedicated NIC fallback",
 			mac:      "aa:bb:cc:dd:ee:02",
-			mtpnc:    &cns.NICResourceNetworkInfo{NetworkID: "mtpnc-net", SubnetGUID: "mtpnc-guid", Capacity: 1},
+			mtpnc:    &cns.NICResourceInfo{NetworkID: "mtpnc-net", SubnetGUID: "mtpnc-guid", Capacity: 1},
 			wantCap:  "1",
 			wantNet:  "mtpnc-net",
 			wantGUID: "mtpnc-guid",
@@ -65,8 +65,8 @@ func TestPodNICResources(t *testing.T) {
 		},
 	}
 
-	nicNC := map[string]*cns.NICResourceNetworkInfo{}
-	mtpnc := map[string]*cns.NICResourceNetworkInfo{}
+	nicNC := map[string]*cns.NICResourceInfo{}
+	mtpnc := map[string]*cns.NICResourceInfo{}
 	macs := make([]string, 0, len(tests))
 	for _, tc := range tests {
 		macs = append(macs, tc.mac)
@@ -121,18 +121,18 @@ func TestPodNICResources(t *testing.T) {
 	}
 }
 
-// requestClaimConfig must reject non-POST verbs before doing any work.
-func TestRequestClaimConfigMethodNotPost(t *testing.T) {
+// requestClaimResourceInfo must reject non-POST verbs before doing any work.
+func TestRequestClaimResourceInfoMethodNotPost(t *testing.T) {
 	svc := &HTTPRestService{Service: &cns.Service{Service: &common.Service{}}}
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, cns.RequestClaimConfig, http.NoBody)
-	svc.requestClaimConfig(w, r)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, cns.RequestClaimResourceInfo, http.NoBody)
+	svc.requestClaimResourceInfo(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusBadRequest)
 	}
-	var resp cns.ClaimConfigResponse
+	var resp cns.ClaimResourceInfoResponse
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil { //nolint:musttag // response embeds pre-existing PodIpInfo type
 		t.Fatalf("decode: %v", err)
 	}
@@ -141,19 +141,19 @@ func TestRequestClaimConfigMethodNotPost(t *testing.T) {
 	}
 }
 
-// requestClaimConfig must return a clear error when the SWIFT v2 middleware
+// requestClaimResourceInfo must return a clear error when the SWIFT v2 middleware
 // is not configured, rather than panicking.
-func TestRequestClaimConfigMiddlewareNotConfigured(t *testing.T) {
+func TestRequestClaimResourceInfoMiddlewareNotConfigured(t *testing.T) {
 	svc := &HTTPRestService{Service: &cns.Service{Service: &common.Service{}}} // IPConfigsHandlerMiddleware nil
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, cns.RequestClaimConfig, strings.NewReader("{}"))
-	svc.requestClaimConfig(w, r)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, cns.RequestClaimResourceInfo, strings.NewReader("{}"))
+	svc.requestClaimResourceInfo(w, r)
 
 	if w.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusServiceUnavailable)
 	}
-	var resp cns.ClaimConfigResponse
+	var resp cns.ClaimResourceInfoResponse
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil { //nolint:musttag // response embeds pre-existing PodIpInfo type
 		t.Fatalf("decode: %v", err)
 	}

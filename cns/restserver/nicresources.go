@@ -115,9 +115,9 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 
 	// Step 3: Fetch per-NIC network/subnet/capacity from NICNetworkConfig (shared
 	// prefix-on-NIC NICs).
-	var nicResourceNetworkInfoByMAC map[string]*cns.NICResourceNetworkInfo
+	var nicResourceInfoByMAC map[string]*cns.NICResourceInfo
 	if service.nicncClient != nil {
-		nicResourceNetworkInfoByMAC, err = service.nicncClient.GetNICResourceNetworkInfoFromNICNC(ctx)
+		nicResourceInfoByMAC, err = service.nicncClient.GetNICResourceInfoFromNICNC(ctx)
 		if err != nil {
 			l.Warn("failed to fetch NICNetworkConfig data", zap.Error(err))
 		}
@@ -125,9 +125,9 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 
 	// Step 4: Fetch per-NIC data from MTPNC. Dedicated NICs do not have
 	// NICNetworkConfig and are served from MTPNC.
-	var mtpncResourceNetworkInfoByMAC map[string]*cns.NICResourceNetworkInfo
+	var mtpncResourceInfoByMAC map[string]*cns.NICResourceInfo
 	if service.mtpncClient != nil {
-		mtpncResourceNetworkInfoByMAC, err = service.mtpncClient.GetNICResourceNetworkInfoFromMTPNC(ctx)
+		mtpncResourceInfoByMAC, err = service.mtpncClient.GetNICResourceInfoFromMTPNC(ctx)
 		if err != nil {
 			l.Warn("failed to fetch MTPNC data", zap.Error(err))
 		}
@@ -137,7 +137,7 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 	// and falling back to MTPNC for MACs it doesn't cover. The map key is the
 	// canonical MAC used for lookups.
 	for mac, res := range nicByMAC {
-		enrichNICResource(res, mac, nicResourceNetworkInfoByMAC, mtpncResourceNetworkInfoByMAC)
+		updateNICResource(res, mac, nicResourceInfoByMAC, mtpncResourceInfoByMAC)
 	}
 
 	// Convert map to slice for the response.
@@ -155,13 +155,13 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 	respondJSON(w, http.StatusOK, resp)
 }
 
-// enrichNICResource populates res.NetworkID/SubnetGUID/SubnetName/Capacity for a NIC, looked up by canonical MAC.
+// updateNICResource populates res.NetworkID/SubnetGUID/SubnetName/Capacity for a NIC, looked up by canonical MAC.
 // NICNetworkConfig is preferred (shared prefix-on-NIC NICs); MTPNC is the fallback for dedicated NICs, which has no NICNetworkConfig.
 // MTPNC never overrides NICNetworkConfig, and a NIC found in neither keeps capacity as 1 since it is available for scheduling for either type of pods.
-func enrichNICResource(res *cns.NICResource, mac string, nicResourceNetworkInfoByMAC, mtpncResourceNetworkInfoByMAC map[string]*cns.NICResourceNetworkInfo) {
-	info := nicResourceNetworkInfoByMAC[mac]
+func updateNICResource(res *cns.NICResource, mac string, nicResourceInfoByMAC, mtpncResourceInfoByMAC map[string]*cns.NICResourceInfo) {
+	info := nicResourceInfoByMAC[mac]
 	if info == nil {
-		info = mtpncResourceNetworkInfoByMAC[mac]
+		info = mtpncResourceInfoByMAC[mac]
 	}
 	if info == nil {
 		return

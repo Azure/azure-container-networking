@@ -46,18 +46,18 @@ func (f *fakeNodeInfoClient) Get(context.Context, string) (*v1alpha1.NodeInfo, e
 }
 
 type fakeNICNCClient struct {
-	m map[string]*cns.NICResourceNetworkInfo
+	m map[string]*cns.NICResourceInfo
 }
 
-func (f *fakeNICNCClient) GetNICResourceNetworkInfoFromNICNC(context.Context) (map[string]*cns.NICResourceNetworkInfo, error) {
+func (f *fakeNICNCClient) GetNICResourceInfoFromNICNC(context.Context) (map[string]*cns.NICResourceInfo, error) {
 	return f.m, nil
 }
 
 type fakeMTPNCClient struct {
-	m map[string]*cns.NICResourceNetworkInfo
+	m map[string]*cns.NICResourceInfo
 }
 
-func (f *fakeMTPNCClient) GetNICResourceNetworkInfoFromMTPNC(context.Context) (map[string]*cns.NICResourceNetworkInfo, error) {
+func (f *fakeMTPNCClient) GetNICResourceInfoFromMTPNC(context.Context) (map[string]*cns.NICResourceInfo, error) {
 	return f.m, nil
 }
 
@@ -66,8 +66,8 @@ func TestGetNICResources(t *testing.T) {
 		name       string
 		deviceMAC  string              // MAC as reported by NodeInfo (may be uppercase)
 		deviceType v1alpha1.DeviceType // defaults to Vnet NIC when empty
-		nicnc      *cns.NICResourceNetworkInfo
-		mtpnc      *cns.NICResourceNetworkInfo
+		nicnc      *cns.NICResourceInfo
+		mtpnc      *cns.NICResourceInfo
 		wantCap    string
 		wantNet    string
 		wantGUID   string
@@ -76,25 +76,25 @@ func TestGetNICResources(t *testing.T) {
 		{
 			name:      "NICNetworkConfig DRA NIC advertises shared capacity",
 			deviceMAC: "aa:aa:aa:aa:aa:01",
-			nicnc:     &cns.NICResourceNetworkInfo{NetworkID: "net1", SubnetGUID: "guid1", SubnetName: "subnet1", Capacity: 16},
+			nicnc:     &cns.NICResourceInfo{NetworkID: "net1", SubnetGUID: "guid1", SubnetName: "subnet1", Capacity: 16},
 			wantCap:   "16", wantNet: "net1", wantGUID: "guid1", wantSubnet: "subnet1",
 		},
 		{
 			name:      "NICNetworkConfig non-DRA NIC has zero capacity",
 			deviceMAC: "aa:aa:aa:aa:aa:02",
-			nicnc:     &cns.NICResourceNetworkInfo{NetworkID: "net2", SubnetGUID: "guid2", SubnetName: "subnet2", Capacity: 0},
+			nicnc:     &cns.NICResourceInfo{NetworkID: "net2", SubnetGUID: "guid2", SubnetName: "subnet2", Capacity: 0},
 			wantCap:   "0", wantNet: "net2", wantGUID: "guid2", wantSubnet: "subnet2",
 		},
 		{
 			name:      "MTPNC dedicated DRA NIC fallback advertises capacity 1",
 			deviceMAC: "aa:aa:aa:aa:aa:03",
-			mtpnc:     &cns.NICResourceNetworkInfo{NetworkID: "net3", SubnetGUID: "guid3", SubnetName: "subnet3", Capacity: 1},
+			mtpnc:     &cns.NICResourceInfo{NetworkID: "net3", SubnetGUID: "guid3", SubnetName: "subnet3", Capacity: 1},
 			wantCap:   "1", wantNet: "net3", wantGUID: "guid3", wantSubnet: "subnet3",
 		},
 		{
 			name:      "MTPNC dedicated non-DRA NIC has zero capacity",
 			deviceMAC: "aa:aa:aa:aa:aa:04",
-			mtpnc:     &cns.NICResourceNetworkInfo{NetworkID: "net4", SubnetGUID: "guid4", SubnetName: "subnet4", Capacity: 0},
+			mtpnc:     &cns.NICResourceInfo{NetworkID: "net4", SubnetGUID: "guid4", SubnetName: "subnet4", Capacity: 0},
 			wantCap:   "0", wantNet: "net4", wantGUID: "guid4", wantSubnet: "subnet4",
 		},
 		{
@@ -105,14 +105,14 @@ func TestGetNICResources(t *testing.T) {
 		{
 			name:      "uppercase NodeInfo MAC matches canonical NICNetworkConfig key",
 			deviceMAC: "AA:AA:AA:AA:AA:07",
-			nicnc:     &cns.NICResourceNetworkInfo{NetworkID: "net7", SubnetGUID: "guid7", SubnetName: "subnet7", Capacity: 16},
+			nicnc:     &cns.NICResourceInfo{NetworkID: "net7", SubnetGUID: "guid7", SubnetName: "subnet7", Capacity: 16},
 			wantCap:   "16", wantNet: "net7", wantGUID: "guid7", wantSubnet: "subnet7",
 		},
 		{
 			name:      "NIC in both NICNetworkConfig and MTPNC: NICNetworkConfig wins",
 			deviceMAC: "aa:aa:aa:aa:aa:08",
-			nicnc:     &cns.NICResourceNetworkInfo{NetworkID: "net8", SubnetGUID: "guid8", SubnetName: "subnet8", Capacity: 16},
-			mtpnc:     &cns.NICResourceNetworkInfo{NetworkID: "net8mtpnc", SubnetGUID: "guid8mtpnc", SubnetName: "subnet8mtpnc", Capacity: 1},
+			nicnc:     &cns.NICResourceInfo{NetworkID: "net8", SubnetGUID: "guid8", SubnetName: "subnet8", Capacity: 16},
+			mtpnc:     &cns.NICResourceInfo{NetworkID: "net8mtpnc", SubnetGUID: "guid8mtpnc", SubnetName: "subnet8mtpnc", Capacity: 1},
 			wantCap:   "16", wantNet: "net8", wantGUID: "guid8", wantSubnet: "subnet8",
 		},
 		{
@@ -123,8 +123,8 @@ func TestGetNICResources(t *testing.T) {
 	}
 
 	nodeInfo := &v1alpha1.NodeInfo{Spec: v1alpha1.NodeInfoSpec{VMUniqueID: "vm-1"}}
-	nicNC := map[string]*cns.NICResourceNetworkInfo{}
-	mtpnc := map[string]*cns.NICResourceNetworkInfo{}
+	nicNC := map[string]*cns.NICResourceInfo{}
+	mtpnc := map[string]*cns.NICResourceInfo{}
 	wantCount := 0
 	for _, tc := range tests {
 		deviceType := tc.deviceType

@@ -1600,7 +1600,7 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		// SWIFT v2 prefix-on-NIC allocation (delegated NIC sharing via DRA) is an
 		// opt-in extension of SWIFT v2. Only when it is enabled do we warm the
 		// NICNetworkConfig informer and wire up the clients that back the
-		// NIC-resources APIs (getNICResources / requestClaimConfig).
+		// NIC-resources APIs (getNICResources / requestClaimResourceInfo).
 		if cnsconfig.EnableSwiftV2PrefixAllocation {
 			// Register a noop NICNetworkConfig reconciler so the informer/cache is
 			// warm before the middleware reads it via the cached client.

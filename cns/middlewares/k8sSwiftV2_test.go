@@ -20,10 +20,10 @@ const (
 	canonMAC03     = "aa:bb:cc:dd:ee:03"
 )
 
-// GetNICResourceNetworkInfoFromMTPNC must node-scope and compute capacity from DRA state.
+// GetNICResourceInfoFromMTPNC must node-scope and compute capacity from DRA state.
 // It must NOT populate NetworkID/SubnetGUID/SubnetName from the MTPNC Spec (dedicated NICs
 // don't need them), and must tolerate a not-ready MTPNC without erroring.
-func TestGetNICResourceNetworkInfoFromMTPNC(t *testing.T) {
+func TestGetNICResourceInfoFromMTPNC(t *testing.T) {
 	scheme := runtime.NewScheme()
 	if err := v1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatalf("add scheme: %v", err)
@@ -32,8 +32,8 @@ func TestGetNICResourceNetworkInfoFromMTPNC(t *testing.T) {
 	tests := []struct {
 		name  string
 		mtpnc v1alpha1.MultitenantPodNetworkConfig
-		mac   string                      // MAC to look up in the result
-		want  *cns.NICResourceNetworkInfo // nil means the MAC must be absent (excluded)
+		mac   string               // MAC to look up in the result
+		want  *cns.NICResourceInfo // nil means the MAC must be absent (excluded)
 	}{
 		{
 			name: "ready DRA MTPNC advertises dedicated capacity",
@@ -52,7 +52,7 @@ func TestGetNICResourceNetworkInfoFromMTPNC(t *testing.T) {
 			},
 			mac: "aa:bb:cc:dd:ee:0a",
 			// MTPNC's NetworkID/SubnetGUID/SubnetResourceID are intentionally NOT propagated.
-			want: &cns.NICResourceNetworkInfo{Capacity: 1},
+			want: &cns.NICResourceInfo{Capacity: 1},
 		},
 		{
 			name: "not-ready MTPNC surfaces empty fields with zero capacity",
@@ -64,7 +64,7 @@ func TestGetNICResourceNetworkInfoFromMTPNC(t *testing.T) {
 				},
 			},
 			mac:  "aa:bb:cc:dd:ee:0b",
-			want: &cns.NICResourceNetworkInfo{}, // all empty, capacity 0
+			want: &cns.NICResourceInfo{}, // all empty, capacity 0
 		},
 		{
 			name: "MTPNC on another node is excluded",
@@ -94,9 +94,9 @@ func TestGetNICResourceNetworkInfoFromMTPNC(t *testing.T) {
 		WithLists(&v1alpha1.MultitenantPodNetworkConfigList{Items: mtpncs}).Build()
 	mw := &K8sSWIFTv2Middleware{Cli: cli, NodeName: testNode}
 
-	got, err := mw.GetNICResourceNetworkInfoFromMTPNC(context.Background())
+	got, err := mw.GetNICResourceInfoFromMTPNC(context.Background())
 	if err != nil {
-		t.Fatalf("GetNICResourceNetworkInfoFromMTPNC: %v", err)
+		t.Fatalf("GetNICResourceInfoFromMTPNC: %v", err)
 	}
 	if len(got) != wantCount {
 		t.Fatalf("got %d entries, want %d: %+v", len(got), wantCount, got)

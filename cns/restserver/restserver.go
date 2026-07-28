@@ -60,12 +60,12 @@ type imdsClient interface {
 
 // nicncClient enriches NICResource data with NICNetworkConfig CRD information (e.g., NetworkID, SubnetGUID).
 type nicncClient interface {
-	GetNICResourceNetworkInfoFromNICNC(ctx context.Context) (map[string]*cns.NICResourceNetworkInfo, error)
+	GetNICResourceInfoFromNICNC(ctx context.Context) (map[string]*cns.NICResourceInfo, error)
 }
 
 // mtpncClient enriches NICResource data with MTPNC CRD information for dedicated NICs.
 type mtpncClient interface {
-	GetNICResourceNetworkInfoFromMTPNC(ctx context.Context) (map[string]*cns.NICResourceNetworkInfo, error)
+	GetNICResourceInfoFromMTPNC(ctx context.Context) (map[string]*cns.NICResourceInfo, error)
 }
 
 // nodeinfoClient reads NodeInfo CRDs to get NIC device info and VM metadata.
@@ -324,7 +324,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.GetHomeAz, service.getHomeAz)
 	listener.AddHandler(cns.EndpointPath, service.EndpointHandlerAPI)
 	listener.AddHandler(cns.GetNICResources, service.getNICResources)
-	listener.AddHandler(cns.RequestClaimConfig, service.requestClaimConfig)
+	listener.AddHandler(cns.RequestClaimResourceInfo, service.requestClaimResourceInfo)
 	// This API is only needed for Direct channel mode.
 	if config.ChannelMode == cns.Direct {
 		listener.AddHandler(cns.GetVMUniqueID, service.getVMUniqueID)
