@@ -231,6 +231,67 @@ func TestDestroyNPMIPSetsCreatorSuccess(t *testing.T) {
 	require.Equal(t, 0, *destroyFailureCount, "got unexpected destroy failure count")
 }
 
+// TestAzureNPMRegexMatchesOldAndNewNames verifies the ipset-cleanup regex matches BOTH the old
+// 32-bit numeric kernel names and the new base36 names, so that on upgrade or rollback no stale
+// ipset of either format is orphaned (which would leak and could eventually exhaust ipsets).
+func TestAzureNPMRegexMatchesOldAndNewNames(t *testing.T) {
+	re := regexp.MustCompile(azureNPMRegex)
+	mustMatch := []string{
+		"azure-npm-123456",                      // old 32-bit numeric
+		"azure-npm-2900316864",                  // old numeric (reported collision value)
+		"azure-npm-3fmr1y4xucxg45l55kfb",        // new base36
+		"azure-npm-42xi2gy762uhahnxfutd",        // new base36 (ns-msobb-target)
+		util.GetHashedName("ns-some-namespace"), // whatever the current impl produces
+	}
+	for _, n := range mustMatch {
+		require.Equal(t, n, re.FindString(n), "cleanup regex must fully match %q", n)
+	}
+	for _, n := range []string{"KUBE-SERVICES", "cali-abc123", "not-azure-npm", "azure-npm-"} {
+		require.Empty(t, re.FindString(n), "cleanup regex must not match %q", n)
+	}
+}
+
+// TestDestroyMixedOldAndNewIPSets verifies the reset path flushes and destroys a mix of old
+// numeric and new base36 ipsets in a single pass (upgrade/rollback migration safety).
+func TestDestroyMixedOldAndNewIPSets(t *testing.T) {
+	calls := []testutils.TestCmd{fakeRestoreSuccessCommand, fakeRestoreSuccessCommand}
+	ioshim := common.NewMockIOShim(calls)
+	defer ioshim.VerifyCalls(t, calls)
+	iMgr := NewIPSetManager(applyAlwaysCfg, ioshim)
+
+	mixed := []string{
+		"azure-npm-123456",               // old numeric
+		"azure-npm-3fmr1y4xucxg45l55kfb", // new base36
+		"azure-npm-987654",               // old numeric
+		"azure-npm-42xi2gy762uhahnxfutd", // new base36
+	}
+	listOutput := []byte(strings.Join(mixed, "\n") + "\n")
+
+	creator, names, failedNames := iMgr.fileCreatorForFlushAll(listOutput)
+	flushLines := creator.ToString()
+	for _, n := range mixed {
+		require.Contains(t, flushLines, "-F "+n, "must flush %q (both old and new formats)", n)
+	}
+	sort.Strings(names)
+	expNames := append([]string(nil), mixed...)
+	sort.Strings(expNames)
+	require.Equal(t, expNames, names, "flush must capture all mixed-format names")
+	wasModified, err := creator.RunCommandOnceWithFile("ipset", "restore")
+	require.False(t, wasModified)
+	require.NoError(t, err)
+	require.Len(t, failedNames, 0)
+
+	creator, destroyFailureCount := iMgr.fileCreatorForDestroyAll(names, failedNames, nil)
+	destroyLines := creator.ToString()
+	for _, n := range mixed {
+		require.Contains(t, destroyLines, "-X "+n, "must destroy %q (both old and new formats)", n)
+	}
+	wasModified, err = creator.RunCommandOnceWithFile("ipset", "restore")
+	require.False(t, wasModified)
+	require.NoError(t, err)
+	require.Equal(t, 0, *destroyFailureCount)
+}
+
 func TestDestroyNPMIPSetsCreatorErrorHandling(t *testing.T) {
 	/*
 		original lines:
