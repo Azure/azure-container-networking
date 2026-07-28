@@ -10,6 +10,7 @@ const (
 	detach           = "Detach"
 	// Rest service state identifier for named lock
 	stateJoinedNetworks = "JoinedNetworks"
+	stateJoinedSubnets  = "JoinedSubnets"
 	dncApiVersion       = "?api-version=2018-03-01"
 	nmaAPICallTimeout   = 2 * time.Second
 )

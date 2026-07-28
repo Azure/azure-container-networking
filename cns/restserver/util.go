@@ -742,11 +742,28 @@ func (service *HTTPRestService) isNetworkJoined(networkID string) bool {
 	return exists
 }
 
+// Check if the subnet is joined
+func (service *HTTPRestService) isSubnetJoined(vnetID, subnetName string) bool {
+	namedLock.LockAcquire(stateJoinedSubnets)
+	defer namedLock.LockRelease(stateJoinedSubnets)
+	subnetKey := vnetID + "_" + subnetName
+	_, exists := service.state.joinedSubnets[subnetKey]
+	return exists
+}
+
 // Set the network as joined
 func (service *HTTPRestService) setNetworkStateJoined(networkID string) {
 	namedLock.LockAcquire(stateJoinedNetworks)
 	defer namedLock.LockRelease(stateJoinedNetworks)
 	service.state.joinedNetworks[networkID] = struct{}{}
+}
+
+// Set the subnet as joined
+func (service *HTTPRestService) setSubnetStateJoined(vnetID, subnetName string) {
+	namedLock.LockAcquire(stateJoinedSubnets)
+	defer namedLock.LockRelease(stateJoinedSubnets)
+	subnetKey := vnetID + "_" + subnetName
+	service.state.joinedSubnets[subnetKey] = struct{}{}
 }
 
 func logNCSnapshot(createNetworkContainerRequest cns.CreateNetworkContainerRequest) {
