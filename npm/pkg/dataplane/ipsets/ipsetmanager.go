@@ -187,6 +187,17 @@ func (iMgr *IPSetManager) AddReference(setMetadata *IPSetMetadata, referenceName
 		metrics.SendErrorLogAndMetric(util.IpsmID, "error: failed to add reference: %s", msg)
 		return npmerrors.Errorf(npmerrors.AddSelectorReference, false, msg)
 	}
+	// A CIDR (ipblock) set belongs to a single NetworkPolicy; reject a reference from a
+	// different netpol so two policies never share one set.
+	if referenceType == NetPolType && set.Type == CIDRBlocks {
+		for existingOwner := range set.NetPolReference {
+			if existingOwner != referenceName {
+				msg := fmt.Sprintf("cidr ipset %s is already owned by netpol %q; refusing reference from netpol %q", set.Name, existingOwner, referenceName)
+				metrics.SendErrorLogAndMetric(util.IpsmID, "error: failed to add reference: %s", msg)
+				return npmerrors.Errorf(npmerrors.AddNetPolReference, false, msg)
+			}
+		}
+	}
 	wasInKernel := iMgr.shouldBeInKernel(set)
 	set.addReference(referenceName, referenceType)
 	if !wasInKernel {

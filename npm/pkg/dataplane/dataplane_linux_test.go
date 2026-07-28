@@ -131,11 +131,24 @@ func TestNetPolInBackgroundFailureToAddFirstTime(t *testing.T) {
 
 	testPolicy2 := testPolicyobj
 	testPolicy2.PolicyKey = "testpolicy2"
+	testPolicy2.RuleIPSets = ruleIPSetsWithCIDR("testcidr2")
 	testPolicy3 := testPolicyobj
 	testPolicy3.PolicyKey = "testpolicy3"
+	testPolicy3.RuleIPSets = ruleIPSetsWithCIDR("testcidr3")
 
 	calls := getBootupTestCalls()
 	calls = append(calls,
+		// background mode applies each policy's ipsets on AddPolicy (one restore per policy)
+		testutils.TestCmd{
+			Cmd:      []string{"ipset", "restore"},
+			Stdout:   "success",
+			ExitCode: 0,
+		},
+		testutils.TestCmd{
+			Cmd:      []string{"ipset", "restore"},
+			Stdout:   "success",
+			ExitCode: 0,
+		},
 		testutils.TestCmd{
 			Cmd:      []string{"ipset", "restore"},
 			Stdout:   "success",
