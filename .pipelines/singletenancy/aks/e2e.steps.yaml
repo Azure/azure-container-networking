@@ -29,30 +29,6 @@ steps:
       inlineScript: |
         set -e
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
-        echo "Upload CNI"
-        echo "Deploying on Linux nodes"
-        export CNI_IMAGE="$AZURE_REGISTRY"/"$CNI_IMAGE_NAME_OVERRIDE":"$CNI_VERSION"
-        echo "CNI image: $CNI_IMAGE"
-        if [ "${{parameters.os}}" == "windows" ]; then
-          envsubst '${CNI_IMAGE}' < ./test/integration/manifests/cni/cni-installer-v1.yaml | kubectl apply -f -
-          kubectl rollout status daemonset/azure-cni -n kube-system
-          echo "Deploying on windows nodes"
-          envsubst '${CNI_IMAGE}' < ./test/integration/manifests/cni/cni-installer-v1-windows.yaml | kubectl apply -f -
-          kubectl rollout status daemonset/azure-cni-windows -n kube-system
-        else
-          envsubst '${CNI_IMAGE}' < ./test/integration/manifests/cni/cni-installer-v1.yaml | kubectl apply -f -
-          kubectl rollout status daemonset/azure-cni -n kube-system
-        fi
-    name: "deployCNI"
-    displayName: "Deploy CNI"
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-      scriptLocation: "inlineScript"
-      scriptType: "bash"
-      addSpnToEnvironment: true
-      inlineScript: |
-        set -e
         clusterName=${{ parameters.clusterName }}
         echo "Restarting nodes"
         for val in $(az vmss list -g MC_${clusterName}_${clusterName}_$(REGION_AKS_CLUSTER_TEST) --query "[].name" -o tsv); do

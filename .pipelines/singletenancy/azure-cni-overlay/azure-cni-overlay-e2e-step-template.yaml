@@ -40,7 +40,7 @@ steps:
       IPAM=${AZURE_IPAM_VERSION:-$(make azure-ipam-version)}
       CNS=${CNS_VERSION:-$(make cns-version)}
       CNI=${CNI_VERSION:-$(make cni-version)}
-      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true VALIDATE_V4OVERLAY=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CNI_VERSION=${CNI} CLEANUP=true
+      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_AZURE_CNI_OVERLAY=true VALIDATE_V4OVERLAY=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CNI_VERSION=${CNI} CLEANUP=true
     retryCountOnTaskFailure: 2
     name: "integrationTest"
     displayName: "Run CNS Integration Tests on AKS Overlay"
@@ -88,4 +88,3 @@ steps:
     retryCountOnTaskFailure: 3
     name: "WireserverMetadataConnectivityTests"
     displayName: "Run Wireserver and Metadata Connectivity Tests"
-

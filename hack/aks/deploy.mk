@@ -8,6 +8,7 @@ IPV6_HP_BPF_VERSION               		?= v0.0.1
 CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY 	?= mcr.microsoft.com/containernetworking
 CILIUM_LOG_COLLECTOR_VERSION_TAG 		?= v0.0.2-0
 CILIUM_NIGHTLY_VERSION_TAG 				?= cilium-nightly-pipeline
+WAIT_FOR_CILIUM						?= true
 
 # ebpf cilium variables
 EBPF_CILIUM_DIR				     		?= 1.18
@@ -56,7 +57,11 @@ print-ebpf-cilium-vars:
 	@echo "EBPF_CILIUM_VERSION_TAG: $(EBPF_CILIUM_VERSION_TAG)"
 
 wait-for-cilium:
+ifeq ($(WAIT_FOR_CILIUM),true)
 	cilium status --wait --wait-duration 20m
+else
+	@echo "Skipping Cilium readiness check"
+endif
 
 # vanilla cilium deployment
 deploy-cilium-config:
@@ -166,4 +171,3 @@ deploy-ebpf-podsubnet-cilium: print-ebpf-cilium-vars deploy-common-ebpf-cilium
 		../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/podsubnet/cilium.yaml \
 		| kubectl apply -f -
 	@$(MAKE) wait-for-cilium
-
