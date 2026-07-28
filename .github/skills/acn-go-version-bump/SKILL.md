@@ -416,9 +416,11 @@ After making all changes:
    docker build -f cni/Dockerfile -t acn-cni-test --build-arg VERSION=test .
    ```
 5. **`make dockerfiles`** — Regenerate ALL template-based Dockerfiles. This resolves:
-   - `{{.GO_PIN}}` → current Go image SHA
-   - `{{.MARINER_CORE_PIN}}` → current azurelinux/base/core SHA
-   - `{{.MARINER_DISTROLESS_PIN}}` → current azurelinux/distroless/base SHA
+   - `{{.GO_PIN}}` → current Go image as `image:tag@sha`
+   - `{{.MARINER_CORE_PIN}}` → current azurelinux/base/core as `image:tag@sha`
+   - `{{.MARINER_DISTROLESS_PIN}}` → current azurelinux/distroless/base as `image:tag@sha`
+   
+   Pins MUST keep the tag (`image:tag@sha`, not `image@sha`) so Dependabot can update them.
    
    The generated files live in TWO locations:
    - Component directories: `cni/Dockerfile`, `cns/Dockerfile`, `azure-ipam/Dockerfile`, etc.
@@ -426,7 +428,7 @@ After making all changes:
    
    **If `make dockerfiles` fails** (e.g., skopeo blocked by firewall or MCR auth issues), use the **pre-cached digests**:
    ```bash
-   # Read pre-resolved digests from setup steps
+   # Read pre-resolved digests from setup steps (already image:tag@sha)
    GO_PIN=$(cat .github/image-digests/go-image.txt 2>/dev/null)
    MARINER_CORE_PIN=$(cat .github/image-digests/mariner-core.txt 2>/dev/null)
    MARINER_DISTROLESS_PIN=$(cat .github/image-digests/mariner-distroless.txt 2>/dev/null)
@@ -434,11 +436,11 @@ After making all changes:
 
    # If cached files don't exist, try skopeo directly (may fail behind firewall)
    if [ -z "$GO_PIN" ]; then
-     GO_PIN=$(skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.XX-azurelinux3.0 \
-       --format "{{.Name}}@{{.Digest}}" 2>/dev/null)
+     GO_IMG=mcr.microsoft.com/oss/go/microsoft/golang:1.XX-azurelinux3.0
+     GO_PIN="${GO_IMG}@$(skopeo inspect docker://${GO_IMG} --format "{{.Digest}}" 2>/dev/null)"
    fi
    ```
-   Then use `sed` to update SHA digests in ALL generated `.Dockerfile` files (not `.tmpl`).
+   Then use `sed` to update image pins in ALL generated `.Dockerfile` files (not `.tmpl`).
    
    **IMPORTANT:** Both `.pipelines/build/dockerfiles/*.Dockerfile` AND component `*/Dockerfile` files must be updated — they are ALL generated from templates.
 5. Do NOT run `go mod tidy` — it times out. Existing go.sum files remain valid for version bumps.
@@ -527,7 +529,7 @@ done
 ### Template System
 - `build/images.mk` defines `GO_IMG` and `MARINER_DISTROLESS_IMG`
 - `.tmpl` files are rendered into Dockerfiles by `make dockerfiles`
-- Uses `renderkit` and `skopeo` to resolve image tags to SHA digests
+- Uses `renderkit` and `skopeo` to resolve image tags to `image:tag@sha` pins (tag required for Dependabot)
 - Pipeline uses `.pipelines/build/scripts/install-go.sh`
 
 ### Component CGO Map

@@ -25,8 +25,8 @@ jobs:
       - name: Install digest-pinned skopeo shim
         env:
           # quay.io/skopeo/stable:latest resolved 2026-07-02.
-          # To bump: `skopeo inspect docker://quay.io/skopeo/stable:latest --format '{{.Digest}}'`
-          SKOPEO_IMAGE: quay.io/skopeo/stable@sha256:c7d3c512612f52805023cd38351081dad7e2729fc13d14b701e47c7c8bdd6615
+          # To bump: IMG=quay.io/skopeo/stable:latest; echo "${IMG}@$(skopeo inspect docker://${IMG} --format '{{.Digest}}')"
+          SKOPEO_IMAGE: quay.io/skopeo/stable:latest@sha256:c7d3c512612f52805023cd38351081dad7e2729fc13d14b701e47c7c8bdd6615
         run: |
           mkdir -p "$HOME/.local/bin"
           cat > "$HOME/.local/bin/skopeo" <<EOF

@@ -86,9 +86,9 @@ jobs:
           echo "gomod_version=$GOMOD_VERSION" >> "$GITHUB_OUTPUT"
 
           # ─── Get current pinned digests ───
-          CURRENT_DIGEST=$(grep -oP 'golang@\Ksha256:[a-f0-9]+' cni/Dockerfile | head -1 || echo "NOT_FOUND")
-          INSTALL_DIGEST=$(grep -oP 'DEFAULT_IMAGE="[^@]+@\Ksha256:[a-f0-9]+' .pipelines/build/scripts/install-go.sh | head -1 || echo "NOT_FOUND")
-          BPF_CURRENT_DIGEST=$(grep -oP 'golang@\Ksha256:[a-f0-9]+' bpf-prog/ipv6-hp-bpf/linux.Dockerfile | head -1 || echo "NOT_FOUND")
+          CURRENT_DIGEST=$(grep -oP 'golang:[^@\s]+@\Ksha256:[a-f0-9]+' cni/Dockerfile | head -1 || echo "NOT_FOUND")
+          INSTALL_DIGEST=$(grep -oP 'DEFAULT_IMAGE="[^"]+@\Ksha256:[a-f0-9]+' .pipelines/build/scripts/install-go.sh | head -1 || echo "NOT_FOUND")
+          BPF_CURRENT_DIGEST=$(grep -oP 'golang:[^@\s]+@\Ksha256:[a-f0-9]+' bpf-prog/ipv6-hp-bpf/linux.Dockerfile | head -1 || echo "NOT_FOUND")
 
           echo "current_digest=$CURRENT_DIGEST" >> "$GITHUB_OUTPUT"
           echo "install_digest=$INSTALL_DIGEST" >> "$GITHUB_OUTPUT"
@@ -349,12 +349,12 @@ jobs:
           # Re-resolve digest at point of use to avoid race with check job
           LATEST_DIGEST=$(skopeo inspect "docker://${MCR_IMG}:${GO_TAG}" --format "{{.Digest}}")
 
-          # Update install-go.sh DEFAULT_IMAGE with new digest
-          sed -i "s|DEFAULT_IMAGE=\"${MCR_IMG}@sha256:[a-f0-9]*\"|DEFAULT_IMAGE=\"${MCR_IMG}@${LATEST_DIGEST}\"|" \
+          # Update install-go.sh DEFAULT_IMAGE digest (preserve image:tag@sha form)
+          sed -i -E "s|(DEFAULT_IMAGE=\"${MCR_IMG}:[^\"@]+@)sha256:[a-f0-9]+|\1${LATEST_DIGEST}|" \
             .pipelines/build/scripts/install-go.sh
 
-          # Update bpf-prog Dockerfile
-          sed -i "s|${MCR_IMG}@sha256:[a-f0-9]*|${MCR_IMG}@${LATEST_DIGEST}|" \
+          # Update bpf-prog Dockerfile digest (preserve image:tag@sha form)
+          sed -i -E "s|(${MCR_IMG}:[^[:space:]\"@]+@)sha256:[a-f0-9]+|\1${LATEST_DIGEST}|" \
             bpf-prog/ipv6-hp-bpf/linux.Dockerfile
 
           # Regenerate template Dockerfiles (picks up new digest via skopeo)
@@ -420,16 +420,15 @@ jobs:
             go mod tidy -modfile=tools.go.mod
           fi
 
-          # 3. Update install-go.sh
-          sed -i "s|DEFAULT_IMAGE=\"${MCR_IMG}@sha256:[a-f0-9]*\"|DEFAULT_IMAGE=\"${MCR_IMG}@${LATEST_PATCH_DIGEST}\"|" \
+          # 3. Update install-go.sh digest (preserve image:tag@sha form)
+          sed -i -E "s|(DEFAULT_IMAGE=\"${MCR_IMG}:[^\"@]+@)sha256:[a-f0-9]+|\1${LATEST_PATCH_DIGEST}|" \
             .pipelines/build/scripts/install-go.sh
 
-          # 4. Update bpf-prog Dockerfile
-          sed -i "s|${MCR_IMG}@sha256:[a-f0-9]*|${MCR_IMG}@${LATEST_PATCH_DIGEST}|" \
-            bpf-prog/ipv6-hp-bpf/linux.Dockerfile
-          # Also update the tag reference if present (escape dots in GO_MINOR for sed regex)
+          # 4. Update bpf-prog Dockerfile tag then digest (image:tag@sha)
           GO_MINOR_ESC=$(echo "$GO_MINOR" | sed 's/\./\\./g')
           sed -i "s|golang:${GO_MINOR_ESC}[0-9.]*|golang:${LATEST_PATCH}|g" \
+            bpf-prog/ipv6-hp-bpf/linux.Dockerfile
+          sed -i -E "s|(${MCR_IMG}:[^[:space:]\"@]+@)sha256:[a-f0-9]+|\1${LATEST_PATCH_DIGEST}|" \
             bpf-prog/ipv6-hp-bpf/linux.Dockerfile
 
           # 5. Update npm Dockerfiles (tag only, no SHA pin)
@@ -806,10 +805,10 @@ jobs:
 
           MCR_IMG="$MCR_REPO"
 
-          sed -i "s|DEFAULT_IMAGE=\"${MCR_IMG}@sha256:[a-f0-9]*\"|DEFAULT_IMAGE=\"${MCR_IMG}@${LATEST_DIGEST}\"|" \
+          sed -i -E "s|(DEFAULT_IMAGE=\"${MCR_IMG}:[^\"@]+@)sha256:[a-f0-9]+|\1${LATEST_DIGEST}|" \
             .pipelines/build/scripts/install-go.sh
 
-          sed -i "s|${MCR_IMG}@sha256:[a-f0-9]*|${MCR_IMG}@${LATEST_DIGEST}|" \
+          sed -i -E "s|(${MCR_IMG}:[^[:space:]\"@]+@)sha256:[a-f0-9]+|\1${LATEST_DIGEST}|" \
             bpf-prog/ipv6-hp-bpf/linux.Dockerfile
 
           make dockerfiles
@@ -872,15 +871,14 @@ jobs:
               go mod tidy -modfile=tools.go.mod
             fi
 
-            sed -i "s|DEFAULT_IMAGE=\"${MCR_IMG}@sha256:[a-f0-9]*\"|DEFAULT_IMAGE=\"${MCR_IMG}@${LATEST_PATCH_DIGEST}\"|" \
+            sed -i -E "s|(DEFAULT_IMAGE=\"${MCR_IMG}:[^\"@]+@)sha256:[a-f0-9]+|\1${LATEST_PATCH_DIGEST}|" \
               .pipelines/build/scripts/install-go.sh
-
-            sed -i "s|${MCR_IMG}@sha256:[a-f0-9]*|${MCR_IMG}@${LATEST_PATCH_DIGEST}|" \
-              bpf-prog/ipv6-hp-bpf/linux.Dockerfile
 
             # Escape dots in GO_MINOR for sed regex
             GO_MINOR_ESC=$(echo "$GO_MINOR" | sed 's/\./\\./g')
             sed -i "s|golang:${GO_MINOR_ESC}[0-9.]*|golang:${LATEST_PATCH}|g" \
+              bpf-prog/ipv6-hp-bpf/linux.Dockerfile
+            sed -i -E "s|(${MCR_IMG}:[^[:space:]\"@]+@)sha256:[a-f0-9]+|\1${LATEST_PATCH_DIGEST}|" \
               bpf-prog/ipv6-hp-bpf/linux.Dockerfile
 
             for f in npm/linux.Dockerfile npm/windows.Dockerfile; do

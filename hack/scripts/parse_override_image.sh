@@ -5,7 +5,7 @@
 # Input -> output examples:
 # 1) image="__use-default__" => "false ACN <defaultName> <defaultVersion>"
 # 2) image="acnpublic.azurecr.io/azure-cns:v1.2.3" => "true ACN azure-cns v1.2.3"
-# 3) image="mcr.microsoft.com/containernetworking/azure-cni@sha256:abc" => "true MCR azure-cni @sha256:abc"
+# 3) image="mcr.microsoft.com/containernetworking/azure-cni:v1.2.3@sha256:abc" => "true MCR azure-cni v1.2.3@sha256:abc"
 parse_override_image() {
   image="$1"
   defaultName="$2"
@@ -38,8 +38,15 @@ parse_override_image() {
   name="$pathAndTag"
   version="$defaultVersion"
   if [[ "$pathAndTag" == *@* ]]; then
-    name="${pathAndTag%@*}"
-    version="@${pathAndTag##*@}"
+    beforeAt="${pathAndTag%@*}"
+    digest="@${pathAndTag##*@}"
+    if [[ "$beforeAt" == *:* ]]; then
+      name="${beforeAt%:*}"
+      version="${beforeAt##*:}${digest}"
+    else
+      name="$beforeAt"
+      version="$digest"
+    fi
   elif [[ "$pathAndTag" == *:* ]]; then
     name="${pathAndTag%:*}"
     version="${pathAndTag##*:}"

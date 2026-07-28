@@ -61,21 +61,25 @@ jobs:
           mkdir -p .github/image-digests
 
           # Go builder image (floating tag) — match 'export GO_IMG ?= ...' assignment
+          # Write image:tag@sha so Dependabot and make dockerfiles share one format.
           GO_TAG=$(grep -E '^(export[[:space:]]+)?GO_IMG' build/images.mk | head -1 | sed 's/.*golang://' | tr -d ' ')
+          GO_IMG="mcr.microsoft.com/oss/go/microsoft/golang:${GO_TAG}"
           echo "Resolving Go image tag: $GO_TAG"
-          skopeo inspect "docker://mcr.microsoft.com/oss/go/microsoft/golang:${GO_TAG}" \
-            --format "{{.Name}}@{{.Digest}}" > .github/image-digests/go-image.txt 2>/dev/null || true
+          echo "${GO_IMG}@$(skopeo inspect "docker://${GO_IMG}" --format "{{.Digest}}")" \
+            > .github/image-digests/go-image.txt 2>/dev/null || true
 
           # Azure Linux base images
-          skopeo inspect "docker://mcr.microsoft.com/azurelinux/base/core:3.0" \
-            --format "{{.Name}}@{{.Digest}}" > .github/image-digests/mariner-core.txt 2>/dev/null || true
-          skopeo inspect "docker://mcr.microsoft.com/azurelinux/distroless/base:3.0" \
-            --format "{{.Name}}@{{.Digest}}" > .github/image-digests/mariner-distroless.txt 2>/dev/null || true
+          MARINER_CORE_IMG="mcr.microsoft.com/azurelinux/base/core:3.0"
+          echo "${MARINER_CORE_IMG}@$(skopeo inspect "docker://${MARINER_CORE_IMG}" --format "{{.Digest}}")" \
+            > .github/image-digests/mariner-core.txt 2>/dev/null || true
+          MARINER_DISTROLESS_IMG="mcr.microsoft.com/azurelinux/distroless/base:3.0"
+          echo "${MARINER_DISTROLESS_IMG}@$(skopeo inspect "docker://${MARINER_DISTROLESS_IMG}" --format "{{.Digest}}")" \
+            > .github/image-digests/mariner-distroless.txt 2>/dev/null || true
 
           # Windows host process base image
-          skopeo inspect --override-os windows \
-            "docker://mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0" \
-            --format "{{.Name}}@{{.Digest}}" > .github/image-digests/windows-hpc.txt 2>/dev/null || true
+          WIN_HPC_IMG="mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0"
+          echo "${WIN_HPC_IMG}@$(skopeo inspect --override-os windows "docker://${WIN_HPC_IMG}" --format "{{.Digest}}")" \
+            > .github/image-digests/windows-hpc.txt 2>/dev/null || true
 
           echo "--- Pre-resolved digests ---"
           for f in .github/image-digests/*.txt; do
