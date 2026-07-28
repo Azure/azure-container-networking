@@ -109,9 +109,9 @@ type NICNetworkConfigStatus struct {
 	// SubnetAddressSpace is the subnet address space of the injected subnet
 	// +kubebuilder:validation:Optional
 	SubnetAddressSpace string `json:"subnetAddressSpace,omitempty"`
-	// AvailableIPs tracks the available IP addresses in this NC block
+	// ReservedIPs tracks the list of IP addresses that are reserved for this NIC
 	// +kubebuilder:validation:Optional
-	AvailableIPs []string `json:"availableIPs,omitempty"`
+	ReservedIPs []string `json:"reservedIPs,omitempty"`
 	// PodAllocations tracks the allocated IP addresses to pod mapping.
 	// +kubebuilder:validation:Optional
 	PodAllocations map[string]PodAllocation `json:"podAllocations,omitempty"`
