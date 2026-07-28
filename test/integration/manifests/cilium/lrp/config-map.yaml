@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: node-local-dns${POOL}
+  name: node-local-dns
   namespace: kube-system
 data:
   Corefile: |

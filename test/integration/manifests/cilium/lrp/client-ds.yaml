@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: lrp-test${POOL}
+  name: lrp-test
   namespace: default
 spec:
   selector:
@@ -12,9 +12,6 @@ spec:
       labels:
         lrp-test: "true"
     spec:
-      # Optional per-pool node selector. Rendered to "{}" (no constraint) unless
-      # POOL_NODESELECTOR is set (e.g. "agentpool: pool1").
-      nodeSelector: {${POOL_NODESELECTOR}}
       containers:
         - name: no-op
           command: ["sleep","3600"]
