@@ -198,10 +198,92 @@ var (
 var allTestNetworkPolicies = []*NPMNetworkPolicy{bothDirectionsNetPol, ingressNetPol, egressNetPol}
 
 func TestChainNames(t *testing.T) {
-	expectedName := fmt.Sprintf("AZURE-NPM-INGRESS-%s", util.Hash(bothDirectionsNetPol.PolicyKey))
+	expectedName := fmt.Sprintf("AZURE-NPM-INGRESS-%s", util.GetHashedChainName(bothDirectionsNetPol.PolicyKey))
 	require.Equal(t, expectedName, bothDirectionsNetPol.ingressChainName())
-	expectedName = fmt.Sprintf("AZURE-NPM-EGRESS-%s", util.Hash(bothDirectionsNetPol.PolicyKey))
+	expectedName = fmt.Sprintf("AZURE-NPM-EGRESS-%s", util.GetHashedChainName(bothDirectionsNetPol.PolicyKey))
 	require.Equal(t, expectedName, bothDirectionsNetPol.egressChainName())
+
+	// Chain names must stay within the 28-character iptables limit.
+	require.LessOrEqual(t, len(bothDirectionsNetPol.ingressChainName()), 28, "ingress chain name must fit the iptables limit")
+	require.LessOrEqual(t, len(bothDirectionsNetPol.egressChainName()), 28, "egress chain name must fit the iptables limit")
+
+	// Distinct policies must map to distinct chain names.
+	require.NotEqual(t, ingressNetPol.ingressChainName(), egressNetPol.ingressChainName(),
+		"distinct policies must produce distinct chain names")
+}
+
+// TestChainNameOwnershipGuard verifies the fail-closed invariant: an enforcement chain is
+// owned by a single policy, so a second, distinct policy that resolves to the same chain is
+// rejected before any dataplane change, the collision check records nothing until committed,
+// the owner (and re-checks) are accepted, and the chain is released on delete.
+func TestChainNameOwnershipGuard(t *testing.T) {
+	metrics.ReinitializeAll()
+	victim := ingressNetPol
+	chain := victim.ingressChainName()
+
+	// A different policy that resolves to the victim's chain is rejected (fail closed) and the
+	// existing owner is left untouched.
+	pMgr := NewPolicyManager(common.NewMockIOShim(nil), ipsetConfig)
+	pMgr.chainNameOwner[chain] = "some-other/policy"
+	_, err := pMgr.checkChainNameCollisions([]*NPMNetworkPolicy{victim})
+	require.Error(t, err, "a chain owned by a different policy must not be claimable")
+	require.Equal(t, "some-other/policy", pMgr.chainNameOwner[chain], "a rejected check must not overwrite the owner")
+
+	// The collision check records nothing on its own; ownership is recorded only by commit.
+	pMgr = NewPolicyManager(common.NewMockIOShim(nil), ipsetConfig)
+	pending, err := pMgr.checkChainNameCollisions([]*NPMNetworkPolicy{victim})
+	require.NoError(t, err, "check should succeed")
+	require.Equal(t, victim.PolicyKey, pending[chain], "check must return the pending owner")
+	require.Empty(t, pMgr.chainNameOwner, "check must not record ownership before commit")
+
+	pMgr.commitChainNames(pending)
+	require.Equal(t, victim.PolicyKey, pMgr.chainNameOwner[chain], "commit must record the owner")
+
+	// The owner re-checking its own chain is allowed (no-op).
+	_, err = pMgr.checkChainNameCollisions([]*NPMNetworkPolicy{victim})
+	require.NoError(t, err, "re-check by the same owner should be allowed")
+
+	// The chain is released on delete, so it can be owned again afterward.
+	pMgr.releaseChainNames(victim)
+	_, owned := pMgr.chainNameOwner[chain]
+	require.False(t, owned, "chain must be released on delete")
+}
+
+// TestChainNameNotCommittedOnApplyFailure verifies that when the dataplane apply fails, chain
+// ownership is never recorded, so a failed add can't leave a chain owned with no cached policy
+// to release it later.
+func TestChainNameNotCommittedOnApplyFailure(t *testing.T) {
+	metrics.ReinitializeAll()
+	testNetPol := testNetworkPolicy()
+	calls := GetAddPolicyFailureTestCalls(testNetPol)
+	ioshim := common.NewMockIOShim(calls)
+	defer ioshim.VerifyCalls(t, calls)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
+
+	require.Error(t, pMgr.AddPolicies([]*NPMNetworkPolicy{testNetPol}, nil))
+	_, cached := pMgr.GetPolicy(testNetPol.PolicyKey)
+	require.False(t, cached, "policy must not be cached after a failed add")
+	require.Empty(t, pMgr.chainNameOwner, "chain ownership must not be committed when the apply fails")
+}
+
+// TestChainNameOwnershipLifecycle verifies the happy path: a successful add commits chain
+// ownership in lock-step with the policy cache, and removing the policy releases it.
+func TestChainNameOwnershipLifecycle(t *testing.T) {
+	metrics.ReinitializeAll()
+	testNetPol := testNetworkPolicy()
+	calls := append(GetAddPolicyTestCalls(testNetPol), GetRemovePolicyTestCalls(testNetPol)...)
+	ioshim := common.NewMockIOShim(calls)
+	defer ioshim.VerifyCalls(t, calls)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
+	util.SetIptablesToNft()
+
+	require.NoError(t, pMgr.AddPolicies([]*NPMNetworkPolicy{testNetPol}, epList))
+	for _, chain := range chainNames([]*NPMNetworkPolicy{testNetPol}) {
+		require.Equal(t, testNetPol.PolicyKey, pMgr.chainNameOwner[chain], "successful add must commit chain ownership")
+	}
+
+	require.NoError(t, pMgr.RemovePolicy(testNetPol.PolicyKey))
+	require.Empty(t, pMgr.chainNameOwner, "removing the policy must release its chain ownership")
 }
 
 // similar to TestAddPolicy in policymanager.go except an error occurs

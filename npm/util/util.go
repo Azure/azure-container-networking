@@ -3,9 +3,11 @@
 package util
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"math/big"
 	"net"
 	"net/netip"
 	"os"
@@ -65,6 +67,29 @@ func Hash(s string) string {
 	h := fnv.New32a()
 	h.Write([]byte(s))
 	return fmt.Sprint(h.Sum32())
+}
+
+// hashedChainDigestLen is the number of base36 digest characters used as the variable part of
+// an iptables policy chain name. iptables limits a chain name to 28 characters, and the
+// longest chain prefix (IptablesAzureIngressPolicyChainPrefix, 17 chars) plus a dash already
+// uses 18, leaving 10 characters for the digest. A base36 digest across those 10 characters
+// spans ~51 bits, far wider than an fmt-formatted 32-bit Hash, so distinct policies are far
+// less likely to map to the same chain name.
+const hashedChainDigestLen = 10
+
+// GetHashedChainName returns a fixed-width base36 digest of name for use as the variable part
+// of an iptables policy chain name. It reduces a wide (SHA-256) digest modulo
+// 36^hashedChainDigestLen so every base36 digit is uniform (truncating the leading digits of
+// the full integer would be slightly biased), and left-pads so the result is always exactly
+// hashedChainDigestLen characters.
+func GetHashedChainName(name string) string {
+	sum := sha256.Sum256([]byte(name))
+	mod := new(big.Int).Exp(big.NewInt(36), big.NewInt(hashedChainDigestLen), nil)
+	digest := new(big.Int).Mod(new(big.Int).SetBytes(sum[:]), mod).Text(36)
+	if len(digest) < hashedChainDigestLen {
+		digest = strings.Repeat("0", hashedChainDigestLen-len(digest)) + digest
+	}
+	return digest[:hashedChainDigestLen]
 }
 
 // SortMap sorts the map by key in alphabetical order.

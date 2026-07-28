@@ -7,6 +7,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
+	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"github.com/Azure/azure-container-networking/npm/util/ioutil"
 	"k8s.io/klog"
 )
@@ -134,6 +135,38 @@ func chainNames(networkPolicies []*NPMNetworkPolicy) []string {
 		}
 	}
 	return chainNames
+}
+
+// checkChainNameCollisions validates that none of the given policies would take over an
+// enforcement chain owned by a different policy — whether already applied or another policy in
+// the same batch — so two distinct policies can never resolve to the same chain. It records
+// nothing (the caller commits ownership only after the dataplane apply succeeds) and returns
+// the chain-name -> policy-key claims to commit. Re-claiming by the same owner is allowed.
+// Callers must hold the policyMap lock.
+func (pMgr *PolicyManager) checkChainNameCollisions(networkPolicies []*NPMNetworkPolicy) (map[string]string, error) {
+	pending := make(map[string]string)
+	for _, networkPolicy := range networkPolicies {
+		for _, chain := range chainNames([]*NPMNetworkPolicy{networkPolicy}) {
+			if owner, ok := pMgr.chainNameOwner[chain]; ok && owner != networkPolicy.PolicyKey {
+				return nil, npmerrors.Errorf(npmerrors.AddPolicy, false,
+					fmt.Sprintf("policy %q resolves to chain %s already owned by policy %q", networkPolicy.PolicyKey, chain, owner))
+			}
+			if owner, ok := pending[chain]; ok && owner != networkPolicy.PolicyKey {
+				return nil, npmerrors.Errorf(npmerrors.AddPolicy, false,
+					fmt.Sprintf("policies %q and %q both resolve to chain %s", networkPolicy.PolicyKey, owner, chain))
+			}
+			pending[chain] = networkPolicy.PolicyKey
+		}
+	}
+	return pending, nil
+}
+
+// releaseChainNames drops a policy's chain-name ownership so the chains can be reused. Callers
+// must hold the policyMap lock.
+func (pMgr *PolicyManager) releaseChainNames(networkPolicy *NPMNetworkPolicy) {
+	for _, chain := range chainNames([]*NPMNetworkPolicy{networkPolicy}) {
+		delete(pMgr.chainNameOwner, chain)
+	}
 }
 
 func (pMgr *PolicyManager) newCreatorWithChains(chainNames []string) *ioutil.FileCreator {

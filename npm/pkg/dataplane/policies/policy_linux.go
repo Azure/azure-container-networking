@@ -45,7 +45,7 @@ func (networkPolicy *NPMNetworkPolicy) ingressChainName() string {
 }
 
 func (networkPolicy *NPMNetworkPolicy) chainName(prefix string) string {
-	policyHash := util.Hash(networkPolicy.PolicyKey)
+	policyHash := util.GetHashedChainName(networkPolicy.PolicyKey)
 	return joinWithDash(prefix, policyHash)
 }
 
