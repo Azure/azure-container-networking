@@ -1,0 +1,201 @@
+name: 'FAA Draft PR'
+
+# Opens a draft pull request carrying the code change that resolves a CI failure.
+# The Failure Analysis Agent (running in Azure DevOps) triggers this via
+# repository_dispatch; a maintainer can also run it manually via workflow_dispatch
+# for smoke testing. The job creates the branch, applies the LLM-produced unified
+# diff, and opens the draft PR using the per-run GITHUB_TOKEN so no push/PR
+# credential ever leaves GitHub. If the patch does not apply, the draft PR is still
+# opened with the analysis and the raw patch embedded for manual application.
+
+on:
+  workflow_dispatch:
+    inputs:
+      fingerprint:
+        description: 'Incident fingerprint'
+        required: true
+        type: string
+      branch:
+        description: 'Head branch to create (must start with faa/fix-)'
+        required: true
+        type: string
+      baseBranch:
+        description: 'Base branch for the PR'
+        required: false
+        default: 'master'
+        type: string
+      baseSha:
+        description: 'Base commit SHA to branch from (40-char hex)'
+        required: true
+        type: string
+      title:
+        description: 'Draft PR title'
+        required: true
+        type: string
+      body:
+        description: 'Analysis report markdown used as the PR body'
+        required: true
+        type: string
+      patch:
+        description: 'base64-encoded unified diff to apply (empty for analysis-only)'
+        required: false
+        default: ''
+        type: string
+  repository_dispatch:
+    types: [faa-draft-pr]
+
+permissions: {}
+
+concurrency:
+  group: faa-draft-pr-${{ github.event.inputs.branch || github.event.client_payload.branch }}
+  cancel-in-progress: false
+
+jobs:
+  open-draft-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Resolve and validate inputs
+        id: in
+        env:
+          IN_FINGERPRINT: ${{ github.event.inputs.fingerprint || github.event.client_payload.fingerprint }}
+          IN_BRANCH: ${{ github.event.inputs.branch || github.event.client_payload.branch }}
+          IN_BASE_BRANCH: ${{ github.event.inputs.baseBranch || github.event.client_payload.baseBranch }}
+          IN_BASE_SHA: ${{ github.event.inputs.baseSha || github.event.client_payload.baseSha }}
+          IN_TITLE: ${{ github.event.inputs.title || github.event.client_payload.title }}
+          IN_BODY: ${{ github.event.inputs.body || github.event.client_payload.body }}
+          IN_PATCH: ${{ github.event.inputs.patch || github.event.client_payload.patch }}
+        run: |
+          set -euo pipefail
+
+          require() {
+            if [ -z "${2:-}" ]; then
+              echo "::error::missing required field: $1"
+              exit 1
+            fi
+          }
+          require fingerprint "$IN_FINGERPRINT"
+          require branch      "$IN_BRANCH"
+          require baseBranch  "$IN_BASE_BRANCH"
+          require baseSha     "$IN_BASE_SHA"
+          require title       "$IN_TITLE"
+          require body        "$IN_BODY"
+
+          case "$IN_BRANCH" in
+            faa/fix-*) ;;
+            *) echo "::error::branch must start with faa/fix-: $IN_BRANCH"; exit 1 ;;
+          esac
+
+          if ! printf '%s' "$IN_BASE_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "::error::baseSha must be a 40-char hex commit SHA: $IN_BASE_SHA"
+            exit 1
+          fi
+
+          # Persist the analysis body (PR body) to a runner file to avoid quoting
+          # issues with multiline markdown.
+          printf '%s' "$IN_BODY" > "$RUNNER_TEMP/faa-body.md"
+
+          # Decode the patch (base64, byte-exact transport). An empty patch is
+          # allowed and routes to the analysis-only fallback in the next step.
+          : > "$RUNNER_TEMP/faa.patch"
+          if [ -n "$IN_PATCH" ]; then
+            if ! printf '%s' "$IN_PATCH" | base64 -d > "$RUNNER_TEMP/faa.patch" 2>/dev/null; then
+              echo "::error::patch is not valid base64"
+              exit 1
+            fi
+          fi
+
+          {
+            echo "fingerprint=$IN_FINGERPRINT"
+            echo "branch=$IN_BRANCH"
+            echo "base_branch=$IN_BASE_BRANCH"
+            echo "base_sha=$IN_BASE_SHA"
+            echo "title=$IN_TITLE"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ steps.in.outputs.base_sha }}
+          persist-credentials: false
+
+      - name: Configure git credentials
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+      - name: Open draft PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ steps.in.outputs.branch }}
+          BASE_BRANCH: ${{ steps.in.outputs.base_branch }}
+          BASE_SHA: ${{ steps.in.outputs.base_sha }}
+          TITLE: ${{ steps.in.outputs.title }}
+        run: |
+          set -euo pipefail
+          BODY_FILE="$RUNNER_TEMP/faa-body.md"
+          PATCH_FILE="$RUNNER_TEMP/faa.patch"
+          PR_BODY_FILE="$RUNNER_TEMP/faa-pr-body.md"
+
+          # Idempotency: skip if a draft PR for this head branch is already open.
+          EXISTING=$(gh pr list --repo "$REPO" --state open --head "$BRANCH" --json number --jq 'length')
+          if [ "$EXISTING" != "0" ]; then
+            echo "draft PR already open for $BRANCH; nothing to do"
+            exit 0
+          fi
+
+          cp "$BODY_FILE" "$PR_BODY_FILE"
+
+          # If the head branch already exists on the remote (and no open PR), open a
+          # draft PR from it as-is rather than rewriting history.
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "branch $BRANCH already exists; opening draft PR from it"
+          else
+            git switch -c "$BRANCH"
+
+            # Try to apply the LLM patch: strict first, then 3-way. A clean apply
+            # stages the real code change; anything else routes to the fallback.
+            APPLIED=0
+            if [ -s "$PATCH_FILE" ]; then
+              if git apply --index "$PATCH_FILE" 2>/dev/null || git apply --3way "$PATCH_FILE" 2>/dev/null; then
+                APPLIED=1
+              fi
+            fi
+
+            if [ "$APPLIED" = "1" ] && ! git diff --cached --quiet; then
+              # Clean apply: commit only the code change; analysis stays in the body.
+              git commit -m "fix: ${TITLE}"
+            else
+              # No clean patch (empty, failed, or nothing staged): discard any
+              # partial/conflicted state, open an analysis-only draft PR, and embed
+              # the raw patch in the body for manual application.
+              git reset --hard "$BASE_SHA"
+              if [ -s "$PATCH_FILE" ]; then
+                {
+                  echo
+                  echo '---'
+                  echo '> ⚠️ The automated patch did not apply cleanly. Apply it manually:'
+                  echo
+                  echo '```diff'
+                  cat "$PATCH_FILE"
+                  echo '```'
+                } >> "$PR_BODY_FILE"
+              fi
+              git commit --allow-empty -m "fix: ${TITLE}"
+            fi
+
+            git push origin "$BRANCH"
+          fi
+
+          gh pr create \
+            --repo "$REPO" \
+            --draft \
+            --head "$BRANCH" \
+            --base "$BASE_BRANCH" \
+            --title "$TITLE" \
+            --body-file "$PR_BODY_FILE"
