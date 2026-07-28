@@ -76,6 +76,65 @@ var (
 	nestedPodLabelList = NewIPSetMetadata("test-nested-pod-label-list", NestedLabelOfPod)
 )
 
+// TestAddReferenceCIDRSingleOwner checks a CIDR set is bound to one netpol: the owner
+// (and re-applies) are accepted, a different netpol is rejected.
+func TestAddReferenceCIDRSingleOwner(t *testing.T) {
+	metrics.ReinitializeAll()
+	iMgr := NewIPSetManager(applyAlwaysCfg, common.NewMockIOShim(nil))
+	cidrSet := NewIPSetMetadata("a-in-ns-b:in-ns:c-0-0IN", CIDRBlocks)
+
+	require.NoError(t, iMgr.AddReference(cidrSet, "c/a-in-ns-b", NetPolType)) // owner
+	require.NoError(t, iMgr.AddReference(cidrSet, "c/a-in-ns-b", NetPolType)) // owner re-apply
+	require.Error(t, iMgr.AddReference(cidrSet, "b-in-ns-c/a", NetPolType))   // different netpol
+}
+
+// TestAddReferenceCIDROwnerReleasedOnDelete checks that once the sole owner deletes its
+// reference, a different netpol may take ownership (the guard uses live ownership).
+func TestAddReferenceCIDROwnerReleasedOnDelete(t *testing.T) {
+	metrics.ReinitializeAll()
+	iMgr := NewIPSetManager(applyAlwaysCfg, common.NewMockIOShim(nil))
+	cidrSet := NewIPSetMetadata("a-in-ns-b:in-ns:c-0-0IN", CIDRBlocks)
+
+	require.NoError(t, iMgr.AddReference(cidrSet, "c/a-in-ns-b", NetPolType)) // first owner
+	require.Error(t, iMgr.AddReference(cidrSet, "b-in-ns-c/a", NetPolType))   // rejected while owned
+	require.NoError(t, iMgr.DeleteReference(cidrSet.GetPrefixName(), "c/a-in-ns-b", NetPolType))
+	require.NoError(t, iMgr.AddReference(cidrSet, "b-in-ns-c/a", NetPolType)) // now accepted
+}
+
+// TestCIDRSetsDoNotMergeInManager applies two policies with similar names to a single
+// IPSetManager and asserts the two CIDR sets stay distinct, each holding only its own
+// members and owned only by its own netpol.
+func TestCIDRSetsDoNotMergeInManager(t *testing.T) {
+	metrics.ReinitializeAll()
+	iMgr := NewIPSetManager(applyAlwaysCfg, common.NewMockIOShim(nil))
+
+	// Post-fix names for policy c/a-in-ns-b and policy b-in-ns-c/a (would share a name pre-fix).
+	first := NewIPSetMetadata("a-in-ns-b:in-ns:c-0-0IN", CIDRBlocks)
+	second := NewIPSetMetadata("a:in-ns:b-in-ns-c-0-0IN", CIDRBlocks)
+	require.NotEqual(t, first.GetHashedName(), second.GetHashedName())
+
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{first}, "198.51.100.10", "c/a-in-ns-b"))
+	require.NoError(t, iMgr.AddReference(first, "c/a-in-ns-b", NetPolType))
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{second}, "0.0.0.0/1", "b-in-ns-c/a"))
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{second}, "128.0.0.0/1", "b-in-ns-c/a"))
+	require.NoError(t, iMgr.AddReference(second, "b-in-ns-c/a", NetPolType))
+
+	firstSet := iMgr.GetIPSet(first.GetPrefixName())
+	secondSet := iMgr.GetIPSet(second.GetPrefixName())
+	require.NotNil(t, firstSet)
+	require.NotNil(t, secondSet)
+
+	// Each set holds only its own members; neither carries the other's.
+	require.Equal(t, map[string]string{"198.51.100.10": "c/a-in-ns-b"}, firstSet.IPPodKey)
+	require.Len(t, secondSet.IPPodKey, 2)
+	require.NotContains(t, secondSet.IPPodKey, "198.51.100.10")
+	require.NotContains(t, firstSet.IPPodKey, "0.0.0.0/1")
+
+	// Each set is owned only by its own netpol.
+	require.Equal(t, map[string]struct{}{"c/a-in-ns-b": {}}, firstSet.NetPolReference)
+	require.Equal(t, map[string]struct{}{"b-in-ns-c/a": {}}, secondSet.NetPolReference)
+}
+
 func TestReconcileCache(t *testing.T) {
 	type args struct {
 		cfg          *IPSetManagerCfg
