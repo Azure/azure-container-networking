@@ -27,7 +27,7 @@ PUBLIC_IP_ID         ?= /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/
 PUBLIC_IPv4          ?= $(PUBLIC_IP_ID)/$(IP_PREFIX)-$(CLUSTER)-v4
 PUBLIC_IPv6          ?= $(PUBLIC_IP_ID)/$(IP_PREFIX)-$(CLUSTER)-v6
 KUBE_PROXY_JSON_PATH ?= ./kube-proxy.json
-LTS					 ?= true
+LTS					 ?= auto
 ACNS				 ?= false
 GATEWAYAPI			 ?= false
 
@@ -38,9 +38,17 @@ CLUSTER    ?= $(USER)-$(REGION)
 GROUP      ?= $(CLUSTER)
 VNET       ?= $(CLUSTER)
 
-# Long Term Support (LTS)
+# LTS: auto (default) adds the LTS support plan + premium tier only for LTS-only
+# minors (supportPlan has AKSLongTermSupport but not KubernetesOfficial, detected
+# via az); true/false force it on/off.
+LTS_PREMIUM_ARGS = --k8s-support-plan AKSLongTermSupport --tier premium
+K8S_MINOR = $(word 1,$(subst ., ,$(K8S_VER))).$(word 2,$(subst ., ,$(K8S_VER)))
 ifeq ($(LTS),true)
-	LTS_ARGS=--k8s-support-plan AKSLongTermSupport --tier premium
+	LTS_ARGS=$(LTS_PREMIUM_ARGS)
+else ifeq ($(LTS),auto)
+	LTS_ARGS=$(shell $(AZCLI) aks get-versions --location $(REGION) \
+		--query "values[?contains(capabilities.supportPlan,'AKSLongTermSupport') && !contains(capabilities.supportPlan,'KubernetesOfficial')].version" \
+		-o tsv 2>/dev/null | grep -Fqx "$(K8S_MINOR)" && echo "$(LTS_PREMIUM_ARGS)")
 else
 	LTS_ARGS=
 endif
