@@ -76,14 +76,6 @@ func (f *fakeHNS) DeleteNetworkByIDHnsV2(networkID string) error {
 	return f.deleteNetErr
 }
 
-// swapHNS replaces the package-level hns var with fake for the duration of the test.
-func swapHNS(t *testing.T, fake hnsEndpointClient) {
-	t.Helper()
-	prev := hns
-	hns = fake
-	t.Cleanup(func() { hns = prev })
-}
-
 func endpointResp(entries map[string]*restserver.IPInfo) *restserver.GetEndpointResponse {
 	return &restserver.GetEndpointResponse{
 		EndpointInfo: restserver.EndpointInfo{IfnameToIPMap: entries},
@@ -92,9 +84,8 @@ func endpointResp(entries map[string]*restserver.IPInfo) *restserver.GetEndpoint
 
 func TestReleaseIPs_GetEndpointError_StillReleasesIPs(t *testing.T) {
 	fake := &fakeHNS{}
-	swapHNS(t, fake)
 	cli := &fakeReleaseIPsClient{getErr: errors.New("no state")}
-	em := WithPlatformReleaseIPsManager(cli)
+	em := WithPlatformReleaseIPsManager(cli, WithHNSClient(fake))
 
 	err := em.ReleaseIPs(context.Background(), cns.IPConfigsRequest{InfraContainerID: "c1"})
 
@@ -109,13 +100,12 @@ func TestReleaseIPs_GetEndpointError_StillReleasesIPs(t *testing.T) {
 
 func TestReleaseIPs_HnsEndpointIDPresent_DeletesByID(t *testing.T) {
 	fake := &fakeHNS{}
-	swapHNS(t, fake)
 	cli := &fakeReleaseIPsClient{
 		getResp: endpointResp(map[string]*restserver.IPInfo{
 			"eth0": {HnsEndpointID: "ep-123"},
 		}),
 	}
-	em := WithPlatformReleaseIPsManager(cli)
+	em := WithPlatformReleaseIPsManager(cli, WithHNSClient(fake))
 
 	err := em.ReleaseIPs(context.Background(), cns.IPConfigsRequest{InfraContainerID: "c1"})
 
@@ -128,7 +118,6 @@ func TestReleaseIPs_HnsEndpointIDPresent_DeletesByID(t *testing.T) {
 
 func TestReleaseIPs_HnsEndpointIDEmpty_LooksUpByIP(t *testing.T) {
 	fake := &fakeHNS{lookupID: "ep-from-ip"}
-	swapHNS(t, fake)
 	v4 := []net.IPNet{{IP: net.IPv4(10, 0, 0, 1), Mask: net.CIDRMask(24, 32)}}
 	v6 := []net.IPNet{{IP: net.ParseIP("fe80::1"), Mask: net.CIDRMask(64, 128)}}
 	cli := &fakeReleaseIPsClient{
@@ -136,7 +125,7 @@ func TestReleaseIPs_HnsEndpointIDEmpty_LooksUpByIP(t *testing.T) {
 			"eth0": {IPv4: v4, IPv6: v6},
 		}),
 	}
-	em := WithPlatformReleaseIPsManager(cli)
+	em := WithPlatformReleaseIPsManager(cli, WithHNSClient(fake))
 
 	err := em.ReleaseIPs(context.Background(), cns.IPConfigsRequest{InfraContainerID: "c1"})
 
@@ -150,13 +139,12 @@ func TestReleaseIPs_HnsEndpointIDEmpty_LooksUpByIP(t *testing.T) {
 
 func TestReleaseIPs_LookupByIPError_StillReleasesIPs(t *testing.T) {
 	fake := &fakeHNS{lookupErr: errors.New("lookup failed")}
-	swapHNS(t, fake)
 	cli := &fakeReleaseIPsClient{
 		getResp: endpointResp(map[string]*restserver.IPInfo{
 			"eth0": {IPv4: []net.IPNet{{IP: net.IPv4(10, 0, 0, 1), Mask: net.CIDRMask(24, 32)}}},
 		}),
 	}
-	em := WithPlatformReleaseIPsManager(cli)
+	em := WithPlatformReleaseIPsManager(cli, WithHNSClient(fake))
 
 	err := em.ReleaseIPs(context.Background(), cns.IPConfigsRequest{})
 
@@ -167,13 +155,12 @@ func TestReleaseIPs_LookupByIPError_StillReleasesIPs(t *testing.T) {
 
 func TestReleaseIPs_DeleteEndpointError_StillReleasesIPs(t *testing.T) {
 	fake := &fakeHNS{deleteEPErr: errors.New("delete failed")}
-	swapHNS(t, fake)
 	cli := &fakeReleaseIPsClient{
 		getResp: endpointResp(map[string]*restserver.IPInfo{
 			"eth0": {HnsEndpointID: "ep-1"},
 		}),
 	}
-	em := WithPlatformReleaseIPsManager(cli)
+	em := WithPlatformReleaseIPsManager(cli, WithHNSClient(fake))
 
 	err := em.ReleaseIPs(context.Background(), cns.IPConfigsRequest{})
 
@@ -185,13 +172,12 @@ func TestReleaseIPs_DeleteEndpointError_StillReleasesIPs(t *testing.T) {
 
 func TestReleaseIPs_DelegatedVMNIC_DeletesNetwork(t *testing.T) {
 	fake := &fakeHNS{}
-	swapHNS(t, fake)
 	cli := &fakeReleaseIPsClient{
 		getResp: endpointResp(map[string]*restserver.IPInfo{
 			"eth0": {HnsEndpointID: "ep-1", HnsNetworkID: "net-1", NICType: cns.DelegatedVMNIC},
 		}),
 	}
-	em := WithPlatformReleaseIPsManager(cli)
+	em := WithPlatformReleaseIPsManager(cli, WithHNSClient(fake))
 
 	err := em.ReleaseIPs(context.Background(), cns.IPConfigsRequest{})
 
@@ -202,13 +188,12 @@ func TestReleaseIPs_DelegatedVMNIC_DeletesNetwork(t *testing.T) {
 
 func TestReleaseIPs_NonDelegated_SkipsNetworkDelete(t *testing.T) {
 	fake := &fakeHNS{}
-	swapHNS(t, fake)
 	cli := &fakeReleaseIPsClient{
 		getResp: endpointResp(map[string]*restserver.IPInfo{
 			"eth0": {HnsEndpointID: "ep-1", HnsNetworkID: "net-1", NICType: cns.InfraNIC},
 		}),
 	}
-	em := WithPlatformReleaseIPsManager(cli)
+	em := WithPlatformReleaseIPsManager(cli, WithHNSClient(fake))
 
 	err := em.ReleaseIPs(context.Background(), cns.IPConfigsRequest{})
 
@@ -219,13 +204,12 @@ func TestReleaseIPs_NonDelegated_SkipsNetworkDelete(t *testing.T) {
 
 func TestReleaseIPs_DelegatedVMNIC_EmptyNetworkID_SkipsNetworkDelete(t *testing.T) {
 	fake := &fakeHNS{}
-	swapHNS(t, fake)
 	cli := &fakeReleaseIPsClient{
 		getResp: endpointResp(map[string]*restserver.IPInfo{
 			"eth0": {HnsEndpointID: "ep-1", NICType: cns.DelegatedVMNIC},
 		}),
 	}
-	em := WithPlatformReleaseIPsManager(cli)
+	em := WithPlatformReleaseIPsManager(cli, WithHNSClient(fake))
 
 	err := em.ReleaseIPs(context.Background(), cns.IPConfigsRequest{})
 
@@ -235,14 +219,13 @@ func TestReleaseIPs_DelegatedVMNIC_EmptyNetworkID_SkipsNetworkDelete(t *testing.
 
 func TestReleaseIPs_MultipleInterfaces_AllProcessed(t *testing.T) {
 	fake := &fakeHNS{}
-	swapHNS(t, fake)
 	cli := &fakeReleaseIPsClient{
 		getResp: endpointResp(map[string]*restserver.IPInfo{
 			"eth0": {HnsEndpointID: "ep-a"},
 			"eth1": {HnsEndpointID: "ep-b", HnsNetworkID: "net-b", NICType: cns.DelegatedVMNIC},
 		}),
 	}
-	em := WithPlatformReleaseIPsManager(cli)
+	em := WithPlatformReleaseIPsManager(cli, WithHNSClient(fake))
 
 	err := em.ReleaseIPs(context.Background(), cns.IPConfigsRequest{})
 
@@ -253,13 +236,12 @@ func TestReleaseIPs_MultipleInterfaces_AllProcessed(t *testing.T) {
 
 func TestReleaseIPs_ReleaseError_Wrapped(t *testing.T) {
 	fake := &fakeHNS{}
-	swapHNS(t, fake)
 	sentinel := errors.New("cns release failed")
 	cli := &fakeReleaseIPsClient{
 		getResp:    endpointResp(map[string]*restserver.IPInfo{}),
 		releaseErr: sentinel,
 	}
-	em := WithPlatformReleaseIPsManager(cli)
+	em := WithPlatformReleaseIPsManager(cli, WithHNSClient(fake))
 
 	err := em.ReleaseIPs(context.Background(), cns.IPConfigsRequest{InfraContainerID: "c1"})
 
