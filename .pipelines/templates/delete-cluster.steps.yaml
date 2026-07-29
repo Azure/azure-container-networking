@@ -127,3 +127,5 @@ steps:
         echo "==> All ${#CLUSTERS[@]} cluster deletes accepted by Azure."
     displayName: Delete Clusters (async + verify)
     condition: always()
+    retryCountOnTaskFailure: 1
+    continueOnError: ${{ contains(variables['Build.SourceBranch'], 'gh-readonly-queue') }}
