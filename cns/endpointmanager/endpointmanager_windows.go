@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/pkg/errors"
 )
@@ -29,19 +28,19 @@ func (em *EndpointManager) deleteEndpoint(ctx context.Context, containerid strin
 		hnsEndpointID := ipInfo.HnsEndpointID
 		// we need to get the HNSENdpoint via the IP address if the HNSEndpointID is not present in the statefile
 		if ipInfo.HnsEndpointID == "" {
-			if hnsEndpointID, err = hnsclient.GetHNSEndpointbyIP(ipInfo.IPv4, ipInfo.IPv6); err != nil {
+			if hnsEndpointID, err = hns.GetHNSEndpointbyIP(ipInfo.IPv4, ipInfo.IPv6); err != nil {
 				return errors.Wrap(err, "failed to find HNS endpoint with id")
 			}
 		}
 		logger.Printf("deleting HNS Endpoint with id %v", hnsEndpointID)
-		if err := hnsclient.DeleteHNSEndpointbyID(hnsEndpointID); err != nil {
+		if err := hns.DeleteHNSEndpointbyID(hnsEndpointID); err != nil {
 			return errors.Wrap(err, "failed to delete HNS endpoint with id "+ipInfo.HnsEndpointID)
 		}
 
 		// For SwiftV2 delegated NICs, each endpoint gets its own dedicated transparent HNS network.
 		// In order to properly clean up all the resources for this endpoint, we must also delete the network.
 		if ipInfo.HnsNetworkID != "" && ipInfo.NICType == cns.DelegatedVMNIC {
-			if err := hnsclient.DeleteNetworkByIDHnsV2(ipInfo.HnsNetworkID); err != nil {
+			if err := hns.DeleteNetworkByIDHnsV2(ipInfo.HnsNetworkID); err != nil {
 				return errors.Wrap(err, "failed to delete HNS network with id "+ipInfo.HnsNetworkID)
 			}
 		}
