@@ -1,4 +1,15 @@
-pr: none
+pr: 
+  branches:
+    include:
+      - master
+      - release/*
+  paths:
+    include:
+      - cni/*
+      - cns/*
+      - npm/*
+      - .pipelines/cni/*
+      
 trigger:
   tags:
     include:
