@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var errReleaseBoom = errors.New("endpointmanager test: release boom")
+
 type fakeReleaseIPsClient struct {
 	releaseErr error
 	gotReq     cns.IPConfigsRequest
@@ -42,13 +44,12 @@ func TestReleaseIPs_Success(t *testing.T) {
 }
 
 func TestReleaseIPs_WrapsError(t *testing.T) {
-	sentinel := errors.New("boom")
-	f := &fakeReleaseIPsClient{releaseErr: sentinel}
+	f := &fakeReleaseIPsClient{releaseErr: errReleaseBoom}
 	em := WithPlatformReleaseIPsManager(f)
 
 	err := em.ReleaseIPs(context.Background(), cns.IPConfigsRequest{})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to release IP from CNS")
-	assert.ErrorIs(t, err, sentinel)
+	require.ErrorIs(t, err, errReleaseBoom)
 }

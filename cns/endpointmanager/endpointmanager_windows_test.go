@@ -16,8 +16,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testIfName        = "eth0"
+	testEndpointID    = "ep-1"
+	testHNSNetworkID  = "net-1"
+	testContainerID   = "c1"
+	testLookupHNSID   = "ep-from-ip"
+	testExplicitHNSID = "ep-123"
+)
+
+var (
+	errGetEndpointFailed = errors.New("endpointmanager test: get endpoint failed")
+	errLookupFailed      = errors.New("endpointmanager test: lookup failed")
+	errDeleteFailed      = errors.New("endpointmanager test: delete failed")
+	errCNSReleaseFailed  = errors.New("endpointmanager test: cns release failed")
+)
+
 func TestMain(m *testing.M) {
-	logger.InitLogger("endpointmanager-test", 0, 0, "./")
+	logger.InitLogger("endpointmanager-test", 0, 0, "./") //nolint:staticcheck // tests still exercise code using the deprecated global logger
 	os.Exit(m.Run())
 }
 
@@ -46,8 +62,8 @@ func (f *fakeReleaseIPsClient) GetEndpoint(_ context.Context, containerID string
 
 type fakeHNS struct {
 	// return values
-	lookupID  string
-	lookupErr error
+	lookupID     string
+	lookupErr    error
 	deleteEPErr  error
 	deleteNetErr error
 
@@ -93,14 +109,14 @@ func endpointResp(entries map[string]*restserver.IPInfo) *restserver.GetEndpoint
 func TestReleaseIPs_GetEndpointError_StillReleasesIPs(t *testing.T) {
 	fake := &fakeHNS{}
 	swapHNS(t, fake)
-	cli := &fakeReleaseIPsClient{getErr: errors.New("no state")}
+	cli := &fakeReleaseIPsClient{getErr: errGetEndpointFailed}
 	em := WithPlatformReleaseIPsManager(cli)
 
-	err := em.ReleaseIPs(context.Background(), cns.IPConfigsRequest{InfraContainerID: "c1"})
+	err := em.ReleaseIPs(context.Background(), cns.IPConfigsRequest{InfraContainerID: testContainerID})
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, cli.getCalls)
-	assert.Equal(t, []string{"c1"}, cli.getContainerIDs)
+	assert.Equal(t, []string{testContainerID}, cli.getContainerIDs)
 	assert.Equal(t, 1, cli.releaseCalls)
 	assert.Equal(t, 0, fake.lookupCalls)
 	assert.Empty(t, fake.deleteEPIDs)
@@ -112,48 +128,48 @@ func TestReleaseIPs_HnsEndpointIDPresent_DeletesByID(t *testing.T) {
 	swapHNS(t, fake)
 	cli := &fakeReleaseIPsClient{
 		getResp: endpointResp(map[string]*restserver.IPInfo{
-			"eth0": {HnsEndpointID: "ep-123"},
+			testIfName: {HnsEndpointID: testExplicitHNSID},
 		}),
 	}
 	em := WithPlatformReleaseIPsManager(cli)
 
-	err := em.ReleaseIPs(context.Background(), cns.IPConfigsRequest{InfraContainerID: "c1"})
+	err := em.ReleaseIPs(context.Background(), cns.IPConfigsRequest{InfraContainerID: testContainerID})
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, fake.lookupCalls, "GetHNSEndpointbyIP must not be called when HnsEndpointID is set")
-	assert.Equal(t, []string{"ep-123"}, fake.deleteEPIDs)
+	assert.Equal(t, []string{testExplicitHNSID}, fake.deleteEPIDs)
 	assert.Empty(t, fake.deleteNetIDs)
 	assert.Equal(t, 1, cli.releaseCalls)
 }
 
 func TestReleaseIPs_HnsEndpointIDEmpty_LooksUpByIP(t *testing.T) {
-	fake := &fakeHNS{lookupID: "ep-from-ip"}
+	fake := &fakeHNS{lookupID: testLookupHNSID}
 	swapHNS(t, fake)
 	v4 := []net.IPNet{{IP: net.IPv4(10, 0, 0, 1), Mask: net.CIDRMask(24, 32)}}
 	v6 := []net.IPNet{{IP: net.ParseIP("fe80::1"), Mask: net.CIDRMask(64, 128)}}
 	cli := &fakeReleaseIPsClient{
 		getResp: endpointResp(map[string]*restserver.IPInfo{
-			"eth0": {IPv4: v4, IPv6: v6},
+			testIfName: {IPv4: v4, IPv6: v6},
 		}),
 	}
 	em := WithPlatformReleaseIPsManager(cli)
 
-	err := em.ReleaseIPs(context.Background(), cns.IPConfigsRequest{InfraContainerID: "c1"})
+	err := em.ReleaseIPs(context.Background(), cns.IPConfigsRequest{InfraContainerID: testContainerID})
 
 	require.NoError(t, err)
 	require.Equal(t, 1, fake.lookupCalls)
 	assert.Equal(t, v4, fake.lookupV4[0])
 	assert.Equal(t, v6, fake.lookupV6[0])
-	assert.Equal(t, []string{"ep-from-ip"}, fake.deleteEPIDs)
+	assert.Equal(t, []string{testLookupHNSID}, fake.deleteEPIDs)
 	assert.Equal(t, 1, cli.releaseCalls)
 }
 
 func TestReleaseIPs_LookupByIPError_StillReleasesIPs(t *testing.T) {
-	fake := &fakeHNS{lookupErr: errors.New("lookup failed")}
+	fake := &fakeHNS{lookupErr: errLookupFailed}
 	swapHNS(t, fake)
 	cli := &fakeReleaseIPsClient{
 		getResp: endpointResp(map[string]*restserver.IPInfo{
-			"eth0": {IPv4: []net.IPNet{{IP: net.IPv4(10, 0, 0, 1), Mask: net.CIDRMask(24, 32)}}},
+			testIfName: {IPv4: []net.IPNet{{IP: net.IPv4(10, 0, 0, 1), Mask: net.CIDRMask(24, 32)}}},
 		}),
 	}
 	em := WithPlatformReleaseIPsManager(cli)
@@ -166,11 +182,11 @@ func TestReleaseIPs_LookupByIPError_StillReleasesIPs(t *testing.T) {
 }
 
 func TestReleaseIPs_DeleteEndpointError_StillReleasesIPs(t *testing.T) {
-	fake := &fakeHNS{deleteEPErr: errors.New("delete failed")}
+	fake := &fakeHNS{deleteEPErr: errDeleteFailed}
 	swapHNS(t, fake)
 	cli := &fakeReleaseIPsClient{
 		getResp: endpointResp(map[string]*restserver.IPInfo{
-			"eth0": {HnsEndpointID: "ep-1"},
+			testIfName: {HnsEndpointID: testEndpointID},
 		}),
 	}
 	em := WithPlatformReleaseIPsManager(cli)
@@ -178,7 +194,7 @@ func TestReleaseIPs_DeleteEndpointError_StillReleasesIPs(t *testing.T) {
 	err := em.ReleaseIPs(context.Background(), cns.IPConfigsRequest{})
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{"ep-1"}, fake.deleteEPIDs)
+	assert.Equal(t, []string{testEndpointID}, fake.deleteEPIDs)
 	assert.Empty(t, fake.deleteNetIDs, "network delete must not run after endpoint delete failed")
 	assert.Equal(t, 1, cli.releaseCalls)
 }
@@ -188,7 +204,7 @@ func TestReleaseIPs_DelegatedVMNIC_DeletesNetwork(t *testing.T) {
 	swapHNS(t, fake)
 	cli := &fakeReleaseIPsClient{
 		getResp: endpointResp(map[string]*restserver.IPInfo{
-			"eth0": {HnsEndpointID: "ep-1", HnsNetworkID: "net-1", NICType: cns.DelegatedVMNIC},
+			testIfName: {HnsEndpointID: testEndpointID, HnsNetworkID: testHNSNetworkID, NICType: cns.DelegatedVMNIC},
 		}),
 	}
 	em := WithPlatformReleaseIPsManager(cli)
@@ -196,8 +212,8 @@ func TestReleaseIPs_DelegatedVMNIC_DeletesNetwork(t *testing.T) {
 	err := em.ReleaseIPs(context.Background(), cns.IPConfigsRequest{})
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{"ep-1"}, fake.deleteEPIDs)
-	assert.Equal(t, []string{"net-1"}, fake.deleteNetIDs)
+	assert.Equal(t, []string{testEndpointID}, fake.deleteEPIDs)
+	assert.Equal(t, []string{testHNSNetworkID}, fake.deleteNetIDs)
 }
 
 func TestReleaseIPs_NonDelegated_SkipsNetworkDelete(t *testing.T) {
@@ -205,7 +221,7 @@ func TestReleaseIPs_NonDelegated_SkipsNetworkDelete(t *testing.T) {
 	swapHNS(t, fake)
 	cli := &fakeReleaseIPsClient{
 		getResp: endpointResp(map[string]*restserver.IPInfo{
-			"eth0": {HnsEndpointID: "ep-1", HnsNetworkID: "net-1", NICType: cns.InfraNIC},
+			testIfName: {HnsEndpointID: testEndpointID, HnsNetworkID: testHNSNetworkID, NICType: cns.InfraNIC},
 		}),
 	}
 	em := WithPlatformReleaseIPsManager(cli)
@@ -213,7 +229,7 @@ func TestReleaseIPs_NonDelegated_SkipsNetworkDelete(t *testing.T) {
 	err := em.ReleaseIPs(context.Background(), cns.IPConfigsRequest{})
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{"ep-1"}, fake.deleteEPIDs)
+	assert.Equal(t, []string{testEndpointID}, fake.deleteEPIDs)
 	assert.Empty(t, fake.deleteNetIDs, "non-delegated NICs must not trigger network deletion")
 }
 
@@ -222,7 +238,7 @@ func TestReleaseIPs_DelegatedVMNIC_EmptyNetworkID_SkipsNetworkDelete(t *testing.
 	swapHNS(t, fake)
 	cli := &fakeReleaseIPsClient{
 		getResp: endpointResp(map[string]*restserver.IPInfo{
-			"eth0": {HnsEndpointID: "ep-1", NICType: cns.DelegatedVMNIC},
+			testIfName: {HnsEndpointID: testEndpointID, NICType: cns.DelegatedVMNIC},
 		}),
 	}
 	em := WithPlatformReleaseIPsManager(cli)
@@ -238,8 +254,8 @@ func TestReleaseIPs_MultipleInterfaces_AllProcessed(t *testing.T) {
 	swapHNS(t, fake)
 	cli := &fakeReleaseIPsClient{
 		getResp: endpointResp(map[string]*restserver.IPInfo{
-			"eth0": {HnsEndpointID: "ep-a"},
-			"eth1": {HnsEndpointID: "ep-b", HnsNetworkID: "net-b", NICType: cns.DelegatedVMNIC},
+			testIfName: {HnsEndpointID: "ep-a"},
+			"eth1":     {HnsEndpointID: "ep-b", HnsNetworkID: "net-b", NICType: cns.DelegatedVMNIC},
 		}),
 	}
 	em := WithPlatformReleaseIPsManager(cli)
@@ -254,17 +270,16 @@ func TestReleaseIPs_MultipleInterfaces_AllProcessed(t *testing.T) {
 func TestReleaseIPs_ReleaseError_Wrapped(t *testing.T) {
 	fake := &fakeHNS{}
 	swapHNS(t, fake)
-	sentinel := errors.New("cns release failed")
 	cli := &fakeReleaseIPsClient{
 		getResp:    endpointResp(map[string]*restserver.IPInfo{}),
-		releaseErr: sentinel,
+		releaseErr: errCNSReleaseFailed,
 	}
 	em := WithPlatformReleaseIPsManager(cli)
 
-	err := em.ReleaseIPs(context.Background(), cns.IPConfigsRequest{InfraContainerID: "c1"})
+	err := em.ReleaseIPs(context.Background(), cns.IPConfigsRequest{InfraContainerID: testContainerID})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to release IP from CNS")
-	assert.ErrorIs(t, err, sentinel)
+	require.ErrorIs(t, err, errCNSReleaseFailed)
 	assert.Equal(t, 1, cli.releaseCalls)
 }
