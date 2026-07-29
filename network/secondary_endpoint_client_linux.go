@@ -209,7 +209,7 @@ func (client *SecondaryEndpointClient) ConfigureContainerInterfacesAndRoutes(epI
 	// Retry with backoff: on accelerated networking (MANA) nodes the moved interface
 	// may not have carrier immediately, so a single Discover can race datapath readiness
 	// or be dropped. Retransmitting avoids failing the CNI ADD with a spurious timeout.
-	logger.Info("Sending DHCP packet", zap.Any("macAddress", epInfo.MacAddress), zap.String("ifName", epInfo.IfName))
+	logger.Info("Sending DHCP packet", zap.Stringer("macAddress", epInfo.MacAddress), zap.String("ifName", epInfo.IfName))
 	var err error
 	for attempt := 1; attempt <= dhcpDiscoverAttempts; attempt++ {
 		ctx, cancel := context.WithTimeout(context.Background(), dhcpDiscoverTimeout)
@@ -218,7 +218,9 @@ func (client *SecondaryEndpointClient) ConfigureContainerInterfacesAndRoutes(epI
 		if err == nil {
 			break
 		}
-		logger.Error("DHCP discover attempt failed",
+		// Transient: a Discover can be lost before the interface has carrier. Log at
+		// Warn since the retry usually succeeds; the final failure is returned below.
+		logger.Warn("DHCP discover attempt failed, will retry",
 			zap.Int("attempt", attempt), zap.Int("maxAttempts", dhcpDiscoverAttempts),
 			zap.String("ifName", epInfo.IfName), zap.Error(err))
 		if attempt < dhcpDiscoverAttempts {
