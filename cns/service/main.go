@@ -809,7 +809,7 @@ func main() {
 
 	// Create default ext network if commandline option is set
 	if len(strings.TrimSpace(createDefaultExtNetworkType)) > 0 {
-		if err := hnsclient.NewClient().CreateDefaultExtNetwork(createDefaultExtNetworkType); err == nil {
+		if err := hnsclient.CreateDefaultExtNetwork(createDefaultExtNetworkType); err == nil {
 			logger.Printf("[Azure CNS] Successfully created default ext network")
 		} else {
 			logger.Printf("[Azure CNS] Failed to create default ext network due to error: %v", err)
@@ -1147,7 +1147,7 @@ func main() {
 	<-rootCtx.Done()
 
 	if len(strings.TrimSpace(createDefaultExtNetworkType)) > 0 {
-		if err := hnsclient.NewClient().DeleteDefaultExtNetwork(); err == nil {
+		if err := hnsclient.DeleteDefaultExtNetwork(); err == nil {
 			logger.Printf("[Azure CNS] Successfully deleted default ext network")
 		} else {
 			logger.Printf("[Azure CNS] Failed to delete default ext network due to error: %v", err)

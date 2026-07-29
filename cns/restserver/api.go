@@ -252,7 +252,7 @@ func (service *HTTPRestService) createHnsNetwork(w http.ResponseWriter, r *http.
 	} else {
 		switch r.Method {
 		case http.MethodPost:
-			if err := hnsclient.NewClient().CreateHnsNetwork(req); err == nil {
+			if err := hnsclient.CreateHnsNetwork(req); err == nil {
 				// Save the newly created HnsNetwork name. CNS deleteHnsNetwork API
 				// will only allow deleting these networks.
 				networkInfo := &networkInfo{
@@ -305,7 +305,7 @@ func (service *HTTPRestService) deleteHnsNetwork(w http.ResponseWriter, r *http.
 		case http.MethodPost:
 			networkInfo, found := service.getNetworkInfo(req.NetworkName)
 			if found && networkInfo.NetworkName == req.NetworkName {
-				if err = hnsclient.NewClient().DeleteHnsNetwork(req.NetworkName); err == nil {
+				if err = hnsclient.DeleteHnsNetwork(req.NetworkName); err == nil {
 					returnMessage = fmt.Sprintf("[Azure CNS] Successfully deleted HNS network: %s", req.NetworkName)
 				} else {
 					returnMessage = fmt.Sprintf("[Azure CNS] DeleteHnsNetwork failed with error %v", err.Error())
@@ -1161,7 +1161,7 @@ func (service *HTTPRestService) CreateHostNCApipaEndpoint(w http.ResponseWriter,
 					"AllowNCToHostCommunication or AllowHostToNCCommunication is set to true")
 				returnCode = types.InvalidRequest
 			} else {
-				if endpointID, err = hnsclient.NewClient().CreateHostNCApipaEndpoint(
+				if endpointID, err = hnsclient.CreateHostNCApipaEndpoint(
 					req.NetworkContainerID,
 					networkContainerDetails.CreateNetworkContainerRequest.LocalIPConfiguration,
 					networkContainerDetails.CreateNetworkContainerRequest.AllowNCToHostCommunication,
@@ -1211,7 +1211,7 @@ func (service *HTTPRestService) DeleteHostNCApipaEndpoint(w http.ResponseWriter,
 
 	switch r.Method {
 	case http.MethodPost:
-		if err = hnsclient.NewClient().DeleteHostNCApipaEndpoint(req.NetworkContainerID); err != nil {
+		if err = hnsclient.DeleteHostNCApipaEndpoint(req.NetworkContainerID); err != nil {
 			returnMessage = fmt.Sprintf("Failed to delete endpoint for Network Container: %s "+
 				"due to error: %v", req.NetworkContainerID, err)
 			returnCode = types.UnexpectedError

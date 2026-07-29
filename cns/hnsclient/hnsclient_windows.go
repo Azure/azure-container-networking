@@ -91,7 +91,7 @@ const (
 var namedLock = common.InitNamedLock()
 
 // CreateHnsNetwork creates the HNS network with the provided configuration
-func (Client) CreateHnsNetwork(nwConfig cns.CreateHnsNetworkRequest) error {
+func CreateHnsNetwork(nwConfig cns.CreateHnsNetworkRequest) error {
 	logger.Printf("[Azure CNS] CreateHnsNetwork")
 	// Initialize HNS network.
 	hnsNetwork := &hcsshim.HNSNetwork{
@@ -131,7 +131,7 @@ func (Client) CreateHnsNetwork(nwConfig cns.CreateHnsNetworkRequest) error {
 }
 
 // DeleteHnsNetwork deletes the HNS network with the provided name
-func (Client) DeleteHnsNetwork(networkName string) error {
+func DeleteHnsNetwork(networkName string) error {
 	logger.Printf("[Azure CNS] DeleteHnsNetwork")
 
 	return deleteHnsNetwork(networkName)
@@ -141,7 +141,7 @@ func (Client) DeleteHnsNetwork(networkName string) error {
 // to create external switch on windows platform.
 // This allows orchestrators to start CNS which pre-provisions the network so that the
 // VM network blip / disconnect is avoided when calling cni add for the very first time.
-func (Client) CreateDefaultExtNetwork(networkType string) error {
+func CreateDefaultExtNetwork(networkType string) error {
 	networkType = strings.ToLower(strings.TrimSpace(networkType))
 	if len(networkType) == 0 {
 		return nil
@@ -182,7 +182,7 @@ func (Client) CreateDefaultExtNetwork(networkType string) error {
 }
 
 // DeleteDefaultExtNetwork deletes the default HNS network
-func (Client) DeleteDefaultExtNetwork() error {
+func DeleteDefaultExtNetwork() error {
 	logger.Printf("[Azure CNS] DeleteDefaultExtNetwork")
 
 	return deleteHnsNetwork(ExtHnsNetworkName)
@@ -322,7 +322,7 @@ func createHostNCApipaNetwork(
 				GatewayIPAddress: localIPConfiguration.GatewayIPAddress,
 			}
 			logger.Printf("Print interfaces before creating loopback adapter")
-			logNetworkInterfaces()
+			LogNetworkInterfaces()
 
 			if err = networkcontainers.CreateLoopbackAdapter(
 				hostNCLoopbackAdapterName,
@@ -333,7 +333,7 @@ func createHostNCApipaNetwork(
 			}
 
 			logger.Printf("Print interfaces after creating loopback adapter")
-			logNetworkInterfaces()
+			LogNetworkInterfaces()
 		}
 
 		// Create the HNS network.
@@ -352,11 +352,7 @@ func createHostNCApipaNetwork(
 }
 
 // LogNetworkInterfaces logs the host's network interfaces in the default namespace.
-func (Client) LogNetworkInterfaces() {
-	logNetworkInterfaces()
-}
-
-func logNetworkInterfaces() {
+func LogNetworkInterfaces() {
 	interfaces, err := net.Interfaces()
 	if err != nil {
 		logger.Printf("Failed to query network interfaces, err:%v", err)
@@ -562,7 +558,7 @@ func configureHostNCApipaEndpoint(
 }
 
 // CreateHostNCApipaEndpoint creates the endpoint in the apipa network for host container connectivity
-func (Client) CreateHostNCApipaEndpoint(
+func CreateHostNCApipaEndpoint(
 	networkContainerID string,
 	localIPConfiguration cns.IPConfiguration,
 	allowNCToHostCommunication bool,
@@ -642,7 +638,7 @@ func getHostNCApipaEndpointName(
 
 // DeleteNetworkByIDHnsV2 deletes an HNS network by its ID.
 // Returns nil if the network is already deleted (idempotent).
-func (Client) DeleteNetworkByIDHnsV2(
+func DeleteNetworkByIDHnsV2(
 	networkID string) error {
 	var (
 		network *hcn.HostComputeNetwork
@@ -710,7 +706,7 @@ func deleteEndpointByNameHnsV2(
 }
 
 // DeleteHostNCApipaEndpoint deletes the endpoint in the apipa network created for host container connectivity
-func (Client) DeleteHostNCApipaEndpoint(
+func DeleteHostNCApipaEndpoint(
 	networkContainerID string) error {
 	endpointName := getHostNCApipaEndpointName(networkContainerID)
 
@@ -730,7 +726,7 @@ func (Client) DeleteHostNCApipaEndpoint(
 }
 
 // DeleteHNSEndpointbyID deletes the HNS endpoint
-func (Client) DeleteHNSEndpointbyID(hnsEndpointID string) error {
+func DeleteHNSEndpointbyID(hnsEndpointID string) error {
 	var (
 		hcnEndpoint *hcn.HostComputeEndpoint
 		err         error
@@ -765,7 +761,7 @@ func (Client) DeleteHNSEndpointbyID(hnsEndpointID string) error {
 }
 
 // GetHNSEndpointbyIP returns an HNSEndpoint with the corrsponding HNS Endpoint ID that matches an specific IP Address.
-func (Client) GetHNSEndpointbyIP(ipv4, ipv6 []net.IPNet) (string, error) {
+func GetHNSEndpointbyIP(ipv4, ipv6 []net.IPNet) (string, error) {
 	logger.Printf("Fetching missing HNS endpoint id for endpoints in network with id %s", defaultNetworkName)
 	hnsResponse, err := hcn.GetNetworkByName(defaultNetworkName)
 	if err != nil || hnsResponse == nil {

@@ -16,25 +16,23 @@ type HNSClient interface {
 	DeleteNetworkByID(networkID string) error
 }
 
-type hnsClientImpl struct {
-	c hnsclient.Client
-}
+type hnsClientImpl struct{}
 
-func (h hnsClientImpl) DeleteEndpointByID(endpointID string) error {
-	if err := h.c.DeleteHNSEndpointbyID(endpointID); err != nil {
+func (hnsClientImpl) DeleteEndpointByID(endpointID string) error {
+	if err := hnsclient.DeleteHNSEndpointbyID(endpointID); err != nil {
 		return fmt.Errorf("delete HNS endpoint %s: %w", endpointID, err)
 	}
 	return nil
 }
 
-func (h hnsClientImpl) DeleteNetworkByID(networkID string) error {
-	if err := h.c.DeleteNetworkByIDHnsV2(networkID); err != nil {
+func (hnsClientImpl) DeleteNetworkByID(networkID string) error {
+	if err := hnsclient.DeleteNetworkByIDHnsV2(networkID); err != nil {
 		return fmt.Errorf("delete HNS network %s: %w", networkID, err)
 	}
 	return nil
 }
 
-var defaultHNSClient HNSClient = hnsClientImpl{c: hnsclient.NewClient()} //nolint:gochecknoglobals // swapped in tests
+var defaultHNSClient HNSClient = hnsClientImpl{} //nolint:gochecknoglobals // swapped in tests
 
 func normalizeMAC(mac string) string {
 	return strings.ToLower(strings.ReplaceAll(mac, "-", ":"))
