@@ -133,6 +133,7 @@ rules:
   - get
   - list
   - watch
+<<<<<<< HEAD
 - apiGroups:
   - ""
   resources:
@@ -156,3 +157,5 @@ rules:
   - watch
   - create
   - update
+=======
+>>>>>>> origin/master
