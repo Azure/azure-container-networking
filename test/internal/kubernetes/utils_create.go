@@ -30,10 +30,13 @@ const (
 	EnvInstallAzilium            CNSScenario = "INSTALL_AZILIUM"
 	EnvInstallAzureVnet          CNSScenario = "INSTALL_AZURE_VNET"
 	EnvInstallAzureVnetStateless CNSScenario = "INSTALL_AZURE_VNET_STATELESS"
-	EnvInstallOverlay            CNSScenario = "INSTALL_OVERLAY"
-	EnvInstallAzureCNIOverlay    CNSScenario = "INSTALL_AZURE_CNI_OVERLAY"
-	EnvInstallDualStackOverlay   CNSScenario = "INSTALL_DUALSTACK_OVERLAY"
-	EnvInstallCNSNodeSubnet      CNSScenario = "INSTALL_CNS_NODESUBNET"
+	// EnvInstallAzureVnetStatelessSwift installs Swift (podsubnet) with the stateless azure-vnet CNI,
+	// where CNS owns endpoint state and synthesizes the swift conflist (CNIConflistScenario: "swift").
+	EnvInstallAzureVnetStatelessSwift CNSScenario = "INSTALL_AZURE_VNET_STATELESS_SWIFT"
+	EnvInstallOverlay                 CNSScenario = "INSTALL_OVERLAY"
+	EnvInstallAzureCNIOverlay         CNSScenario = "INSTALL_AZURE_CNI_OVERLAY"
+	EnvInstallDualStackOverlay        CNSScenario = "INSTALL_DUALSTACK_OVERLAY"
+	EnvInstallCNSNodeSubnet           CNSScenario = "INSTALL_CNS_NODESUBNET"
 )
 
 type cnsDetails struct {
@@ -386,6 +389,8 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 	cnsClusterRoleBindingPath := cnsManifestFolder + "/clusterrolebinding.yaml"
 	cnsSwiftLinuxConfigMapPath := cnsConfigFolder + "/swiftlinuxconfigmap.yaml"
 	cnsSwiftWindowsConfigMapPath := cnsConfigFolder + "/swiftwindowsconfigmap.yaml"
+	cnsSwiftStatelessLinuxConfigMapPath := cnsConfigFolder + "/swiftstatelesslinuxconfigmap.yaml"
+	cnsSwiftStatelessWindowsConfigMapPath := cnsConfigFolder + "/swiftstatelesswindowsconfigmap.yaml"
 	cnsCiliumConfigMapPath := cnsConfigFolder + "/ciliumconfigmap.yaml"
 	cnsNodeSubnetLinuxConfigMapPath := cnsConfigFolder + "/ciliumnodesubnetconfigmap.yaml"
 	cnsOverlayConfigMapPath := cnsConfigFolder + "/overlayconfigmap.yaml"
@@ -504,6 +509,47 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 				containerVolumeMounts:     cnsVolumeMountsForAzureCNIOverlayWindows(),
 				configMapPath:             cnsAzureStatelessCNIOverlayWindowsConfigMapPath,
 				installIPMasqAgent:        true,
+			},
+		},
+		EnvInstallAzureVnetStatelessSwift: {
+			corev1.Linux: {
+				daemonsetPath:          cnsLinuxDaemonSetPath,
+				labelSelector:          cnsLinuxLabelSelector,
+				rolePath:               cnsRolePath,
+				roleBindingPath:        cnsRoleBindingPath,
+				clusterRolePath:        cnsClusterRolePath,
+				clusterRoleBindingPath: cnsClusterRoleBindingPath,
+				serviceAccountPath:     cnsServiceAccountPath,
+				initContainerArgs: []string{
+					"deploy",
+					"azure-vnet-stateless", "-o", "/opt/cni/bin/azure-vnet",
+					"azure-vnet-telemetry", "-o", "/opt/cni/bin/azure-vnet-telemetry",
+				},
+				initContainerName:         initContainerNameCNI,
+				volumes:                   volumesForAzureCNIOverlayLinux(),
+				initContainerVolumeMounts: dropgzVolumeMountsForAzureCNIOverlayLinux(),
+				containerVolumeMounts:     cnsVolumeMountsForAzureCNIOverlayLinux(),
+				configMapPath:             cnsSwiftStatelessLinuxConfigMapPath,
+				installIPMasqAgent:        false,
+			},
+			corev1.Windows: {
+				daemonsetPath:          cnsWindowsDaemonSetPath,
+				labelSelector:          cnsWindowsLabelSelector,
+				rolePath:               cnsRolePath,
+				roleBindingPath:        cnsRoleBindingPath,
+				clusterRolePath:        cnsClusterRolePath,
+				clusterRoleBindingPath: cnsClusterRoleBindingPath,
+				serviceAccountPath:     cnsServiceAccountPath,
+				initContainerArgs: []string{
+					"deploy",
+					"azure-vnet-stateless", "-o", "/k/azurecni/bin/azure-vnet.exe",
+				},
+				initContainerName:         initContainerNameCNI,
+				volumes:                   volumesForAzureCNIOverlayWindows(),
+				initContainerVolumeMounts: dropgzVolumeMountsForAzureCNIOverlayWindows(),
+				containerVolumeMounts:     cnsVolumeMountsForAzureCNIOverlayWindows(),
+				configMapPath:             cnsSwiftStatelessWindowsConfigMapPath,
+				installIPMasqAgent:        false,
 			},
 		},
 		EnvInstallAzilium: {

@@ -47,7 +47,7 @@ steps:
 
       CNS=${CNS_VERSION:-$(make cns-version)}
       CNI=${CNI_VERSION:-$(make cni-version)}
-      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_AZURE_VNET=true CNS_VERSION=${CNS} CNI_VERSION=${CNI} CLEANUP=true
+      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=stateless VALIDATE_STATEFILE=true INSTALL_AZURE_VNET_STATELESS_SWIFT=true CNS_VERSION=${CNS} CNI_VERSION=${CNI} CLEANUP=true
     retryCountOnTaskFailure: 3
     name: "aksswifte2e"
     displayName: "Run AKS Swift E2E"
@@ -84,7 +84,7 @@ steps:
 
         cd ../../..
         echo "Validating Node Restart"
-        make test-validate-state OS_TYPE=linux RESTART_CASE=true CNI_TYPE=cniv2
+        make test-validate-state OS_TYPE=linux RESTART_CASE=true CNI_TYPE=stateless
         kubectl delete ns load-test
     displayName: "Validate Node Restart"
     retryCountOnTaskFailure: 3
