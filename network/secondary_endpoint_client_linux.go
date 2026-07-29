@@ -19,7 +19,19 @@ import (
 
 const (
 	NetworkNotReadyErrorMsg = "network is not ready"
+
+	// dhcpDiscoverTimeout is the per-attempt deadline for a single DHCP Discover.
+	dhcpDiscoverTimeout = 3 * time.Second
+	// dhcpDiscoverAttempts is the number of DHCP Discover attempts. On accelerated
+	// networking (MANA) nodes the freshly moved interface may not have carrier yet
+	// and a single Discover can race datapath readiness or be lost, so we retransmit
+	// like a standard DHCP client instead of failing the whole CNI ADD.
+	dhcpDiscoverAttempts = 3
 )
+
+// dhcpDiscoverRetryDelay is the backoff between DHCP Discover attempts. It is a var
+// so tests can shorten it.
+var dhcpDiscoverRetryDelay = 1 * time.Second
 
 var errorSecondaryEndpointClient = errors.New("SecondaryEndpointClient Error")
 
@@ -191,13 +203,26 @@ func (client *SecondaryEndpointClient) ConfigureContainerInterfacesAndRoutes(epI
 	ifInfo.Routes = append(ifInfo.Routes, epInfo.Routes...)
 
 	// issue dhcp discover packet to ensure mapping created for dns via wireserver to work
-	// we do not use the response for anything
-	numSecs := 3
-	timeout := time.Duration(numSecs) * time.Second
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(timeout))
-	defer cancel()
+	// we do not use the response for anything.
+	// Retry with backoff: on accelerated networking (MANA) nodes the moved interface
+	// may not have carrier immediately, so a single Discover can race datapath readiness
+	// or be dropped. Retransmitting avoids failing the CNI ADD with a spurious timeout.
 	logger.Info("Sending DHCP packet", zap.Any("macAddress", epInfo.MacAddress), zap.String("ifName", epInfo.IfName))
-	err := client.dhcpClient.DiscoverRequest(ctx, epInfo.MacAddress, epInfo.IfName)
+	var err error
+	for attempt := 1; attempt <= dhcpDiscoverAttempts; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), dhcpDiscoverTimeout)
+		err = client.dhcpClient.DiscoverRequest(ctx, epInfo.MacAddress, epInfo.IfName)
+		cancel()
+		if err == nil {
+			break
+		}
+		logger.Error("DHCP discover attempt failed",
+			zap.Int("attempt", attempt), zap.Int("maxAttempts", dhcpDiscoverAttempts),
+			zap.String("ifName", epInfo.IfName), zap.Error(err))
+		if attempt < dhcpDiscoverAttempts {
+			time.Sleep(dhcpDiscoverRetryDelay)
+		}
+	}
 	if err != nil {
 		return errors.Wrap(err, NetworkNotReadyErrorMsg+" - failed to issue dhcp discover packet to create mapping in host")
 	}
