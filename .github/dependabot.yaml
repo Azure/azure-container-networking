@@ -47,6 +47,10 @@ updates:
     labels: ["dependencies"]
     open-pull-requests-limit: 2
     groups:
+      kubernetes-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["k8s.io/*"]
+        update-types: ["minor", "patch"]
       all-go-minor-and-patch:
         applies-to: version-updates
         patterns: ["*"]
@@ -79,6 +83,10 @@ updates:
     labels: ["dependencies", "azure-ipam"]
     open-pull-requests-limit: 2
     groups:
+      kubernetes-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["k8s.io/*"]
+        update-types: ["minor", "patch"]
       all-go-minor-and-patch:
         applies-to: version-updates
         patterns: ["*"]
@@ -152,6 +160,10 @@ updates:
     open-pull-requests-limit: 1
     target-branch: "release/v1.7"
     groups:
+      kubernetes-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["k8s.io/*"]
+        update-types: ["minor", "patch"]
       all-go-minor-and-patch:
         applies-to: version-updates
         patterns: ["*"]
@@ -182,6 +194,10 @@ updates:
     open-pull-requests-limit: 1
     target-branch: "release/v1.7"
     groups:
+      kubernetes-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["k8s.io/*"]
+        update-types: ["minor", "patch"]
       all-go-minor-and-patch:
         applies-to: version-updates
         patterns: ["*"]
@@ -213,6 +229,10 @@ updates:
     open-pull-requests-limit: 1
     target-branch: "release/v1.6"
     groups:
+      kubernetes-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["k8s.io/*"]
+        update-types: ["minor", "patch"]
       all-go-minor-and-patch:
         applies-to: version-updates
         patterns: ["*"]
@@ -243,6 +263,10 @@ updates:
     open-pull-requests-limit: 1
     target-branch: "release/v1.6"
     groups:
+      kubernetes-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["k8s.io/*"]
+        update-types: ["minor", "patch"]
       all-go-minor-and-patch:
         applies-to: version-updates
         patterns: ["*"]
@@ -274,6 +298,10 @@ updates:
     open-pull-requests-limit: 1
     target-branch: "release/v1.5"
     groups:
+      kubernetes-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["k8s.io/*"]
+        update-types: ["minor", "patch"]
       all-go-minor-and-patch:
         applies-to: version-updates
         patterns: ["*"]
@@ -304,6 +332,10 @@ updates:
     open-pull-requests-limit: 10
     target-branch: "release/v1.5"
     groups:
+      kubernetes-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["k8s.io/*"]
+        update-types: ["minor", "patch"]
       all-go-minor-and-patch:
         applies-to: version-updates
         patterns: ["*"]
