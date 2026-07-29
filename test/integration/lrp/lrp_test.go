@@ -108,17 +108,23 @@ func setupLRP(t *testing.T, ctx context.Context) (*corev1.Pod, func()) {
 	require.NotEmpty(t, nodeList.Items)
 	selectedNode := TakeOne(nodeList.Items).Name
 
-	// deploy node local dns prereqs and pods; each resource is parsed to a typed
-	// object and mutated in place (name suffix, nodeSelector) so parallel
-	// per-pool runs stay isolated.
-	_, cleanupConfigMap := kubernetes.MustSetupConfigMap(ctx, cs, nodeLocalDNSConfigMapPath, func(cm *corev1.ConfigMap) { cm.Name += suffix })
+	// deploy node local dns prereqs and pods. Each resource is renamed per pool
+	// (so simultaneous pools don't collide), then the daemonset is pointed at
+	// this pool's ConfigMap / ServiceAccount / Service.
+	cm, cleanupConfigMap := kubernetes.MustSetupConfigMap(ctx, cs, nodeLocalDNSConfigMapPath, func(o *corev1.ConfigMap) { o.Name += suffix })
 	cleanUpFns = append(cleanUpFns, cleanupConfigMap)
-	_, cleanupServiceAccount := kubernetes.MustSetupServiceAccount(ctx, cs, nodeLocalDNSServiceAccountPath, func(sa *corev1.ServiceAccount) { sa.Name += suffix })
+	sa, cleanupServiceAccount := kubernetes.MustSetupServiceAccount(ctx, cs, nodeLocalDNSServiceAccountPath, func(o *corev1.ServiceAccount) { o.Name += suffix })
 	cleanUpFns = append(cleanUpFns, cleanupServiceAccount)
-	_, cleanupService := kubernetes.MustSetupService(ctx, cs, nodeLocalDNSServicePath, func(svc *corev1.Service) { svc.Name += suffix })
+	upstreamSvc, cleanupService := kubernetes.MustSetupService(ctx, cs, nodeLocalDNSServicePath, func(o *corev1.Service) { o.Name += suffix })
 	cleanUpFns = append(cleanUpFns, cleanupService)
 	nodeLocalDNSDS, cleanupNodeLocalDNS := kubernetes.MustSetupDaemonset(ctx, cs, nodeLocalDNSDaemonsetPath, func(ds *appsv1.DaemonSet) {
-		applyNodeLocalDNSPool(ds, suffix, nodeSelector, kubeDNS)
+		ds.Name += suffix
+		pod := &ds.Spec.Template.Spec
+		pod.NodeSelector = nodeSelector
+		pod.ServiceAccountName = sa.Name
+		setConfigMapVolume(pod, "config-volume", cm.Name)
+		setNodeCacheUpstream(pod, upstreamSvc.Name)
+		fillKubeDNSPillar(pod, kubeDNS)
 	})
 	cleanUpFns = append(cleanUpFns, cleanupNodeLocalDNS)
 	kubernetes.WaitForPodDaemonset(ctx, cs, nodeLocalDNSDS.Namespace, nodeLocalDNSDS.Name, nodeLocalDNSLabelSelector)
@@ -542,36 +548,38 @@ func poolNodeSelector(t *testing.T) map[string]string {
 	return selector
 }
 
-// applyNodeLocalDNSPool mutates the node-local-dns daemonset for a per-pool run:
-// it suffixes the resource names/back-references, sets the nodeSelector, and
-// fills the kube-dns pillar in the container args.
-func applyNodeLocalDNSPool(ds *appsv1.DaemonSet, suffix string, nodeSelector map[string]string, kubeDNS string) {
-	ds.Name += suffix
-	podSpec := &ds.Spec.Template.Spec
-	if len(nodeSelector) > 0 {
-		podSpec.NodeSelector = nodeSelector
-	}
-	podSpec.ServiceAccountName += suffix
-	args := podSpec.Containers[0].Args
-	for i := range args {
-		args[i] = strings.ReplaceAll(args[i], "__PILLAR__DNS__SERVER__", kubeDNS)
-		if args[i] == "-upstreamsvc" && i+1 < len(args) {
-			args[i+1] += suffix
-		}
-	}
-	for i := range podSpec.Volumes {
-		if vol := &podSpec.Volumes[i]; vol.Name == "config-volume" && vol.ConfigMap != nil {
-			vol.ConfigMap.Name += suffix
+// setConfigMapVolume points the named ConfigMap-backed volume at cmName.
+func setConfigMapVolume(pod *corev1.PodSpec, volumeName, cmName string) {
+	for i := range pod.Volumes {
+		if v := &pod.Volumes[i]; v.Name == volumeName && v.ConfigMap != nil {
+			v.ConfigMap.Name = cmName
 		}
 	}
 }
 
-// applyClientPool mutates the client daemonset for a per-pool run.
+// setNodeCacheUpstream sets the value of the node-cache "-upstreamsvc" arg.
+func setNodeCacheUpstream(pod *corev1.PodSpec, serviceName string) {
+	args := pod.Containers[0].Args
+	for i, arg := range args {
+		if arg == "-upstreamsvc" && i+1 < len(args) {
+			args[i+1] = serviceName
+		}
+	}
+}
+
+// fillKubeDNSPillar replaces the node-cache "__PILLAR__DNS__SERVER__" token with
+// the kube-dns ClusterIP.
+func fillKubeDNSPillar(pod *corev1.PodSpec, kubeDNS string) {
+	args := pod.Containers[0].Args
+	for i, arg := range args {
+		args[i] = strings.ReplaceAll(arg, "__PILLAR__DNS__SERVER__", kubeDNS)
+	}
+}
+
+// applyClientPool renames the client daemonset per pool and pins it to the pool.
 func applyClientPool(ds *appsv1.DaemonSet, suffix string, nodeSelector map[string]string) {
 	ds.Name += suffix
-	if len(nodeSelector) > 0 {
-		ds.Spec.Template.Spec.NodeSelector = nodeSelector
-	}
+	ds.Spec.Template.Spec.NodeSelector = nodeSelector
 }
 
 // TakeOne takes one item from the slice randomly; if empty, it returns the empty value for the type
