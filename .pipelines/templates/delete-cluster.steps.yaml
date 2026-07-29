@@ -58,6 +58,10 @@ steps:
 
         SUB="${{ parameters.sub }}"
         SUFFIX="${{ parameters.suffix }}"
+        IS_MERGE_QUEUE_BRANCH=false
+        if [[ "${BUILD_SOURCEBRANCH:-}" == *"gh-readonly-queue"* ]]; then
+          IS_MERGE_QUEUE_BRANCH=true
+        fi
 
         # Cluster list expanded at compile time from parameters.clusters into
         # a space-separated string; each base name gets SUFFIX appended at
@@ -113,12 +117,20 @@ steps:
         if [[ ${#LEAKS[@]} -gt 0 ]]; then
           echo ""
           echo "==> ${#LEAKS[@]} cluster(s) leaked:"
+          ISSUE_TYPE=error
+          if [[ "$IS_MERGE_QUEUE_BRANCH" == "true" ]]; then
+            ISSUE_TYPE=warning
+          fi
           for RG in "${LEAKS[@]}"; do
             HINT="az group delete -n $RG --yes"
             if [[ -n "$SUB" ]]; then HINT="az group delete -n $RG --subscription $SUB --yes"; fi
-            echo "##vso[task.logissue type=error]Cluster leak: resource group '$RG' still exists after async delete submit + 2 min wait. Manual cleanup required. Run: $HINT"
+            echo "##vso[task.logissue type=$ISSUE_TYPE]Cluster leak: resource group '$RG' still exists after async delete submit + 2 min wait. Manual cleanup required. Run: $HINT"
           done
           echo ""
+          if [[ "$IS_MERGE_QUEUE_BRANCH" == "true" ]]; then
+            echo "==> Merge queue branch detected; leaving cleanup warnings without failing the job."
+            exit 0
+          fi
           echo "==> Marking job as failed to surface the leak(s)."
           exit 1
         fi
@@ -128,4 +140,3 @@ steps:
     displayName: Delete Clusters (async + verify)
     condition: always()
     retryCountOnTaskFailure: 1
-    continueOnError: ${{ contains(variables['Build.SourceBranch'], 'gh-readonly-queue') }}
