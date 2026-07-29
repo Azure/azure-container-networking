@@ -112,12 +112,6 @@ rules:
   verbs:
   - patch
 - apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
-- apiGroups:
   - cilium.io
   resources:
   - ciliumnodes
