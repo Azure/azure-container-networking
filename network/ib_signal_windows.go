@@ -40,14 +40,12 @@ func signalNamedEvent(eventName string) error {
 	if err != nil {
 		// CreateEvent returns ERROR_ALREADY_EXISTS as err even on success (handle is valid).
 		if !errors.Is(err, windows.ERROR_ALREADY_EXISTS) {
-			logger.Error("Failed to create IB ready event", zap.String("event", eventName), zap.Error(err))
 			return errors.Wrap(err, "failed to create IB ready event")
 		}
 	}
 	defer windows.CloseHandle(handle) //nolint:errcheck // best-effort cleanup
 
 	if err := windows.SetEvent(handle); err != nil {
-		logger.Error("Failed to set IB ready event", zap.String("event", eventName), zap.Error(err))
 		return errors.Wrap(err, "failed to set IB ready event")
 	}
 
