@@ -31,7 +31,6 @@ func signalIBWorkDone() error {
 func signalNamedEvent(eventName string) error {
 	name, err := windows.UTF16PtrFromString(eventName)
 	if err != nil {
-		logger.Error("Failed to encode IB ready event name", zap.String("event", eventName), zap.Error(err))
 		return errors.Wrap(err, "failed to encode IB ready event name")
 	}
 
