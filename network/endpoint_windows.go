@@ -178,7 +178,7 @@ func (nw *network) disableAndDismountVFDevice(plc platform.ExecClient, epInfo *E
 		epInfo.PnPID = pnpDeviceID
 	} else {
 		// return unexpected error and log devicePresence, problemCode
-		return errors.Wrapf(err, "unexpected error with devicePresence %s and problemCode %s", devicePresence, problemCode)
+		return fmt.Errorf("unexpected error with devicePresence %s and problemCode %s", devicePresence, problemCode)
 	}
 
 	return nil
