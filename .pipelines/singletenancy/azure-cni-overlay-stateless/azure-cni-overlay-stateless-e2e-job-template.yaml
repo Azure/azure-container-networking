@@ -24,7 +24,7 @@ parameters:
 stages:
   - stage: ${{ parameters.clusterName }}
     displayName: ${{ parameters.displayName }} - Create Cluster
-    condition: eq(dependencies.setup.outputs['env.GitDiffCheck.RunWindowsTests'], 'true')
+    condition: and(succeeded(), eq(dependencies.setup.outputs['env.GitDiffCheck.RunWindowsTests'], 'true'))
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
