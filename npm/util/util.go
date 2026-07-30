@@ -190,9 +190,9 @@ func AppendMap(base, new map[string]string) map[string]string {
 }
 
 // GetHashedName returns the kernel ipset name for the given prefixed name. It uses a wide
-// digest (not the 32-bit Hash used for iptables chain names, which is length-constrained) so
-// distinct ipset names map to distinct kernel names. The result is AzureNpmPrefix (10) +
-// hashedNameDigestLen (20) = 30 chars, within the 31-char kernel ipset name limit.
+// digest (wider than GetHashedChainName's, since iptables chain names are more
+// length-constrained) so distinct ipset names map to distinct kernel names. The result is
+// AzureNpmPrefix (10) + hashedNameDigestLen (20) = 30 chars, within the 31-char kernel ipset name limit.
 func GetHashedName(name string) string {
 	sum := sha256.Sum256([]byte(name))
 	// Text(36) omits leading zeros, so a small digest could be shorter than
