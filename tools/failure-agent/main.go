@@ -25,6 +25,7 @@ import (
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/classify"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/collect"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/command"
+	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/draftpr"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/fingerprint"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/live"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/model"
@@ -247,6 +248,9 @@ func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, k
 	if !opts.dryRun {
 		if err := publishToPR(ctx, logger, rc, fp, inc); err != nil {
 			logger.Warn("failed to publish analysis to pull request", zap.Error(err))
+		}
+		if err := openDraftPR(ctx, logger, rc, fp, inc); err != nil {
+			logger.Warn("failed to open draft pull request", zap.Error(err))
 		}
 	}
 	return nil
@@ -530,6 +534,90 @@ func publishToPR(ctx context.Context, logger *zap.Logger, rc model.RunContext, f
 	}
 	logger.Info("published analysis to pull request", zap.String("action", action), zap.Int("pr", prNum))
 	return nil
+}
+
+// openDraftPR dispatches a 1ES Agency coding job that authors a fix and opens a
+// draft pull request. It runs only for non-PR build failures the analysis gated
+// as high-confidence regressions (see draftpr.ShouldOpen). Azure DevOps
+// coordinates come from the pipeline environment and can be overridden via
+// FAA_AGENCY_ORG / FAA_AGENCY_PROJECT / FAA_AGENCY_REPO, which is required when
+// the pipeline's primary repository is GitHub-hosted rather than ADO-hosted.
+func openDraftPR(ctx context.Context, logger *zap.Logger, rc model.RunContext, fp model.Fingerprint, inc model.Incident) error {
+	if !draftpr.ShouldOpen(rc, inc) {
+		logger.Info("draft pull request gating not met; skipping")
+		return nil
+	}
+
+	org := firstNonEmpty(os.Getenv("FAA_AGENCY_ORG"), draftpr.OrgFromCollectionURI(os.Getenv("SYSTEM_COLLECTIONURI")))
+	project := firstNonEmpty(os.Getenv("FAA_AGENCY_PROJECT"), os.Getenv("SYSTEM_TEAMPROJECT"))
+	repo := firstNonEmpty(os.Getenv("FAA_AGENCY_REPO"), os.Getenv("BUILD_REPOSITORY_NAME"))
+	if org == "" || project == "" || repo == "" {
+		logger.Info("agency org/project/repo not configured; skipping draft pull request",
+			zap.String("org", org), zap.String("project", project), zap.String("repo", repo))
+		return nil
+	}
+	branch := draftpr.BaseBranchFromRef(firstNonEmpty(os.Getenv("BUILD_SOURCEBRANCH"), rc.SourceBranch))
+
+	tp, err := agencyTokenProvider(logger)
+	if err != nil {
+		return err
+	}
+	if tp == nil {
+		return nil
+	}
+
+	client, err := publish.NewAgencyClient(publish.AgencyConfig{
+		BaseURL: os.Getenv("FAA_AGENCY_BASE_URL"),
+		Token:   tp,
+	})
+	if err != nil {
+		return err
+	}
+
+	drCtx, cancel := context.WithTimeout(ctx, publishTimeout)
+	defer cancel()
+
+	res, err := draftpr.Open(drCtx, client, draftpr.Params{
+		Organization: org,
+		Project:      project,
+		Repository:   repo,
+		Branch:       branch,
+		Prompt:       draftpr.BuildPrompt(inc),
+		Fingerprint:  fp.Hash,
+	})
+	if err != nil {
+		return err
+	}
+	logger.Info("dispatched agency draft pull request job",
+		zap.String("jobID", res.JobID), zap.String("state", res.State),
+		zap.String("org", org), zap.String("project", project), zap.String("repo", repo))
+	return nil
+}
+
+// agencyTokenProvider returns a token source for the Agency API: the
+// FAA_AGENCY_TOKEN override when set, otherwise a DefaultAzureCredential for the
+// configured scope. It returns (nil, nil) to signal a graceful skip when no
+// credential is available.
+func agencyTokenProvider(logger *zap.Logger) (publish.TokenProvider, error) {
+	if t := os.Getenv("FAA_AGENCY_TOKEN"); t != "" {
+		return publish.StaticToken(t), nil
+	}
+	scope := firstNonEmpty(os.Getenv("FAA_AGENCY_SCOPE"), publish.AgencyProdScope)
+	tp, err := publish.NewDefaultTokenProvider(scope)
+	if err != nil {
+		logger.Info("no agency credential available; skipping draft pull request", zap.Error(err))
+		return nil, nil
+	}
+	return tp, nil
+}
+
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func applyOverrides(rc *model.RunContext, opts options) {
