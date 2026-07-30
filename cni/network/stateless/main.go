@@ -153,12 +153,12 @@ func rootExecute() error {
 		return errors.Wrap(err, "Get cni state printresult error")
 	}
 
-	if cniCmd == cni.CmdVersion {
-		return errors.Wrap(err, "Execute netplugin failure")
+	if err = netPlugin.Execute(cni.PluginApi(netPlugin)); err != nil {
+		logger.Error("Failed to execute network plugin", zap.Error(err))
 	}
 
-	if err = netPlugin.Execute(cni.PluginApi(netPlugin)); err != nil {
-		return errors.Wrap(err, "Failed to execute network plugin")
+	if cniCmd == cni.CmdVersion {
+		return errors.Wrap(err, "Execute netplugin failure")
 	}
 	netPlugin.Stop()
 
