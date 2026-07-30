@@ -133,8 +133,7 @@ jobs:
           condition: succeeded()
           inlineScript: |
             set -e
-            az extension add --name aks-preview
-            az extension update --name aks-preview
+            make -C ./hack/aks azcfg AZCLI=az
 
             echo "Creating resource group named $(RESOURCE_GROUP)"
             az group create --name $(RESOURCE_GROUP) -l $(LOCATION) -o table

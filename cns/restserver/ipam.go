@@ -895,7 +895,7 @@ func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) ([]cns.
 				ipConfigExists = true
 			} else {
 				errMsg := fmt.Sprintf("Failed to get existing ipconfig for pod %+v. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt", podInfo)
-				logger.Errorf(errMsg)
+				logger.Errorf("%s", errMsg) //nolint:staticcheck // will migrate to logger/v2
 				return podIPInfo, false, errors.New(errMsg)
 			}
 		}
@@ -977,12 +977,12 @@ func (service *HTTPRestService) AssignDesiredIPConfigs(podInfo cns.PodInfo, desi
 	// assigns all IPs that were found as available to the pod
 	for i := range ipConfigsToAssign {
 		if err := service.assignIPConfig(ipConfigsToAssign[i], podInfo); err != nil {
-			logger.Errorf(err.Error())
+			logger.Errorf("%s", err.Error()) //nolint:staticcheck // will migrate to logger/v2
 			failedToAssignIP = true
 			break
 		}
 		if err := service.populateIPConfigInfoUntransacted(ipConfigsToAssign[i], &podIPInfo[numIPConfigsAssigned]); err != nil {
-			logger.Errorf(err.Error())
+			logger.Errorf("%s", err.Error()) //nolint:staticcheck // will migrate to logger/v2
 			failedToAssignIP = true
 			break
 		}
@@ -1075,13 +1075,13 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 	// assigns all IPs in the map to the pod
 	for _, ip := range ipsToAssign { //nolint:gocritic // ignore copy
 		if err := service.assignIPConfig(ip, podInfo); err != nil {
-			logger.Errorf(err.Error())
+			logger.Errorf("%s", err.Error()) //nolint:staticcheck // will migrate to logger/v2
 			failedToAssignIP = true
 			break
 		}
 
 		if err := service.populateIPConfigInfoUntransacted(ip, &podIPInfo[numIPConfigsAssigned]); err != nil {
-			logger.Errorf(err.Error())
+			logger.Errorf("%s", err.Error()) //nolint:staticcheck // will migrate to logger/v2
 			failedToAssignIP = true
 			break
 		}

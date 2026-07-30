@@ -55,6 +55,7 @@ func TestReadConfigFromFile(t *testing.T) {
 			want: &CNSConfig{
 				ChannelMode:            "Direct",
 				InitializeFromCNI:      true,
+				EnableHomeAZ:           true,
 				EnablePprof:            true,
 				EnableSubnetScarcity:   true,
 				EnableSwiftV1DualStack: true,

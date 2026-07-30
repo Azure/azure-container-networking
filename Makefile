@@ -117,6 +117,7 @@ NPM_IMAGE_INFO_FILE			= azure-npm-$(NPM_VERSION).txt
 #Tools paths
 TOOLS_GO_MOD = $(REPO_ROOT)/tools.go.mod
 
+
 # Default target
 all-binaries-platforms: ## Make all platform binaries
 	@for goos in "$(GOOSES)"; do \
@@ -929,7 +930,7 @@ test-load: ## run all load tests
 		go test -timeout 40m -race -tags=load ./test/integration/load... -v
 
 test-validate-state:
-	cd test/integration/load && go test -mod=readonly -count=1 -timeout 30m -tags load --skip 'TestE2E*' -run ^TestValidateState
+	cd test/integration/load && POOL_LABEL_SELECTOR="$(POOL_LABEL_SELECTOR)" go test -mod=readonly -count=1 -timeout 30m -tags load --skip 'TestE2E*' -run ^TestValidateState
 	cd ../../..
 
 test-cyclonus: ## run the cyclonus test for npm.
@@ -975,6 +976,12 @@ dockerfiles: renderkit ## Render all Dockerfile templates with current state of 
 	@make -f build/images.mk render PATH=azure-ip-masq-merger
 	@make -f build/images.mk render PATH=azure-iptables-monitor
 	@make -f build/images.mk render PATH=cilium-log-collector
+
+cilium-versions: ## Update cilium-family image tags in hack/aks/deploy.mk to newest MCR tags (override minor with MINOR=1.18)
+	@hack/scripts/update-cilium-versions.sh $(if $(MINOR),--minor $(MINOR))
+
+cilium-versions-check: ## Report if newer cilium-family tags are available on MCR (exit 1 if so)
+	@hack/scripts/update-cilium-versions.sh --check $(if $(MINOR),--minor $(MINOR))
 
 regenerate-crd: ## Regenerate CRDs
 	for makefile in $$(find ./crd/ -name "Makefile" -type f -printf '%h\n'); do \

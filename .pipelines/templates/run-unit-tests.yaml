@@ -12,6 +12,16 @@ stages:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - script: |
+              GO_VER=$(grep '^toolchain' go.mod | sed 's/toolchain go//' | cut -d. -f1,2)
+              if [ -z "$GO_VER" ]; then GO_VER=$(grep '^go ' go.mod | awk '{print $2}' | cut -d. -f1,2); fi
+              if [ -z "$GO_VER" ]; then echo "##[error]Failed to detect Go version from go.mod"; exit 1; fi
+              echo "##vso[task.setvariable variable=GO_TOOLCHAIN_VERSION]$GO_VER"
+            displayName: "Detect Go version from go.mod"
+          - task: GoTool@0
+            inputs:
+              version: '$(GO_TOOLCHAIN_VERSION)'
+            displayName: "Install Go"
+          - script: |
               set -e
               make bpf-lib
               go generate ./...
@@ -51,6 +61,22 @@ stages:
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS_ALT)"
         steps:
+          - powershell: |
+              $gomod = $null
+              if (Test-Path "go.mod") { $gomod = "go.mod" }
+              elseif (Test-Path "azure-container-networking/go.mod") { $gomod = "azure-container-networking/go.mod" }
+              if ($gomod) {
+                $toolchain = Select-String -Path $gomod -Pattern '^toolchain go(\d+\.\d+)' | ForEach-Object { $_.Matches[0].Groups[1].Value }
+              }
+              if (-not $toolchain -and $gomod) { $toolchain = Select-String -Path $gomod -Pattern '^go (\d+\.\d+)' | ForEach-Object { $_.Matches[0].Groups[1].Value } }
+              if (-not $toolchain) { Write-Error "Failed to detect Go version from go.mod"; exit 1 }
+              Write-Host "##vso[task.setvariable variable=GO_TOOLCHAIN_VERSION]$toolchain"
+              Write-Host "Detected Go version: $toolchain from $gomod"
+            displayName: "Detect Go version from go.mod"
+          - task: GoTool@0
+            inputs:
+              version: '$(GO_TOOLCHAIN_VERSION)'
+            displayName: "Install Go"
           # Only run one go test per script
           - script: |
               cd azure-container-networking/
@@ -75,6 +101,16 @@ stages:
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
+          - script: |
+              GO_VER=$(grep '^toolchain' go.mod | sed 's/toolchain go//' | cut -d. -f1,2)
+              if [ -z "$GO_VER" ]; then GO_VER=$(grep '^go ' go.mod | awk '{print $2}' | cut -d. -f1,2); fi
+              if [ -z "$GO_VER" ]; then echo "##[error]Failed to detect Go version from go.mod"; exit 1; fi
+              echo "##vso[task.setvariable variable=GO_TOOLCHAIN_VERSION]$GO_VER"
+            displayName: "Detect Go version from go.mod"
+          - task: GoTool@0
+            inputs:
+              version: '$(GO_TOOLCHAIN_VERSION)'
+            displayName: "Install Go"
           - task: DownloadPipelineArtifact@2
             inputs:
               artifact: 'linux-coverage'

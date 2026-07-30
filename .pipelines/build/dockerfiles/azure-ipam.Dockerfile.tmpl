@@ -10,8 +10,8 @@ ARG ARTIFACT_DIR .
 COPY ${ARTIFACT_DIR}/bin/dropgz.exe /dropgz.exe
 ENTRYPOINT [ "/dropgz.exe" ]
 
-
-FROM scratch AS linux
+# {{.MARINER_DISTROLESS_IMG}}
+FROM --platform=linux/${ARCH} {{.MARINER_DISTROLESS_PIN}} AS linux
 ARG ARTIFACT_DIR .
 
 COPY ${ARTIFACT_DIR}/bin/dropgz /dropgz

@@ -39,3 +39,4 @@ test/scale/generated/*
 test/e2e/bin/*
 
 **/service
+tools/release/release-cli

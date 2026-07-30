@@ -6,31 +6,15 @@ parameters:
 steps:
   - template: ../../templates/setup-environment.yaml
 
-  - template: ../../templates/cilium-cli.yaml
-
   - task: AzureCLI@2
+    displayName: Set cluster credentials
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-      scriptLocation: "inlineScript"
-      scriptType: "bash"
-      addSpnToEnvironment: true
-      inlineScript: |
-        set -e
-        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
-        ls -lah
-        pwd
-        kubectl cluster-info
-        kubectl get pods -Aowide
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
 
-        # makefile manages ebpf cilium version (ebpf doesn't use DIR or CILIUM_VERSION_TAG)
-        export AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY=acnpublic.azurecr.io
-        export AZURE_IPTABLES_MONITOR_TAG=$(make azure-iptables-monitor-version)
-        make -C ./hack/aks deploy-ebpf-podsubnet-cilium
-
-        kubectl get pods -Aowide
-    name: "installCilium"
-    displayName: "Install EBPF Podsubnet Cilium"
-    retryCountOnTaskFailure: 2
+  - template: ../../templates/cilium-cli.yaml
 
   - script: |
       echo "Start Azilium E2E Tests"
@@ -39,7 +23,7 @@ steps:
 
       IPAM=${AZURE_IPAM_VERSION:-$(make azure-ipam-version)}
       CNS=${CNS_VERSION:-$(make cns-version)}
-      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZILIUM=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CLEANUP=true
+      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true INSTALL_AZILIUM=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CLEANUP=true
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E"

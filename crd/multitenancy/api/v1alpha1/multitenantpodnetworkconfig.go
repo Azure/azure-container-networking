@@ -52,6 +52,23 @@ type MultitenantPodNetworkConfigSpec struct {
 	IBMACAddresses []string `json:"IBMACAddresses,omitempty"`
 	// PodUID is the UID of the pod
 	PodUID types.UID `json:"podUID,omitempty"`
+	// NetworkID identifies the network (e.g. VNet GUID) this pod belongs to.
+	// Denormalized from PodNetwork.Spec.NetworkID.
+	// +kubebuilder:validation:Optional
+	NetworkID string `json:"networkID,omitempty"`
+	// SubnetGUID is the GUID of the subnet this pod belongs to.
+	// Denormalized from PodNetwork.Spec.SubnetGUID.
+	// +kubebuilder:validation:Optional
+	SubnetGUID string `json:"subnetGUID,omitempty"`
+	// SubnetResourceID is the ARM resource ID of the subnet this pod belongs to.
+	// Denormalized from PodNetwork.Spec.SubnetResourceID.
+	// +kubebuilder:validation:Optional
+	SubnetResourceID string `json:"subnetResourceID,omitempty"`
+	// ResourceClaims lists the names of ResourceClaims allocated to the pod that
+	// were created for the multitenancy DRA driver.
+	// +kubebuilder:validation:Optional
+	// +listType=set
+	ResourceClaims []string `json:"resourceClaims,omitempty"`
 }
 
 // +kubebuilder:validation:Enum=Unprogrammed;Programming;Programmed;Unprogramming;Failed

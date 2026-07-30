@@ -37,9 +37,7 @@ jobs:
             fi
 
             mkdir -p ~/.kube/
-            # make -C ./hack/aks azcfg AZCLI=az REGION=${{ parameters.region }}
-
-            az extension add --name aks-preview --upgrade
+            make -C ./hack/aks azcfg AZCLI=az REGION=${{ parameters.region }}
 
             make -C ./hack/aks ${{ parameters.clusterType }} \
             AZCLI=az REGION=${{ parameters.region }} SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \

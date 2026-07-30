@@ -19,6 +19,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/rand"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sclient "k8s.io/client-go/kubernetes"
@@ -46,7 +47,6 @@ const (
 var (
 	defaultRetrier                 = retry.Retrier{Attempts: retryAttempts, Delay: retryDelay}
 	nodeLocalDNSDaemonsetPath      = ciliumManifestsDir + "node-local-dns-ds.yaml"
-	tempNodeLocalDNSDaemonsetPath  = ciliumManifestsDir + "temp-daemonset.yaml"
 	nodeLocalDNSConfigMapPath      = ciliumManifestsDir + "config-map.yaml"
 	nodeLocalDNSServiceAccountPath = ciliumManifestsDir + "service-account.yaml"
 	nodeLocalDNSServicePath        = ciliumManifestsDir + "service.yaml"
@@ -90,33 +90,42 @@ func setupLRP(t *testing.T, ctx context.Context) (*corev1.Pod, func()) {
 	require.NoError(t, err)
 	require.Equal(t, "true", ciliumCM.Data[enableLRPFlag], "enable-local-redirect-policy not set to true in cilium-config")
 
-	// 1.17 and 1.13 cilium versions of both files are identical
-	// read file
-	nodeLocalDNSContent, err := os.ReadFile(nodeLocalDNSDaemonsetPath)
-	require.NoError(t, err)
-	// replace pillar dns
-	replaced := strings.ReplaceAll(string(nodeLocalDNSContent), "__PILLAR__DNS__SERVER__", kubeDNS)
-	// Write the updated content back to the file
-	err = os.WriteFile(tempNodeLocalDNSDaemonsetPath, []byte(replaced), 0o644)
-	require.NoError(t, err)
-	defer func() {
-		err := os.Remove(tempNodeLocalDNSDaemonsetPath)
-		require.NoError(t, err)
-	}()
+	// Per-pool parameterization (all optional; empty values reproduce today's
+	// behavior): POOL suffixes resource names, POOL_NODESELECTOR pins pods to a
+	// pool, POOL_LABEL restricts the candidate node list.
+	suffix := poolSuffix()
+	nodeSelector := poolNodeSelector(t)
 
-	// list out and select node of choice
-	nodeList, err := kubernetes.GetNodeList(ctx, cs)
+	// list out and select node of choice; when POOL_LABEL is set restrict the
+	// candidate nodes to that pool so the test targets a single pool.
+	var nodeList *corev1.NodeList
+	if poolLabel := os.Getenv("POOL_LABEL"); poolLabel != "" {
+		nodeList, err = kubernetes.GetNodeListByLabelSelector(ctx, cs, poolLabel)
+	} else {
+		nodeList, err = kubernetes.GetNodeList(ctx, cs)
+	}
+	require.NoError(t, err)
 	require.NotEmpty(t, nodeList.Items)
 	selectedNode := TakeOne(nodeList.Items).Name
 
-	// deploy node local dns preqreqs and pods
-	_, cleanupConfigMap := kubernetes.MustSetupConfigMap(ctx, cs, nodeLocalDNSConfigMapPath)
+	// deploy node local dns prereqs and pods. Each resource is renamed per pool
+	// (so simultaneous pools don't collide), then the daemonset is pointed at
+	// this pool's ConfigMap / ServiceAccount / Service.
+	cm, cleanupConfigMap := kubernetes.MustSetupConfigMap(ctx, cs, nodeLocalDNSConfigMapPath, func(o *corev1.ConfigMap) { o.Name += suffix })
 	cleanUpFns = append(cleanUpFns, cleanupConfigMap)
-	_, cleanupServiceAccount := kubernetes.MustSetupServiceAccount(ctx, cs, nodeLocalDNSServiceAccountPath)
+	sa, cleanupServiceAccount := kubernetes.MustSetupServiceAccount(ctx, cs, nodeLocalDNSServiceAccountPath, func(o *corev1.ServiceAccount) { o.Name += suffix })
 	cleanUpFns = append(cleanUpFns, cleanupServiceAccount)
-	_, cleanupService := kubernetes.MustSetupService(ctx, cs, nodeLocalDNSServicePath)
+	upstreamSvc, cleanupService := kubernetes.MustSetupService(ctx, cs, nodeLocalDNSServicePath, func(o *corev1.Service) { o.Name += suffix })
 	cleanUpFns = append(cleanUpFns, cleanupService)
-	nodeLocalDNSDS, cleanupNodeLocalDNS := kubernetes.MustSetupDaemonset(ctx, cs, tempNodeLocalDNSDaemonsetPath)
+	nodeLocalDNSDS, cleanupNodeLocalDNS := kubernetes.MustSetupDaemonset(ctx, cs, nodeLocalDNSDaemonsetPath, func(ds *appsv1.DaemonSet) {
+		ds.Name += suffix
+		pod := &ds.Spec.Template.Spec
+		pod.NodeSelector = nodeSelector
+		pod.ServiceAccountName = sa.Name
+		setConfigMapVolume(pod, "config-volume", cm.Name)
+		setNodeCacheUpstream(pod, upstreamSvc.Name)
+		fillKubeDNSPillar(pod, kubeDNS)
+	})
 	cleanUpFns = append(cleanUpFns, cleanupNodeLocalDNS)
 	kubernetes.WaitForPodDaemonset(ctx, cs, nodeLocalDNSDS.Namespace, nodeLocalDNSDS.Name, nodeLocalDNSLabelSelector)
 	require.NoError(t, err)
@@ -126,11 +135,13 @@ func setupLRP(t *testing.T, ctx context.Context) (*corev1.Pod, func()) {
 	selectedLocalDNSPod := TakeOne(pods.Items).Name
 
 	// deploy lrp
-	_, cleanupLRP := kubernetes.MustSetupLRP(ctx, ciliumCS, lrpPath)
+	_, cleanupLRP := kubernetes.MustSetupLRP(ctx, ciliumCS, lrpPath, func(lrp *ciliumv2.CiliumLocalRedirectPolicy) { lrp.Name += suffix })
 	cleanUpFns = append(cleanUpFns, cleanupLRP)
 
 	// create client pods
-	clientDS, cleanupClient := kubernetes.MustSetupDaemonset(ctx, cs, clientPath)
+	clientDS, cleanupClient := kubernetes.MustSetupDaemonset(ctx, cs, clientPath, func(ds *appsv1.DaemonSet) {
+		applyClientPool(ds, suffix, nodeSelector)
+	})
 	cleanUpFns = append(cleanUpFns, cleanupClient)
 	kubernetes.WaitForPodDaemonset(ctx, cs, clientDS.Namespace, clientDS.Name, clientLabelSelector)
 	require.NoError(t, err)
@@ -256,7 +267,6 @@ func testLRPLifecycle(t *testing.T, ctx context.Context, clientPod corev1.Pod, k
 	config := kubernetes.MustGetRestConfig()
 	cs := kubernetes.MustGetClientset()
 
-
 	// Step 1: Validate LRP using cilium commands
 	t.Log("Step 1: Validating LRP using cilium commands")
 	validateCiliumLRP(t, ctx, cs, config)
@@ -367,9 +377,11 @@ func validateCiliumLRP(t *testing.T, ctx context.Context, cs *k8sclient.Clientse
 	lrpOutput, _, err := kubernetes.ExecCmdOnPod(ctx, cs, ciliumPod.Namespace, ciliumPod.Name, "cilium-agent", lrpListCmd, config, false)
 	require.NoError(t, err)
 
-	// Validate the LRP output structure more thoroughly
+	// Validate the LRP output structure more thoroughly. The LRP name is
+	// suffixed per pool, so scope the assertions to this run's name.
+	lrpName := "nodelocaldns" + poolSuffix()
 	lrpOutputStr := string(lrpOutput)
-	require.Contains(t, lrpOutputStr, "nodelocaldns", "LRP not found in cilium lrp list")
+	require.Contains(t, lrpOutputStr, lrpName, "LRP not found in cilium lrp list")
 
 	// Parse LRP list output to validate structure
 	lrpLines := strings.Split(lrpOutputStr, "\n")
@@ -377,16 +389,16 @@ func validateCiliumLRP(t *testing.T, ctx context.Context, cs *k8sclient.Clientse
 
 	for _, line := range lrpLines {
 		line = strings.TrimSpace(line)
-		if strings.Contains(line, "nodelocaldns") && strings.Contains(line, "kube-system") {
+		if strings.Contains(line, lrpName) && strings.Contains(line, "kube-system") {
 			// Validate that the line contains expected components
 			require.Contains(t, line, "kube-dns", "LRP line should reference kube-dns service")
 			nodelocaldnsFound = true
-			t.Logf("Found nodelocaldns LRP entry: %s", line)
+			t.Logf("Found %s LRP entry: %s", lrpName, line)
 			break
 		}
 	}
 
-	require.True(t, nodelocaldnsFound, "nodelocaldns LRP entry not found with expected structure in output: %s", lrpOutputStr)
+	require.True(t, nodelocaldnsFound, "%s LRP entry not found with expected structure in output: %s", lrpName, lrpOutputStr)
 
 	// Check cilium service list for localredirect
 	serviceListCmd := []string{"cilium", "service", "list"}
@@ -432,12 +444,13 @@ func restartClientPodsAndGetPod(t *testing.T, ctx context.Context, cs *k8sclient
 	// Get the node name for consistent testing
 	nodeName := originalPod.Spec.NodeName
 
-	// Restart the daemonset (assumes it's named "lrp-test" based on the manifest)
-	err := kubernetes.MustRestartDaemonset(ctx, cs, originalPod.Namespace, "lrp-test")
+	// Restart the client daemonset (named "lrp-test<POOL>" per the manifest).
+	clientDSName := "lrp-test" + poolSuffix()
+	err := kubernetes.MustRestartDaemonset(ctx, cs, originalPod.Namespace, clientDSName)
 	require.NoError(t, err)
 
 	// Wait for the daemonset to be ready
-	kubernetes.WaitForPodDaemonset(ctx, cs, originalPod.Namespace, "lrp-test", clientLabelSelector)
+	kubernetes.WaitForPodDaemonset(ctx, cs, originalPod.Namespace, clientDSName, clientLabelSelector)
 
 	// Get the new pod on the same node
 	clientPods, err := kubernetes.GetPodsByNode(ctx, cs, originalPod.Namespace, clientLabelSelector, nodeName)
@@ -455,9 +468,14 @@ func deleteAndRecreateResources(t *testing.T, ctx context.Context, cs *k8sclient
 
 	nodeName := originalPod.Spec.NodeName
 
-	// Delete client daemonset
+	suffix := poolSuffix()
+	nodeSelector := poolNodeSelector(t)
+
+	// Delete client daemonset; parse the base manifest and apply the same
+	// per-pool mutation setupLRP used so the names match.
 	dsClient := cs.AppsV1().DaemonSets(originalPod.Namespace)
 	clientDS := kubernetes.MustParseDaemonSet(clientPath)
+	applyClientPool(&clientDS, suffix, nodeSelector)
 	kubernetes.MustDeleteDaemonset(ctx, dsClient, clientDS)
 
 	// Delete LRP
@@ -466,6 +484,7 @@ func deleteAndRecreateResources(t *testing.T, ctx context.Context, cs *k8sclient
 	var lrp ciliumv2.CiliumLocalRedirectPolicy
 	err = yaml.Unmarshal(lrpContent, &lrp)
 	require.NoError(t, err)
+	lrp.Name += suffix
 
 	lrpClient := ciliumCS.CiliumV2().CiliumLocalRedirectPolicies(lrp.Namespace)
 	kubernetes.MustDeleteCiliumLocalRedirectPolicy(ctx, lrpClient, lrp)
@@ -481,17 +500,20 @@ func deleteAndRecreateResources(t *testing.T, ctx context.Context, cs *k8sclient
 	require.NoError(t, err)
 
 	// Recreate LRP
-	_, cleanupLRP := kubernetes.MustSetupLRP(ctx, ciliumCS, lrpPath)
+	_, cleanupLRP := kubernetes.MustSetupLRP(ctx, ciliumCS, lrpPath, func(l *ciliumv2.CiliumLocalRedirectPolicy) { l.Name += suffix })
 	t.Cleanup(cleanupLRP)
 
 	// Restart node-local-dns pods to pick up new LRP configuration
 	t.Log("Restarting node-local-dns pods after LRP recreation")
-	err = kubernetes.MustRestartDaemonset(ctx, cs, kubeSystemNamespace, "node-local-dns")
+	nodeLocalDNSName := "node-local-dns" + suffix
+	err = kubernetes.MustRestartDaemonset(ctx, cs, kubeSystemNamespace, nodeLocalDNSName)
 	require.NoError(t, err)
-	kubernetes.WaitForPodDaemonset(ctx, cs, kubeSystemNamespace, "node-local-dns", nodeLocalDNSLabelSelector)
+	kubernetes.WaitForPodDaemonset(ctx, cs, kubeSystemNamespace, nodeLocalDNSName, nodeLocalDNSLabelSelector)
 
 	// Recreate client daemonset
-	_, cleanupClient := kubernetes.MustSetupDaemonset(ctx, cs, clientPath)
+	_, cleanupClient := kubernetes.MustSetupDaemonset(ctx, cs, clientPath, func(ds *appsv1.DaemonSet) {
+		applyClientPool(ds, suffix, nodeSelector)
+	})
 	t.Cleanup(cleanupClient)
 
 	// Wait for pods to be ready
@@ -503,6 +525,61 @@ func deleteAndRecreateResources(t *testing.T, ctx context.Context, cs *k8sclient
 	require.NotEmpty(t, clientPods.Items)
 
 	return TakeOne(clientPods.Items)
+}
+
+// poolSuffix returns the per-pool resource-name suffix ("-<pool>") when the POOL
+// env var is set, or "" otherwise.
+func poolSuffix() string {
+	if pool := os.Getenv("POOL"); pool != "" {
+		return "-" + pool
+	}
+	return ""
+}
+
+// poolNodeSelector parses POOL_NODESELECTOR (a YAML map body such as
+// "agentpool: pool1") into a nodeSelector map, or returns nil when unset.
+func poolNodeSelector(t *testing.T) map[string]string {
+	raw := os.Getenv("POOL_NODESELECTOR")
+	if raw == "" {
+		return nil
+	}
+	var selector map[string]string
+	require.NoError(t, yaml.Unmarshal([]byte(raw), &selector), "invalid POOL_NODESELECTOR %q", raw)
+	return selector
+}
+
+// setConfigMapVolume points the named ConfigMap-backed volume at cmName.
+func setConfigMapVolume(pod *corev1.PodSpec, volumeName, cmName string) {
+	for i := range pod.Volumes {
+		if v := &pod.Volumes[i]; v.Name == volumeName && v.ConfigMap != nil {
+			v.ConfigMap.Name = cmName
+		}
+	}
+}
+
+// setNodeCacheUpstream sets the value of the node-cache "-upstreamsvc" arg.
+func setNodeCacheUpstream(pod *corev1.PodSpec, serviceName string) {
+	args := pod.Containers[0].Args
+	for i, arg := range args {
+		if arg == "-upstreamsvc" && i+1 < len(args) {
+			args[i+1] = serviceName
+		}
+	}
+}
+
+// fillKubeDNSPillar replaces the node-cache "__PILLAR__DNS__SERVER__" token with
+// the kube-dns ClusterIP.
+func fillKubeDNSPillar(pod *corev1.PodSpec, kubeDNS string) {
+	args := pod.Containers[0].Args
+	for i, arg := range args {
+		args[i] = strings.ReplaceAll(arg, "__PILLAR__DNS__SERVER__", kubeDNS)
+	}
+}
+
+// applyClientPool renames the client daemonset per pool and pins it to the pool.
+func applyClientPool(ds *appsv1.DaemonSet, suffix string, nodeSelector map[string]string) {
+	ds.Name += suffix
+	ds.Spec.Template.Spec.NodeSelector = nodeSelector
 }
 
 // TakeOne takes one item from the slice randomly; if empty, it returns the empty value for the type

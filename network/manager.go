@@ -789,15 +789,14 @@ func (nm *networkManager) DeleteState(epInfos []*EndpointInfo) error {
 				// swiftv2 multitenancy does not call plugin.ipamInvoker.Delete and so state does not automatically clean up. this call is required to
 				// cleanup state in CNS
 				// One Delete call for endpointID will remove all interface info associated with that endpointID in CNS
-				response, err := nm.CnsClient.DeleteEndpointState(context.TODO(), epInfo.EndpointID)
-				if err != nil {
+				if response, err := nm.CnsClient.DeleteEndpointState(context.TODO(), epInfo.EndpointID); err != nil {
 					if response != nil && response.ReturnCode == types.NotFound {
-						logger.Info("Endpoint state not found in CNS", zap.String("endpointID", epInfo.EndpointID))
+						logger.Info("Delete called on the endpoint state which doesn't exist in CNS, treating as success", zap.String("endpointID", epInfo.EndpointID))
 						return nil
 					}
-					return errors.Wrapf(err, "Delete endpoint API returned with error for endpoint %s", epInfo.EndpointID)
+					return errors.Wrapf(err, "delete endpoint state for %s", epInfo.EndpointID)
 				}
-				logger.Info("Delete endpoint succeeded", zap.String("endpointID", epInfo.EndpointID), zap.String("returnCode", response.ReturnCode.String()))
+				logger.Info("Delete endpoint succeeded", zap.String("endpointID", epInfo.EndpointID))
 				break
 			}
 		}

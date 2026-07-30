@@ -11,11 +11,15 @@ FROM --platform=linux/${ARCH} {{.GO_PIN}} AS go
 # {{.MARINER_CORE_IMG}}
 FROM --platform=linux/${ARCH} {{.MARINER_CORE_PIN}} AS mariner-core
 
+# {{.MARINER_DISTROLESS_IMG}}
+FROM --platform=linux/${ARCH} {{.MARINER_DISTROLESS_PIN}} AS mariner-distroless
+
 FROM go AS azure-vnet
 ARG OS
 ARG VERSION
 ARG CNI_AI_PATH
 ARG CNI_AI_ID
+ENV GOEXPERIMENT=ms_nocgo_opensslcrypto
 WORKDIR /azure-container-networking
 COPY . .
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-vnet -trimpath -ldflags "-s -w -X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" cni/network/plugin/main.go
@@ -43,6 +47,7 @@ FROM go AS dropgz
 ARG DROPGZ_VERSION
 ARG OS
 ARG VERSION
+ENV GOEXPERIMENT=ms_nocgo_opensslcrypto
 RUN go mod download github.com/azure/azure-container-networking/dropgz@$DROPGZ_VERSION
 WORKDIR /go/pkg/mod/github.com/azure/azure-container-networking/dropgz\@$DROPGZ_VERSION
 COPY --from=compressor /payload/* pkg/embed/fs/
@@ -51,8 +56,8 @@ RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/dropgz -trimpath -ldflags "-s 
 FROM scratch AS bins
 COPY --from=azure-vnet /go/bin/* /
 
-FROM scratch AS linux
-COPY --from=dropgz /go/bin/dropgz dropgz
+FROM mariner-distroless AS linux
+COPY --from=dropgz /go/bin/dropgz /dropgz
 ENTRYPOINT [ "/dropgz" ]
 
 # {{.WIN_HPC_IMG}}

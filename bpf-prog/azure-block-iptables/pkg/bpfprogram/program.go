@@ -149,9 +149,11 @@ func (p *Program) Attach() error {
 	}
 
 	// Set the host_netns_inode variable in the BPF program before loading
-	if err = spec.RewriteConstants(map[string]interface{}{
-		"host_netns_inode": hostNetnsInode,
-	}); err != nil {
+	hostNetnsInodeVariable, ok := spec.Variables["host_netns_inode"]
+	if !ok {
+		return errors.New("host_netns_inode variable not found")
+	}
+	if err = hostNetnsInodeVariable.Set(hostNetnsInode); err != nil {
 		return errors.Wrap(err, "failed to rewrite constants")
 	}
 

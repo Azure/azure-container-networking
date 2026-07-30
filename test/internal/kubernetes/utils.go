@@ -202,8 +202,11 @@ func MustSetUpRBAC(ctx context.Context, clientset *kubernetes.Clientset, rolePat
 	mustCreateRoleBinding(ctx, roleBindings, roleBinding)
 }
 
-func MustSetupConfigMap(ctx context.Context, clientset *kubernetes.Clientset, configMapPath string) (corev1.ConfigMap, func()) { // nolint
+func MustSetupConfigMap(ctx context.Context, clientset *kubernetes.Clientset, configMapPath string, mutators ...func(*corev1.ConfigMap)) (corev1.ConfigMap, func()) { // nolint
 	cm := mustParseConfigMap(configMapPath)
+	for _, mutate := range mutators {
+		mutate(&cm)
+	}
 	configmaps := clientset.CoreV1().ConfigMaps(cm.Namespace)
 	mustCreateConfigMap(ctx, configmaps, cm)
 	return cm, func() {
@@ -213,8 +216,11 @@ func MustSetupConfigMap(ctx context.Context, clientset *kubernetes.Clientset, co
 
 // MustSetupDaemonset is a convenience function to directly apply the daemonset at dsPath to the cluster,
 // returning the parsed daemonset struct and a cleanup function in the process
-func MustSetupDaemonset(ctx context.Context, clientset *kubernetes.Clientset, dsPath string) (appsv1.DaemonSet, func()) { // nolint
+func MustSetupDaemonset(ctx context.Context, clientset *kubernetes.Clientset, dsPath string, mutators ...func(*appsv1.DaemonSet)) (appsv1.DaemonSet, func()) { // nolint
 	ds := MustParseDaemonSet(dsPath)
+	for _, mutate := range mutators {
+		mutate(&ds)
+	}
 	dsClient := clientset.AppsV1().DaemonSets(ds.Namespace)
 	MustCreateDaemonset(ctx, dsClient, ds)
 	return ds, func() {
@@ -231,8 +237,11 @@ func MustSetupDeployment(ctx context.Context, clientset *kubernetes.Clientset, d
 	}
 }
 
-func MustSetupServiceAccount(ctx context.Context, clientset *kubernetes.Clientset, serviceAccountPath string) (corev1.ServiceAccount, func()) { // nolint
+func MustSetupServiceAccount(ctx context.Context, clientset *kubernetes.Clientset, serviceAccountPath string, mutators ...func(*corev1.ServiceAccount)) (corev1.ServiceAccount, func()) { // nolint
 	sa := mustParseServiceAccount(serviceAccountPath)
+	for _, mutate := range mutators {
+		mutate(&sa)
+	}
 	saClient := clientset.CoreV1().ServiceAccounts(sa.Namespace)
 	mustCreateServiceAccount(ctx, saClient, sa)
 	return sa, func() {
@@ -240,8 +249,11 @@ func MustSetupServiceAccount(ctx context.Context, clientset *kubernetes.Clientse
 	}
 }
 
-func MustSetupService(ctx context.Context, clientset *kubernetes.Clientset, servicePath string) (corev1.Service, func()) { // nolint
+func MustSetupService(ctx context.Context, clientset *kubernetes.Clientset, servicePath string, mutators ...func(*corev1.Service)) (corev1.Service, func()) { // nolint
 	svc := mustParseService(servicePath)
+	for _, mutate := range mutators {
+		mutate(&svc)
+	}
 	svcClient := clientset.CoreV1().Services(svc.Namespace)
 	mustCreateService(ctx, svcClient, svc)
 	return svc, func() {
@@ -249,8 +261,11 @@ func MustSetupService(ctx context.Context, clientset *kubernetes.Clientset, serv
 	}
 }
 
-func MustSetupLRP(ctx context.Context, clientset *cilium.Clientset, lrpPath string) (ciliumv2.CiliumLocalRedirectPolicy, func()) { // nolint
+func MustSetupLRP(ctx context.Context, clientset *cilium.Clientset, lrpPath string, mutators ...func(*ciliumv2.CiliumLocalRedirectPolicy)) (ciliumv2.CiliumLocalRedirectPolicy, func()) { // nolint
 	lrp := mustParseLRP(lrpPath)
+	for _, mutate := range mutators {
+		mutate(&lrp)
+	}
 	lrpClient := clientset.CiliumV2().CiliumLocalRedirectPolicies(lrp.Namespace)
 	mustCreateCiliumLocalRedirectPolicy(ctx, lrpClient, lrp)
 	return lrp, func() {
@@ -269,13 +284,8 @@ func MustSetupCNP(ctx context.Context, clientset *cilium.Clientset, cnpPath stri
 
 func Int32ToPtr(i int32) *int32 { return &i }
 
-func WaitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, namespace, labelselector string, excludeNamespaces []string) error {
+func WaitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, namespace, labelselector string) error {
 	podsClient := clientset.CoreV1().Pods(namespace)
-
-	excludeSet := make(map[string]struct{}, len(excludeNamespaces))
-	for _, ns := range excludeNamespaces {
-		excludeSet[ns] = struct{}{}
-	}
 
 	checkPodIPsFn := func() error {
 		podList, err := podsClient.List(ctx, metav1.ListOptions{LabelSelector: labelselector})
@@ -289,9 +299,6 @@ func WaitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, na
 
 		for index := range podList.Items {
 			pod := podList.Items[index]
-			if _, excluded := excludeSet[pod.Namespace]; excluded {
-				continue
-			}
 			if pod.Status.Phase == corev1.PodPending {
 				return errors.New("some pods still pending")
 			}
@@ -299,9 +306,6 @@ func WaitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, na
 
 		for index := range podList.Items {
 			pod := podList.Items[index]
-			if _, excluded := excludeSet[pod.Namespace]; excluded {
-				continue
-			}
 			if pod.Status.PodIP == "" {
 				return errors.Errorf("Pod %s/%s has not been allocated an IP yet with reason %s", pod.Namespace, pod.Name, pod.Status.Message)
 			}

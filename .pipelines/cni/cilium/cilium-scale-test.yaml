@@ -17,7 +17,7 @@ stages:
               addSpnToEnvironment: true
               inlineScript: |
                 set -ex
-                az extension add --name aks-preview
+                make -C ./hack/aks azcfg AZCLI=az
 
                 subscriptionId="$(az account list --query "[?isDefault].id" --output tsv)"
                 make -C ./hack/aks AZCLI=az ${CLUSTER_TYPE} CLUSTER=${CLUSTER} GROUP=${RESOURCE_GROUP} REGION=${LOCATION} NODE_COUNT=5 VM_SIZE=${VMSIZE} SUB=${subscriptionId} || {
@@ -35,6 +35,16 @@ stages:
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
+          - script: |
+              GO_VER=$(grep '^toolchain' go.mod | sed 's/toolchain go//' | cut -d. -f1,2)
+              if [ -z "$GO_VER" ]; then GO_VER=$(grep '^go ' go.mod | awk '{print $2}' | cut -d. -f1,2); fi
+              if [ -z "$GO_VER" ]; then echo "##[error]Failed to detect Go version from go.mod"; exit 1; fi
+              echo "##vso[task.setvariable variable=GO_TOOLCHAIN_VERSION]$GO_VER"
+            displayName: "Detect Go version from go.mod"
+          - task: GoTool@0
+            inputs:
+              version: '$(GO_TOOLCHAIN_VERSION)'
+            displayName: "Install Go"
           - template: ../../templates/cilium-cli.yaml
           - task: AzureCLI@2
             inputs:

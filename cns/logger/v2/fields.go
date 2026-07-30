@@ -19,5 +19,6 @@ func MetadataToFields(meta common.Metadata) []zap.Field {
 		zap.String("os_version", meta.OSVersion),
 		zap.String("vm_id", meta.VMID),
 		zap.String("session_id", meta.VMID),
+		zap.String("os_type", meta.OsType),
 	}
 }

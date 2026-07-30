@@ -126,8 +126,7 @@ jobs:
 
             if [[ $(AZURE_CLUSTER) == *ws22 ]] # * is used for pattern matching
             then
-              az extension add --name aks-preview
-              az extension update --name aks-preview
+              make -C ./hack/aks azcfg AZCLI=az
 
               echo "creating WS22 Cluster";
               az aks create \

@@ -79,6 +79,7 @@ var (
 	errNoRequestIPFound           = errors.New("No Request IP Found")
 	errNoReleaseIPFound           = errors.New("No Release IP Found")
 	errNoOrchestratorContextFound = errors.New("No CNI OrchestratorContext Found")
+	errConnectionRefused          = errors.New("connection refused") //nolint:goerr113 // test sentinel
 )
 
 type MockCNSClient struct {

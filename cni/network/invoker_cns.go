@@ -381,6 +381,11 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 
 			if err = invoker.cnsClient.ReleaseIPAddress(context.TODO(), ipConfig); err != nil {
 				if errors.As(err, &connectionErr) {
+					if nwCfg != nil && nwCfg.DisableAsyncDelete {
+						logger.Error("Failed to release IP address and async delete is disabled",
+							zap.String("podInterfaceID", ipConfigs.PodInterfaceID), zap.String("containerID", args.ContainerID), zap.Error(log.NewErrorWithoutStackTrace(err)))
+						return errors.Wrap(err, "failed to release IP address using ReleaseIPAddress and async delete is disabled")
+					}
 					addErr := fsnotify.AddFile(ipConfigs.PodInterfaceID, args.ContainerID, watcherPath)
 					if addErr != nil {
 						logger.Error("Failed to add file to watcher (unsupported api path)",
@@ -397,6 +402,11 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 			}
 		} else {
 			if errors.As(err, &connectionErr) {
+				if nwCfg != nil && nwCfg.DisableAsyncDelete {
+					logger.Error("Failed to release IP address and async delete is disabled",
+						zap.String("podInterfaceID", ipConfigs.PodInterfaceID), zap.String("containerID", args.ContainerID), zap.Error(log.NewErrorWithoutStackTrace(err)))
+					return errors.Wrap(err, "failed to release IP address using ReleaseIPs and async delete is disabled")
+				}
 				addErr := fsnotify.AddFile(ipConfigs.PodInterfaceID, args.ContainerID, watcherPath)
 				if addErr != nil {
 					logger.Error("Failed to add file to watcher", zap.String("podInterfaceID", ipConfigs.PodInterfaceID), zap.String("containerID", args.ContainerID),

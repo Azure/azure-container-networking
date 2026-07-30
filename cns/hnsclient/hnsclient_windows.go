@@ -235,7 +235,7 @@ func configureHostNCApipaNetwork(localIPConfiguration cns.IPConfiguration) (*hcn
 		Flags: hcn.EnableNonPersistent, // Set up the network in non-persistent mode
 	}
 
-	if netAdapterNamePolicy, err := policy.GetHcnNetAdapterPolicy(hostNCLoopbackAdapterName); err == nil {
+	if netAdapterNamePolicy, err := policy.GetHcnNetAdapterNamePolicy(hostNCLoopbackAdapterName); err == nil {
 		network.Policies = append(network.Policies, netAdapterNamePolicy)
 	} else {
 		return nil, fmt.Errorf("Failed to serialize network adapter policy. Error: %v", err)

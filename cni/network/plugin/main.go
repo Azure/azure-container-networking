@@ -51,6 +51,8 @@ func printVersion() {
 }
 
 func rootExecute() error {
+	var config common.PluginConfig
+
 	// Enrich all CNI loggers with host metadata so ETW events carry VM identity for diagnostics.
 	metadataFile := filepath.Join(os.TempDir(), "azuremetadata.json")
 	if metadata, err := common.GetHostMetadata(metadataFile); err == nil {
@@ -67,10 +69,9 @@ func rootExecute() error {
 			zap.String("os_version", metadata.OSVersion),
 			zap.String("vm_id", metadata.VMID),
 			zap.String("session_id", metadata.VMID),
+			zap.String("os_type", metadata.OsType),
 		)
 	}
-
-	var config common.PluginConfig
 
 	config.Version = version
 

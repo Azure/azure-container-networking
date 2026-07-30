@@ -454,7 +454,7 @@ func sendRegisterNodeRequest(ctx context.Context, httpClient httpDoer, httpRestS
 
 	if response.StatusCode != http.StatusOK {
 		err = fmt.Errorf("[Azure CNS] Failed to register node, DNC replied with http status code %s", strconv.Itoa(response.StatusCode))
-		logger.Errorf(err.Error())
+		logger.Errorf("%s", err.Error()) //nolint:staticcheck // will migrate to logger/v2
 		return errors.Wrap(err, "failed to sendRegisterNodeRequest")
 	}
 
@@ -655,7 +655,7 @@ func main() {
 	if cnsconfig.Logger.AppInsights != nil {
 		cnsconfig.Logger.AppInsights.Fields = append(cnsconfig.Logger.AppInsights.Fields, aifields...)
 	}
-	cnsconfig.Logger.AppendETWFields(aifields)
+	cnsconfig.Logger.AppendETWFields(allFields)
 
 	// build the zap logger
 	z, c, err := loggerv2.New(&cnsconfig.Logger)
@@ -1425,15 +1425,12 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 	if _, ok := node.Labels[configuration.LabelNodeSwiftV2]; ok {
 		cnsconfig.EnableSwiftV2 = true
 		cnsconfig.WatchPods = true
-		if nodeInfoErr := createOrUpdateNodeInfoCRD(ctx, kubeConfig, node); nodeInfoErr != nil {
-			return errors.Wrap(nodeInfoErr, "error creating or updating nodeinfo crd")
-		}
 	}
 
-	// populate the NodeInfo CRD for Swift V1 dualstack scenario when enabled via config
-	if cnsconfig.EnableSwiftV1DualStack {
+	// populate the NodeInfo CRD if any scenario requires it (SwiftV2, SwiftV1 DualStack, or HomeAz)
+	if cnsconfig.EnableSwiftV2 || cnsconfig.EnableSwiftV1DualStack || cnsconfig.EnableHomeAZ {
 		if nodeInfoErr := createOrUpdateNodeInfoCRD(ctx, kubeConfig, node); nodeInfoErr != nil {
-			return errors.Wrap(nodeInfoErr, "error creating or updating nodeinfo crd for swift v1 dualstack")
+			return errors.Wrap(nodeInfoErr, "error creating or updating nodeinfo crd")
 		}
 	}
 

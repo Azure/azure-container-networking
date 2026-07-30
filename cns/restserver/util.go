@@ -132,7 +132,8 @@ func (service *HTTPRestService) restoreState() {
 				// Nothing to restore.
 				logger.Printf("[Azure CNS]  No endpoint state to restore.\n")
 			} else {
-				logger.Errorf("[Azure CNS]  Failed to restore endpoint state, err:%v. Removing endpoints.json", err)
+				//nolint:staticcheck // TODO: migrate to zap
+				logger.Errorf("[Azure CNS]  Failed to restore endpoint state, err:%v", err)
 			}
 			return
 		}
@@ -239,13 +240,13 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 			}
 		default:
 			errMsg := fmt.Sprintf("Unsupported orchestrator type: %s", service.state.OrchestratorType)
-			logger.Errorf(errMsg)
+			logger.Errorf("%s", errMsg) //nolint:staticcheck // will migrate to logger/v2
 			return types.UnsupportedOrchestratorType, errMsg
 		}
 
 	default:
 		errMsg := fmt.Sprintf("Unsupported network container type %s", req.NetworkContainerType)
-		logger.Errorf(errMsg)
+		logger.Errorf("%s", errMsg) //nolint:staticcheck // will migrate to logger/v2
 		return types.UnsupportedNetworkContainerType, errMsg
 	}
 

@@ -159,6 +159,6 @@ spec:
         - name: xtables-lock
           hostPath:
             path: /run/xtables.lock
-            type: File
+            type: FileOrCreate
       serviceAccountName: azure-cns
 

@@ -66,6 +66,10 @@ func (e *ConnectionFailureErr) Error() string {
 	return e.cause.Error()
 }
 
+func NewConnectionFailureErr(cause error) *ConnectionFailureErr {
+	return &ConnectionFailureErr{cause: cause}
+}
+
 // New returns a new CNS client configured with the passed URL and timeout.
 func New(baseURL string, requestTimeout time.Duration) (*Client, error) {
 	if baseURL == "" {
@@ -1128,8 +1132,9 @@ func (c *Client) DeleteEndpointState(ctx context.Context, endpointID string) (*c
 		return nil, errors.Wrap(err, "failed to decode CNS Response")
 	}
 
-	if response.ReturnCode != 0 {
-		return nil, errors.New(response.Message)
+	if response.ReturnCode != types.Success {
+		// return the response so the caller can inspect ReturnCode (e.g. NotFound) and decide how to handle it
+		return &response, errors.New(response.Message)
 	}
 
 	return &response, nil

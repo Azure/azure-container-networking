@@ -99,6 +99,7 @@ func ensureRotatingPNAndPNI(kubeconfig, rg, pnName, pniName, namespace string) {
 	ctx := context.Background()
 	c := helpers.MustGetK8sClient(kubeconfig)
 
+	SetStep("EnsurePodNetwork")
 	exists, err := helpers.PodNetworkExists(ctx, c, pnName)
 	gomega.Expect(err).To(gomega.BeNil(), "Failed to check PodNetwork existence")
 	if exists {
@@ -111,6 +112,7 @@ func ensureRotatingPNAndPNI(kubeconfig, rg, pnName, pniName, namespace string) {
 		gomega.Expect(err).To(gomega.BeNil(), "Failed to create PodNetwork")
 	}
 
+	SetStep("EnsurePNI")
 	exists, err = helpers.PodNetworkInstanceExists(ctx, c, namespace, pniName)
 	gomega.Expect(err).To(gomega.BeNil(), "Failed to check PodNetworkInstance existence")
 	if exists {
@@ -123,7 +125,10 @@ func ensureRotatingPNAndPNI(kubeconfig, rg, pnName, pniName, namespace string) {
 }
 
 var _ = ginkgo.Describe("Long-Running Rotating Pod Tests", func() {
+	ginkgo.AfterEach(ReportFailedStep)
+
 	ginkgo.It("rotates pods on the zone high-NIC node (6h lifetime, 1 per hour)", func() {
+		SetStep("ValidateEnv")
 		rg := os.Getenv("RG")
 		buildID := os.Getenv("BUILD_ID")
 		location := os.Getenv("LOCATION")
@@ -156,6 +161,7 @@ var _ = ginkgo.Describe("Long-Running Rotating Pod Tests", func() {
 
 		// Ensure namespace exists
 		ctx := context.Background()
+		SetStep("EnsureNamespace")
 		err := helpers.EnsureNamespaceK8s(ctx, c, namespace)
 		gomega.Expect(err).To(gomega.BeNil(), "Failed to ensure namespace exists")
 
@@ -164,6 +170,7 @@ var _ = ginkgo.Describe("Long-Running Rotating Pod Tests", func() {
 
 		// Scan existing deployments: find which slots are occupied and their ages
 		now := time.Now().UTC()
+		SetStep("RotateDeployments")
 		deletedCount := 0
 		createdCount := 0
 		existingSlots := make(map[int]bool)
@@ -256,6 +263,7 @@ var _ = ginkgo.Describe("Long-Running Rotating Pod Tests", func() {
 		fmt.Printf("\nRotating deployment summary (zone %s): deleted=%d, created=%d\n", zone, deletedCount, createdCount)
 
 		// Verify all 6 deployments are ready
+		SetStep("VerifyDeploymentsReady")
 		for slot := 0; slot < LongRunningRotatingPodCount; slot++ {
 			deploymentName := GetRotatingPodName(slot)
 			gomega.Expect(IsDeploymentReady(kubeconfig, namespace, deploymentName)).To(gomega.BeTrue(),

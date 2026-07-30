@@ -1,23 +1,24 @@
 # acnpublic: acnpublic.azurecr.io
 # general cilium variables
-DIR 									?= 1.17
-CILIUM_VERSION_TAG               		?= v1.17.7-250927
+DIR 									?= 1.18
+CILIUM_VERSION_TAG               		?= v1.18.11-260622
 CILIUM_IMAGE_REGISTRY           		?= mcr.microsoft.com/containernetworking
 IPV6_IMAGE_REGISTRY						?= mcr.microsoft.com/containernetworking
 IPV6_HP_BPF_VERSION               		?= v0.0.1
 CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY 	?= mcr.microsoft.com/containernetworking
-CILIUM_LOG_COLLECTOR_VERSION_TAG 		?= v0.0.1-0
+CILIUM_LOG_COLLECTOR_VERSION_TAG 		?= v0.0.2-0
 CILIUM_NIGHTLY_VERSION_TAG 				?= cilium-nightly-pipeline
+WAIT_FOR_CILIUM						?= true
 
 # ebpf cilium variables
-EBPF_CILIUM_DIR				     		?= 1.17
+EBPF_CILIUM_DIR				     		?= 1.18
 # we don't use CILIUM_VERSION_TAG or CILIUM_IMAGE_REGISTRY because we want to use the version supported by ebpf
 EBPF_CILIUM_IMAGE_REGISTRY           	?= mcr.microsoft.com/containernetworking
 IPV6_HP_BPF_VERSION               		?= v0.0.1
 IPV6_IMAGE_REGISTRY           			?= mcr.microsoft.com/containernetworking
-EBPF_CILIUM_VERSION_TAG               	?= v1.17.7-250927
+EBPF_CILIUM_VERSION_TAG               	?= v1.18.11-260622
 AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY	?= mcr.microsoft.com/containernetworking
-AZURE_IPTABLES_MONITOR_TAG          	?= v0.0.3
+AZURE_IPTABLES_MONITOR_TAG          	?= v0.0.5-0
 AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY		?= mcr.microsoft.com/containernetworking
 AZURE_IP_MASQ_MERGER_TAG            	?= v0.0.1-0
 
@@ -56,7 +57,11 @@ print-ebpf-cilium-vars:
 	@echo "EBPF_CILIUM_VERSION_TAG: $(EBPF_CILIUM_VERSION_TAG)"
 
 wait-for-cilium:
+ifeq ($(WAIT_FOR_CILIUM),true)
 	cilium status --wait --wait-duration 20m
+else
+	@echo "Skipping Cilium readiness check"
+endif
 
 # vanilla cilium deployment
 deploy-cilium-config:
@@ -166,4 +171,3 @@ deploy-ebpf-podsubnet-cilium: print-ebpf-cilium-vars deploy-common-ebpf-cilium
 		../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/podsubnet/cilium.yaml \
 		| kubectl apply -f -
 	@$(MAKE) wait-for-cilium
-

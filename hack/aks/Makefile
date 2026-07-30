@@ -11,7 +11,7 @@ AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v
 
 # overrideable defaults
 AUTOUPGRADE          ?= patch
-K8S_VER              ?= 1.33
+K8S_VER              ?= 1.35
 NODE_COUNT           ?= 2
 NODE_COUNT_WIN	     ?= $(NODE_COUNT)
 NODEUPGRADE          ?= NodeImage
@@ -27,7 +27,7 @@ PUBLIC_IP_ID         ?= /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/
 PUBLIC_IPv4          ?= $(PUBLIC_IP_ID)/$(IP_PREFIX)-$(CLUSTER)-v4
 PUBLIC_IPv6          ?= $(PUBLIC_IP_ID)/$(IP_PREFIX)-$(CLUSTER)-v6
 KUBE_PROXY_JSON_PATH ?= ./kube-proxy.json
-LTS					 ?= false
+LTS					 ?= auto
 ACNS				 ?= false
 GATEWAYAPI			 ?= false
 
@@ -38,9 +38,17 @@ CLUSTER    ?= $(USER)-$(REGION)
 GROUP      ?= $(CLUSTER)
 VNET       ?= $(CLUSTER)
 
-# Long Term Support (LTS)
+# LTS: auto (default) adds the LTS support plan + premium tier only for LTS-only
+# minors (supportPlan has AKSLongTermSupport but not KubernetesOfficial, detected
+# via az); true/false force it on/off.
+LTS_PREMIUM_ARGS = --k8s-support-plan AKSLongTermSupport --tier premium
+K8S_MINOR = $(word 1,$(subst ., ,$(K8S_VER))).$(word 2,$(subst ., ,$(K8S_VER)))
 ifeq ($(LTS),true)
-	LTS_ARGS=--k8s-support-plan AKSLongTermSupport --tier premium
+	LTS_ARGS=$(LTS_PREMIUM_ARGS)
+else ifeq ($(LTS),auto)
+	LTS_ARGS=$(shell $(AZCLI) aks get-versions --location $(REGION) \
+		--query "values[?contains(capabilities.supportPlan,'AKSLongTermSupport') && !contains(capabilities.supportPlan,'KubernetesOfficial')].version" \
+		-o tsv 2>/dev/null | grep -Fqx "$(K8S_MINOR)" && echo "$(LTS_PREMIUM_ARGS)")
 else
 	LTS_ARGS=
 endif
@@ -85,9 +93,16 @@ azlogin: ## Login and set account to $SUB
 	@$(AZCLI) login
 	@$(AZCLI) account set -s $(SUB)
 
-azcfg: ## Set the $AZCLI to use aks-preview
-	@$(AZCLI) extension add --name aks-preview --yes
-	@$(AZCLI) extension update --name aks-preview
+# Fallback pin to work around aks-preview upstream breaks (checksum mismatches, etc.).
+# Past Issue: https://github.com/Azure/azure-cli-extensions/issues/10101
+AKS_PREVIEW_FALLBACK_VERSION ?= 21.0.0b7
+
+azcfg: ## Install aks-preview (latest, falling back to AKS_PREVIEW_FALLBACK_VERSION on failure)
+	@$(AZCLI) extension add --name aks-preview --upgrade --yes \
+		|| { \
+			echo "aks-preview latest install failed; falling back to $(AKS_PREVIEW_FALLBACK_VERSION)"; \
+			$(AZCLI) extension add --name aks-preview --version $(AKS_PREVIEW_FALLBACK_VERSION) --upgrade --yes; \
+		}
 
 ip:
 	$(AZCLI) network public-ip create --name $(IP_PREFIX)-$(CLUSTER)-$(IPVERSION) \
@@ -144,17 +159,20 @@ rg-down: ## Delete resource group
 	$(AZCLI) group delete -g $(GROUP) --yes
 
 swift-net-up: ## Create vnet, nodenet and podnet subnets
-	$(AZCLI) network vnet create -g $(GROUP) -l $(REGION) --name $(VNET) --address-prefixes 10.0.0.0/8 -o none
+	@$(AZCLI) network vnet show -g $(GROUP) --name $(VNET) -o none 2>/dev/null || \
+		$(AZCLI) network vnet create -g $(GROUP) -l $(REGION) --name $(VNET) --address-prefixes 10.0.0.0/8 -o none
 	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name nodenet --address-prefixes 10.240.0.0/16 -o none
 	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name podnet --address-prefixes 10.241.0.0/16 -o none
 
 vnetscale-swift-net-up: ## Create vnet, nodenet and podnet subnets for vnet scale
-	$(AZCLI) network vnet create -g $(GROUP) -l $(REGION) --name $(VNET) --address-prefixes 10.0.0.0/8 -o none
+	@$(AZCLI) network vnet show -g $(GROUP) --name $(VNET) -o none 2>/dev/null || \
+		$(AZCLI) network vnet create -g $(GROUP) -l $(REGION) --name $(VNET) --address-prefixes 10.0.0.0/8 -o none
 	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name nodenet --address-prefixes 10.240.0.0/16 -o none
 	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name podnet --address-prefixes 10.40.0.0/13 -o none
 
 overlay-net-up: ## Create vnet, nodenet subnets
-	$(AZCLI) network vnet create -g $(GROUP) -l $(REGION) --name $(VNET) --address-prefixes 10.0.0.0/8 -o none
+	@$(AZCLI) network vnet show -g $(GROUP) --name $(VNET) -o none 2>/dev/null || \
+		$(AZCLI) network vnet create -g $(GROUP) -l $(REGION) --name $(VNET) --address-prefixes 10.0.0.0/8 -o none
 	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name nodenet --address-prefix 10.10.0.0/16 -o none
 
 ##@ AKS Clusters

@@ -1,0 +1,298 @@
+# Known failure signatures for the ACN pipeline failure-analysis agent.
+#
+# Each signature is a human-curated pattern that grounds the classifier with a
+# deterministic category, owner, and recommendation. Matching is case-sensitive
+# unless the pattern opts into (?i). Keep patterns specific to avoid false
+# positives. Confidence is in [0, 1].
+#
+# category must be one of:
+#   pr_regression | cluster_bringup_failure | pipeline_infra_config |
+#   known_flake | unknown_needs_human
+
+signatures:
+  - id: aks-cluster-create-quota-exceeded
+    category: pipeline_infra_config
+    description: AKS cluster creation failed due to subscription/region quota limits.
+    owner: acn-infra
+    recommendation: >-
+      Check regional vCPU/public-IP quota for the test subscription. Retry in a
+      different region or request a quota increase; this is not a product bug.
+    confidence: 0.85
+    anyOf:
+      - "(?i)quota.*exceeded"
+      - "(?i)OperationNotAllowed.*quota"
+      - "(?i)insufficient.*(quota|capacity)"
+
+  - id: image-pull-backoff
+    category: cluster_bringup_failure
+    description: A pod could not pull its container image (ImagePullBackOff/ErrImagePull).
+    owner: acn-cni
+    recommendation: >-
+      Verify the image tag exists and the registry/service-connection
+      credentials are valid for this pipeline. Confirm the dropgz/CNI image was
+      published before the E2E stage ran.
+    confidence: 0.75
+    anyOf:
+      - "ImagePullBackOff"
+      - "ErrImagePull"
+      - "(?i)failed to pull (and unpack )?image"
+
+  - id: node-not-ready-timeout
+    category: cluster_bringup_failure
+    description: Nodes never reached Ready within the wait timeout.
+    owner: acn-cni
+    recommendation: >-
+      Inspect CNS/CNI daemonset logs on the affected nodes and the NNC status.
+      A stuck CNI init or IPAM allocation commonly blocks node readiness.
+    confidence: 0.6
+    anyOf:
+      - "(?i)timed out waiting for .*node.* ready"
+      - "(?i)node.* not ready"
+      - "(?i)NodeNotReady"
+
+  - id: node-lifecycle-restart
+    category: pipeline_infra_config
+    description: >-
+      A node reboot, reimage, preemption, or eviction disrupted the run. Component
+      restarts (e.g. CNS "caught exit signal terminated") are expected side effects
+      of node lifecycle events, not a product regression.
+    owner: acn-infra
+    recommendation: >-
+      Correlate the failure timestamps with node lifecycle events (kubectl get
+      events for Node objects, node-status/node-conditions). If CNS/CNI restarted
+      because the node rebooted, was reimaged, drained, or went NotReady, this is an
+      infra/nodepool event rather than a PR regression. Re-run once the nodepool is
+      healthy.
+    confidence: 0.6
+    anyOf:
+      - "(?i)RebootScheduled"
+      - "(?i)node.*(rebooted|reimaged|preempted)"
+      - "(?i)NodeNotReady.*kubelet"
+      - "(?i)(Preempt|Evict)ed.*node"
+      - "(?i)node\\.kubernetes\\.io/unreachable"
+
+  - id: cns-crashloop
+    category: pr_regression
+    description: The CNS pod entered CrashLoopBackOff during the run.
+    owner: acn-cns
+    recommendation: >-
+      Review CNS container logs for the panic/fatal cause. If the failing change
+      touches CNS, treat as a likely regression from the PR under test.
+    confidence: 0.7
+    anyOf:
+      - "(?i)azure-cns.*CrashLoopBackOff"
+      - "(?i)CrashLoopBackOff.*cns"
+
+  - id: kubectl-connection-refused
+    category: pipeline_infra_config
+    description: kubectl could not reach the API server (connection refused/timeout).
+    owner: acn-infra
+    recommendation: >-
+      Usually a transient control-plane or kubeconfig/network issue on the agent,
+      not a product bug. Confirm get-credentials ran and the API server is healthy.
+    confidence: 0.55
+    anyOf:
+      - "(?i)the server could not find the requested resource"
+      - "(?i)dial tcp.*:443.*(connection refused|i/o timeout)"
+      - "(?i)Unable to connect to the server"
+
+  - id: e2e-context-deadline-exceeded
+    category: known_flake
+    description: An E2E step failed with a context deadline / timeout, a common flake.
+    owner: acn-cni
+    recommendation: >-
+      Re-run the failed stage. If it recurs with the same fingerprint across
+      multiple PRs, escalate to the owning team to extend the timeout or fix the
+      underlying slowness.
+    confidence: 0.5
+    anyOf:
+      - "(?i)context deadline exceeded"
+      - "(?i)test timed out after"
+
+  - id: cns-ipam-allocation-failed
+    category: pr_regression
+    description: CNS IP allocation failed; indicates IPAM state or allocation logic regression.
+    owner: acn-cns
+    recommendation: >-
+      Review the PR diff for changes to IPAM allocation, pool management, or state initialization.
+      Check CNS logs for pool exhaustion, state corruption, or invalid address calculations.
+    confidence: 0.75
+    anyOf:
+      - "Failed to allocate pool"
+      - "Failed to allocate address"
+      - "No available addresses"
+      - "no available address pools"
+      - "Address already in use"
+
+  - id: cns-allocate-ipconfig-failed
+    category: pr_regression
+    description: CNS AllocateIPConfig RPC failed, blocking pod IPAM provisioning.
+    owner: acn-cns
+    recommendation: >-
+      Check CNS logs for the underlying cause: pool exhaustion, state corruption, or NC sync issues.
+      Verify the change does not introduce races in IP assignment or NC state updates.
+    confidence: 0.8
+    anyOf:
+      - "AllocateIPConfig failed"
+      - "AllocateIPConfig failed due to not getting NC Response"
+      - "AllocateIPConfig failed while updating pod with interfaces"
+
+  - id: cns-state-corruption-detected
+    category: pr_regression
+    description: CNS detected state corruption (pod-to-IPID mismatch or double-assignment).
+    owner: acn-cns
+    recommendation: >-
+      This indicates a race condition or state mutation bug in the PR. Review concurrency control,
+      state locking, and IP assignment logic. This is critical and requires immediate fix.
+    confidence: 0.9
+    anyOf:
+      - "CNS State potentially corrupt"
+      - "Pod to IPID exists, but IPID to IPConfig doesn't exist"
+      - "Failed to assign IP.*already assigned"
+      - "Failed to mark IP.*currently assigned"
+
+  - id: cns-endpoint-state-update-failed
+    category: pr_regression
+    description: Failed to update endpoint state; indicates state store or marshaling issue.
+    owner: acn-cns
+    recommendation: >-
+      Review changes to endpoint state serialization, storage, or reconciliation.
+      Check for schema mismatches or concurrent mutations.
+    confidence: 0.7
+    anyOf:
+      - "Update endpoint state failed"
+      - "failed to write endpoint state to store"
+      - "Failed to update state.*for the IPConfig"
+
+  - id: cns-ip-exhaustion
+    category: cluster_bringup_failure
+    description: Cluster ran out of available IP addresses for pod allocation.
+    owner: acn-cni
+    recommendation: >-
+      Increase the IP pool size or reduce the number of pods. This is an infra/config issue,
+      not a product bug, unless the PR changed IP pool calculations.
+    confidence: 0.8
+    anyOf:
+      - "IPsExhausted"
+      - "No available addresses"
+      - "address pool.*empty"
+
+  - id: cni-initialize-failed
+    category: pr_regression
+    description: CNI plugin failed to initialize on nodes.
+    owner: acn-cni
+    recommendation: >-
+      Check CNI daemonset logs for initialization errors. If the PR touches CNI startup,
+      verify all required config, binaries, and dependencies are present.
+    confidence: 0.75
+    anyOf:
+      - "Failed to initialize.*plugin"
+      - "Failed to parse network configuration"
+      - "Failed to initialize address manager"
+
+  - id: hns-endpoint-creation-failed-windows
+    category: pr_regression
+    description: HNS failed to create a network endpoint on Windows nodes.
+    owner: acn-cns
+    recommendation: >-
+      Review the PR for changes to endpoint creation, HNS API calls, or network configuration.
+      Verify HNS service is running and the network policy/rules are valid.
+    confidence: 0.8
+    anyOf:
+      - "failed to remove HNS endpoint"
+      - "CreateHnsNetwork failed"
+      - "DeleteHnsNetwork failed"
+      - "CreateHostNCApipaEndpoint failed"
+      - "Failed to delete endpoint for Network Container"
+
+  - id: linux-bridge-setup-failed
+    category: pr_regression
+    description: Linux bridge endpoint setup failed (ARP, DNAT, veth pair creation).
+    owner: acn-cni
+    recommendation: >-
+      Check the PR for changes to bridge configuration, iptables rules, or interface management.
+      Verify kernel netfilter/iptables/bridge-utils are available on nodes.
+    confidence: 0.7
+    anyOf:
+      - "Failed setting arp in vm"
+      - "Setting up hairpin failed"
+      - "Failed to delete.*rule for IP"
+      - "Failed to delete veth pair"
+      - "Failed to check if.*rule exists"
+
+  - id: cns-not-initialized
+    category: cluster_bringup_failure
+    description: CNS reported it was not yet initialized with environment variables or config.
+    owner: acn-cni
+    recommendation: >-
+      Verify cluster initialization scripts set all required CNS environment variables before
+      the CNS pod starts. Check for missing config files or service dependencies.
+    confidence: 0.8
+    anyOf:
+      - "CNS is not yet initialized"
+      - "Network plugin configuration cannot be nil"
+      - "must declare.*environment variable"
+
+  - id: parse-ipconfig-failed
+    category: pr_regression
+    description: Failed to parse IP address or IP config during pod provisioning.
+    owner: acn-cns
+    recommendation: >-
+      Check the PR for changes to IP parsing, validation, or config schema. Verify the change
+      does not introduce invalid IP formats or missing fields.
+    confidence: 0.7
+    anyOf:
+      - "failed to parse pod ip address"
+      - "failed to parse pod's ip"
+      - "failed to parse base URL"
+
+  - id: nc-not-found
+    category: cluster_bringup_failure
+    description: Network Container not found in state or failed to get NC response from CNM/IPAM.
+    owner: acn-cni
+    recommendation: >-
+      Verify NC creation succeeded before attempting to configure it. Check CNM/NNC reconciliation
+      and state synchronization between control plane and CNS.
+    confidence: 0.7
+    anyOf:
+      - "Address pool not found"
+      - "failed to get pool information"
+      - "failed to get NC responses from statefile"
+
+  - id: endpoint-already-exists
+    category: pr_regression
+    description: Attempted to create an endpoint that already exists.
+    owner: acn-cns
+    recommendation: >-
+      Check for duplicate endpoint creation logic or lack of idempotency in the PR changes.
+      Verify cleanup on error paths and ensure endpoints are properly deleted before recreation.
+    confidence: 0.7
+    anyOf:
+      - "Endpoint already exists"
+      - "Endpoint is already joined to a sandbox"
+
+  - id: validate-ipconfig-request-failed
+    category: pr_regression
+    description: IP config request validation failed (malformed or incomplete request).
+    owner: acn-cns
+    recommendation: >-
+      Check the PR for changes to request validation logic. Review the RPC schema and ensure
+      all required fields are populated by callers.
+    confidence: 0.65
+    anyOf:
+      - "failed to validate ip config request"
+      - "Request validation error"
+
+  - id: release-ipconfig-failed
+    category: pr_regression
+    description: Failed to release IP addresses, leaving IPs leaked in IPAM state.
+    owner: acn-cns
+    recommendation: >-
+      Check the PR for changes to IP release logic. Verify release is idempotent and handles
+      already-released or non-existent IPs gracefully.
+    confidence: 0.75
+    anyOf:
+      - "releaseIPConfigs failed"
+      - "Failed to release IP"
+      - "Failed to release one or more IPs"
+      - "ReleaseIPConfigHandlerHelper.*failed"

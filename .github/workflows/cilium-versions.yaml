@@ -1,0 +1,47 @@
+name: 'Cilium Image Versions'
+on:
+  workflow_dispatch:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+  merge_group:
+    types:
+      - checks_requested
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install digest-pinned skopeo shim
+        env:
+          # quay.io/skopeo/stable:latest resolved 2026-07-02.
+          # To bump: `skopeo inspect docker://quay.io/skopeo/stable:latest --format '{{.Digest}}'`
+          SKOPEO_IMAGE: quay.io/skopeo/stable@sha256:c7d3c512612f52805023cd38351081dad7e2729fc13d14b701e47c7c8bdd6615
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          cat > "$HOME/.local/bin/skopeo" <<EOF
+          #!/usr/bin/env bash
+          exec docker run --rm --network host "$SKOPEO_IMAGE" "\$@"
+          EOF
+          chmod +x "$HOME/.local/bin/skopeo"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Verify skopeo is available
+        run: skopeo --version
+      - name: Check cilium image versions
+        run: |
+          if ! make cilium-versions-check; then
+            echo ""
+            echo "Newer cilium-family image tags are available on MCR."
+            echo "Run 'make cilium-versions' locally and commit the updated hack/aks/deploy.mk."
+            exit 1
+          fi

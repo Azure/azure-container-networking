@@ -66,8 +66,7 @@ jobs:
           scriptLocation: "inlineScript"
           failOnStderr: true
           inlineScript: |
-            az extension add --name aks-preview
-            az extension update --name aks-preview
+            make -C ./hack/aks azcfg AZCLI=az
 
             export CLUSTER_NAME=$(RESOURCE_GROUP)
 

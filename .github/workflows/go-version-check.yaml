@@ -1,0 +1,1208 @@
+name: 'Go Version Check & Auto-Bump'
+
+on:
+  schedule:
+    - cron: '0 9 * * 0' # Every Sunday at 9am UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run - check for updates without creating a PR or issue'
+        required: false
+        default: 'false'
+        type: boolean
+      force_bump:
+        description: 'Force a bump even if digest matches (useful for testing)'
+        required: false
+        default: 'false'
+        type: boolean
+
+permissions: {}
+
+concurrency:
+  group: go-version-check
+  cancel-in-progress: true
+
+env:
+  MCR_REPO: mcr.microsoft.com/oss/go/microsoft/golang
+  BASE_OS: azurelinux3.0
+
+jobs:
+  check-go-update:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    outputs:
+      update_type: ${{ steps.check.outputs.update_type }}
+      go_img: ${{ steps.check.outputs.go_img }}
+      go_tag: ${{ steps.check.outputs.go_tag }}
+      go_minor: ${{ steps.check.outputs.go_minor }}
+      gomod_version: ${{ steps.check.outputs.gomod_version }}
+      current_digest: ${{ steps.check.outputs.current_digest }}
+      latest_digest: ${{ steps.check.outputs.latest_digest }}
+      latest_go_version: ${{ steps.check.outputs.latest_go_version }}
+      go_version_changed: ${{ steps.check.outputs.go_version_changed }}
+      latest_patch: ${{ steps.check.outputs.latest_patch }}
+      latest_patch_tag: ${{ steps.check.outputs.latest_patch_tag }}
+      latest_patch_digest: ${{ steps.check.outputs.latest_patch_digest }}
+      latest_minor: ${{ steps.check.outputs.latest_minor }}
+      latest_minor_tag: ${{ steps.check.outputs.latest_minor_tag }}
+      digest_drift: ${{ steps.check.outputs.digest_drift }}
+      patch_available: ${{ steps.check.outputs.patch_available }}
+      minor_upgrade_available: ${{ steps.check.outputs.minor_upgrade_available }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: go.mod
+
+      - name: Install skopeo
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq skopeo > /dev/null
+
+      - name: Detect Go version updates
+        id: check
+        env:
+          FORCE_BUMP: ${{ inputs.force_bump }}
+        run: |
+          set -euo pipefail
+
+          # ─── Parse current state from repo using Makefile contracts ───
+          GO_IMG=$(make --no-print-directory -f build/images.mk print-GO_IMG)
+          GO_TAG=$(echo "$GO_IMG" | grep -oP ':\K.*')
+          GO_MINOR=$(echo "$GO_TAG" | grep -oP '^\d+\.\d+')
+          GOMOD_VERSION=$(go mod edit -json go.mod | python3 -c "import sys,json;print(json.load(sys.stdin)['Go'])")
+
+          echo "Current GO_IMG: $GO_IMG"
+          echo "Current tag: $GO_TAG"
+          echo "Current go.mod: $GOMOD_VERSION"
+
+          echo "go_img=$GO_IMG" >> "$GITHUB_OUTPUT"
+          echo "go_tag=$GO_TAG" >> "$GITHUB_OUTPUT"
+          echo "go_minor=$GO_MINOR" >> "$GITHUB_OUTPUT"
+          echo "gomod_version=$GOMOD_VERSION" >> "$GITHUB_OUTPUT"
+
+          # ─── Get current pinned digests ───
+          CURRENT_DIGEST=$(grep -oP 'golang@\Ksha256:[a-f0-9]+' cni/Dockerfile | head -1 || echo "NOT_FOUND")
+          INSTALL_DIGEST=$(grep -oP 'DEFAULT_IMAGE="[^@]+@\Ksha256:[a-f0-9]+' .pipelines/build/scripts/install-go.sh | head -1 || echo "NOT_FOUND")
+          BPF_CURRENT_DIGEST=$(grep -oP 'golang@\Ksha256:[a-f0-9]+' bpf-prog/ipv6-hp-bpf/linux.Dockerfile | head -1 || echo "NOT_FOUND")
+
+          echo "current_digest=$CURRENT_DIGEST" >> "$GITHUB_OUTPUT"
+          echo "install_digest=$INSTALL_DIGEST" >> "$GITHUB_OUTPUT"
+          echo "bpf_current_digest=$BPF_CURRENT_DIGEST" >> "$GITHUB_OUTPUT"
+
+          # ─── Tier 1: Digest drift on current tag ───
+          LATEST_DIGEST=$(skopeo inspect "docker://$GO_IMG" --format "{{.Digest}}" 2>/dev/null || echo "FAILED")
+          if [ "$LATEST_DIGEST" = "FAILED" ]; then
+            echo "::error::Failed to inspect $GO_IMG"
+            exit 1
+          fi
+          echo "Latest digest for $GO_TAG: $LATEST_DIGEST"
+          echo "latest_digest=$LATEST_DIGEST" >> "$GITHUB_OUTPUT"
+
+          DIGEST_DRIFT="false"
+          if [ "$CURRENT_DIGEST" != "$LATEST_DIGEST" ]; then
+            DIGEST_DRIFT="true"
+          fi
+          # Also detect inconsistency: if install-go.sh or bpf Dockerfile has a different digest than templates
+          if [ "$INSTALL_DIGEST" != "NOT_FOUND" ] && [ "$INSTALL_DIGEST" != "$CURRENT_DIGEST" ]; then
+            echo "::warning::install-go.sh digest ($INSTALL_DIGEST) differs from template digest ($CURRENT_DIGEST)"
+            DIGEST_DRIFT="true"
+          fi
+          if [ "$BPF_CURRENT_DIGEST" != "NOT_FOUND" ] && [ "$BPF_CURRENT_DIGEST" != "$CURRENT_DIGEST" ]; then
+            echo "::warning::bpf-prog Dockerfile digest ($BPF_CURRENT_DIGEST) differs from template digest ($CURRENT_DIGEST)"
+            DIGEST_DRIFT="true"
+          fi
+          if [ "$FORCE_BUMP" = "true" ]; then
+            DIGEST_DRIFT="true"
+          fi
+          echo "digest_drift=$DIGEST_DRIFT" >> "$GITHUB_OUTPUT"
+
+          # ─── Extract actual Go version from latest image ───
+          LATEST_GO_VERSION=$(skopeo inspect "docker://$GO_IMG" --format '{{index .Labels "org.opencontainers.image.version"}}' 2>/dev/null || echo "")
+          if [ -z "$LATEST_GO_VERSION" ] || [ "$LATEST_GO_VERSION" = "<no value>" ]; then
+            LATEST_GO_VERSION=$(skopeo inspect "docker://$GO_IMG" --format '{{index .Labels "go-version"}}' 2>/dev/null || echo "")
+          fi
+          if [ -z "$LATEST_GO_VERSION" ] || [ "$LATEST_GO_VERSION" = "<no value>" ]; then
+            LATEST_GO_VERSION="UNKNOWN"
+          fi
+          # Normalize: strip any "go" prefix (e.g., "go1.26.1" → "1.26.1")
+          LATEST_GO_VERSION="${LATEST_GO_VERSION#go}"
+          echo "Go version in latest image: $LATEST_GO_VERSION"
+          echo "latest_go_version=$LATEST_GO_VERSION" >> "$GITHUB_OUTPUT"
+
+          GO_VERSION_CHANGED="false"
+          if [ "$LATEST_GO_VERSION" != "UNKNOWN" ] && [ "$LATEST_GO_VERSION" != "$GOMOD_VERSION" ]; then
+            GO_VERSION_CHANGED="true"
+          fi
+          echo "go_version_changed=$GO_VERSION_CHANGED" >> "$GITHUB_OUTPUT"
+
+          # ─── Tier 2: Check for newer patch versions ───
+          echo "Listing MCR tags for patch versions..."
+          ALL_TAGS=$(skopeo list-tags "docker://$MCR_REPO" 2>/dev/null | python3 -c "
+          import sys, json, re, os
+          tags = json.load(sys.stdin).get('Tags', [])
+          base_os = re.escape('${BASE_OS}')
+          pattern = re.compile(r'^(\d+\.\d+(?:\.\d+)?)-' + base_os + r'$')
+          matches = []
+          for t in tags:
+              m = pattern.match(t)
+              if m:
+                  ver = m.group(1)
+                  parts = ver.split('.')
+                  matches.append((tuple(int(p) for p in parts), t, ver))
+          matches.sort(reverse=True)
+          for parts, tag, ver in matches:
+              print(f'{ver}\t{tag}')
+          " 2>/dev/null || echo "")
+
+          LATEST_PATCH=""
+          LATEST_PATCH_TAG=""
+          LATEST_MINOR=""
+          LATEST_MINOR_TAG=""
+          if [ -n "$ALL_TAGS" ]; then
+            while IFS=$'\t' read -r ver tag; do
+              if [[ "$ver" == ${GO_MINOR}.* ]] || [[ "$ver" == "${GO_MINOR}" ]]; then
+                LATEST_PATCH="$ver"
+                LATEST_PATCH_TAG="$tag"
+                break
+              fi
+            done <<< "$ALL_TAGS"
+
+            while IFS=$'\t' read -r ver tag; do
+              LATEST_MINOR="$ver"
+              LATEST_MINOR_TAG="$tag"
+              break
+            done <<< "$ALL_TAGS"
+          fi
+
+          echo "Latest patch in ${GO_MINOR}.x series: ${LATEST_PATCH:-none}"
+          echo "Latest overall version: ${LATEST_MINOR:-none}"
+          echo "latest_patch=$LATEST_PATCH" >> "$GITHUB_OUTPUT"
+          echo "latest_patch_tag=$LATEST_PATCH_TAG" >> "$GITHUB_OUTPUT"
+          echo "latest_minor=$LATEST_MINOR" >> "$GITHUB_OUTPUT"
+          echo "latest_minor_tag=$LATEST_MINOR_TAG" >> "$GITHUB_OUTPUT"
+
+          PATCH_AVAILABLE="false"
+          # Gate: only treat full x.y.z versions as patch bumps (not x.y without patch component)
+          if [ -n "$LATEST_PATCH" ] && [ "$LATEST_PATCH" != "$GOMOD_VERSION" ] && [[ "$LATEST_PATCH" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            LATEST_PATCH_DIGEST=$(skopeo inspect "docker://$MCR_REPO:${LATEST_PATCH}-${BASE_OS}" --format "{{.Digest}}" 2>/dev/null || echo "FAILED")
+            if [ "$LATEST_PATCH_DIGEST" != "FAILED" ]; then
+              # Trigger if digest drifted OR go.mod is behind the latest patch
+              PATCH_AVAILABLE="true"
+            fi
+            echo "latest_patch_digest=$LATEST_PATCH_DIGEST" >> "$GITHUB_OUTPUT"
+          fi
+          echo "patch_available=$PATCH_AVAILABLE" >> "$GITHUB_OUTPUT"
+
+          # ─── Tier 3: Minor/Major version available ───
+          MINOR_UPGRADE_AVAILABLE="false"
+          if [ -n "$LATEST_MINOR" ]; then
+            LATEST_MINOR_BASE=$(echo "$LATEST_MINOR" | grep -oP '^\d+\.\d+')
+            if [ "$LATEST_MINOR_BASE" != "$GO_MINOR" ]; then
+              CURRENT_MAJOR=$(echo "$GO_MINOR" | cut -d. -f1)
+              CURRENT_MIN=$(echo "$GO_MINOR" | cut -d. -f2)
+              LATEST_MAJOR=$(echo "$LATEST_MINOR_BASE" | cut -d. -f1)
+              LATEST_MIN=$(echo "$LATEST_MINOR_BASE" | cut -d. -f2)
+              if [ "$LATEST_MAJOR" -gt "$CURRENT_MAJOR" ] || \
+                 ([ "$LATEST_MAJOR" -eq "$CURRENT_MAJOR" ] && [ "$LATEST_MIN" -gt "$CURRENT_MIN" ]); then
+                MINOR_UPGRADE_AVAILABLE="true"
+              fi
+            fi
+          fi
+          echo "minor_upgrade_available=$MINOR_UPGRADE_AVAILABLE" >> "$GITHUB_OUTPUT"
+
+          # ─── Determine update type ───
+          if [ "$MINOR_UPGRADE_AVAILABLE" = "true" ]; then
+            UPDATE_TYPE="minor"
+          elif [ "$PATCH_AVAILABLE" = "true" ]; then
+            UPDATE_TYPE="patch"
+          elif [ "$DIGEST_DRIFT" = "true" ]; then
+            UPDATE_TYPE="digest"
+          else
+            UPDATE_TYPE="none"
+          fi
+          echo "update_type=$UPDATE_TYPE" >> "$GITHUB_OUTPUT"
+          echo "::notice::Update type: $UPDATE_TYPE"
+
+      - name: Summary
+        env:
+          CHECK_GO_IMG: ${{ steps.check.outputs.go_img }}
+          CHECK_GOMOD_VERSION: ${{ steps.check.outputs.gomod_version }}
+          CHECK_CURRENT_DIGEST: ${{ steps.check.outputs.current_digest }}
+          CHECK_LATEST_DIGEST: ${{ steps.check.outputs.latest_digest }}
+          CHECK_LATEST_GO_VERSION: ${{ steps.check.outputs.latest_go_version }}
+          CHECK_DIGEST_DRIFT: ${{ steps.check.outputs.digest_drift }}
+          CHECK_LATEST_PATCH: ${{ steps.check.outputs.latest_patch }}
+          CHECK_LATEST_MINOR: ${{ steps.check.outputs.latest_minor }}
+          CHECK_UPDATE_TYPE: ${{ steps.check.outputs.update_type }}
+        run: |
+          echo "### Go Version Check Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Check | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| GO_IMG | \`$CHECK_GO_IMG\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| go.mod | \`$CHECK_GOMOD_VERSION\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Current pinned digest | \`$CHECK_CURRENT_DIGEST\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Latest MCR digest | \`$CHECK_LATEST_DIGEST\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Go version in image | \`$CHECK_LATEST_GO_VERSION\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Digest drift | \`$CHECK_DIGEST_DRIFT\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Patch available | \`$CHECK_LATEST_PATCH\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Latest minor | \`$CHECK_LATEST_MINOR\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **Update type** | **\`$CHECK_UPDATE_TYPE\`** |" >> "$GITHUB_STEP_SUMMARY"
+
+  # ═══════════════════════════════════════════════════════════════════
+  # Tier 1 & 2: Auto-bump with PR creation
+  # ═══════════════════════════════════════════════════════════════════
+  auto-bump:
+    needs: check-go-update
+    permissions:
+      contents: write
+      pull-requests: write
+    if: |
+      needs.check-go-update.outputs.update_type != 'none'
+      && needs.check-go-update.outputs.update_type != 'minor'
+      && github.event.inputs.dry_run != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Configure git credentials
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+      - name: Install MS Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: go.mod
+
+      - name: Install tools
+        env:
+          UPDATE_TYPE: ${{ needs.check-go-update.outputs.update_type }}
+          LATEST_PATCH: ${{ needs.check-go-update.outputs.latest_patch }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq skopeo > /dev/null
+          # If patch bump, install the target Go version and activate it immediately
+          if [ "$UPDATE_TYPE" = "patch" ] && [ -n "$LATEST_PATCH" ]; then
+            go install golang.org/dl/go${LATEST_PATCH}@latest
+            go${LATEST_PATCH} download
+            NEW_GOROOT="$(go${LATEST_PATCH} env GOROOT)/bin"
+            export PATH="${NEW_GOROOT}:${PATH}"
+            echo "${NEW_GOROOT}" >> "$GITHUB_PATH"
+          fi
+          # Install renderkit via repo Makefile target (uses pinned tools module)
+          make renderkit
+          GOPATH=$(go env GOPATH 2>/dev/null || echo "$HOME/go")
+          echo "${GOPATH}/bin" >> "$GITHUB_PATH"
+          echo "GOPATH=${GOPATH}" >> "$GITHUB_ENV"
+
+      - name: Check for existing PR
+        id: existing_pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPDATE_TYPE: ${{ needs.check-go-update.outputs.update_type }}
+          LATEST_PATCH: ${{ needs.check-go-update.outputs.latest_patch }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [ "$UPDATE_TYPE" = "patch" ]; then
+            BRANCH="auto/go-patch-${LATEST_PATCH}"
+          else
+            BRANCH="auto/go-digest-refresh"
+          fi
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+          EXISTING=$(gh pr list \
+            --repo "$REPO" \
+            --state open \
+            --head "$BRANCH" \
+            --json number \
+            --jq 'length')
+          echo "existing_count=$EXISTING" >> "$GITHUB_OUTPUT"
+
+      - name: Perform digest refresh (Tier 1)
+        if: |
+          needs.check-go-update.outputs.update_type == 'digest'
+          && steps.existing_pr.outputs.existing_count == '0'
+        env:
+          LATEST_DIGEST: ${{ needs.check-go-update.outputs.latest_digest }}
+          GO_TAG: ${{ needs.check-go-update.outputs.go_tag }}
+          LATEST_GO_VERSION: ${{ needs.check-go-update.outputs.latest_go_version }}
+          GOMOD_VERSION: ${{ needs.check-go-update.outputs.gomod_version }}
+          GO_VERSION_CHANGED: ${{ needs.check-go-update.outputs.go_version_changed }}
+          BRANCH: ${{ steps.existing_pr.outputs.branch }}
+        run: |
+          set -euo pipefail
+          git checkout -b "$BRANCH"
+
+          MCR_IMG="$MCR_REPO"
+
+          # Re-resolve digest at point of use to avoid race with check job
+          LATEST_DIGEST=$(skopeo inspect "docker://${MCR_IMG}:${GO_TAG}" --format "{{.Digest}}")
+
+          # Update install-go.sh DEFAULT_IMAGE with new digest
+          sed -i "s|DEFAULT_IMAGE=\"${MCR_IMG}@sha256:[a-f0-9]*\"|DEFAULT_IMAGE=\"${MCR_IMG}@${LATEST_DIGEST}\"|" \
+            .pipelines/build/scripts/install-go.sh
+
+          # Update bpf-prog Dockerfile
+          sed -i "s|${MCR_IMG}@sha256:[a-f0-9]*|${MCR_IMG}@${LATEST_DIGEST}|" \
+            bpf-prog/ipv6-hp-bpf/linux.Dockerfile
+
+          # Regenerate template Dockerfiles (picks up new digest via skopeo)
+          make dockerfiles
+
+          # If Go version changed in the image, also bump go.mod and tools module
+          if [ "$GO_VERSION_CHANGED" = "true" ] && [ -n "$LATEST_GO_VERSION" ] && [ "$LATEST_GO_VERSION" != "UNKNOWN" ]; then
+            go mod edit -go="${LATEST_GO_VERSION}" go.mod
+            go mod tidy
+            if [ -f tools-go/go.mod ]; then
+              (cd tools-go && go mod edit -go="${LATEST_GO_VERSION}" && go mod tidy)
+            elif [ -f tools.go.mod ]; then
+              go mod edit -go="${LATEST_GO_VERSION}" -modfile=tools.go.mod
+              go mod tidy -modfile=tools.go.mod
+            fi
+          fi
+
+          # Commit
+          git add -A
+          if git diff --cached --quiet; then
+            echo "::notice::No changes to commit"
+            echo "has_changes=false" >> "$GITHUB_ENV"
+          else
+            git commit -m "chore: refresh Go image digest for ${GO_TAG}
+
+          Image digest updated to ${LATEST_DIGEST}
+          Go version in image: ${LATEST_GO_VERSION}
+
+          Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
+            echo "has_changes=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Perform patch bump (Tier 2)
+        if: |
+          needs.check-go-update.outputs.update_type == 'patch'
+          && steps.existing_pr.outputs.existing_count == '0'
+        env:
+          GO_MINOR: ${{ needs.check-go-update.outputs.go_minor }}
+          LATEST_PATCH: ${{ needs.check-go-update.outputs.latest_patch }}
+          LATEST_PATCH_TAG: ${{ needs.check-go-update.outputs.latest_patch_tag }}
+          LATEST_PATCH_DIGEST: ${{ needs.check-go-update.outputs.latest_patch_digest }}
+          GOMOD_VERSION: ${{ needs.check-go-update.outputs.gomod_version }}
+          BRANCH: ${{ steps.existing_pr.outputs.branch }}
+        run: |
+          set -euo pipefail
+          git checkout -b "$BRANCH"
+
+          MCR_IMG="$MCR_REPO"
+
+          # Re-resolve digest at point of use to avoid race with check job
+          LATEST_PATCH_DIGEST=$(skopeo inspect "docker://${MCR_IMG}:${LATEST_PATCH_TAG}" --format "{{.Digest}}")
+
+          # Note: GO_IMG stays as floating minor tag (e.g., 1.26-azurelinux3.0).
+          # Patch bumps update go.mod, digests, and re-resolve via make dockerfiles.
+
+          # 1. Update go.mod and tools module
+          go mod edit -go="${LATEST_PATCH}" go.mod
+          go mod tidy
+          if [ -f tools-go/go.mod ]; then
+            (cd tools-go && go mod edit -go="${LATEST_PATCH}" && go mod tidy)
+          elif [ -f tools.go.mod ]; then
+            go mod edit -go="${LATEST_PATCH}" -modfile=tools.go.mod
+            go mod tidy -modfile=tools.go.mod
+          fi
+
+          # 3. Update install-go.sh
+          sed -i "s|DEFAULT_IMAGE=\"${MCR_IMG}@sha256:[a-f0-9]*\"|DEFAULT_IMAGE=\"${MCR_IMG}@${LATEST_PATCH_DIGEST}\"|" \
+            .pipelines/build/scripts/install-go.sh
+
+          # 4. Update bpf-prog Dockerfile
+          sed -i "s|${MCR_IMG}@sha256:[a-f0-9]*|${MCR_IMG}@${LATEST_PATCH_DIGEST}|" \
+            bpf-prog/ipv6-hp-bpf/linux.Dockerfile
+          # Also update the tag reference if present (escape dots in GO_MINOR for sed regex)
+          GO_MINOR_ESC=$(echo "$GO_MINOR" | sed 's/\./\\./g')
+          sed -i "s|golang:${GO_MINOR_ESC}[0-9.]*|golang:${LATEST_PATCH}|g" \
+            bpf-prog/ipv6-hp-bpf/linux.Dockerfile
+
+          # 5. Update npm Dockerfiles (tag only, no SHA pin)
+          # npm Dockerfiles use full MCR path with patch version (e.g., golang:1.25.5)
+          for f in npm/linux.Dockerfile npm/windows.Dockerfile; do
+            if [ -f "$f" ]; then
+              sed -i "s|golang:${GOMOD_VERSION}|golang:${LATEST_PATCH}|g" "$f"
+            fi
+          done
+
+          # 6. Regenerate template Dockerfiles
+          make dockerfiles
+
+          # Commit
+          git add -A
+          if git diff --cached --quiet; then
+            echo "::notice::No changes to commit"
+            echo "has_changes=false" >> "$GITHUB_ENV"
+          else
+            git commit -m "chore: bump Go ${GO_MINOR} → ${LATEST_PATCH}
+
+          Updated Go toolchain to patch version ${LATEST_PATCH}.
+          MCR tag: ${LATEST_PATCH_TAG}
+          Digest: ${LATEST_PATCH_DIGEST}
+
+          Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
+            echo "has_changes=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Push branch and create PR
+        if: env.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.existing_pr.outputs.branch }}
+          UPDATE_TYPE: ${{ needs.check-go-update.outputs.update_type }}
+          PR_GO_MINOR: ${{ needs.check-go-update.outputs.go_minor }}
+          PR_LATEST_PATCH: ${{ needs.check-go-update.outputs.latest_patch }}
+          PR_GOMOD_VERSION: ${{ needs.check-go-update.outputs.gomod_version }}
+          PR_LATEST_PATCH_DIGEST: ${{ needs.check-go-update.outputs.latest_patch_digest }}
+          PR_GO_TAG: ${{ needs.check-go-update.outputs.go_tag }}
+          PR_CURRENT_DIGEST: ${{ needs.check-go-update.outputs.current_digest }}
+          PR_LATEST_DIGEST: ${{ needs.check-go-update.outputs.latest_digest }}
+          PR_LATEST_GO_VERSION: ${{ needs.check-go-update.outputs.latest_go_version }}
+          REPO: ${{ github.repository }}
+        run: |
+          git push origin "$BRANCH" --force-with-lease
+
+          if [ "$UPDATE_TYPE" = "patch" ]; then
+            TITLE="chore: bump Go ${PR_GO_MINOR} → ${PR_LATEST_PATCH}"
+            BODY="## Automated Go Patch Bump
+
+          **From:** \`${PR_GO_MINOR}\` (go.mod: \`${PR_GOMOD_VERSION}\`)
+          **To:** \`${PR_LATEST_PATCH}\`
+          **Digest:** \`${PR_LATEST_PATCH_DIGEST}\`
+
+          ### Changes Made
+          - \`go.mod\` and tools module version bumped
+          - \`go mod tidy\` executed
+          - \`install-go.sh\` DEFAULT_IMAGE SHA updated
+          - \`bpf-prog/ipv6-hp-bpf/linux.Dockerfile\` SHA updated
+          - \`npm/\` Dockerfiles tag updated
+          - Template Dockerfiles regenerated via \`make dockerfiles\`
+
+          ### Verification
+          - [ ] CI passes
+          - [ ] \`go build ./...\` succeeds
+          - [ ] No unexpected GODEBUG behavior changes
+
+          ---
+          <!-- go-patch-update:${PR_LATEST_PATCH} -->
+          "
+          else
+            TITLE="chore: refresh Go image digest for ${PR_GO_TAG}"
+            BODY="## Automated Go Image Digest Refresh
+
+          **Tag:** \`${PR_GO_TAG}\`
+          **Old digest:** \`${PR_CURRENT_DIGEST}\`
+          **New digest:** \`${PR_LATEST_DIGEST}\`
+          **Go version in image:** \`${PR_LATEST_GO_VERSION}\`
+
+          This is a same-tag image rebuild (security patches, base OS updates).
+          If the Go version label in the image changed, \`go.mod\` is also updated.
+
+          ### Changes Made
+          - \`install-go.sh\` DEFAULT_IMAGE SHA updated
+          - \`bpf-prog/ipv6-hp-bpf/linux.Dockerfile\` SHA updated
+          - Template Dockerfiles regenerated via \`make dockerfiles\`
+          - \`go.mod\` and tools module bumped (if Go version in image changed)
+
+          ---
+          <!-- go-digest-update:${PR_GO_TAG} -->
+          "
+          fi
+
+          gh pr create \
+            --repo "$REPO" \
+            --head "$BRANCH" \
+            --base "master" \
+            --title "$TITLE" \
+            --body "$BODY"
+
+  # ═══════════════════════════════════════════════════════════════════
+  # Backport: Apply same Tier 1/2 changes to release/v1.7
+  # ═══════════════════════════════════════════════════════════════════
+  backport-release:
+    needs: [check-go-update, auto-bump]
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    if: |
+      needs.check-go-update.outputs.update_type != 'none'
+      && needs.check-go-update.outputs.update_type != 'minor'
+      && github.event.inputs.dry_run != 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        branch: [release/v1.7]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ matrix.branch }}
+          persist-credentials: false
+
+      - name: Configure git credentials
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+      - name: Install MS Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: go.mod
+
+      - name: Install tools
+        env:
+          UPDATE_TYPE: ${{ needs.check-go-update.outputs.update_type }}
+          LATEST_PATCH: ${{ needs.check-go-update.outputs.latest_patch }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq skopeo > /dev/null
+          # If patch bump, install the target Go version and activate it immediately
+          if [ "$UPDATE_TYPE" = "patch" ] && [ -n "$LATEST_PATCH" ]; then
+            go install golang.org/dl/go${LATEST_PATCH}@latest
+            go${LATEST_PATCH} download
+            NEW_GOROOT="$(go${LATEST_PATCH} env GOROOT)/bin"
+            export PATH="${NEW_GOROOT}:${PATH}"
+            echo "${NEW_GOROOT}" >> "$GITHUB_PATH"
+          fi
+          # Install renderkit via repo Makefile target (uses pinned tools module)
+          make renderkit
+          GOPATH=$(go env GOPATH 2>/dev/null || echo "$HOME/go")
+          echo "${GOPATH}/bin" >> "$GITHUB_PATH"
+          echo "GOPATH=${GOPATH}" >> "$GITHUB_ENV"
+
+      - name: Fetch MS Go FIPS requirements for target version
+        id: msgo_fips
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_MINOR: ${{ needs.check-go-update.outputs.go_minor }}
+        run: |
+          # Fetch authoritative FIPS/crypto docs from microsoft/go
+          # This ensures the workflow adapts automatically when requirements change between versions
+          TARGET_MIN_NUM=$(echo "$TARGET_MINOR" | cut -d. -f2)
+
+          NOCGO_DOC=$(gh api "repos/microsoft/go/contents/eng/doc/NocgoOpenSSL.md?ref=microsoft/main" \
+            --jq '.content' | base64 -d 2>/dev/null || echo "")
+
+          # Determine GOEXPERIMENT requirements based on version and CGO setting
+          # Source: https://github.com/microsoft/go/blob/microsoft/main/eng/doc/fips/README.md#usage-common-configurations
+          #
+          # Go 1.27+: systemcrypto works without cgo (nocgo backend is default on Linux)
+          # Go 1.26:  systemcrypto REQUIRES CGO_ENABLED=1; CGO_ENABLED=0 needs ms_nocgo_opensslcrypto
+          # Go <1.26: no systemcrypto support
+          if [ "$TARGET_MIN_NUM" -ge 27 ]; then
+            echo "goexp_cgo1=systemcrypto" >> "$GITHUB_OUTPUT"
+            echo "goexp_cgo0=systemcrypto" >> "$GITHUB_OUTPUT"
+            echo "nocgo_default=true" >> "$GITHUB_OUTPUT"
+          elif [ "$TARGET_MIN_NUM" -ge 26 ]; then
+            echo "goexp_cgo1=systemcrypto" >> "$GITHUB_OUTPUT"
+            echo "goexp_cgo0=ms_nocgo_opensslcrypto" >> "$GITHUB_OUTPUT"
+            echo "nocgo_default=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "goexp_cgo1=" >> "$GITHUB_OUTPUT"
+            echo "goexp_cgo0=" >> "$GITHUB_OUTPUT"
+            echo "nocgo_default=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # Check version-specific docs for any breaking changes
+          VERSION_DOC=$(gh api "repos/microsoft/go/contents/docs/go1.${TARGET_MIN_NUM}.md?ref=microsoft/main" \
+            --jq '.content' 2>/dev/null | base64 -d 2>/dev/null || echo "")
+          if [ -n "$VERSION_DOC" ]; then
+            echo "::notice::Found MS Go version-specific docs for 1.${TARGET_MIN_NUM}"
+            echo "has_version_doc=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_version_doc=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "::notice::FIPS rules for Go 1.${TARGET_MIN_NUM}: CGO=1 → GOEXPERIMENT=$([ $TARGET_MIN_NUM -ge 26 ] && echo systemcrypto || echo none), CGO=0 → GOEXPERIMENT=$([ $TARGET_MIN_NUM -ge 27 ] && echo systemcrypto || ([ $TARGET_MIN_NUM -ge 26 ] && echo ms_nocgo_opensslcrypto || echo none))"
+
+      - name: Check prerequisites on release branch
+        id: prereqs
+        env:
+          TARGET_MINOR: ${{ needs.check-go-update.outputs.go_minor }}
+          MATRIX_BRANCH: ${{ matrix.branch }}
+          GOEXP_CGO1: ${{ steps.msgo_fips.outputs.goexp_cgo1 }}
+          GOEXP_CGO0: ${{ steps.msgo_fips.outputs.goexp_cgo0 }}
+        run: |
+          # Check if release branch has correct FIPS setup for the target Go version
+          # CGO_ENABLED=1: needs GOEXPERIMENT=systemcrypto
+          # CGO_ENABLED=0: needs GOEXPERIMENT=ms_nocgo_opensslcrypto (Go 1.26)
+          FIPS_CORRECT="true"
+          FIPS_ISSUES=""
+
+          # Check scripts that use CGO_ENABLED=1 — these MUST have GOEXPERIMENT
+          if [ -n "$GOEXP_CGO1" ]; then
+            while IFS= read -r script; do
+              if grep -q "CGO_ENABLED=1" "$script" && ! grep -q "GOEXPERIMENT=$GOEXP_CGO1" "$script"; then
+                FIPS_CORRECT="false"
+                FIPS_ISSUES="${FIPS_ISSUES} ${script}(missing GOEXPERIMENT for CGO=1)"
+              fi
+            done < <(find .pipelines/build/scripts -name '*.sh' -type f 2>/dev/null || true)
+          fi
+
+          # Check scripts that use CGO_ENABLED=0 — these MUST have the correct GOEXPERIMENT
+          if [ -n "$GOEXP_CGO0" ]; then
+            while IFS= read -r script; do
+              if grep -q "CGO_ENABLED=0" "$script" && ! grep -q "GOEXPERIMENT=$GOEXP_CGO0" "$script"; then
+                FIPS_CORRECT="false"
+                FIPS_ISSUES="${FIPS_ISSUES} ${script}(missing GOEXPERIMENT=$GOEXP_CGO0 for CGO=0)"
+              fi
+            done < <(find .pipelines/build/scripts -name '*.sh' -type f 2>/dev/null || true)
+          fi
+
+          # Check Dockerfiles with CGO_ENABLED=1 — need GOEXPERIMENT
+          if [ -n "$GOEXP_CGO1" ]; then
+            while IFS= read -r tmpl; do
+              if grep -q "CGO_ENABLED=1" "$tmpl" && ! grep -q "GOEXPERIMENT=$GOEXP_CGO1" "$tmpl"; then
+                FIPS_CORRECT="false"
+                FIPS_ISSUES="${FIPS_ISSUES} ${tmpl}(missing GOEXPERIMENT for CGO=1)"
+              fi
+            done < <(find . -name '*.Dockerfile.tmpl' -o -name 'Dockerfile.tmpl' -o -name '*.Dockerfile' | grep -v vendor || true)
+          fi
+
+          if [ -n "$FIPS_ISSUES" ]; then
+            echo "::warning::FIPS configuration issues:$FIPS_ISSUES"
+          fi
+
+          HAS_DISTROLESS_BASE="false"
+          if grep -q "distroless/base" build/images.mk 2>/dev/null; then
+            HAS_DISTROLESS_BASE="true"
+          fi
+
+          # Get the current Go minor on this branch (use grep fallback for branches without print-% target)
+          BRANCH_GO_IMG=$(make --no-print-directory -f build/images.mk print-GO_IMG 2>/dev/null \
+            || grep -E '^(export[[:space:]]+)?GO_IMG' build/images.mk | head -1 | sed 's/.*golang://' | tr -d ' ')
+          BRANCH_GO_TAG=$(echo "$BRANCH_GO_IMG" | grep -oP ':\K.*' || echo "$BRANCH_GO_IMG")
+          BRANCH_GO_MINOR=$(echo "$BRANCH_GO_TAG" | grep -oP '^\d+\.\d+')
+
+          echo "branch_go_minor=$BRANCH_GO_MINOR" >> "$GITHUB_OUTPUT"
+          echo "fips_correct=$FIPS_CORRECT" >> "$GITHUB_OUTPUT"
+          echo "has_distroless_base=$HAS_DISTROLESS_BASE" >> "$GITHUB_OUTPUT"
+
+          # If target version requires FIPS and release branch isn't set up correctly
+          TARGET_MIN_NUM=$(echo "$TARGET_MINOR" | cut -d. -f2)
+          FIPS_NEEDED="false"
+          if [ "$TARGET_MIN_NUM" -ge 26 ] && [ "$FIPS_CORRECT" = "false" ]; then
+            FIPS_NEEDED="true"
+          fi
+          echo "fips_needed=$FIPS_NEEDED" >> "$GITHUB_OUTPUT"
+          echo "::notice::Release branch ${MATRIX_BRANCH}: Go=$BRANCH_GO_MINOR, FIPS correct=$FIPS_CORRECT, distroless/base=$HAS_DISTROLESS_BASE, FIPS needed=$FIPS_NEEDED"
+
+      - name: Check for existing backport PR
+        id: existing_bp
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPDATE_TYPE: ${{ needs.check-go-update.outputs.update_type }}
+          MATRIX_BRANCH: ${{ matrix.branch }}
+          LATEST_PATCH: ${{ needs.check-go-update.outputs.latest_patch }}
+          REPO: ${{ github.repository }}
+        run: |
+          BRANCH_SAFE=$(echo "$MATRIX_BRANCH" | tr '/' '-')
+          if [ "$UPDATE_TYPE" = "patch" ]; then
+            BRANCH="auto/go-patch-${LATEST_PATCH}-${BRANCH_SAFE}"
+          else
+            BRANCH="auto/go-digest-refresh-${BRANCH_SAFE}"
+          fi
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+          EXISTING=$(gh pr list \
+            --repo "$REPO" \
+            --state open \
+            --head "$BRANCH" \
+            --json number \
+            --jq 'length')
+          echo "existing_count=$EXISTING" >> "$GITHUB_OUTPUT"
+
+      - name: Create prerequisite issue if FIPS not ready
+        if: |
+          steps.prereqs.outputs.fips_needed == 'true'
+          && steps.existing_bp.outputs.existing_count == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          MATRIX_BRANCH: ${{ matrix.branch }}
+          FIPS_CORRECT: ${{ steps.prereqs.outputs.fips_correct }}
+          HAS_DISTROLESS_BASE: ${{ steps.prereqs.outputs.has_distroless_base }}
+          GOEXP_CGO1: ${{ steps.msgo_fips.outputs.goexp_cgo1 }}
+          GOEXP_CGO0: ${{ steps.msgo_fips.outputs.goexp_cgo0 }}
+        run: |
+          # Check for existing open prerequisite issue (dedup)
+          EXISTING_ISSUE=$(gh issue list \
+            --repo "$REPO" \
+            --state open \
+            --search "FIPS prerequisites needed on ${MATRIX_BRANCH}" \
+            --json number \
+            --jq 'length')
+          if [ "$EXISTING_ISSUE" -gt 0 ]; then
+            echo "::notice::Prerequisite issue already exists for ${MATRIX_BRANCH}, skipping"
+            exit 0
+          fi
+
+          gh issue create \
+            --repo "$REPO" \
+            --title "chore: FIPS prerequisites needed on ${MATRIX_BRANCH} before Go backport" \
+            --body "## Prerequisites Needed on \`${MATRIX_BRANCH}\`
+
+          The Go version automation detected a digest/patch update on master, but
+          \`${MATRIX_BRANCH}\` has incorrect FIPS configuration for the current Go version.
+
+          **Current FIPS status on \`${MATRIX_BRANCH}\`:**
+          - FIPS correctly configured: \`${FIPS_CORRECT}\`
+          - distroless/base: \`${HAS_DISTROLESS_BASE}\`
+
+          **FIPS rules (from [MS Go docs](https://github.com/microsoft/go/blob/microsoft/main/eng/doc/NocgoOpenSSL.md)):**
+          - CGO_ENABLED=1 scripts/Dockerfiles: GOEXPERIMENT=\`${GOEXP_CGO1}\`
+          - CGO_ENABLED=0 scripts/Dockerfiles: GOEXPERIMENT=\`${GOEXP_CGO0:-<none>}\`
+
+          **Action required:**
+          1. Backport FIPS base image changes to \`${MATRIX_BRANCH}\`:
+             - Update \`MARINER_DISTROLESS_IMG\` in \`build/images.mk\` to \`distroless/base:3.0\`
+             - Update \`bpf-prog/ipv6-hp-bpf/linux.Dockerfile\` runtime to \`azurelinux/distroless/base:3.0\`
+          2. Add \`GOEXPERIMENT=systemcrypto\` ONLY to scripts/Dockerfiles where \`CGO_ENABLED=1\`
+          3. REMOVE \`GOEXPERIMENT=systemcrypto\` from scripts/Dockerfiles where \`CGO_ENABLED=0\`
+          4. Remove \`MS_GO_NOSYSTEMCRYPTO=1\` if present
+          5. Run \`make dockerfiles\` to regenerate
+          6. After merged, the next automation run will auto-backport the Go version bump
+
+          **Reference:** https://github.com/microsoft/go/blob/microsoft/main/eng/doc/NocgoOpenSSL.md
+
+          Follow \`.github/copilot-instructions.md\` for full FIPS setup details.
+
+          ---
+          <!-- fips-prereq:${MATRIX_BRANCH} -->
+          "
+
+      - name: Perform backport (digest refresh)
+        if: |
+          needs.check-go-update.outputs.update_type == 'digest'
+          && steps.existing_bp.outputs.existing_count == '0'
+          && steps.prereqs.outputs.fips_needed == 'false'
+        env:
+          LATEST_DIGEST: ${{ needs.check-go-update.outputs.latest_digest }}
+          GO_TAG: ${{ needs.check-go-update.outputs.go_tag }}
+          LATEST_GO_VERSION: ${{ needs.check-go-update.outputs.latest_go_version }}
+          GO_VERSION_CHANGED: ${{ needs.check-go-update.outputs.go_version_changed }}
+          BRANCH: ${{ steps.existing_bp.outputs.branch }}
+          MATRIX_BRANCH: ${{ matrix.branch }}
+        run: |
+          set -euo pipefail
+          git checkout -b "$BRANCH"
+
+          MCR_IMG="$MCR_REPO"
+
+          sed -i "s|DEFAULT_IMAGE=\"${MCR_IMG}@sha256:[a-f0-9]*\"|DEFAULT_IMAGE=\"${MCR_IMG}@${LATEST_DIGEST}\"|" \
+            .pipelines/build/scripts/install-go.sh
+
+          sed -i "s|${MCR_IMG}@sha256:[a-f0-9]*|${MCR_IMG}@${LATEST_DIGEST}|" \
+            bpf-prog/ipv6-hp-bpf/linux.Dockerfile
+
+          make dockerfiles
+
+          if [ "$GO_VERSION_CHANGED" = "true" ] && [ -n "$LATEST_GO_VERSION" ] && [ "$LATEST_GO_VERSION" != "UNKNOWN" ]; then
+            go mod edit -go="${LATEST_GO_VERSION}" go.mod
+            go mod tidy
+            if [ -f tools-go/go.mod ]; then
+              (cd tools-go && go mod edit -go="${LATEST_GO_VERSION}" && go mod tidy)
+            elif [ -f tools.go.mod ]; then
+              go mod edit -go="${LATEST_GO_VERSION}" -modfile=tools.go.mod
+              go mod tidy -modfile=tools.go.mod
+            fi
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "has_changes=false" >> "$GITHUB_ENV"
+          else
+            git commit -m "chore(${MATRIX_BRANCH}): refresh Go image digest for ${GO_TAG}
+
+          Backport of digest refresh from master.
+          Digest: ${LATEST_DIGEST}
+
+          Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
+            echo "has_changes=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Perform backport (patch bump)
+        if: |
+          needs.check-go-update.outputs.update_type == 'patch'
+          && steps.existing_bp.outputs.existing_count == '0'
+          && steps.prereqs.outputs.fips_needed == 'false'
+        env:
+          GO_MINOR: ${{ needs.check-go-update.outputs.go_minor }}
+          LATEST_PATCH: ${{ needs.check-go-update.outputs.latest_patch }}
+          LATEST_PATCH_TAG: ${{ needs.check-go-update.outputs.latest_patch_tag }}
+          LATEST_PATCH_DIGEST: ${{ needs.check-go-update.outputs.latest_patch_digest }}
+          BRANCH: ${{ steps.existing_bp.outputs.branch }}
+          BRANCH_GO_MINOR: ${{ steps.prereqs.outputs.branch_go_minor }}
+          MATRIX_BRANCH: ${{ matrix.branch }}
+        run: |
+          set -euo pipefail
+          git checkout -b "$BRANCH"
+
+          MCR_IMG="$MCR_REPO"
+
+          # Only bump if release branch is on the same minor
+          if [ "$BRANCH_GO_MINOR" = "$GO_MINOR" ]; then
+            # GO_IMG stays as floating minor tag; patch version goes in go.mod and digests
+            CURRENT_GOMOD=$(go mod edit -json go.mod | python3 -c "import sys,json;print(json.load(sys.stdin)['Go'])")
+            go mod edit -go="${LATEST_PATCH}" go.mod
+            go mod tidy
+            if [ -f tools-go/go.mod ]; then
+              (cd tools-go && go mod edit -go="${LATEST_PATCH}" && go mod tidy)
+            elif [ -f tools.go.mod ]; then
+              go mod edit -go="${LATEST_PATCH}" -modfile=tools.go.mod
+              go mod tidy -modfile=tools.go.mod
+            fi
+
+            sed -i "s|DEFAULT_IMAGE=\"${MCR_IMG}@sha256:[a-f0-9]*\"|DEFAULT_IMAGE=\"${MCR_IMG}@${LATEST_PATCH_DIGEST}\"|" \
+              .pipelines/build/scripts/install-go.sh
+
+            sed -i "s|${MCR_IMG}@sha256:[a-f0-9]*|${MCR_IMG}@${LATEST_PATCH_DIGEST}|" \
+              bpf-prog/ipv6-hp-bpf/linux.Dockerfile
+
+            # Escape dots in GO_MINOR for sed regex
+            GO_MINOR_ESC=$(echo "$GO_MINOR" | sed 's/\./\\./g')
+            sed -i "s|golang:${GO_MINOR_ESC}[0-9.]*|golang:${LATEST_PATCH}|g" \
+              bpf-prog/ipv6-hp-bpf/linux.Dockerfile
+
+            for f in npm/linux.Dockerfile npm/windows.Dockerfile; do
+              if [ -f "$f" ]; then
+                # npm Dockerfiles use full patch version (e.g., golang:1.25.5)
+                sed -i "s|golang:${CURRENT_GOMOD}|golang:${LATEST_PATCH}|g" "$f"
+              fi
+            done
+
+            make dockerfiles
+          else
+            echo "::warning::Release branch is on Go $BRANCH_GO_MINOR, master is on $GO_MINOR — skipping patch backport"
+            echo "has_changes=false" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "has_changes=false" >> "$GITHUB_ENV"
+          else
+            git commit -m "chore(${MATRIX_BRANCH}): bump Go ${GO_MINOR} → ${LATEST_PATCH}
+
+          Backport of patch bump from master.
+          MCR tag: ${LATEST_PATCH_TAG}
+          Digest: ${LATEST_PATCH_DIGEST}
+
+          Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
+            echo "has_changes=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Push and create backport PR
+        if: env.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.existing_bp.outputs.branch }}
+          UPDATE_TYPE: ${{ needs.check-go-update.outputs.update_type }}
+          MATRIX_BRANCH: ${{ matrix.branch }}
+          PR_GO_MINOR: ${{ needs.check-go-update.outputs.go_minor }}
+          PR_LATEST_PATCH: ${{ needs.check-go-update.outputs.latest_patch }}
+          REPO: ${{ github.repository }}
+        run: |
+          git push origin "$BRANCH" --force-with-lease
+
+          if [ "$UPDATE_TYPE" = "patch" ]; then
+            TITLE="chore(${MATRIX_BRANCH}): bump Go ${PR_GO_MINOR} → ${PR_LATEST_PATCH}"
+          else
+            TITLE="chore(${MATRIX_BRANCH}): refresh Go image digest"
+          fi
+
+          gh pr create \
+            --repo "$REPO" \
+            --head "$BRANCH" \
+            --base "$MATRIX_BRANCH" \
+            --title "$TITLE" \
+            --body "## Backport: Go version update for \`${MATRIX_BRANCH}\`
+
+          Automated backport of Go version changes from master.
+
+          **Update type:** \`${UPDATE_TYPE}\`
+          **Target branch:** \`${MATRIX_BRANCH}\`
+
+          ### Changes applied (same as master PR)
+          - All SHA/version references updated
+          - \`make dockerfiles\` regenerated
+          - \`go mod tidy\` executed (if patch bump)
+
+          ### Verification
+          - [ ] CI passes on \`${MATRIX_BRANCH}\`
+          - [ ] No merge conflicts with release branch
+
+          ---
+          <!-- go-backport:${MATRIX_BRANCH}:${UPDATE_TYPE} -->
+          "
+
+  # ═══════════════════════════════════════════════════════════════════
+  # Tier 3: Minor/Major — Copilot Agent handles the upgrade
+  # ═══════════════════════════════════════════════════════════════════
+  minor-upgrade-agent:
+    needs: check-go-update
+    permissions:
+      contents: read
+      issues: write
+    if: |
+      needs.check-go-update.outputs.update_type == 'minor'
+      && github.event.inputs.dry_run != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Check for existing issue
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LATEST_MINOR: ${{ needs.check-go-update.outputs.latest_minor }}
+          REPO: ${{ github.repository }}
+        run: |
+          MARKER="go-minor-update:${LATEST_MINOR}"
+          EXISTING=$(gh issue list \
+            --repo "$REPO" \
+            --state open \
+            --search "in:body $MARKER" \
+            --json number \
+            --jq 'length')
+          echo "existing_count=$EXISTING" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch MS Go FIPS requirements
+        id: msgo_fips_tier3
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LATEST_MINOR: ${{ needs.check-go-update.outputs.latest_minor }}
+        run: |
+          # Fetch FIPS/crypto requirements from microsoft/go for the TARGET version
+          TARGET_MIN_NUM=$(echo "$LATEST_MINOR" | grep -oP '^\d+\.(\d+)' | cut -d. -f2)
+
+          # Determine GOEXPERIMENT rules per version
+          if [ "$TARGET_MIN_NUM" -ge 27 ]; then
+            echo "goexp_cgo1=systemcrypto" >> "$GITHUB_OUTPUT"
+            echo "goexp_cgo0=systemcrypto" >> "$GITHUB_OUTPUT"
+          elif [ "$TARGET_MIN_NUM" -ge 26 ]; then
+            echo "goexp_cgo1=systemcrypto" >> "$GITHUB_OUTPUT"
+            echo "goexp_cgo0=ms_nocgo_opensslcrypto" >> "$GITHUB_OUTPUT"
+          else
+            echo "goexp_cgo1=" >> "$GITHUB_OUTPUT"
+            echo "goexp_cgo0=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Detect FIPS readiness
+        id: fips
+        env:
+          GOEXP_CGO1: ${{ steps.msgo_fips_tier3.outputs.goexp_cgo1 }}
+          GOEXP_CGO0: ${{ steps.msgo_fips_tier3.outputs.goexp_cgo0 }}
+        run: |
+          # Check if FIPS setup is correct
+          FIPS_CORRECT="true"
+
+          # CGO_ENABLED=1 scripts must have GOEXPERIMENT if required
+          if [ -n "$GOEXP_CGO1" ]; then
+            while IFS= read -r script; do
+              if grep -q "CGO_ENABLED=1" "$script" && ! grep -q "GOEXPERIMENT=$GOEXP_CGO1" "$script"; then
+                FIPS_CORRECT="false"
+                echo "::warning::GOEXPERIMENT=$GOEXP_CGO1 missing from CGO=1 script: $script"
+              fi
+            done < <(find .pipelines/build/scripts -name '*.sh' -type f 2>/dev/null || true)
+
+            while IFS= read -r tmpl; do
+              if grep -q "CGO_ENABLED=1" "$tmpl" && ! grep -q "GOEXPERIMENT=$GOEXP_CGO1" "$tmpl"; then
+                FIPS_CORRECT="false"
+                echo "::warning::GOEXPERIMENT=$GOEXP_CGO1 missing from CGO=1 Dockerfile: $tmpl"
+              fi
+            done < <(find . -name '*.Dockerfile.tmpl' -o -name 'Dockerfile.tmpl' -o -name '*.Dockerfile' | grep -v vendor || true)
+          fi
+
+          # CGO_ENABLED=0 scripts must have the correct GOEXPERIMENT
+          if [ -n "$GOEXP_CGO0" ]; then
+            while IFS= read -r script; do
+              if grep -q "CGO_ENABLED=0" "$script" && ! grep -q "GOEXPERIMENT=$GOEXP_CGO0" "$script"; then
+                FIPS_CORRECT="false"
+                echo "::warning::GOEXPERIMENT=$GOEXP_CGO0 missing from CGO=0 script: $script"
+              fi
+            done < <(find .pipelines/build/scripts -name '*.sh' -type f 2>/dev/null || true)
+          fi
+
+          HAS_DISTROLESS_BASE="false"
+          if grep -q "distroless/base" build/images.mk 2>/dev/null; then
+            HAS_DISTROLESS_BASE="true"
+          fi
+
+          FIPS_READY="false"
+          if [ "$FIPS_CORRECT" = "true" ] && [ "$HAS_DISTROLESS_BASE" = "true" ]; then
+            FIPS_READY="true"
+          fi
+          echo "fips_ready=$FIPS_READY" >> "$GITHUB_OUTPUT"
+          echo "::notice::FIPS ready: $FIPS_READY (FIPS correct=$FIPS_CORRECT, distroless/base=$HAS_DISTROLESS_BASE)"
+
+      - name: Create issue and assign Copilot agent
+        if: steps.existing.outputs.existing_count == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GO_MINOR: ${{ needs.check-go-update.outputs.go_minor }}
+          LATEST_MINOR: ${{ needs.check-go-update.outputs.latest_minor }}
+          LATEST_MINOR_TAG: ${{ needs.check-go-update.outputs.latest_minor_tag }}
+          GOMOD_VER: ${{ needs.check-go-update.outputs.gomod_version }}
+          FIPS_READY: ${{ steps.fips.outputs.fips_ready }}
+          GOEXP_CGO1: ${{ steps.msgo_fips_tier3.outputs.goexp_cgo1 }}
+          GOEXP_CGO0: ${{ steps.msgo_fips_tier3.outputs.goexp_cgo0 }}
+          REPO: ${{ github.repository }}
+        run: |
+          LATEST_MINOR_BASE=$(echo "$LATEST_MINOR" | grep -oP '^\d+\.\d+')
+          LATEST_MIN_NUM=$(echo "$LATEST_MINOR_BASE" | cut -d. -f2)
+
+          # Resolve the image digest for the target version
+          TARGET_DIGEST=$(skopeo inspect "docker://${MCR_REPO}:${LATEST_MINOR_BASE}-${BASE_OS}" --format "{{.Digest}}" 2>/dev/null || echo "UNKNOWN")
+
+          # Build FIPS instructions based on current state and target version
+          FIPS_SECTION=""
+          if [ "$FIPS_READY" = "true" ]; then
+            FIPS_SECTION="
+          ### FIPS Status: ✅ Already configured
+          GOEXPERIMENT and distroless/base are already correctly configured.
+          No FIPS changes needed for this upgrade."
+          elif [ "$LATEST_MIN_NUM" -ge 27 ]; then
+            FIPS_SECTION="
+          ### ⚠️ FIPS / System Crypto Requirements
+          Go 1.27+ lifts the cgo requirement for systemcrypto on Linux.
+          \`GOEXPERIMENT=systemcrypto\` can now be set in ALL scripts/Dockerfiles regardless of CGO setting.
+          Reference: https://github.com/microsoft/go/blob/microsoft/main/eng/doc/NocgoOpenSSL.md
+
+          1. Set \`GOEXPERIMENT=systemcrypto\` in ALL Dockerfile templates and pipeline build scripts
+          2. Remove \`MS_GO_NOSYSTEMCRYPTO=1\` from npm Dockerfiles if present
+          3. Ensure \`MARINER_DISTROLESS_IMG\` in \`build/images.mk\` is \`distroless/base\`
+          4. Update \`bpf-prog/ipv6-hp-bpf/linux.Dockerfile\` runtime base to \`azurelinux/distroless/base:3.0\`"
+          elif [ "$LATEST_MIN_NUM" -ge 26 ]; then
+            FIPS_SECTION="
+          ### ⚠️ FIPS / System Crypto Requirements (CRITICAL — builds will FAIL without this)
+          Go 1.26 enables \`systemcrypto\` by default, which requires CGO on Linux.
+          **Reference:** https://github.com/microsoft/go/blob/microsoft/main/eng/doc/fips/README.md#usage-common-configurations
+
+          **You MUST set GOEXPERIMENT in EVERY build path:**
+
+          | Build Configuration | Required GOEXPERIMENT | Reason |
+          |---|---|---|
+          | Linux + CGO_ENABLED=1 | \`systemcrypto\` | Uses OpenSSL via dlopen (explicit, redundant but clear) |
+          | Linux + CGO_ENABLED=0 | \`ms_nocgo_opensslcrypto\` | Enables nocgo OpenSSL backend (default systemcrypto requires CGO and will FAIL) |
+          | Windows (any CGO) | (none needed) | CNG backend works without CGO |
+
+          **Steps:**
+          1. Add \`GOEXPERIMENT=ms_nocgo_opensslcrypto\` to ALL scripts/Dockerfiles/Makefiles with \`CGO_ENABLED=0\` on Linux
+          2. Add \`GOEXPERIMENT=systemcrypto\` to scripts/Dockerfiles with \`CGO_ENABLED=1\` (cilium-log-collector)
+          3. Remove \`MS_GO_NOSYSTEMCRYPTO=1\` from npm Dockerfiles and replace with \`GOEXPERIMENT=ms_nocgo_opensslcrypto\`
+          4. npm Dockerfiles use **plain Go tags** (e.g., \`golang:1.26.4\`) — do NOT add \`-azurelinux3.0\` suffix
+          5. npm/windows.Dockerfile builds on Linux (\`--platform=linux/amd64\`) — it STILL needs GOEXPERIMENT for CGO=0
+          6. Ensure \`MARINER_DISTROLESS_IMG\` in \`build/images.mk\` is \`distroless/base\`
+          7. In root Makefile: add \`ACN_GOEXPERIMENT\` variable, apply inline to all CGO=0 build commands
+          8. **DO NOT** leave CGO_ENABLED=0 builds without GOEXPERIMENT — they WILL fail with crypto errors"
+          fi
+
+          # Agent instructions embedded in issue body
+          BODY="## Go Minor Version Upgrade: ${GO_MINOR} → ${LATEST_MINOR}
+
+          **Current version:** \`${GO_MINOR}\` (go.mod: \`${GOMOD_VER}\`)
+          **Target version:** \`${LATEST_MINOR}\` (\`${LATEST_MINOR_TAG}\`)
+          **MCR image:** \`${MCR_REPO}:${LATEST_MINOR_BASE}-${BASE_OS}\`
+          **Image digest:** \`${TARGET_DIGEST}\`
+
+          ### Instructions for Copilot Agent
+
+          Use the \`acn-go-version-bump\` skill (\`.github/skills/acn-go-version-bump/SKILL.md\`).
+
+          **Step 0 (MANDATORY): Analyze MS Go Documentation**
+
+          Before making ANY code changes, read the pre-cached MS Go docs for version ${LATEST_MINOR_BASE}:
+
+          \`\`\`bash
+          # Read pre-cached docs (fetched by copilot-setup-steps before firewall)
+          cat .github/ms-go-docs/README.md
+          cat .github/ms-go-docs/NocgoOpenSSL.md
+          cat .github/ms-go-docs/MigrationGuide.md
+          cat .github/ms-go-docs/UserGuide.md
+          cat .github/ms-go-docs/AdditionalFeatures.md
+          # Fallback if cache is missing (may fail behind firewall):
+          # gh api \"repos/microsoft/go/contents/docs/go${LATEST_MINOR_BASE}.md?ref=microsoft/main\" --jq '.content' | base64 -d
+          \`\`\`
+
+          Produce a **Requirements Matrix** that cross-references the docs against this repo:
+          - Build environment: GOEXPERIMENT rules per CGO setting, build flags, GOTOOLCHAIN behavior
+          - Runtime: required system libraries, base image requirements, architecture limits
+          - Crypto/FIPS: which backend is selected, CGO requirements, API behavior changes
+          - Compatibility: deprecated APIs, module system changes, dependency support
+
+          **Include the Requirements Matrix in your PR description.**
+
+          **Step 1: Execute Changes (based on your analysis)**
+
+          1. Update \`build/images.mk\`: \`GO_IMG\` → \`${MCR_REPO}:${LATEST_MINOR_BASE}-${BASE_OS}\`
+          2. Update \`go.mod\` and tools module (\`tools-go/go.mod\` or \`tools.go.mod\`) — use \`.1\` minimum patch
+          3. Do NOT run \`go mod tidy\` — it times out in the agent environment. Existing go.sum files are valid.
+          4. Apply FIPS/crypto changes per your doc analysis (do NOT blindly reuse previous version's rules)
+          5. Update all SHA references (install-go.sh, bpf-prog, npm Dockerfiles)
+          6. Run \`make dockerfiles\`
+          7. Run \`go build ./...\` and \`go vet ./...\`
+
+          **Key dependency check:** Verify controller-runtime, client-go, and cilium support Go ${LATEST_MINOR_BASE}
+          ${FIPS_SECTION}
+
+          ### Acceptance Criteria
+          - [ ] Requirements Matrix included in PR description
+          - [ ] All version sources updated consistently
+          - [ ] \`go build ./...\` passes
+          - [ ] \`make dockerfiles\` output matches committed files
+          - [ ] No new \`replace\` directives (unless necessary and explained)
+          - [ ] FIPS/crypto config correct per MS Go docs for THIS specific version
+          - [ ] **Backport PR created for \`release/v1.7\`**
+
+          ### Backport to \`release/v1.7\`
+
+          After the master PR is complete, create a **second PR** targeting \`release/v1.7\`:
+          1. Check out \`release/v1.7\`
+          2. Apply the same Go version + SHA changes
+          3. If \`release/v1.7\` is missing prerequisites (based on your analysis), add those too
+          4. Run \`make dockerfiles\` and \`go mod tidy\` on that branch
+          5. Title: \`chore(release/v1.7): upgrade Go ${GO_MINOR} → ${LATEST_MINOR}\`
+          6. Verify \`go build ./...\` passes on release branch
+
+          > **Note:** The release branch may have different dependency versions than master.
+          > Run \`go mod tidy\` separately and resolve any conflicts specific to that branch.
+
+          ---
+          <!-- go-minor-update:${LATEST_MINOR} -->
+          "
+
+          # Create issue with labels and assign to Copilot for pickup
+          # Ensure required labels exist
+          gh label create "copilot" --repo "$REPO" --description "Auto-pickup by Copilot coding agent" --color "1d76db" 2>/dev/null || true
+          gh label create "Agent-Generated" --repo "$REPO" --description "Created by automation" --color "ededed" 2>/dev/null || true
+          gh issue create \
+            --repo "$REPO" \
+            --title "chore: upgrade Go ${GO_MINOR} → ${LATEST_MINOR}" \
+            --body "$BODY" \
+            --label "Agent-Generated" \
+            --label "copilot"
+          # Copilot coding agent auto-picks up issues labeled 'copilot'.

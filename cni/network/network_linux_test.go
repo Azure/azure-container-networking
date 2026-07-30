@@ -279,7 +279,8 @@ func TestPluginLinuxAdd(t *testing.T) {
 				// should match with GetTestCNSResponse3
 				{
 					epInfo: &network.EndpointInfo{
-						ContainerID: "test-container",
+						PrimaryInterfaceIP: "20.240.0.4/24",
+						ContainerID:        "test-container",
 						Data: map[string]interface{}{
 							"VlanID":       1, // Vlan ID used here
 							"localIP":      "168.254.0.4/17",

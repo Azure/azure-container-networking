@@ -386,11 +386,11 @@ func (nw *network) deleteHostNCApipaEndpoint(networkContainerID string) error {
 	if err != nil {
 		// If error is anything other than EndpointNotFoundError, return error.
 		// else log the error but don't return error because endpoint is already deleted.
-		if _, endpointNotFound := err.(hcn.EndpointNotFoundError); !endpointNotFound {
+		if !errors.As(err, &hcn.EndpointNotFoundError{}) {
 			return fmt.Errorf("deleteEndpointByNameHnsV2 failed due to error with GetEndpointByName: %w", err)
 		}
 
-		logger.Error("Delete called on the Endpoint which doesn't exist. Error:", zap.String("endpointName", endpointName), zap.Error(err))
+		logger.Info("Delete called on the Endpoint which doesn't exist.", zap.String("endpointName", endpointName), zap.Error(err))
 		return nil
 	}
 
@@ -620,11 +620,11 @@ func (nw *network) deleteEndpointImplHnsV2(ep *endpoint) error {
 	if err != nil {
 		// If error is anything other than EndpointNotFoundError, return error.
 		// else log the error but don't return error because endpoint is already deleted.
-		if _, endpointNotFound := err.(hcn.EndpointNotFoundError); !endpointNotFound {
+		if !errors.As(err, &hcn.EndpointNotFoundError{}) {
 			return fmt.Errorf("Failed to get hcn endpoint with id: %s due to err: %w", ep.HnsId, err)
 		}
 
-		logger.Error("Delete called on the Endpoint which doesn't exist. Error:", zap.String("HnsId", ep.HnsId), zap.Error(err))
+		logger.Info("Delete called on the Endpoint which doesn't exist.", zap.String("HnsId", ep.HnsId), zap.Error(err))
 		return nil
 	}
 

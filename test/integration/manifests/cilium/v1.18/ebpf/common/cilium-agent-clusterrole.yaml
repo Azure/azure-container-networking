@@ -123,3 +123,13 @@ rules:
   - ciliumnodes
   verbs:
   - patch
+- apiGroups:
+  - ""
+  resourceNames:
+  - cilium-config
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
