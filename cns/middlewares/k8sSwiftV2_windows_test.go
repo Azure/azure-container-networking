@@ -263,14 +263,48 @@ func TestApplyDefaultDenyToInfraNIC(t *testing.T) {
 
 // TestPodHasDefaultDenyLabel verifies the label detection used during request
 // validation to decide whether a non-SwiftV2 pod opts into default-deny ACLs.
+// The label value is parsed with strconv.ParseBool; an unparseable value returns
+// false and an error.
 func TestPodHasDefaultDenyLabel(t *testing.T) {
-	labelled := corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Labels: map[string]string{configuration.LabelPodDefaultDeny: "true"},
-		},
+	labelledPod := func(val string) corev1.Pod {
+		return corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{configuration.LabelPodDefaultDeny: val},
+			},
+		}
 	}
-	require.True(t, podHasDefaultDenyLabel(labelled))
 
-	plain := corev1.Pod{ObjectMeta: metav1.ObjectMeta{}}
-	require.False(t, podHasDefaultDenyLabel(plain))
+	enabled, err := defaultDenyEnabledOnPod(labelledPod("true"))
+	require.NoError(t, err)
+	require.True(t, enabled)
+
+	enabled, err = defaultDenyEnabledOnPod(labelledPod("True"))
+	require.NoError(t, err)
+	require.True(t, enabled)
+
+	enabled, err = defaultDenyEnabledOnPod(labelledPod("1"))
+	require.NoError(t, err)
+	require.True(t, enabled)
+
+	enabled, err = defaultDenyEnabledOnPod(labelledPod("false"))
+	require.NoError(t, err)
+	require.False(t, enabled)
+
+	enabled, err = defaultDenyEnabledOnPod(labelledPod("0"))
+	require.NoError(t, err)
+	require.False(t, enabled)
+
+	// Present but unparseable value returns false and an error.
+	enabled, err = defaultDenyEnabledOnPod(labelledPod("notabool"))
+	require.Error(t, err)
+	require.False(t, enabled)
+
+	enabled, err = defaultDenyEnabledOnPod(labelledPod(""))
+	require.Error(t, err)
+	require.False(t, enabled)
+
+	// Absent label is opt-out with no error.
+	enabled, err = defaultDenyEnabledOnPod(corev1.Pod{ObjectMeta: metav1.ObjectMeta{}})
+	require.NoError(t, err)
+	require.False(t, enabled)
 }

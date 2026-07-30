@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/netip"
+	"strconv"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/configuration"
@@ -150,8 +151,13 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 			if err == nil {
 				// GetPodInfo re-fetches the pod so we can read the default-deny label.
 				_, pod, podRespCode, _ := k.GetPodInfo(ctx, &req)
-				if podRespCode == types.Success && podHasDefaultDenyLabel(pod) {
-					applyDefaultDenyToInfraNIC(podInfo, ipConfigsResp)
+				if podRespCode == types.Success {
+					defaultDenyEnabled, labelErr := defaultDenyEnabledOnPod(pod)
+					if labelErr != nil {
+						logger.Errorf("[SWIFTv2Middleware] Error parsing default-deny label, not applying default deny: %v", labelErr)
+					} else if defaultDenyEnabled {
+						applyDefaultDenyToInfraNIC(podInfo, ipConfigsResp)
+					}
 				}
 			}
 			return ipConfigsResp, err
@@ -255,11 +261,21 @@ func (k *K8sSWIFTv2Middleware) getInfraRoutes(podIPInfo *cns.PodIpInfo) ([]cns.R
 	return routes, nil
 }
 
-// podHasDefaultDenyLabel reports whether the pod carries configuration.LabelPodDefaultDeny,
-// which opts a non-SwiftV2 pod into SwiftV2-style default-deny ACLs on its InfraNIC.
-func podHasDefaultDenyLabel(pod v1.Pod) bool {
-	_, ok := pod.Labels[configuration.LabelPodDefaultDeny]
-	return ok
+// defaultDenyEnabledOnPod reports whether the pod opts into SwiftV2-style default-deny
+// ACLs on its InfraNIC via configuration.LabelPodDefaultDeny. The label value is parsed
+// with strconv.ParseBool, so it opts in when set to a truthy value (e.g. "true", "True",
+// "1"). An absent label is opt-out with no error. A present but unparseable value returns
+// false and a non-nil error so the caller can surface the misconfiguration.
+func defaultDenyEnabledOnPod(pod v1.Pod) (bool, error) {
+	v, ok := pod.Labels[configuration.LabelPodDefaultDeny]
+	if !ok {
+		return false, nil
+	}
+	enabled, err := strconv.ParseBool(v)
+	if err != nil {
+		return false, errors.Wrapf(err, "invalid value %q for label %s", v, configuration.LabelPodDefaultDeny)
+	}
+	return enabled, nil
 }
 
 // applyDefaultDenyToInfraNIC appends the default-deny ACL endpoint policies to the
