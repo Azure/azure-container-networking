@@ -47,10 +47,13 @@ type IPSetManager struct {
 	// This set is used based on the AddEmptySetToLists flag.
 	// If emptySet is non-nil, it should be in the kernel or ready to be created in the dirtyCache.
 	// Its reference counts are currently unaccounted for and may be incorrect.
-	emptySet   *IPSet
-	setMap     map[string]*IPSet
-	dirtyCache dirtyCacheInterface
-	ioShim     *common.IOShim
+	emptySet *IPSet
+	setMap   map[string]*IPSet
+	// kernelNameOwner maps a set's kernel name (hash of its prefixed name) to the prefixed
+	// name that owns it, so two distinct sets can't resolve to the same kernel set.
+	kernelNameOwner map[string]string
+	dirtyCache      dirtyCacheInterface
+	ioShim          *common.IOShim
 	// consecutiveApplyFailures is used in Linux to count the number of consecutive failures to apply ipsets
 	// if this count exceeds a threshold, we will panic
 	consecutiveApplyFailures int
@@ -69,11 +72,12 @@ type IPSetManagerCfg struct {
 
 func NewIPSetManager(iMgrCfg *IPSetManagerCfg, ioShim *common.IOShim) *IPSetManager {
 	return &IPSetManager{
-		iMgrCfg:    iMgrCfg,
-		emptySet:   nil, // will be set if needed in calls to AddToLists
-		setMap:     make(map[string]*IPSet),
-		dirtyCache: newDirtyCache(),
-		ioShim:     ioShim,
+		iMgrCfg:         iMgrCfg,
+		emptySet:        nil, // will be set if needed in calls to AddToLists
+		setMap:          make(map[string]*IPSet),
+		kernelNameOwner: make(map[string]string),
+		dirtyCache:      newDirtyCache(),
+		ioShim:          ioShim,
 		// set to 0 to avoid lint error for windows
 		consecutiveApplyFailures: 0,
 	}
@@ -105,6 +109,7 @@ func (iMgr *IPSetManager) ResetIPSets() error {
 	metrics.ResetIPSetEntries()
 	err := iMgr.resetIPSets()
 	iMgr.setMap = make(map[string]*IPSet)
+	iMgr.kernelNameOwner = make(map[string]string)
 	iMgr.emptySet = nil
 	iMgr.clearDirtyCache()
 	if err != nil {
@@ -119,15 +124,35 @@ func (iMgr *IPSetManager) CreateIPSets(setMetadatas []*IPSetMetadata) {
 	defer iMgr.Unlock()
 
 	for _, set := range setMetadatas {
-		_ = iMgr.createAndGetIPSet(set)
+		if _, err := iMgr.createAndGetIPSet(set); err != nil {
+			// createAndGetIPSet does not log; this is the only entry point that does not
+			// return the error to a caller, so log it here.
+			metrics.SendErrorLogAndMetric(util.IpsmID, "error: failed to create ipset: %s", err.Error())
+		}
 	}
 }
 
-func (iMgr *IPSetManager) createAndGetIPSet(setMetadata *IPSetMetadata) *IPSet {
+// claimKernelName records prefixedName as the owner of hashedName. It fails closed if a
+// different prefixed name already owns that kernel name (two distinct ipsets would otherwise
+// share one kernel set and combine their members). Re-claiming by the same owner is a no-op.
+func (iMgr *IPSetManager) claimKernelName(prefixedName, hashedName string) error {
+	if owner, ok := iMgr.kernelNameOwner[hashedName]; ok && owner != prefixedName {
+		return npmerrors.Errorf(npmerrors.CreateIPSet, false,
+			fmt.Sprintf("ipset %s resolves to kernel name %s already owned by %s", prefixedName, hashedName, owner))
+	}
+	iMgr.kernelNameOwner[hashedName] = prefixedName
+	return nil
+}
+
+func (iMgr *IPSetManager) createAndGetIPSet(setMetadata *IPSetMetadata) (*IPSet, error) {
 	prefixedName := setMetadata.GetPrefixName()
 	set, exists := iMgr.setMap[prefixedName]
 	if exists {
-		return set
+		return set, nil
+	}
+
+	if err := iMgr.claimKernelName(prefixedName, setMetadata.GetHashedName()); err != nil {
+		return nil, err
 	}
 
 	set = NewIPSet(setMetadata)
@@ -142,7 +167,11 @@ func (iMgr *IPSetManager) createAndGetIPSet(setMetadata *IPSetMetadata) *IPSet {
 	if iMgr.iMgrCfg.AddEmptySetToLists && (set.Type == KeyLabelOfNamespace || set.Type == KeyValueLabelOfNamespace) {
 		if iMgr.emptySet == nil {
 			// duplicate of code chunk above
-			iMgr.emptySet = NewIPSet(emptySetMetadata)
+			emptySet := NewIPSet(emptySetMetadata)
+			if err := iMgr.claimKernelName(emptySetPrefixName, emptySet.HashedName); err != nil {
+				return nil, err
+			}
+			iMgr.emptySet = emptySet
 			iMgr.setMap[emptySetPrefixName] = iMgr.emptySet
 			metrics.IncNumIPSets()
 			iMgr.modifyCacheForKernelCreation(iMgr.emptySet)
@@ -151,7 +180,7 @@ func (iMgr *IPSetManager) createAndGetIPSet(setMetadata *IPSetMetadata) *IPSet {
 		iMgr.addMemberToList(set, iMgr.emptySet)
 	}
 
-	return set
+	return set, nil
 }
 
 // DeleteIPSet expects the prefixed ipset name
@@ -181,7 +210,10 @@ func (iMgr *IPSetManager) AddReference(setMetadata *IPSetMetadata, referenceName
 	iMgr.Lock()
 	defer iMgr.Unlock()
 	// NOTE: any newly created IPSet will still be in the cache if an error is returned later
-	set := iMgr.createAndGetIPSet(setMetadata)
+	set, err := iMgr.createAndGetIPSet(setMetadata)
+	if err != nil {
+		return err
+	}
 	if referenceType == SelectorType && !set.canSetBeSelectorIPSet() {
 		msg := fmt.Sprintf("ipset %s is not a selector ipset it is of type %s", set.Name, set.Type.String())
 		metrics.SendErrorLogAndMetric(util.IpsmID, "error: failed to add reference: %s", msg)
@@ -268,7 +300,10 @@ func (iMgr *IPSetManager) AddToSets(addToSets []*IPSetMetadata, ip, podKey strin
 		// 1. check for errors and create a missing set
 		prefixedName := metadata.GetPrefixName()
 		// NOTE: any newly created IPSet will still be in the cache if an error is returned later
-		set := iMgr.createAndGetIPSet(metadata)
+		set, err := iMgr.createAndGetIPSet(metadata)
+		if err != nil {
+			return err
+		}
 		if set.Kind != HashSet {
 			msg := fmt.Sprintf("ipset %s is not a hash set", prefixedName)
 			metrics.SendErrorLogAndMetric(util.IpsmID, "error: failed to add to sets: %s", msg)
@@ -346,7 +381,10 @@ func (iMgr *IPSetManager) AddToLists(listMetadatas, setMetadatas []*IPSetMetadat
 	// 1. check for errors in members and create any missing sets
 	for _, setMetadata := range setMetadatas {
 		// NOTE: any newly created IPSet will still be in the cache if an error is returned later
-		set := iMgr.createAndGetIPSet(setMetadata)
+		set, err := iMgr.createAndGetIPSet(setMetadata)
+		if err != nil {
+			return err
+		}
 
 		// Nested IPSets are only supported for windows
 		// Check if we want to actually use that support
@@ -360,7 +398,10 @@ func (iMgr *IPSetManager) AddToLists(listMetadatas, setMetadatas []*IPSetMetadat
 	for _, listMetadata := range listMetadatas {
 		// 2. create the list if it's missing and check for list errors
 		// NOTE: any newly created IPSet will still be in the cache if an error is returned later
-		list := iMgr.createAndGetIPSet(listMetadata)
+		list, err := iMgr.createAndGetIPSet(listMetadata)
+		if err != nil {
+			return err
+		}
 
 		if list.Kind != ListSet {
 			msg := fmt.Sprintf("ipset %s is not a list set", list.Name)
@@ -524,6 +565,7 @@ func (iMgr *IPSetManager) modifyCacheForCacheDeletion(set *IPSet, deleteOption u
 	}
 
 	delete(iMgr.setMap, set.Name)
+	delete(iMgr.kernelNameOwner, set.HashedName)
 	metrics.DeleteIPSet(set.Name)
 	if iMgr.iMgrCfg.IPSetMode == ApplyAllIPSets {
 		iMgr.modifyCacheForKernelRemoval(set)

@@ -2,6 +2,7 @@ package util
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -467,4 +468,49 @@ func TestGetHashedChainName(t *testing.T) {
 	// Distinct policy keys produce distinct digests.
 	require.NotEqual(t, GetHashedChainName("y/test2"), GetHashedChainName("z/test3"))
 	require.NotEqual(t, GetHashedChainName("ns-a/p"), GetHashedChainName("ns-b/p"))
+}
+
+func TestGetHashedName(t *testing.T) {
+	// Deterministic and within the 31-char kernel ipset name limit.
+	name := GetHashedName("ns-some-namespace")
+	require.Equal(t, name, GetHashedName("ns-some-namespace"), "hashed name must be deterministic")
+	require.LessOrEqual(t, len(name), 31, "hashed name must fit the kernel ipset name limit")
+	require.True(t, strings.HasPrefix(name, AzureNpmPrefix), "hashed name must carry the azure-npm- prefix")
+
+	// The digest is left-padded to a fixed width, so every name is exactly
+	// prefix + hashedNameDigestLen characters regardless of input (a short digest can never
+	// shorten the slice and panic).
+	wantLen := len(AzureNpmPrefix) + hashedNameDigestLen
+	for _, in := range []string{"", "a", "ns-some-namespace", "podlabel-x:YMaaIZ", strings.Repeat("z", 300)} {
+		require.Len(t, GetHashedName(in), wantLen, "hashed name must be fixed width for %q", in)
+	}
+
+	// Distinct inputs (incl. the reported pair) produce distinct kernel names.
+	require.NotEqual(t, GetHashedName("ns-msobb-target"), GetHashedName("podlabel-x:YMaaIZ"))
+	require.NotEqual(t, GetHashedName("ns-a"), GetHashedName("ns-b"))
+}
+
+// TestHashedNameGoldenVectors pins the exact output of the kernel-name and chain-name digests
+// to values computed independently (base36 of the SHA-256 digest), so any accidental change to
+// the algorithm, encoding, or padding is caught. These names are stable across architectures
+// and restarts because they derive only from crypto/sha256 and math/big, not a seeded hash.
+func TestHashedNameGoldenVectors(t *testing.T) {
+	// azure-npm- + base36(sha256(name)) left-padded/truncated to 20 chars.
+	ipsetVectors := map[string]string{
+		"ns-test":           "azure-npm-343gyx4g1wf87lwlewvk",
+		"podlabel-x:YMaaIZ": "azure-npm-61b0uqiiz2delucbmvi2",
+		"ns-msobb-target":   "azure-npm-42xi2gy762uhahnxfutd",
+	}
+	for in, want := range ipsetVectors {
+		require.Equal(t, want, GetHashedName(in), "GetHashedName(%q) golden vector", in)
+	}
+
+	// base36(sha256(key) mod 36^10) left-padded/truncated to 10 chars.
+	chainVectors := map[string]string{
+		"x/test1":                             "jo5gdwc4t2",
+		"msobb-server/trusted-namespace-only": "7d7a0cfguo",
+	}
+	for in, want := range chainVectors {
+		require.Equal(t, want, GetHashedChainName(in), "GetHashedChainName(%q) golden vector", in)
+	}
 }

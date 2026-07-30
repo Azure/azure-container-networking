@@ -231,6 +231,67 @@ func TestDestroyNPMIPSetsCreatorSuccess(t *testing.T) {
 	require.Equal(t, 0, *destroyFailureCount, "got unexpected destroy failure count")
 }
 
+// TestAzureNPMRegexMatchesOldAndNewNames verifies the ipset-cleanup regex matches BOTH the old
+// 32-bit numeric kernel names and the new base36 names, so that on upgrade or rollback no stale
+// ipset of either format is orphaned (which would leak and could eventually exhaust ipsets).
+func TestAzureNPMRegexMatchesOldAndNewNames(t *testing.T) {
+	re := regexp.MustCompile(azureNPMRegex)
+	mustMatch := []string{
+		"azure-npm-123456",                      // old 32-bit numeric
+		"azure-npm-2900316864",                  // old numeric (reported collision value)
+		"azure-npm-3fmr1y4xucxg45l55kfb",        // new base36
+		"azure-npm-42xi2gy762uhahnxfutd",        // new base36 (ns-msobb-target)
+		util.GetHashedName("ns-some-namespace"), // whatever the current impl produces
+	}
+	for _, n := range mustMatch {
+		require.Equal(t, n, re.FindString(n), "cleanup regex must fully match %q", n)
+	}
+	for _, n := range []string{"KUBE-SERVICES", "cali-abc123", "not-azure-npm", "azure-npm-"} {
+		require.Empty(t, re.FindString(n), "cleanup regex must not match %q", n)
+	}
+}
+
+// TestDestroyMixedOldAndNewIPSets verifies the reset path flushes and destroys a mix of old
+// numeric and new base36 ipsets in a single pass (upgrade/rollback migration safety).
+func TestDestroyMixedOldAndNewIPSets(t *testing.T) {
+	calls := []testutils.TestCmd{fakeRestoreSuccessCommand, fakeRestoreSuccessCommand}
+	ioshim := common.NewMockIOShim(calls)
+	defer ioshim.VerifyCalls(t, calls)
+	iMgr := NewIPSetManager(applyAlwaysCfg, ioshim)
+
+	mixed := []string{
+		"azure-npm-123456",               // old numeric
+		"azure-npm-3fmr1y4xucxg45l55kfb", // new base36
+		"azure-npm-987654",               // old numeric
+		"azure-npm-42xi2gy762uhahnxfutd", // new base36
+	}
+	listOutput := []byte(strings.Join(mixed, "\n") + "\n")
+
+	creator, names, failedNames := iMgr.fileCreatorForFlushAll(listOutput)
+	flushLines := creator.ToString()
+	for _, n := range mixed {
+		require.Contains(t, flushLines, "-F "+n, "must flush %q (both old and new formats)", n)
+	}
+	sort.Strings(names)
+	expNames := append([]string(nil), mixed...)
+	sort.Strings(expNames)
+	require.Equal(t, expNames, names, "flush must capture all mixed-format names")
+	wasModified, err := creator.RunCommandOnceWithFile("ipset", "restore")
+	require.False(t, wasModified)
+	require.NoError(t, err)
+	require.Len(t, failedNames, 0)
+
+	creator, destroyFailureCount := iMgr.fileCreatorForDestroyAll(names, failedNames, nil)
+	destroyLines := creator.ToString()
+	for _, n := range mixed {
+		require.Contains(t, destroyLines, "-X "+n, "must destroy %q (both old and new formats)", n)
+	}
+	wasModified, err = creator.RunCommandOnceWithFile("ipset", "restore")
+	require.False(t, wasModified)
+	require.NoError(t, err)
+	require.Equal(t, 0, *destroyFailureCount)
+}
+
 func TestDestroyNPMIPSetsCreatorErrorHandling(t *testing.T) {
 	/*
 		original lines:
@@ -464,7 +525,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				fakeRestoreSuccessCommand,
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-B", "5", "-P", "References: [1-9]"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
+				{Cmd: []string{"grep", "-o", "-P", "azure-npm-[0-9a-z]+"}, ExitCode: 1},
 				fakeRestoreSuccessCommand,
 			},
 			wantErr: false,
@@ -504,7 +565,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				fakeRestoreSuccessCommand,
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-B", "5", "-P", "References: [1-9]"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
+				{Cmd: []string{"grep", "-o", "-P", "azure-npm-[0-9a-z]+"}, ExitCode: 1},
 				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
@@ -523,7 +584,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				fakeRestoreSuccessCommand,
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-B", "5", "-P", "References: [1-9]"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, Stdout: resetIPSetsListOutputString},
+				{Cmd: []string{"grep", "-o", "-P", "azure-npm-[0-9a-z]+"}, Stdout: resetIPSetsListOutputString},
 			},
 			wantErr: false,
 		},
@@ -537,7 +598,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				fakeRestoreSuccessCommand,
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-B", "5", "-P", "References: [1-9]"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, Stdout: otherIPSetsListOutput},
+				{Cmd: []string{"grep", "-o", "-P", "azure-npm-[0-9a-z]+"}, Stdout: otherIPSetsListOutput},
 				fakeRestoreSuccessCommand,
 			},
 			wantErr: false,
@@ -557,7 +618,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				fakeRestoreSuccessCommand,
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-B", "5", "-P", "References: [1-9]"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
+				{Cmd: []string{"grep", "-o", "-P", "azure-npm-[0-9a-z]+"}, ExitCode: 1},
 				fakeRestoreSuccessCommand,
 			},
 			wantErr: false,
@@ -577,7 +638,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				fakeRestoreSuccessCommand,
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-B", "5", "-P", "References: [1-9]"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
+				{Cmd: []string{"grep", "-o", "-P", "azure-npm-[0-9a-z]+"}, ExitCode: 1},
 				fakeRestoreSuccessCommand,
 			},
 			wantErr: false,
@@ -592,7 +653,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				fakeRestoreSuccessCommand,
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-B", "5", "-P", "References: [1-9]"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
+				{Cmd: []string{"grep", "-o", "-P", "azure-npm-[0-9a-z]+"}, ExitCode: 1},
 				{
 					Cmd:      ipsetRestoreStringSlice,
 					Stdout:   "Error in line 2: The set with the given name does not exist",
@@ -612,7 +673,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				fakeRestoreSuccessCommand,
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-B", "5", "-P", "References: [1-9]"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
+				{Cmd: []string{"grep", "-o", "-P", "azure-npm-[0-9a-z]+"}, ExitCode: 1},
 				{
 					Cmd:      ipsetRestoreStringSlice,
 					Stdout:   "Error in line 2: for some other error",
@@ -1029,6 +1090,29 @@ func TestCidrExceptMembers(t *testing.T) {
 	wasFileAltered, err := creator.RunCommandOnceWithFile("ipset", "restore")
 	require.NoError(t, err, "ipset restore should be successful")
 	require.False(t, wasFileAltered, "file should not be altered")
+}
+
+// TestReportedPairRendersDistinctKernelSets drives two logical sets whose 32-bit names
+// previously collided all the way to the rendered restore file, and confirms each keeps its
+// own kernel set and member instead of the two being unioned into one set.
+func TestReportedPairRendersDistinctKernelSets(t *testing.T) {
+	iMgr := NewIPSetManager(applyAlwaysCfg, common.NewMockIOShim(nil))
+
+	nsSet := NewIPSetMetadata("msobb-target", Namespace)            // prefixed "ns-msobb-target"
+	podLabelSet := NewIPSetMetadata("x:YMaaIZ", KeyValueLabelOfPod) // prefixed "podlabel-x:YMaaIZ"
+	require.NotEqual(t, nsSet.GetHashedName(), podLabelSet.GetHashedName(),
+		"the two logical sets must render to distinct kernel names")
+
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{nsSet}, "10.0.0.10", "a"))
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{podLabelSet}, "10.0.0.20", "b"))
+
+	rendered := iMgr.fileCreatorForApply(1).ToString()
+
+	// Each member lands only in its own kernel set; neither set absorbs the other's IP.
+	require.Contains(t, rendered, fmt.Sprintf("-A %s 10.0.0.10", nsSet.GetHashedName()))
+	require.Contains(t, rendered, fmt.Sprintf("-A %s 10.0.0.20", podLabelSet.GetHashedName()))
+	require.NotContains(t, rendered, fmt.Sprintf("-A %s 10.0.0.20", nsSet.GetHashedName()))
+	require.NotContains(t, rendered, fmt.Sprintf("-A %s 10.0.0.10", podLabelSet.GetHashedName()))
 }
 
 func TestUpdateWithIdenticalSaveFile(t *testing.T) {
@@ -1850,7 +1934,7 @@ func testAndSortRestoreFileLines(t *testing.T, lines []string) []string {
 func hashedNameOfSetImpacted(t *testing.T, operation string, lines []string, lineNum int) string {
 	lineNumIndex := lineNum - 1
 	line := lines[lineNumIndex]
-	pattern := fmt.Sprintf(`\%s (azure-npm-\d+)`, operation)
+	pattern := fmt.Sprintf(`\%s (azure-npm-[0-9a-z]+)`, operation)
 	re := regexp.MustCompile(pattern)
 	results := re.FindStringSubmatch(line)
 	require.Equal(t, 2, len(results), "expected to find a match with regex pattern %s for line: %s", pattern, line)
@@ -1860,7 +1944,7 @@ func hashedNameOfSetImpacted(t *testing.T, operation string, lines []string, lin
 func memberNameOfSetImpacted(t *testing.T, lines []string, lineNum int) string {
 	lineNumIndex := lineNum - 1
 	line := lines[lineNumIndex]
-	pattern := `\-[AD] azure-npm-\d+ (.*)`
+	pattern := `\-[AD] azure-npm-[0-9a-z]+ (.*)`
 	re := regexp.MustCompile(pattern)
 	member := re.FindStringSubmatch(line)[1]
 	results := re.FindStringSubmatch(line)
