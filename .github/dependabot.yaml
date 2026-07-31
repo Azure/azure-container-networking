@@ -28,6 +28,7 @@ updates:
       all-github-actions:
         applies-to: version-updates
         patterns: ["*"]
+        update-types: ["minor", "patch"]
     cooldown:
       default-days: 7
 
