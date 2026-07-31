@@ -58,10 +58,10 @@ spec:
           args:
             - >-
               New-Item -Path "C:/k/azurecni/bin" -ItemType Directory -Force | Out-Null;
-              Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/azure-vnet.exe" -Destination "C:/k/azurecni/bin/azure-vnet.exe" -Force;
-              Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/azure-vnet-ipam.exe" -Destination "C:/k/azurecni/bin/azure-vnet-ipam.exe" -Force;
-              Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/azure-vnet-telemetry.exe" -Destination "C:/k/azurecni/bin/azure-vnet-telemetry.exe" -Force;
-              Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/azure-vnet-telemetry.config" -Destination "C:/k/azurecni/bin/azure-vnet-telemetry.config" -Force
+              Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/Windows/System32/azure-vnet.exe" -Destination "C:/k/azurecni/bin/azure-vnet.exe" -Force;
+              Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/Windows/System32/azure-vnet-ipam.exe" -Destination "C:/k/azurecni/bin/azure-vnet-ipam.exe" -Force;
+              Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/Windows/System32/azure-vnet-telemetry.exe" -Destination "C:/k/azurecni/bin/azure-vnet-telemetry.exe" -Force;
+              Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/Windows/System32/azure-vnet-telemetry.config" -Destination "C:/k/azurecni/bin/azure-vnet-telemetry.config" -Force
           env:
           - name: PATHEXT
             value: .COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;.CPL;;

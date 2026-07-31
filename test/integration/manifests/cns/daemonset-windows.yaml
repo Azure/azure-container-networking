@@ -109,7 +109,7 @@ spec:
           args:
             - >-
               New-Item -Path "C:/k/azurecni/bin" -ItemType Directory -Force | Out-Null;
-              Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/azure-vnet.exe" -Destination "C:/k/azurecni/bin/azure-vnet.exe" -Force # // TODO: add windows cni conflist when ready
+              Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/Windows/System32/azure-vnet.exe" -Destination "C:/k/azurecni/bin/azure-vnet.exe" -Force # // TODO: add windows cni conflist when ready
           env:
           - name: PATHEXT
             value: .COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;.CPL;;
