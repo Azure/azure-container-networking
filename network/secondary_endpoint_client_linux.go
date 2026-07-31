@@ -34,6 +34,9 @@ type SecondaryEndpointClient struct {
 	nsClient       NamespaceClientInterface
 	dhcpClient     dhcpClient
 	ep             *endpoint
+	// ifIndex is the ifindex of the interface this endpoint refers to, resolved in
+	// AddEndpoints. Used to act on the device by index rather than by name.
+	ifIndex int
 }
 
 func NewSecondaryEndpointClient(
@@ -63,9 +66,33 @@ func (client *SecondaryEndpointClient) AddEndpoints(epInfo *EndpointInfo) error 
 		return newErrorSecondaryEndpointClient(err)
 	}
 
-	epInfo.IfName = iface.Name
-	if _, exists := client.ep.SecondaryInterfaces[iface.Name]; exists {
-		return newErrorSecondaryEndpointClient(errors.New(iface.Name + " already exists"))
+	// The MAC lookup can return either the SR-IOV VF or its netvsc master: on
+	// accelerated-networking nodes both carry the same MAC, and the enumeration order
+	// that decides which is seen first is the kernel's ifindex hash-bucket order, not
+	// ifindex order. Only the master may be moved into the pod netns - moving the bare
+	// VF breaks the netvsc bond and every later ADD on that NIC fails with
+	// "route ip+net: no such network interface" until the node is repaired.
+	master, err := netio.ResolveMasterInterface(iface)
+	if err != nil {
+		return newErrorSecondaryEndpointClient(err)
+	}
+
+	if master.Index != iface.Index {
+		logger.Info("[net] Resolved MAC-matched interface to its master",
+			zap.String("matched", iface.Name),
+			zap.Int("matchedIndex", iface.Index),
+			zap.String("master", master.Name),
+			zap.Int("masterIndex", master.Index),
+			zap.String("mac", epInfo.MacAddress.String()))
+	}
+
+	epInfo.IfName = master.Name
+	// Retained so later operations can act on the device by index. The name may be
+	// reassigned to a different device between here and use if the NIC is replaced.
+	client.ifIndex = master.Index
+
+	if _, exists := client.ep.SecondaryInterfaces[master.Name]; exists {
+		return newErrorSecondaryEndpointClient(errors.New(master.Name + " already exists"))
 	}
 
 	ipconfigs := make([]*IPConfig, len(epInfo.IPAddresses))
@@ -73,8 +100,8 @@ func (client *SecondaryEndpointClient) AddEndpoints(epInfo *EndpointInfo) error 
 		ipconfigs[i] = &IPConfig{Address: ipconfig}
 	}
 
-	client.ep.SecondaryInterfaces[iface.Name] = &InterfaceInfo{
-		Name:              iface.Name,
+	client.ep.SecondaryInterfaces[master.Name] = &InterfaceInfo{
+		Name:              master.Name,
 		MacAddress:        epInfo.MacAddress,
 		IPConfigs:         ipconfigs,
 		NICType:           epInfo.NICType,
@@ -93,8 +120,16 @@ func (client *SecondaryEndpointClient) DeleteEndpointRules(_ *endpoint) {
 
 func (client *SecondaryEndpointClient) MoveEndpointsToContainerNS(epInfo *EndpointInfo, nsID uintptr) error {
 	// Move the container interface to container's network namespace.
-	logger.Info("[net] Setting link %v netns %v.", zap.String("IfName", epInfo.IfName), zap.String("NetNsPath", epInfo.NetNsPath))
-	if err := client.netlink.SetLinkNetNs(epInfo.IfName, nsID); err != nil {
+	logger.Info("[net] Setting link netns.",
+		zap.String("IfName", epInfo.IfName),
+		zap.Int("ifIndex", client.ifIndex),
+		zap.String("NetNsPath", epInfo.NetNsPath))
+
+	// Dispatch by index rather than by name. AddEndpoints resolved the device this
+	// endpoint refers to; between then and now its name can be taken over by another
+	// device if the NIC was replaced and the freed name reused, in which case a
+	// name-based move would silently move the wrong interface.
+	if err := client.netlink.SetLinkNetNsByIndex(client.ifIndex, nsID); err != nil {
 		return newErrorSecondaryEndpointClient(err)
 	}
 

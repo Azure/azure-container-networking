@@ -83,6 +83,10 @@ func (f *MockNetlink) SetLinkNetNs(string, uintptr) error {
 	return f.error()
 }
 
+func (f *MockNetlink) SetLinkNetNsByIndex(int, uintptr) error {
+	return f.error()
+}
+
 func (f *MockNetlink) SetLinkAddress(string, net.HardwareAddr) error {
 	return f.error()
 }

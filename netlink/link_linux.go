@@ -304,13 +304,25 @@ func (Netlink) SetLinkMaster(name string, master string) error {
 }
 
 // SetLinkNetNs sets the network namespace of a network interface.
-func (Netlink) SetLinkNetNs(name string, fd uintptr) error {
-	s, err := getSocket()
+func (n Netlink) SetLinkNetNs(name string, fd uintptr) error {
+	iface, err := net.InterfaceByName(name)
 	if err != nil {
 		return err
 	}
 
-	iface, err := net.InterfaceByName(name)
+	return n.SetLinkNetNsByIndex(iface.Index, fd)
+}
+
+// SetLinkNetNsByIndex sets the network namespace of the network interface with the
+// given ifindex.
+//
+// Prefer this over SetLinkNetNs when the caller already holds the index. Interface
+// names are not stable: when a NIC is replaced its name is freed and may be reused by
+// a different device, so a name resolved earlier in an operation can refer to another
+// interface by the time it is acted upon. The ifindex identifies the device
+// unambiguously for its lifetime.
+func (Netlink) SetLinkNetNsByIndex(index int, fd uintptr) error {
+	s, err := getSocket()
 	if err != nil {
 		return err
 	}
@@ -319,7 +331,7 @@ func (Netlink) SetLinkNetNs(name string, fd uintptr) error {
 
 	ifInfo := newIfInfoMsg()
 	ifInfo.Type = unix.RTM_SETLINK
-	ifInfo.Index = int32(iface.Index)
+	ifInfo.Index = int32(index)
 	ifInfo.Flags = unix.NLM_F_REQUEST
 	ifInfo.Change = DEFAULT_CHANGE
 	req.addPayload(ifInfo)

@@ -6,6 +6,7 @@ package network
 import (
 	"errors"
 	"fmt"
+	"github.com/Azure/azure-container-networking/netio"
 	"net"
 	"regexp"
 	"testing"
@@ -18,7 +19,6 @@ import (
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	vishnetlink "github.com/vishvananda/netlink"
 )
 
 func TestSetNetworkOptions(t *testing.T) {
@@ -554,18 +554,14 @@ func TestPluginLinuxAdd(t *testing.T) {
 	}
 }
 
-// stubResolveMasterInterface installs a mock nlClient that treats the given interface as a
-// master (MasterIndex == 0), so resolveMasterInterface returns the name unchanged.
+// stubResolveMasterInterface stubs master resolution so the given interface is treated
+// as its own master, i.e. returned unchanged.
 // Used by cross-platform tests in network_test.go that exercise the delegated NIC path.
-func stubResolveMasterInterface(t *testing.T, ifName string) {
+func stubResolveMasterInterface(t *testing.T, _ string) {
 	t.Helper()
-	original := nlClient
-	nlClient = &mockNetlinkClient{
-		links: map[string]vishnetlink.Link{
-			ifName: &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{Name: ifName, MasterIndex: 0}},
-		},
-	}
-	t.Cleanup(func() { nlClient = original })
+	original := netio.ResolveMasterInterface
+	netio.ResolveMasterInterface = func(i *net.Interface) (*net.Interface, error) { return i, nil }
+	t.Cleanup(func() { netio.ResolveMasterInterface = original })
 }
 
 // sentinel errors for mock netlink client.
@@ -575,210 +571,13 @@ var (
 	errNotImplemented    = errors.New("not implemented")
 )
 
-// test interface name constants used across resolveMasterInterface and findInterfaceByMAC tests.
+// test interface name constants used across findInterfaceByMAC tests.
 const (
 	testMasterInterface = "eth1"       // upper/master interface (netvsc) name
 	testVFInterface     = "enP12217s2" // VF interface bonded to testMasterInterface
 	testVF2Interface    = "enP100s1"   // another VF interface used in error-path tests
 	testMACAddr         = "00:22:48:d5:56:86"
 )
-
-// mockNetlinkClient implements netlinkClient for unit testing resolveMasterInterface.
-type mockNetlinkClient struct {
-	links map[string]vishnetlink.Link // keyed by name
-	byIdx map[int]vishnetlink.Link    // keyed by index
-}
-
-func (m *mockNetlinkClient) LinkByName(name string) (vishnetlink.Link, error) {
-	l, ok := m.links[name]
-	if !ok {
-		return nil, fmt.Errorf("%w: %s", errLinkNotFound, name)
-	}
-	return l, nil
-}
-
-func (m *mockNetlinkClient) LinkByIndex(index int) (vishnetlink.Link, error) {
-	l, ok := m.byIdx[index]
-	if !ok {
-		return nil, fmt.Errorf("%w: %d", errLinkNotFoundByIdx, index)
-	}
-	return l, nil
-}
-
-func TestResolveMasterInterface(t *testing.T) {
-	tests := []struct {
-		name       string
-		ifName     string
-		client     *mockNetlinkClient
-		wantResult string
-		wantErr    bool
-	}{
-		{
-			name:   "interface is already master (MasterIndex == 0)",
-			ifName: testMasterInterface,
-			client: &mockNetlinkClient{
-				links: map[string]vishnetlink.Link{
-					testMasterInterface: &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{
-						Name:        testMasterInterface,
-						Index:       2,
-						MasterIndex: 0,
-					}},
-				},
-			},
-			wantResult: testMasterInterface,
-		},
-		{
-			name:   "VF resolves to master upper device",
-			ifName: testVFInterface,
-			client: &mockNetlinkClient{
-				links: map[string]vishnetlink.Link{
-					testVFInterface: &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{
-						Name:        testVFInterface,
-						Index:       5,
-						MasterIndex: 2,
-					}},
-				},
-				byIdx: map[int]vishnetlink.Link{
-					2: &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{
-						Name:        testMasterInterface,
-						Index:       2,
-						MasterIndex: 0,
-					}},
-				},
-			},
-			wantResult: testMasterInterface,
-		},
-		{
-			name:   "LinkByName fails returns error",
-			ifName: "nonexistent",
-			client: &mockNetlinkClient{
-				links: map[string]vishnetlink.Link{},
-			},
-			wantErr: true,
-		},
-		{
-			name:   "LinkByIndex fails returns error",
-			ifName: testVF2Interface,
-			client: &mockNetlinkClient{
-				links: map[string]vishnetlink.Link{
-					testVF2Interface: &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{
-						Name:        testVF2Interface,
-						Index:       10,
-						MasterIndex: 99, // master index that doesn't exist
-					}},
-				},
-				byIdx: map[int]vishnetlink.Link{}, // no index 99
-			},
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			original := nlClient
-			nlClient = tt.client
-			t.Cleanup(func() { nlClient = original })
-
-			result, err := resolveMasterInterface(tt.ifName)
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, tt.wantResult, result)
-		})
-	}
-}
-
-func TestFindInterfaceByMAC_WithMasterResolution(t *testing.T) {
-	mac, _ := net.ParseMAC(testMACAddr)
-
-	tests := []struct {
-		name       string
-		macAddr    string
-		interfaces []net.Interface
-		client     *mockNetlinkClient
-		wantResult string
-	}{
-		{
-			name:    "single master match returns master name",
-			macAddr: testMACAddr,
-			interfaces: []net.Interface{
-				{Name: testMasterInterface, HardwareAddr: mac},
-			},
-			client: &mockNetlinkClient{
-				links: map[string]vishnetlink.Link{
-					testMasterInterface: &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{
-						Name:        testMasterInterface,
-						Index:       2,
-						MasterIndex: 0,
-					}},
-				},
-			},
-			wantResult: testMasterInterface,
-		},
-		{
-			name:    "VF matched resolves to master",
-			macAddr: testMACAddr,
-			interfaces: []net.Interface{
-				{Name: testVFInterface, HardwareAddr: mac},
-			},
-			client: &mockNetlinkClient{
-				links: map[string]vishnetlink.Link{
-					testVFInterface: &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{
-						Name:        testVFInterface,
-						Index:       5,
-						MasterIndex: 2,
-					}},
-				},
-				byIdx: map[int]vishnetlink.Link{
-					2: &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{
-						Name:        testMasterInterface,
-						Index:       2,
-						MasterIndex: 0,
-					}},
-				},
-			},
-			wantResult: testMasterInterface,
-		},
-		{
-			name:    "resolve error returns empty",
-			macAddr: testMACAddr,
-			interfaces: []net.Interface{
-				{Name: testVF2Interface, HardwareAddr: mac},
-			},
-			client: &mockNetlinkClient{
-				links: map[string]vishnetlink.Link{}, // LinkByName will fail
-			},
-			wantResult: "",
-		},
-		{
-			name:    "no MAC match returns empty string",
-			macAddr: testMACAddr,
-			interfaces: []net.Interface{
-				{Name: "eth0", HardwareAddr: net.HardwareAddr{0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF}},
-			},
-			client: &mockNetlinkClient{
-				links: map[string]vishnetlink.Link{},
-			},
-			wantResult: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			original := nlClient
-			nlClient = tt.client
-			t.Cleanup(func() { nlClient = original })
-
-			plugin := &NetPlugin{
-				netClient: &mockInterfaceGetter{interfaces: tt.interfaces},
-			}
-			result := plugin.findInterfaceByMAC(tt.macAddr)
-			require.Equal(t, tt.wantResult, result)
-		})
-	}
-}
 
 // mockInterfaceGetter implements InterfaceGetter for testing.
 type mockInterfaceGetter struct {

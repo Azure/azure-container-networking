@@ -15,6 +15,7 @@ type NetlinkInterface interface {
 	SetLinkMTU(name string, mtu int) error
 	SetLinkMaster(name string, master string) error
 	SetLinkNetNs(name string, fd uintptr) error
+	SetLinkNetNsByIndex(index int, fd uintptr) error
 	SetLinkAddress(ifName string, hwAddress net.HardwareAddr) error
 	SetLinkPromisc(ifName string, on bool) error
 	SetLinkHairpin(bridgeName string, on bool) error

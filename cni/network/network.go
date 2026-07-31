@@ -247,7 +247,7 @@ func (plugin *NetPlugin) findInterfaceByMAC(macAddress string) string {
 		if mac != macAddress {
 			continue
 		}
-		ifName, err := resolveMasterInterface(iface.Name)
+		master, err := netio.ResolveMasterInterface(&iface) //nolint:gosec // loop var is copied by GetNetworkInterfaces
 		if err != nil {
 			logger.Error("failed to resolve master interface",
 				zap.String("name", iface.Name),
@@ -256,10 +256,12 @@ func (plugin *NetPlugin) findInterfaceByMAC(macAddress string) string {
 			return ""
 		}
 		logger.Info("found master interface by MAC",
-			zap.String("resolved-master", ifName),
+			zap.String("resolved-master", master.Name),
+			zap.Int("resolved-master-index", master.Index),
 			zap.String("interface", iface.Name),
+			zap.Int("interface-index", iface.Index),
 			zap.String("mac", macAddress))
-		return ifName
+		return master.Name
 	}
 	logger.Error("failed to find interface by MAC", zap.String("macAddress", macAddress), zap.Strings("macs", macs))
 	return ""

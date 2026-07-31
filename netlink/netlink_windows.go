@@ -50,6 +50,10 @@ func (Netlink) SetLinkNetNs(name string, fd uintptr) error {
 	return nil
 }
 
+func (Netlink) SetLinkNetNsByIndex(index int, fd uintptr) error {
+	return nil
+}
+
 func (Netlink) SetLinkAddress(ifName string, hwAddress net.HardwareAddr) error {
 	return nil
 }

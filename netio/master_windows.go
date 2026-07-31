@@ -1,0 +1,17 @@
+package netio
+
+import "net"
+
+// ResolveMasterInterface returns the upper (master) device for iface.
+//
+// It is a variable so tests can stub master resolution.
+var ResolveMasterInterface = resolveMasterInterface
+
+// resolveMasterInterface is a no-op on Windows. The VF/netvsc master split that
+// requires resolution on Linux is handled by the platform networking stack there.
+func resolveMasterInterface(iface *net.Interface) (*net.Interface, error) {
+	if iface == nil {
+		return nil, ErrInterfaceNil
+	}
+	return iface, nil
+}
