@@ -29,9 +29,7 @@ func (service *HTTPRestService) UpdateIPsForNodeSubnet(secondaryIPs []netip.Addr
 
 	logger.Debugf("IP change processed successfully")
 
-	// saved NC successfully. UpdateIPsForNodeSubnet is called only when IPs are fetched from NMAgent.
-	// We now have IPs to serve IPAM requests. Generate conflist to indicate CNS is ready
-	service.MustGenerateCNIConflistOnce()
+	service.ncWait.Done()
 	return nil
 }
 
@@ -59,6 +57,10 @@ func (service *HTTPRestService) InitializeNodeSubnet(ctx context.Context, podInf
 
 // StartNodeSubnet starts the IP fetcher for NodeSubnet. This will cause secondary IPs to be fetched periodically.
 // After the first successful fetch, conflist will be generated to indicate CNS is ready.
-func (service *HTTPRestService) StartNodeSubnet(ctx context.Context) {
+func (service *HTTPRestService) StartNodeSubnet(ctx context.Context) error {
+	if err := service.ncWait.Start(); err != nil {
+		return err
+	}
 	service.nodesubnetIPFetcher.Start(ctx)
+	return nil
 }

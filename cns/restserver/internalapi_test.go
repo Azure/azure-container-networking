@@ -304,7 +304,7 @@ func TestCreateAndUpdateNCWithSecondaryIPNCVersion(t *testing.T) {
 	}
 }
 
-func TestSyncHostNCVersion(t *testing.T) {
+func TestStartSyncHostNCVersionLoop(t *testing.T) {
 	// cns.KubernetesCRD has one more logic compared to other orchestrator type, so test both of them
 	orchestratorTypes := []string{cns.Kubernetes, cns.KubernetesCRD}
 	for _, orchestratorType := range orchestratorTypes {
@@ -349,7 +349,13 @@ func TestSyncHostNCVersion(t *testing.T) {
 			defer cleanupIMDS()
 
 			// When syncing the host NC version, it will use the orchestratorType passed in.
-			svc.SyncHostNCVersion(context.Background(), orchestratorType)
+			cnsconf := configuration.CNSConfig{
+				SyncHostNCVersionIntervalMs: 100,
+				ChannelMode:                 orchestratorType,
+			}
+			err := svc.StartSyncHostNCVersionLoop(t.Context(), cnsconf)
+			assert.NoError(t, err)
+			svc.Wait(t.Context()) // wait for at leat one run
 			containerStatus = svc.state.ContainerStatus[req.NetworkContainerid]
 			if containerStatus.HostVersion != "0" {
 				t.Errorf("Unexpected containerStatus.HostVersion %s, expected host version should be 0 in string", containerStatus.HostVersion)
@@ -400,7 +406,9 @@ func TestPendingIPsGotUpdatedWhenSyncHostNCVersion(t *testing.T) {
 	cleanup := setMockNMAgent(svc, mnma)
 	defer cleanup()
 
-	svc.SyncHostNCVersion(context.Background(), cns.CRD)
+	err := svc.StartSyncHostNCVersionLoop(t.Context(), fastcnsconf)
+	assert.NoError(t, err)
+	svc.Wait(t.Context()) // wait for at leat one run
 	containerStatus = svc.state.ContainerStatus[req.NetworkContainerid]
 
 	receivedSecondaryIPConfigs = containerStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
@@ -440,13 +448,13 @@ func TestSyncHostNCVersionErrorMissingNC(t *testing.T) {
 	cleanup := setMockNMAgent(svc, mnma)
 	defer cleanup()
 
-	_, err := svc.syncHostNCVersion(context.Background(), cns.KubernetesCRD)
+	_, err := svc.syncHostNCVersion(t.Context(), cns.KubernetesCRD)
 	if err == nil {
 		t.Errorf("Expected error when NC is missing from both NMAgent and IMDS, but got nil")
 	}
 
 	// Check that the error message contains the expected text
-	expectedErrorText := "unable to update some NCs"
+	expectedErrorText := "Have outdated NCs"
 	if !strings.Contains(err.Error(), expectedErrorText) {
 		t.Errorf("Expected error to contain '%s', but got: %v", expectedErrorText, err)
 	}
@@ -485,7 +493,7 @@ func TestSyncHostNCVersionLocalVersionHigher(t *testing.T) {
 	cleanup := setMockNMAgent(svc, mnma)
 	defer cleanup()
 
-	_, err := svc.syncHostNCVersion(context.Background(), cns.KubernetesCRD)
+	_, err := svc.syncHostNCVersion(t.Context(), cns.KubernetesCRD)
 	if err != nil {
 		t.Errorf("Expected sync to succeed, but got error: %v", err)
 	}
@@ -528,7 +536,7 @@ func TestSyncHostNCVersionLocalHigherThanDNC(t *testing.T) {
 
 	// This should detect that localNCVersion (3) > dncNCVersion (1) and log error
 	// but since there are no outdated NCs, it should return successfully
-	_, err := svc.syncHostNCVersion(context.Background(), cns.KubernetesCRD)
+	_, err := svc.syncHostNCVersion(t.Context(), cns.KubernetesCRD)
 	if err != nil {
 		t.Errorf("Expected no error when localNCVersion > dncNCVersion (no outdated NCs), but got: %v", err)
 	}
@@ -601,13 +609,13 @@ func TestSyncHostNCVersionIMDSAPIVersionNotSupported(t *testing.T) {
 			defer func() { svc.imdsClient = originalIMDS }()
 
 			// Test should fail because of outdated IMDS NC that can't be updated
-			_, err := svc.syncHostNCVersion(context.Background(), orchestratorType)
+			_, err := svc.syncHostNCVersion(t.Context(), orchestratorType)
 			if err == nil {
 				t.Errorf("Expected error when there are outdated IMDS NCs but API version is not supported, but got nil")
 			}
 
 			// Verify the error is about being unable to update NCs
-			expectedErrorText := "unable to update some NCs"
+			expectedErrorText := "Have outdated NCs"
 			if !strings.Contains(err.Error(), expectedErrorText) {
 				t.Errorf("Expected error to contain '%s', but got: %v", expectedErrorText, err)
 			}
@@ -1345,6 +1353,11 @@ func (m *mockCNIConflistGenerator) getGeneratedCount() int {
 	return m.generatedCount
 }
 
+var fastcnsconf = configuration.CNSConfig{
+	SyncHostNCVersionIntervalMs: 100,
+	ChannelMode:                 cns.CRD,
+}
+
 // TestCNIConflistGenerationNewNC tests that discovering a new programmed NC in CNS state will trigger CNI conflist generation
 func TestCNIConflistGenerationNewNC(t *testing.T) {
 	ncID := "some-new-nc" //nolint:goconst // value not shared across tests, can change without issue
@@ -1380,9 +1393,11 @@ func TestCNIConflistGenerationNewNC(t *testing.T) {
 		imdsClient: fakes.NewMockIMDSClient(),
 	}
 
-	service.SyncHostNCVersion(context.Background(), cns.CRD)
-	// CNI conflist gen happens in goroutine so sleep for a second to let it run
-	time.Sleep(time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*5)
+	defer cancel()
+	err := service.StartSyncHostNCVersionLoop(ctx, fastcnsconf)
+	assert.NoError(t, err)
+	service.Wait(ctx)
 	assert.Equal(t, 1, mockgen.getGeneratedCount())
 }
 
@@ -1421,9 +1436,11 @@ func TestCNIConflistGenerationExistingNC(t *testing.T) {
 		imdsClient: fakes.NewMockIMDSClient(),
 	}
 
-	service.SyncHostNCVersion(context.Background(), cns.CRD)
-	// CNI conflist gen happens in goroutine so sleep for a second to let it run
-	time.Sleep(time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*5)
+	defer cancel()
+	err := service.StartSyncHostNCVersionLoop(ctx, fastcnsconf)
+	assert.NoError(t, err)
+	service.Wait(ctx)
 	assert.Equal(t, 1, mockgen.getGeneratedCount())
 }
 
@@ -1463,12 +1480,12 @@ func TestCNIConflistGenerationNewNCTwice(t *testing.T) {
 		imdsClient: fakes.NewMockIMDSClient(),
 	}
 
-	service.SyncHostNCVersion(context.Background(), cns.CRD)
-	// CNI conflist gen happens in goroutine so sleep for a second to let it run
-	time.Sleep(time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*5)
+	defer cancel()
+	err := service.StartSyncHostNCVersionLoop(ctx, fastcnsconf)
+	assert.NoError(t, err)
+	service.Wait(ctx)
 	assert.Equal(t, 1, mockgen.getGeneratedCount())
-
-	service.SyncHostNCVersion(context.Background(), cns.CRD)
 	// CNI conflist gen happens in goroutine so sleep for a second to let it run
 	time.Sleep(time.Second)
 	assert.Equal(t, 1, mockgen.getGeneratedCount()) // should still be one
@@ -1502,9 +1519,11 @@ func TestCNIConflistNotGenerated(t *testing.T) {
 		imdsClient: fakes.NewMockIMDSClient(),
 	}
 
-	service.SyncHostNCVersion(context.Background(), cns.CRD)
-	// CNI conflist gen happens in goroutine so sleep for a second to let it run
-	time.Sleep(time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*5)
+	defer cancel()
+	err := service.StartSyncHostNCVersionLoop(ctx, fastcnsconf)
+	assert.NoError(t, err)
+	service.Wait(ctx)
 	assert.Equal(t, 0, mockgen.getGeneratedCount())
 }
 
@@ -1545,9 +1564,11 @@ func TestCNIConflistGenerationOnNMAError(t *testing.T) {
 		imdsClient: fakes.NewMockIMDSClient(),
 	}
 
-	service.SyncHostNCVersion(context.Background(), cns.CRD)
-	// CNI conflist gen happens in goroutine so sleep for a second to let it run
-	time.Sleep(time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*5)
+	defer cancel()
+	err := service.StartSyncHostNCVersionLoop(ctx, fastcnsconf)
+	assert.NoError(t, err)
+	service.Wait(ctx)
 	assert.Equal(t, 1, mockgen.getGeneratedCount())
 }
 
