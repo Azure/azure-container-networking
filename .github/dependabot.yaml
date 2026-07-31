@@ -4,6 +4,8 @@ updates:
   - package-ecosystem: "docker"
     directories:
       - "**/*"
+    exclude-paths:
+      - "**/*.tmpl"
     schedule:
       interval: "daily"
     commit-message:
