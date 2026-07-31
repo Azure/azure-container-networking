@@ -2,7 +2,8 @@
 version: 2
 updates:
   - package-ecosystem: "docker"
-    directory: "/"
+    directories:
+      - "**/*"
     schedule:
       interval: "daily"
     commit-message:
