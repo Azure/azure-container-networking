@@ -58,14 +58,29 @@ func ShouldOpen(rc model.RunContext, inc model.Incident) bool {
 
 // Open dispatches the coding job and returns the resulting job identity.
 func Open(ctx context.Context, client Client, p Params) (Result, error) {
+	req, err := BuildRequest(p)
+	if err != nil {
+		return Result{}, err
+	}
+	resp, err := client.CreateV2Job(ctx, req)
+	if err != nil {
+		return Result{}, err
+	}
+	return Result{JobID: resp.JobID, State: resp.State}, nil
+}
+
+// BuildRequest validates params and assembles the Agency v2 job request that
+// runs the agency-coding plugin's coding-agent to author a fix and open a draft
+// pull request. It is shared by Open and the smoke/validate harness.
+func BuildRequest(p Params) (publish.V2JobRequest, error) {
 	if p.Organization == "" || p.Project == "" || p.Repository == "" {
-		return Result{}, fmt.Errorf("agency org, project, and repository are required")
+		return publish.V2JobRequest{}, fmt.Errorf("agency org, project, and repository are required")
 	}
 	if strings.TrimSpace(p.Prompt) == "" {
-		return Result{}, fmt.Errorf("a non-empty prompt is required")
+		return publish.V2JobRequest{}, fmt.Errorf("a non-empty prompt is required")
 	}
 
-	req := publish.V2JobRequest{
+	return publish.V2JobRequest{
 		Prompt: p.Prompt,
 		Context: publish.JobContext{
 			Repository: publish.ADORepository{
@@ -88,13 +103,7 @@ func Open(ctx context.Context, client Client, p Params) (Result, error) {
 			"source":         "failure-analysis-agent",
 			"faaFingerprint": p.Fingerprint,
 		},
-	}
-
-	resp, err := client.CreateV2Job(ctx, req)
-	if err != nil {
-		return Result{}, err
-	}
-	return Result{JobID: resp.JobID, State: resp.State}, nil
+	}, nil
 }
 
 // BuildPrompt renders the grounded instruction for the coding-agent from the

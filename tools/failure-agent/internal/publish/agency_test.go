@@ -91,6 +91,26 @@ func TestCreateV2JobPropagatesErrorStatus(t *testing.T) {
 	}
 }
 
+func TestValidateV2JobUsesValidatePath(t *testing.T) {
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		_, _ = w.Write([]byte(`{"state":"Valid"}`))
+	}))
+	defer srv.Close()
+
+	client, err := NewAgencyClient(AgencyConfig{BaseURL: srv.URL, Token: StaticToken("t")})
+	if err != nil {
+		t.Fatalf("NewAgencyClient: %v", err)
+	}
+	if _, err := client.ValidateV2Job(context.Background(), V2JobRequest{}); err != nil {
+		t.Fatalf("ValidateV2Job: %v", err)
+	}
+	if gotPath != "/v2/jobs/validate" {
+		t.Errorf("path = %q, want /v2/jobs/validate", gotPath)
+	}
+}
+
 func TestNewAgencyClientRequiresToken(t *testing.T) {
 	if _, err := NewAgencyClient(AgencyConfig{}); err == nil {
 		t.Fatal("expected error when token provider is nil")

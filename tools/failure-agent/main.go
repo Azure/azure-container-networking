@@ -66,6 +66,15 @@ type options struct {
 	live            bool
 	privileged      bool
 	flakinessOutput string
+
+	// Agency smoke harness: exercise the draft-PR dispatch in isolation.
+	agencySmoke   bool
+	agencyCreate  bool
+	agencyOrg     string
+	agencyProject string
+	agencyRepo    string
+	agencyBranch  string
+	agencyPrompt  string
 }
 
 func main() {
@@ -78,6 +87,14 @@ func main() {
 
 	ctx := context.Background()
 	opts := parseFlags()
+
+	if opts.agencySmoke {
+		if err := runAgencySmoke(ctx, logger, opts); err != nil {
+			logger.Error("agency smoke failed", zap.Error(err))
+			os.Exit(1)
+		}
+		return
+	}
 
 	var ks knowledgeStore = noopStore{}
 	var sqlStore *store.Store
@@ -127,6 +144,13 @@ func parseFlags() options {
 	flag.BoolVar(&o.live, "live", true, "collect read-only kubectl diagnostics from the retained cluster (requires kubectl + KUBECONFIG)")
 	flag.BoolVar(&o.privileged, "privileged", true, "collect host-level logs via kubectl debug node (requires --live; creates ephemeral debug pods)")
 	flag.StringVar(&o.flakinessOutput, "flakiness-output", "", "write the knowledge-store flakiness report to this path")
+	flag.BoolVar(&o.agencySmoke, "agency-smoke", false, "smoke-test the Agency draft-PR dispatch in isolation (skips analysis) and exit")
+	flag.BoolVar(&o.agencyCreate, "agency-create", false, "with --agency-smoke, actually create the job (POST /v2/jobs) instead of validating it")
+	flag.StringVar(&o.agencyOrg, "agency-org", "", "Agency smoke: Azure DevOps organization (or FAA_AGENCY_ORG / SYSTEM_COLLECTIONURI)")
+	flag.StringVar(&o.agencyProject, "agency-project", "", "Agency smoke: Azure DevOps project (or FAA_AGENCY_PROJECT / SYSTEM_TEAMPROJECT)")
+	flag.StringVar(&o.agencyRepo, "agency-repo", "", "Agency smoke: Azure DevOps repository (or FAA_AGENCY_REPO / BUILD_REPOSITORY_NAME)")
+	flag.StringVar(&o.agencyBranch, "agency-branch", "", "Agency smoke: base branch (or BUILD_SOURCEBRANCH)")
+	flag.StringVar(&o.agencyPrompt, "agency-prompt", "", "Agency smoke: prompt override (defaults to a harmless validation prompt)")
 	flag.Parse()
 	return o
 }
@@ -618,6 +642,73 @@ func firstNonEmpty(vals ...string) string {
 		}
 	}
 	return ""
+}
+
+// runAgencySmoke exercises the Agency draft-PR dispatch in isolation, without
+// running the analysis pipeline. It resolves ADO coordinates from flags then
+// environment, acquires a token, and validates (default) or creates a job so
+// auth, authorization, endpoint reachability, and request-shape acceptance can
+// be confirmed independently of a real pipeline failure.
+func runAgencySmoke(ctx context.Context, logger *zap.Logger, opts options) error {
+	org := firstNonEmpty(opts.agencyOrg, os.Getenv("FAA_AGENCY_ORG"), draftpr.OrgFromCollectionURI(os.Getenv("SYSTEM_COLLECTIONURI")))
+	project := firstNonEmpty(opts.agencyProject, os.Getenv("FAA_AGENCY_PROJECT"), os.Getenv("SYSTEM_TEAMPROJECT"))
+	repo := firstNonEmpty(opts.agencyRepo, os.Getenv("FAA_AGENCY_REPO"), os.Getenv("BUILD_REPOSITORY_NAME"))
+	if org == "" || project == "" || repo == "" {
+		return fmt.Errorf("agency org/project/repo required (flags --agency-org/-project/-repo or FAA_AGENCY_* env); got org=%q project=%q repo=%q", org, project, repo)
+	}
+	branch := draftpr.BaseBranchFromRef(firstNonEmpty(opts.agencyBranch, os.Getenv("BUILD_SOURCEBRANCH")))
+	prompt := firstNonEmpty(opts.agencyPrompt, "Failure-analysis agent smoke test: validate this request; no changes required.")
+
+	req, err := draftpr.BuildRequest(draftpr.Params{
+		Organization: org,
+		Project:      project,
+		Repository:   repo,
+		Branch:       branch,
+		Prompt:       prompt,
+		Fingerprint:  "smoke",
+	})
+	if err != nil {
+		return err
+	}
+
+	tp, err := agencyTokenProvider(logger)
+	if err != nil {
+		return err
+	}
+	if tp == nil {
+		return errors.New("no agency credential available: set FAA_AGENCY_TOKEN or sign in for DefaultAzureCredential")
+	}
+
+	client, err := publish.NewAgencyClient(publish.AgencyConfig{
+		BaseURL: os.Getenv("FAA_AGENCY_BASE_URL"),
+		Token:   tp,
+	})
+	if err != nil {
+		return err
+	}
+
+	smokeCtx, cancel := context.WithTimeout(ctx, publishTimeout)
+	defer cancel()
+
+	logger.Info("agency smoke dispatch",
+		zap.Bool("create", opts.agencyCreate),
+		zap.String("org", org), zap.String("project", project),
+		zap.String("repo", repo), zap.String("branch", branch),
+		zap.String("baseURL", firstNonEmpty(os.Getenv("FAA_AGENCY_BASE_URL"), publish.AgencyProdBaseURL)))
+
+	var resp publish.JobResponse
+	if opts.agencyCreate {
+		resp, err = client.CreateV2Job(smokeCtx, req)
+	} else {
+		resp, err = client.ValidateV2Job(smokeCtx, req)
+	}
+	if err != nil {
+		return err
+	}
+	logger.Info("agency smoke succeeded",
+		zap.String("jobID", resp.JobID), zap.String("state", resp.State),
+		zap.String("result", resp.Result), zap.String("reason", resp.Reason))
+	return nil
 }
 
 func applyOverrides(rc *model.RunContext, opts options) {

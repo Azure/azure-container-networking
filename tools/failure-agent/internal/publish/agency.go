@@ -162,6 +162,13 @@ func (c *AgencyClient) CreateV2Job(ctx context.Context, req V2JobRequest) (JobRe
 	return c.postJob(ctx, "/v2/jobs", req)
 }
 
+// ValidateV2Job checks a v2 job request via POST /v2/jobs/validate without
+// creating a job. It is the side-effect-free way to confirm auth, authorization,
+// and request-shape acceptance against the live API.
+func (c *AgencyClient) ValidateV2Job(ctx context.Context, req V2JobRequest) (JobResponse, error) {
+	return c.postJob(ctx, "/v2/jobs/validate", req)
+}
+
 // GetJob fetches the status of a previously created job.
 func (c *AgencyClient) GetJob(ctx context.Context, jobID string) (JobResponse, error) {
 	if jobID == "" {
