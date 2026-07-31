@@ -41,7 +41,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: cns-container
-          image: mcr.microsoft.com/containernetworking/azure-cns:v1.5.10
+          image: mcr.microsoft.com/containernetworking/azure-cns:v1.7.12
           imagePullPolicy: IfNotPresent
           args:
             ["-c", "tcp://$(CNSIpAddress):$(CNSPort)", "-t", "$(CNSLogTarget)"]
@@ -86,7 +86,7 @@ spec:
                   fieldPath: spec.nodeName
       initContainers:
         - name: cni-installer
-          image: mcr.microsoft.com/containernetworking/cni-dropgz:v0.1.1
+          image: mcr.microsoft.com/containernetworking/cni-dropgz:v0.2.0
           imagePullPolicy: Always
           command: ["/dropgz"]
           args: ["deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam"]
