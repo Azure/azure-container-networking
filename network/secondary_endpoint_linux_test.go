@@ -94,6 +94,46 @@ func TestSecondaryAddEndpoints(t *testing.T) {
 	}
 }
 
+// TestSecondaryMoveEndpointsUsesMasterIfIndex checks that AddEndpoints records the
+// resolved master ifindex and that MoveEndpointsToContainerNS moves the device by
+// that index rather than by name.
+func TestSecondaryMoveEndpointsUsesMasterIfIndex(t *testing.T) {
+	nl := netlink.NewMockNetlink(false, "")
+	plc := platform.NewMockExecClient(false)
+
+	// The MAC-matched VF has ifindex 2 (see MockNetIO). Resolve it to a distinct
+	// master ifindex so the test proves the endpoint records the master index, not
+	// the matched one.
+	const masterIndex = 7
+	original := netio.ResolveMasterInterface
+	netio.ResolveMasterInterface = func(iface *net.Interface) (*net.Interface, error) {
+		return &net.Interface{Name: iface.Name, Index: masterIndex}, nil
+	}
+	t.Cleanup(func() { netio.ResolveMasterInterface = original })
+
+	var gotIndex int
+	nl.SetLinkNetNsByIndexFn = func(index int, _ uintptr) error {
+		gotIndex = index
+		return nil
+	}
+
+	mac, _ := net.ParseMAC("ab:cd:ef:12:34:56")
+	client := &SecondaryEndpointClient{
+		netlink:        nl,
+		plClient:       plc,
+		netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+		netioshim:      netio.NewMockNetIO(false, 0),
+		ep:             &endpoint{SecondaryInterfaces: make(map[string]*InterfaceInfo)},
+	}
+
+	epInfo := &EndpointInfo{MacAddress: mac}
+	require.NoError(t, client.AddEndpoints(epInfo))
+	require.Equal(t, masterIndex, client.ifIndex, "AddEndpoints should record the resolved master ifindex")
+
+	require.NoError(t, client.MoveEndpointsToContainerNS(epInfo, 0))
+	require.Equal(t, masterIndex, gotIndex, "move should dispatch by the recorded master ifindex")
+}
+
 func TestSecondaryDeleteEndpoints(t *testing.T) {
 	nl := netlink.NewMockNetlink(false, "")
 	plc := platform.NewMockExecClient(false)

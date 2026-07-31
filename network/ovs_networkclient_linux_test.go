@@ -20,10 +20,13 @@ func TestMain(m *testing.M) {
 	// These unit tests run against mock interfaces that do not exist in the test
 	// host's netlink tables, so real master resolution cannot succeed. Resolution
 	// itself is covered by netio's own unit tests.
+	originalResolveMasterInterface := netio.ResolveMasterInterface
 	netio.ResolveMasterInterface = func(iface *net.Interface) (*net.Interface, error) {
 		return iface, nil
 	}
-	os.Exit(m.Run())
+	code := m.Run()
+	netio.ResolveMasterInterface = originalResolveMasterInterface
+	os.Exit(code)
 }
 
 func TestAddRoutes(t *testing.T) {
