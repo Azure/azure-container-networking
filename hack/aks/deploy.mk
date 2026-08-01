@@ -21,6 +21,8 @@ AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY	?= mcr.microsoft.com/containernetworking
 AZURE_IPTABLES_MONITOR_TAG          	?= v0.0.5-0
 AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY		?= mcr.microsoft.com/containernetworking
 AZURE_IP_MASQ_MERGER_TAG            	?= v0.0.1-0
+EBPF_CILIUM_CONFIG_PATCH_FILE			?=
+EBPF_CILIUM_AGENT_PATCH_FILE			?=
 
 # so we can use in envsubst
 export IPV6_IMAGE_REGISTRY
@@ -149,25 +151,58 @@ deploy-common-ebpf-cilium:
 
 deploy-ebpf-dualstack-cilium: print-ebpf-cilium-vars deploy-common-ebpf-cilium
 	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/dualstack/static/
-	CILIUM_VERSION_TAG=$(EBPF_CILIUM_VERSION_TAG) CILIUM_IMAGE_REGISTRY=$(EBPF_CILIUM_IMAGE_REGISTRY) \
-                envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION},$${IPV6_IMAGE_REGISTRY},$${AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY},$${AZURE_IPTABLES_MONITOR_TAG},$${AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY},$${AZURE_IP_MASQ_MERGER_TAG}' < \
-                ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/dualstack/cilium.yaml \
-                | kubectl apply -f -
+	@if [ -n "$(EBPF_CILIUM_CONFIG_PATCH_FILE)" ]; then \
+		kubectl patch configmap cilium-config -n kube-system --type merge --patch-file "$(EBPF_CILIUM_CONFIG_PATCH_FILE)"; \
+	fi
+	@if [ -n "$(EBPF_CILIUM_AGENT_PATCH_FILE)" ]; then \
+		CILIUM_VERSION_TAG=$(EBPF_CILIUM_VERSION_TAG) CILIUM_IMAGE_REGISTRY=$(EBPF_CILIUM_IMAGE_REGISTRY) \
+			envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION},$${IPV6_IMAGE_REGISTRY},$${AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY},$${AZURE_IPTABLES_MONITOR_TAG},$${AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY},$${AZURE_IP_MASQ_MERGER_TAG}' < \
+			../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/dualstack/cilium.yaml \
+			| kubectl patch --local -f - --type strategic --patch-file "$(EBPF_CILIUM_AGENT_PATCH_FILE)" -o yaml \
+			| kubectl apply -f -; \
+	else \
+		CILIUM_VERSION_TAG=$(EBPF_CILIUM_VERSION_TAG) CILIUM_IMAGE_REGISTRY=$(EBPF_CILIUM_IMAGE_REGISTRY) \
+			envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION},$${IPV6_IMAGE_REGISTRY},$${AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY},$${AZURE_IPTABLES_MONITOR_TAG},$${AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY},$${AZURE_IP_MASQ_MERGER_TAG}' < \
+			../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/dualstack/cilium.yaml \
+			| kubectl apply -f -; \
+	fi
 	@$(MAKE) wait-for-cilium
 
 deploy-ebpf-overlay-cilium: print-ebpf-cilium-vars deploy-common-ebpf-cilium
 	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/overlay/static/
-	CILIUM_VERSION_TAG=$(EBPF_CILIUM_VERSION_TAG) CILIUM_IMAGE_REGISTRY=$(EBPF_CILIUM_IMAGE_REGISTRY) \
-		envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION},$${AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY},$${AZURE_IPTABLES_MONITOR_TAG},$${AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY},$${AZURE_IP_MASQ_MERGER_TAG}' < \
-		../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/overlay/cilium.yaml \
-		| kubectl apply -f -
+	@if [ -n "$(EBPF_CILIUM_CONFIG_PATCH_FILE)" ]; then \
+		kubectl patch configmap cilium-config -n kube-system --type merge --patch-file "$(EBPF_CILIUM_CONFIG_PATCH_FILE)"; \
+	fi
+	@if [ -n "$(EBPF_CILIUM_AGENT_PATCH_FILE)" ]; then \
+		CILIUM_VERSION_TAG=$(EBPF_CILIUM_VERSION_TAG) CILIUM_IMAGE_REGISTRY=$(EBPF_CILIUM_IMAGE_REGISTRY) \
+			envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION},$${AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY},$${AZURE_IPTABLES_MONITOR_TAG},$${AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY},$${AZURE_IP_MASQ_MERGER_TAG}' < \
+			../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/overlay/cilium.yaml \
+			| kubectl patch --local -f - --type strategic --patch-file "$(EBPF_CILIUM_AGENT_PATCH_FILE)" -o yaml \
+			| kubectl apply -f -; \
+	else \
+		CILIUM_VERSION_TAG=$(EBPF_CILIUM_VERSION_TAG) CILIUM_IMAGE_REGISTRY=$(EBPF_CILIUM_IMAGE_REGISTRY) \
+			envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION},$${AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY},$${AZURE_IPTABLES_MONITOR_TAG},$${AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY},$${AZURE_IP_MASQ_MERGER_TAG}' < \
+			../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/overlay/cilium.yaml \
+			| kubectl apply -f -; \
+	fi
 	@$(MAKE) wait-for-cilium
 
 deploy-ebpf-podsubnet-cilium: print-ebpf-cilium-vars deploy-common-ebpf-cilium
 	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/podsubnet/static/
+	@if [ -n "$(EBPF_CILIUM_CONFIG_PATCH_FILE)" ]; then \
+		kubectl patch configmap cilium-config -n kube-system --type merge --patch-file "$(EBPF_CILIUM_CONFIG_PATCH_FILE)"; \
+	fi
 # ebpf podsubnet does not have ip masq merger 
-	CILIUM_VERSION_TAG=$(EBPF_CILIUM_VERSION_TAG) CILIUM_IMAGE_REGISTRY=$(EBPF_CILIUM_IMAGE_REGISTRY) \
-		envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION},$${AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY},$${AZURE_IPTABLES_MONITOR_TAG}' < \
-		../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/podsubnet/cilium.yaml \
-		| kubectl apply -f -
+	@if [ -n "$(EBPF_CILIUM_AGENT_PATCH_FILE)" ]; then \
+		CILIUM_VERSION_TAG=$(EBPF_CILIUM_VERSION_TAG) CILIUM_IMAGE_REGISTRY=$(EBPF_CILIUM_IMAGE_REGISTRY) \
+			envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION},$${AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY},$${AZURE_IPTABLES_MONITOR_TAG}' < \
+			../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/podsubnet/cilium.yaml \
+			| kubectl patch --local -f - --type strategic --patch-file "$(EBPF_CILIUM_AGENT_PATCH_FILE)" -o yaml \
+			| kubectl apply -f -; \
+	else \
+		CILIUM_VERSION_TAG=$(EBPF_CILIUM_VERSION_TAG) CILIUM_IMAGE_REGISTRY=$(EBPF_CILIUM_IMAGE_REGISTRY) \
+			envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION},$${AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY},$${AZURE_IPTABLES_MONITOR_TAG}' < \
+			../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/podsubnet/cilium.yaml \
+			| kubectl apply -f -; \
+	fi
 	@$(MAKE) wait-for-cilium
