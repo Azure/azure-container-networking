@@ -14,6 +14,7 @@ AUTOUPGRADE          ?= patch
 K8S_VER              ?= 1.35
 NODE_COUNT           ?= 2
 NODE_COUNT_WIN	     ?= $(NODE_COUNT)
+NODEPOOL              ?= nodepool1
 NODEUPGRADE          ?= NodeImage
 OS				     ?= linux # Used to signify if you want to bring up a windows nodePool on byocni clusters
 OS_SKU               ?= Ubuntu
@@ -477,6 +478,20 @@ windows-swift-nodepool-up: ## Add windows node pool
 		--max-pods 250 \
 		--subscription $(SUB) \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet
+
+linux-nodepool-up: ## Add a Linux node pool
+	$(AZCLI) aks nodepool add \
+		--resource-group $(GROUP) \
+		--cluster-name $(CLUSTER) \
+		--name $(NODEPOOL) \
+		--node-count $(NODE_COUNT) \
+		--node-vm-size $(VM_SIZE) \
+		--os-type Linux \
+		--os-sku $(OS_SKU) \
+		--max-pods 250 \
+		--subscription $(SUB) \
+		$(if $(POD_SUBNET_ID),--pod-subnet-id $(POD_SUBNET_ID)) \
+		-o none
 
 linux-swiftv2-nodepool-up: ## Add linux node pool to swiftv2 cluster
 	$(AZCLI) aks nodepool add -g $(GROUP) -n nplinux \
