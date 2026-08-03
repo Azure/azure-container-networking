@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/fsnotify"
 	"github.com/Azure/azure-container-networking/cns/healthserver"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
+	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/ipampool"
 	cssctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/clustersubnetstate"
 	nncctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/nodenetworkconfig"
@@ -43,6 +44,8 @@ import (
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd"
 	"github.com/Azure/azure-container-networking/crd/clustersubnetstate/api/v1alpha1"
+	"github.com/Azure/azure-container-networking/crd/multitenancy"
+	mtv1alpha1 "github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	acnfs "github.com/Azure/azure-container-networking/internal/fs"
@@ -56,15 +59,18 @@ import (
 	"github.com/avast/retry-go/v4"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	kuberuntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 )
 
@@ -1252,6 +1258,15 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return errors.Wrapf(err, "failed to get node %s", nodeName)
 	}
 
+	// check the Node labels for Swift V2
+	if _, ok := node.Labels[configuration.LabelNodeSwiftV2]; ok {
+		cnsconfig.EnableSwiftV2 = true
+		cnsconfig.WatchPods = true
+		if nodeInfoErr := createOrUpdateNodeInfoCRD(ctx, kubeConfig, node); nodeInfoErr != nil {
+			return errors.Wrap(nodeInfoErr, "error creating or updating nodeinfo crd")
+		}
+	}
+
 	// get CNS Node IP to compare NC Node IP with this Node IP to ensure NCs were created for this node
 	nodeIP := configuration.NodeIP()
 
@@ -1338,5 +1353,43 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 	}()
 	logger.Printf("Initialized SyncHostNCVersion loop.")
+	return nil
+}
+
+// createOrUpdateNodeInfoCRD polls imds to learn the VM Unique ID and then creates or updates the NodeInfo CRD
+// with that vm unique ID
+func createOrUpdateNodeInfoCRD(ctx context.Context, restConfig *rest.Config, node *corev1.Node) error {
+	imdsCli := imds.NewClient()
+	vmUniqueID, err := imdsCli.GetVMUniqueID(ctx)
+	if err != nil {
+		return errors.Wrap(err, "error getting vm unique ID from imds")
+	}
+
+	directcli, err := client.New(restConfig, client.Options{Scheme: multitenancy.Scheme})
+	if err != nil {
+		return errors.Wrap(err, "failed to create ctrl client")
+	}
+
+	nodeInfoCli := multitenancy.NodeInfoClient{
+		Cli: directcli,
+	}
+
+	nodeInfo := &mtv1alpha1.NodeInfo{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: node.Name,
+		},
+		Spec: mtv1alpha1.NodeInfoSpec{
+			VMUniqueID: vmUniqueID,
+		},
+	}
+
+	if err := controllerutil.SetOwnerReference(node, nodeInfo, multitenancy.Scheme); err != nil {
+		return errors.Wrap(err, "failed to set nodeinfo owner reference to node")
+	}
+
+	if err := nodeInfoCli.CreateOrUpdate(ctx, nodeInfo, "azure-cns"); err != nil {
+		return errors.Wrap(err, "error ensuring nodeinfo CRD exists and is up-to-date")
+	}
+
 	return nil
 }
