@@ -32,6 +32,11 @@ func dummy(index, masterIndex int, name string) vishnetlink.Link {
 	return &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{Index: index, MasterIndex: masterIndex, Name: name}}
 }
 
+const (
+	masterName = "eth2"
+	vfName     = "enP55951s3"
+)
+
 func TestResolveMasterInterface(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -45,18 +50,18 @@ func TestResolveMasterInterface(t *testing.T) {
 		{
 			// The netvsc synthetic is already the master: returned unchanged.
 			name:      "not enslaved returns input unchanged",
-			iface:     &net.Interface{Index: 4, Name: "eth2"},
-			byName:    map[string]vishnetlink.Link{"eth2": dummy(4, 0, "eth2")},
-			wantName:  "eth2",
+			iface:     &net.Interface{Index: 4, Name: masterName},
+			byName:    map[string]vishnetlink.Link{masterName: dummy(4, 0, masterName)},
+			wantName:  masterName,
 			wantIndex: 4,
 		},
 		{
 			// A VF matched by MAC must resolve up to its netvsc master.
 			name:      "VF resolves to its netvsc master",
-			iface:     &net.Interface{Index: 376, Name: "enP55951s3"},
-			byName:    map[string]vishnetlink.Link{"enP55951s3": dummy(376, 4, "enP55951s3")},
-			byIndex:   map[int]vishnetlink.Link{4: dummy(4, 0, "eth2")},
-			wantName:  "eth2",
+			iface:     &net.Interface{Index: 376, Name: vfName},
+			byName:    map[string]vishnetlink.Link{vfName: dummy(376, 4, vfName)},
+			byIndex:   map[int]vishnetlink.Link{4: dummy(4, 0, masterName)},
+			wantName:  masterName,
 			wantIndex: 4,
 		},
 		{
@@ -83,8 +88,8 @@ func TestResolveMasterInterface(t *testing.T) {
 		},
 		{
 			name:    "master lookup failure propagates",
-			iface:   &net.Interface{Index: 376, Name: "enP55951s3"},
-			byName:  map[string]vishnetlink.Link{"enP55951s3": dummy(376, 4, "enP55951s3")},
+			iface:   &net.Interface{Index: 376, Name: vfName},
+			byName:  map[string]vishnetlink.Link{vfName: dummy(376, 4, vfName)},
 			byIndex: map[int]vishnetlink.Link{},
 			wantErr: true,
 		},

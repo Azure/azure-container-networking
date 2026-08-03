@@ -50,7 +50,7 @@ func (Netlink) SetLinkNetNs(name string, fd uintptr) error {
 	return nil
 }
 
-func (Netlink) SetLinkNetNsByIndex(index int, fd uintptr) error {
+func (Netlink) SetLinkNetNsByIndex(_ int, _ uintptr) error {
 	return nil
 }
 

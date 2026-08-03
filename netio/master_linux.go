@@ -17,11 +17,13 @@ type linkResolver interface {
 type vishLinkResolver struct{}
 
 func (vishLinkResolver) LinkByName(name string) (vishnetlink.Link, error) {
-	return vishnetlink.LinkByName(name)
+	link, err := vishnetlink.LinkByName(name)
+	return link, errors.Wrap(err, "netlink LinkByName")
 }
 
 func (vishLinkResolver) LinkByIndex(index int) (vishnetlink.Link, error) {
-	return vishnetlink.LinkByIndex(index)
+	link, err := vishnetlink.LinkByIndex(index)
+	return link, errors.Wrap(err, "netlink LinkByIndex")
 }
 
 // masterNl is the netlink client used by ResolveMasterInterface. Overridable in tests.

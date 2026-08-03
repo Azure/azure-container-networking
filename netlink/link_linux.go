@@ -8,12 +8,17 @@ package netlink
 
 import (
 	"fmt"
+	"math"
 	"net"
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 )
+
+// ErrInvalidInterfaceIndex is returned when an interface index cannot be represented
+// in the int32 field of the netlink ifinfomsg header.
+var ErrInvalidInterfaceIndex = errors.New("invalid interface index")
 
 // Link types.
 const (
@@ -322,6 +327,10 @@ func (n Netlink) SetLinkNetNs(name string, fd uintptr) error {
 // interface by the time it is acted upon. The ifindex identifies the device
 // unambiguously for its lifetime.
 func (Netlink) SetLinkNetNsByIndex(index int, fd uintptr) error {
+	if index <= 0 || index > math.MaxInt32 {
+		return errors.Wrapf(ErrInvalidInterfaceIndex, "%d", index)
+	}
+
 	s, err := getSocket()
 	if err != nil {
 		return err

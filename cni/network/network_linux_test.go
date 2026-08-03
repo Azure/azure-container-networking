@@ -6,13 +6,13 @@ package network
 import (
 	"errors"
 	"fmt"
-	"github.com/Azure/azure-container-networking/netio"
 	"net"
 	"regexp"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/platform"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
