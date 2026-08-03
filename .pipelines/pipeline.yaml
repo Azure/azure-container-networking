@@ -711,3 +711,30 @@ stages:
                   - vscaleswifte2e
                   - ubuntu22e2e
                   - linuxdsovere2e
+
+    # Consolidated Teams run summary for the whole run: one card, plus an
+    # explicit callout when the same signature failed across multiple E2E
+    # stages. Runs after the E2E matrix (dependsOn the same stages as
+    # delete_clusters) so its card is the run's authoritative final state.
+    # Best-effort: a green run with no incidents is a quiet no-op.
+    - template: failure-agent-teams-bot/failure-run-summary.stage.yaml
+      parameters:
+        dependsOn:
+          - cilium_e2e
+          - cilium_vnetscale_e2e
+          - cilium_ebpf_podsubnet_e2e
+          - cilium_nodesubnet_e2e
+          - cilium_overlay_e2e
+          - cilium_ebpf_overlay_e2e
+          - cilium_dualstackoverlay_e2e
+          - cilium_h_overlay_e2e
+          - cilium_ebpf_ds_e2e
+          - win_azure_overlay_e2e
+          - azure_overlay_stateless_e2e
+          - aks_windows_22_e2e
+          - win_dualstackoverlay_e2e
+          - linux_azure_overlay_e2e
+          - aks_swift_e2e
+          - aks_swift_vnetscale_e2e
+          - aks_ubuntu_22_linux_e2e
+          - linux_dualstackoverlay_e2e
