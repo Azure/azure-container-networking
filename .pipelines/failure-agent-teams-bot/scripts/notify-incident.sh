@@ -31,6 +31,8 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=notify-bot.sh
 source "$SCRIPT_DIR/notify-bot.sh"
+# shellcheck source=render-verdict.sh
+source "$SCRIPT_DIR/render-verdict.sh"
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "notify-incident: jq not found, skipping" >&2
@@ -42,14 +44,18 @@ if [[ ! -f "$INCIDENT" ]]; then
   exit 0
 fi
 
-# --- Gate: only ping on a confident, actionable analysis --------------------
+# --- Gate: only ping on a confident analysis with a verdict or a fix ---------
+# A confident regression/infra verdict is worth paging even when there is no
+# code-level proposedFix (e.g. "reroute to AKS node/AzSecPack"), so the gate
+# accepts either a finalVerdict or a proposedFix.
 analysis_status="$(jq -r '.analysisStatus // ""' "$INCIDENT")"
 confidence="$(jq -r '.confidence // 0' "$INCIDENT")"
 proposed_fix="$(jq -r '.proposedFix // ""' "$INCIDENT")"
+final_verdict="$(jq -r '.finalVerdict // ""' "$INCIDENT")"
 
 meets="$(jq -n --argjson c "$confidence" --argjson m "$MIN_CONFIDENCE" '$c >= $m' 2>/dev/null || echo false)"
-if [[ "$analysis_status" != "analyzed" || "$meets" != "true" || -z "$proposed_fix" ]]; then
-  echo "notify-incident: skipping — status=$analysis_status confidence=$confidence fix=$([[ -n "$proposed_fix" ]] && echo yes || echo no) (threshold $MIN_CONFIDENCE)"
+if [[ "$analysis_status" != "analyzed" || "$meets" != "true" || ( -z "$proposed_fix" && -z "$final_verdict" ) ]]; then
+  echo "notify-incident: skipping — status=$analysis_status confidence=$confidence verdict=$([[ -n "$final_verdict" ]] && echo yes || echo no) fix=$([[ -n "$proposed_fix" ]] && echo yes || echo no) (threshold $MIN_CONFIDENCE)"
   exit 0
 fi
 
@@ -66,7 +72,7 @@ stage="$(jq -r '.stage // ""' "$INCIDENT")"
 job="$(jq -r '.job // ""' "$INCIDENT")"
 repository="$(jq -r '.repository // ""' "$INCIDENT")"
 pr_number="$(jq -r '.pullRequestNumber // ""' "$INCIDENT")"
-recommended_action="$(jq -r '.recommendedAction // ""' "$INCIDENT")"
+failing_unit="$(jq -r '.failingUnit // ""' "$INCIDENT")"
 retention="$(jq -r '.retentionDecision // ""' "$INCIDENT")"
 
 # Compact confidence, e.g. "high (0.87)".
@@ -84,6 +90,11 @@ severity="failure"
 title="Failure Analysis — ${pipeline}"
 [[ -n "$build_number" ]] && title="${title} #${build_number}"
 
+# Card summary: the concise root-cause line, falling back to the final verdict
+# when a run only produced the prose verdict.
+summary_text="$root_cause"
+[[ -z "$summary_text" ]] && summary_text="$final_verdict"
+
 run_url=""
 if [[ -n "${SYSTEM_COLLECTIONURI:-}" && -n "${SYSTEM_TEAMPROJECT:-}" && -n "${BUILD_BUILDID:-}" ]]; then
   run_url="${SYSTEM_COLLECTIONURI}${SYSTEM_TEAMPROJECT}/_build/results?buildId=${BUILD_BUILDID}"
@@ -94,7 +105,7 @@ status_args=(
   --stage analysis
   --severity "$severity"
   --title "$title"
-  --summary "$root_cause"
+  --summary "$summary_text"
 )
 [[ -n "$run_url" ]] && status_args+=(--run-url "$run_url")
 
@@ -104,6 +115,7 @@ status_args+=(--fact "Confidence|${band} (${conf_pretty})")
 stage_job="$(printf '%s / %s' "$stage" "$job" | sed 's#^ / ##; s# / $##')"
 [[ -n "$stage_job" ]] && status_args+=(--fact "Stage / Job|${stage_job}")
 [[ -n "$scenario" ]]  && status_args+=(--fact "Scenario|${scenario}")
+[[ -n "$failing_unit" ]] && status_args+=(--fact "Failing unit|${failing_unit:0:160}")
 [[ -n "$owner" ]]     && status_args+=(--fact "Owner|${owner}")
 [[ -n "$fingerprint" ]] && status_args+=(--fact "Fingerprint|${fingerprint:0:12}")
 [[ -n "$commit" ]]    && status_args+=(--fact "Commit|${commit:0:12}")
@@ -133,16 +145,19 @@ status_args+=(--cc-user "behzadm@microsoft.com|Behzad Mirkhanzadeh")
 notify_status "${status_args[@]}"
 
 # --- Threaded detail: notify_reply -----------------------------------------
-# Bullet the top evidence lines.
-evidence_md="$(jq -r '(.topEvidence // []) | map("- " + .) | join("\n")' "$INCIDENT")"
+# Render the full verdict (final verdict, top anomaly, failing unit, symptom vs
+# cause, causal chain, falsification, node assessment, evidence, gaps, and the
+# recommended action / fix) so the reply is a self-contained answer, not a
+# pointer to logs.
+reply="$(render_verdict "$INCIDENT")"
 
-reply="$(printf '**Proposed fix**\n%s' "$proposed_fix")"
-if [[ -n "$evidence_md" ]]; then
-  reply="$(printf '%s\n\n**Top evidence**\n%s' "$reply" "$evidence_md")"
+# Fallback for older incidents that predate the structured verdict fields.
+if [[ -z "$(printf '%s' "$reply" | tr -d '[:space:]')" ]]; then
+  reply="$(printf '**Proposed fix**\n%s' "$proposed_fix")"
+  evidence_md="$(jq -r '(.topEvidence // []) | map("- " + .) | join("\n")' "$INCIDENT")"
+  [[ -n "$evidence_md" ]] && reply="$(printf '%s\n\n**Top evidence**\n%s' "$reply" "$evidence_md")"
 fi
-if [[ -n "$recommended_action" ]]; then
-  reply="$(printf '%s\n\n**Recommended action**\n%s' "$reply" "$recommended_action")"
-fi
+
 if [[ -n "$retention" ]]; then
   reply="$(printf '%s\n\n_Cluster retention: %s_' "$reply" "$retention")"
 fi
