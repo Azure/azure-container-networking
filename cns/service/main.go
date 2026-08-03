@@ -1267,6 +1267,13 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 	}
 
+	// populate the NodeInfo CRD when HomeAz is enabled
+	if cnsconfig.EnableHomeAz {
+		if nodeInfoErr := createOrUpdateNodeInfoCRD(ctx, kubeConfig, node); nodeInfoErr != nil {
+			return errors.Wrap(nodeInfoErr, "error creating or updating nodeinfo crd for home az")
+		}
+	}
+
 	// get CNS Node IP to compare NC Node IP with this Node IP to ensure NCs were created for this node
 	nodeIP := configuration.NodeIP()
 
