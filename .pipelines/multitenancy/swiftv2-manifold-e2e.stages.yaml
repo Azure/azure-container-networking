@@ -26,7 +26,7 @@ stages:
           value: $(IMAGE_REPO_PATH)
         # Use latest AKS-RP released image for NPM
         - name: NPM_VERSION
-          value: "none"  
+          value: "none"
         - name: CNS_VERSION
           value: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
     dependsOn:
@@ -44,9 +44,9 @@ stages:
           - task: TriggerBuild@3
             inputs:
               buildDefinition: '391699'
-              templateParameters: 'regions: ["centraluseuap"], useAcnPublic: true, cnscniversion: $(CNS_VERSION), cnscniversionwindows: $(CNS_VERSION), cnscniImagePrefix: $(IMAGE_REPO_PATH_REF), npmversion: $(NPM_VERSION)'
+              templateParameters: 'regions: ["australiaeast"], useAcnPublic: true, cnscniversion: $(CNS_VERSION), cnscniversionwindows: $(CNS_VERSION), cnscniImagePrefix: $(IMAGE_REPO_PATH_REF), npmversion: $(NPM_VERSION)'
               useSameBranch: false
               queueBuildForUserThatTriggeredBuild: true
               branchToUse: 'refs/heads/master'
               waitForQueuedBuildsToFinish: true
-              authenticationMethod: 'OAuth Token'      
+              authenticationMethod: 'OAuth Token'
