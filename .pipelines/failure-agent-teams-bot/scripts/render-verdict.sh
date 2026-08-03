@@ -3,12 +3,14 @@
 # render_verdict <incident.json>
 #
 # Echoes a Markdown block that renders the failure-agent's full root-cause
-# verdict — final verdict, top anomaly, failing unit, the symptom-vs-cause
-# split, the cited causal chain, the falsification test, node assessment, top
-# evidence, evidence gaps, known unknowns, and the recommended action / proposed
-# fix — in the same engineer-facing shape as a hand-written triage writeup. This
-# is what lets the Teams ping deliver a final verdict instead of a "check these
-# logs" pointer.
+# verdict — leading with the likely root cause (falling back to the final
+# verdict when no root-cause summary is present), then top anomaly, failing
+# unit, the symptom-vs-cause split, the cited causal chain, the falsification
+# test, node assessment, top evidence, the concrete evidence snippets (capped
+# and truncated), evidence gaps, known unknowns, and the recommended action /
+# proposed fix — in the same engineer-facing shape as a hand-written triage
+# writeup. This is what lets the Teams ping deliver a grounded verdict instead
+# of a "check these logs" pointer.
 #
 # Best-effort and side-effect free: a missing file or missing jq yields empty
 # output and never fails. Absent fields are skipped, so an older incident that
@@ -25,7 +27,8 @@ render_verdict() {
   jq -r '
     def line($label; $val): if ($val // "") != "" then "**" + $label + "**\n" + $val else empty end;
     [
-      line("Verdict"; .finalVerdict),
+      line("Likely root cause";
+           (if ((.rootCauseSummary // "") != "") then .rootCauseSummary else (.finalVerdict // "") end)),
       line("Top anomaly"; .topAnomaly),
       line("Failing unit"; .failingUnit),
       ( if ((.symptomVsCause // []) | length) > 0 then
@@ -53,6 +56,18 @@ render_verdict() {
       line("Node assessment"; .nodeAssessment),
       ( if ((.topEvidence // []) | length) > 0 then
           "**Top evidence**\n" + ((.topEvidence // []) | map("- " + .) | join("\n"))
+        else empty end ),
+      ( if ((.errorSnippets // []) | length) > 0 then
+          "**Evidence snippets**\n" +
+          (( (.errorSnippets // [])[0:2] )
+            | map(
+                ((.snippet // "") | split("\n")) as $lines
+                | "**" + (.file // "?") + ":" + ((.line // 0) | tostring) + "**\n"
+                  + "```text\n"
+                  + ($lines[0:12] | join("\n"))
+                  + (if ($lines | length) > 12 then "\n… (truncated)" else "" end)
+                  + "\n```")
+            | join("\n\n"))
         else empty end ),
       ( if ((.evidenceGaps // []) | length) > 0 then
           "**Evidence gaps — capture next run**\n" +
