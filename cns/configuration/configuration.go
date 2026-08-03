@@ -25,7 +25,7 @@ type CNSConfig struct {
 	ChannelMode                          string
 	EnableAsyncPodDelete                 bool
 	EnableCNIConflistGeneration          bool
-	EnableHomeAz                         bool
+	EnableHomeAZ                         bool
 	EnablePprof                          bool
 	EnableSubnetScarcity                 bool
 	EnableSwiftV2                        bool

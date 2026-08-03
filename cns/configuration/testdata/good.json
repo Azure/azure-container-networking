@@ -1,7 +1,7 @@
 {
     "ChannelMode": "Direct",
     "InitializeFromCNI": true,
-    "EnableHomeAz": true,
+    "EnableHomeAZ": true,
     "EnablePprof": true,
     "EnableSubnetScarcity": true,
     "ManagedSettings": {
