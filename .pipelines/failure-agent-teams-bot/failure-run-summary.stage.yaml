@@ -1,0 +1,84 @@
+# Reusable stage template: Failure Analysis Run Summary
+#
+# Fans in every E2E stage's failure-analysis artifact (failureAnalysis_*, each
+# holding one incident.json), then posts ONE consolidated Teams card for the
+# whole run and calls out any signature that failed across multiple E2E stages.
+#
+# Attach it once, after the E2E matrix, with dependsOn set to the same E2E
+# stages that publish failureAnalysis_* artifacts. Because NOTIFY_RUN_ID is the
+# build id — the same value the per-stage notify steps use — this card mutates
+# the run's single root card, and by running last it is the authoritative final
+# state. Best-effort: no incidents (all stages green) is a quiet no-op.
+#
+# Requires the acn-dalec-test WIF service connection, and jq on the agent.
+
+parameters:
+  - name: stageName
+    type: string
+    default: failure_run_summary
+  - name: displayName
+    type: string
+    default: "Failure Analysis Run Summary"
+  # E2E stage names this summary waits on (the stages that publish
+  # failureAnalysis_* artifacts).
+  - name: dependsOn
+    type: object
+    default: []
+  # Only fold an incident into the summary at/above this confidence.
+  - name: minConfidence
+    type: string
+    default: "0.65"
+
+stages:
+  - stage: ${{ parameters.stageName }}
+    displayName: ${{ parameters.displayName }}
+    # Run even when upstream E2E stages failed — that is exactly when there is
+    # something to summarize.
+    condition: always()
+    dependsOn: ${{ parameters.dependsOn }}
+    variables:
+      - template: pipeline-constants.yml
+    jobs:
+      - job: run_summary
+        displayName: "Consolidate incident analyses and notify Teams"
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        steps:
+          - checkout: self
+
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download all failure-analysis incidents"
+            inputs:
+              buildType: current
+              patterns: "failureAnalysis_*/**"
+              targetPath: $(Agent.TempDirectory)/incidents
+            continueOnError: true
+
+          # Post the consolidated run summary via the shared ACN Notifier bot.
+          # Best-effort: no incidents / missing env / jq absent is a quiet no-op
+          # and this step never fails the stage.
+          - task: AzureCLI@2
+            displayName: "Notify Teams: run summary and multi-stage callout"
+            condition: always()
+            inputs:
+              azureSubscription: acn-dalec-test
+              scriptType: bash
+              scriptLocation: inlineScript
+              addSpnToEnvironment: true
+              inlineScript: |
+                bash "$(Build.SourcesDirectory)/.pipelines/failure-agent-teams-bot/scripts/notify-run-summary.sh" \
+                  "$(Agent.TempDirectory)/incidents" \
+                  "${{ parameters.minConfidence }}"
+            env:
+              NOTIFIER_ENDPOINT: $(notifierEndpoint)
+              NOTIFIER_API_AUDIENCE: $(notifierApiAudience)
+              NOTIFY_SOURCE: $(notifySource)
+              NOTIFY_RUN_ID: $(Build.BuildId)
+              NOTIFY_TEAM_ID: $(notifyTeamId)
+              NOTIFY_CHANNEL_ID: $(notifyChannelId)
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+              SYSTEM_COLLECTIONURI: $(System.CollectionUri)
+              SYSTEM_TEAMPROJECT: $(System.TeamProject)
+              BUILD_BUILDID: $(Build.BuildId)
+              BUILD_REQUESTEDFOR: $(Build.RequestedFor)
+              BUILD_REQUESTEDFOREMAIL: $(Build.RequestedForEmail)
