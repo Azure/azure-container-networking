@@ -105,11 +105,10 @@ func TestSecondaryMoveEndpointsUsesMasterIfIndex(t *testing.T) {
 	// master ifindex so the test proves the endpoint records the master index, not
 	// the matched one.
 	const masterIndex = 7
-	original := netio.ResolveMasterInterface
-	netio.ResolveMasterInterface = func(iface *net.Interface) (*net.Interface, error) {
+	nioc := netio.NewMockNetIO(false, 0)
+	nioc.SetResolveMasterInterfaceFn(func(iface *net.Interface) (*net.Interface, error) {
 		return &net.Interface{Name: iface.Name, Index: masterIndex}, nil
-	}
-	t.Cleanup(func() { netio.ResolveMasterInterface = original })
+	})
 
 	var gotIndex int
 	nl.SetLinkNetNsByIndexFn = func(index int, _ uintptr) error {
@@ -122,7 +121,7 @@ func TestSecondaryMoveEndpointsUsesMasterIfIndex(t *testing.T) {
 		netlink:        nl,
 		plClient:       plc,
 		netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
-		netioshim:      netio.NewMockNetIO(false, 0),
+		netioshim:      nioc,
 		ep:             &endpoint{SecondaryInterfaces: make(map[string]*InterfaceInfo)},
 	}
 

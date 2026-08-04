@@ -29,10 +29,11 @@ func (vishLinkResolver) LinkByIndex(index int) (vishnetlink.Link, error) {
 // masterNl is the netlink client used by ResolveMasterInterface. Overridable in tests.
 var masterNl linkResolver = vishLinkResolver{}
 
-// ResolveMasterInterface returns the upper (master) device for iface.
-//
-// It is a variable so tests can stub master resolution without a netlink socket.
-var ResolveMasterInterface = resolveMasterInterface
+// ResolveMasterInterface returns the upper (master) device for iface, routing to the
+// Linux netlink-based resolver.
+func (ns *NetIO) ResolveMasterInterface(iface *net.Interface) (*net.Interface, error) {
+	return resolveMasterInterface(iface)
+}
 
 // resolveMasterInterface returns the upper (master) device for iface.
 //

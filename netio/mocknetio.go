@@ -12,10 +12,11 @@ import (
 type getInterfaceValidationFn func(name string) (*net.Interface, error)
 
 type MockNetIO struct {
-	fail           bool
-	failAttempt    int
-	numTimesCalled int
-	getInterfaceFn getInterfaceValidationFn
+	fail            bool
+	failAttempt     int
+	numTimesCalled  int
+	getInterfaceFn  getInterfaceValidationFn
+	resolveMasterFn func(iface *net.Interface) (*net.Interface, error)
 }
 
 // ErrMockNetIOFail - mock netio error
@@ -34,6 +35,10 @@ func NewMockNetIO(fail bool, failAttempt int) *MockNetIO {
 
 func (netshim *MockNetIO) SetGetInterfaceValidatonFn(fn getInterfaceValidationFn) {
 	netshim.getInterfaceFn = fn
+}
+
+func (netshim *MockNetIO) SetResolveMasterInterfaceFn(fn func(iface *net.Interface) (*net.Interface, error)) {
+	netshim.resolveMasterFn = fn
 }
 
 func (netshim *MockNetIO) GetNetworkInterfaceByName(name string) (*net.Interface, error) {
@@ -85,4 +90,13 @@ func (netshim *MockNetIO) GetNetworkInterfaceByMac(mac net.HardwareAddr) (*net.I
 	}
 
 	return nil, fmt.Errorf("%w: %s", ErrMockNetIOFail, mac)
+}
+
+// ResolveMasterInterface returns iface unchanged by default. Tests that need to model
+// VF-to-master resolution can override it with SetResolveMasterInterfaceFn.
+func (netshim *MockNetIO) ResolveMasterInterface(iface *net.Interface) (*net.Interface, error) {
+	if netshim.resolveMasterFn != nil {
+		return netshim.resolveMasterFn(iface)
+	}
+	return iface, nil
 }

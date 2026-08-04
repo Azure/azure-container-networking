@@ -12,6 +12,7 @@ type NetIOInterface interface {
 	GetNetworkInterfaceByName(name string) (*net.Interface, error)
 	GetNetworkInterfaceAddrs(iface *net.Interface) ([]net.Addr, error)
 	GetNetworkInterfaceByMac(mac net.HardwareAddr) (*net.Interface, error)
+	ResolveMasterInterface(iface *net.Interface) (*net.Interface, error)
 }
 
 // ErrInterfaceNil - errors out when interface is nil

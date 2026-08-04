@@ -12,7 +12,6 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/platform"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
@@ -379,7 +378,7 @@ func TestPluginLinuxAdd(t *testing.T) {
 				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
 				IfName:      eth0IfName,
 			},
-			setup: func(t *testing.T) { stubResolveMasterInterface(t, "secondary") },
+			setup: nil,
 			match: func(ei1, ei2 *network.EndpointInfo) bool {
 				return ei1.NICType == ei2.NICType
 			},
@@ -554,16 +553,6 @@ func TestPluginLinuxAdd(t *testing.T) {
 	}
 }
 
-// stubResolveMasterInterface stubs master resolution so the given interface is treated
-// as its own master, i.e. returned unchanged.
-// Used by cross-platform tests in network_test.go that exercise the delegated NIC path.
-func stubResolveMasterInterface(t *testing.T, _ string) {
-	t.Helper()
-	original := netio.ResolveMasterInterface
-	netio.ResolveMasterInterface = func(i *net.Interface) (*net.Interface, error) { return i, nil }
-	t.Cleanup(func() { netio.ResolveMasterInterface = original })
-}
-
 // sentinel errors for mock netlink client.
 var (
 	errLinkNotFound      = errors.New("link not found")
@@ -591,6 +580,10 @@ func (m *mockInterfaceGetter) GetNetworkInterfaces() ([]net.Interface, error) {
 
 func (m *mockInterfaceGetter) GetNetworkInterfaceAddrs(_ *net.Interface) ([]net.Addr, error) {
 	return nil, errNotImplemented
+}
+
+func (m *mockInterfaceGetter) ResolveMasterInterface(iface *net.Interface) (*net.Interface, error) {
+	return iface, nil
 }
 
 func TestSortInfraNICFirst(t *testing.T) {

@@ -1266,6 +1266,10 @@ func (n *InterfaceGetterMock) GetNetworkInterfaces() ([]net.Interface, error) {
 	return n.interfaces, nil
 }
 
+func (n *InterfaceGetterMock) ResolveMasterInterface(iface *net.Interface) (*net.Interface, error) {
+	return iface, nil
+}
+
 func (n *InterfaceGetterMock) GetNetworkInterfaceAddrs(iface *net.Interface) ([]net.Addr, error) {
 	if n.err != nil {
 		return nil, n.err
@@ -1744,7 +1748,6 @@ func TestFindMasterInterface(t *testing.T) {
 					MacAddress: parsedMAC,
 				},
 			},
-			setup:   func(t *testing.T) { stubResolveMasterInterface(t, "eth1") },
 			want:    "eth1",
 			wantErr: false,
 		},

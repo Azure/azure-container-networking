@@ -119,6 +119,10 @@ func (ns *mockNetIO) GetNetworkInterfaceByMac(mac net.HardwareAddr) (*net.Interf
 	}, nil
 }
 
+func (ns *mockNetIO) ResolveMasterInterface(iface *net.Interface) (*net.Interface, error) {
+	return iface, nil
+}
+
 func TestTransparentVlanAddEndpoints(t *testing.T) {
 	nl := netlink.NewMockNetlink(false, "")
 	plc := platform.NewMockExecClient(false)

@@ -72,7 +72,7 @@ func (client *SecondaryEndpointClient) AddEndpoints(epInfo *EndpointInfo) error 
 	// ifindex order. Only the master may be moved into the pod netns - moving the bare
 	// VF breaks the netvsc bond and every later ADD on that NIC fails with
 	// "route ip+net: no such network interface" until the node is repaired.
-	master, err := netio.ResolveMasterInterface(iface)
+	master, err := client.netioshim.ResolveMasterInterface(iface)
 	if err != nil {
 		return newErrorSecondaryEndpointClient(err)
 	}
