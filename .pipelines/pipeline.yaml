@@ -378,7 +378,7 @@ stages:
               parameters:
                 name: $(name)
                 platforms: $(platforms)
-    
+
     - stage: publish_npm
       displayName: Publish NPM Multiarch Manifest
       dependsOn:
@@ -464,7 +464,7 @@ stages:
         vmSize: Standard_B2ms
         k8sVersion: ""
         dependsOn: ["test"]
-  
+
     # Cilium Nodesubnet E2E tests
     - template: singletenancy/cilium-nodesubnet/cilium-nodesubnet-e2e-job-template.yaml
       parameters:
@@ -497,7 +497,7 @@ stages:
         vmSize: Standard_B2ms
         k8sVersion: ""
         dependsOn: ["test"]
-    
+
     # Cilium EBPF Overlay E2E tests
     - template: singletenancy/cilium-overlay-ebpf/cilium-overlay-e2e-job-template.yaml
       parameters:
@@ -519,7 +519,7 @@ stages:
         clusterName: "cilbpfdse2e"
         vmSize: Standard_B2ms
         k8sVersion: ""
-        dependsOn: ["test"]        
+        dependsOn: ["test"]
 
     # Cilium Overlay with hubble E2E tests
     - template: singletenancy/cilium-overlay-withhubble/cilium-overlay-e2e-job-template.yaml
@@ -545,7 +545,7 @@ stages:
         k8sVersion: ""
         dependsOn: ["test"]
         scaleup: 100
-    
+
     # Windows Azure Overlay E2E tests
     - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
       parameters:
@@ -643,7 +643,7 @@ stages:
         dependsOn: ["test"]
         scaleup: 50
 
-    - ${{ if eq(variables['Build.Reason'], 'Schedule') }}:
+    - ${{ if eq(variables['Build.CronSchedule.DisplayName'], 'Official Nightly Pipeline') }}:
       # AKS Swiftv2 Manifold E2E tests
       - template: multitenancy/swiftv2-manifold-e2e.stages.yaml
         parameters:
