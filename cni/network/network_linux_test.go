@@ -4,7 +4,6 @@
 package network
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"regexp"
@@ -551,39 +550,6 @@ func TestPluginLinuxAdd(t *testing.T) {
 			require.Empty(t, allEndpoints)
 		})
 	}
-}
-
-// sentinel errors for mock netlink client.
-var (
-	errLinkNotFound      = errors.New("link not found")
-	errLinkNotFoundByIdx = errors.New("link not found by index")
-	errNotImplemented    = errors.New("not implemented")
-)
-
-// test interface name constants used across findInterfaceByMAC tests.
-const (
-	testMasterInterface = "eth1"       // upper/master interface (netvsc) name
-	testVFInterface     = "enP12217s2" // VF interface bonded to testMasterInterface
-	testVF2Interface    = "enP100s1"   // another VF interface used in error-path tests
-	testMACAddr         = "00:22:48:d5:56:86"
-)
-
-// mockInterfaceGetter implements InterfaceGetter for testing.
-type mockInterfaceGetter struct {
-	interfaces []net.Interface
-	err        error
-}
-
-func (m *mockInterfaceGetter) GetNetworkInterfaces() ([]net.Interface, error) {
-	return m.interfaces, m.err
-}
-
-func (m *mockInterfaceGetter) GetNetworkInterfaceAddrs(_ *net.Interface) ([]net.Addr, error) {
-	return nil, errNotImplemented
-}
-
-func (m *mockInterfaceGetter) ResolveMasterInterface(iface *net.Interface) (*net.Interface, error) {
-	return iface, nil
 }
 
 func TestSortInfraNICFirst(t *testing.T) {
