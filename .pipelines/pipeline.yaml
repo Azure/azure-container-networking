@@ -56,7 +56,7 @@ parameters:
   - name: runNamePrefix
     type: string
     default: "__use-default__"
-  # FAA success-metrics harvest. When true, adds an independent first stage that
+  # FAA success-metrics harvest. When true, runs an independent first stage that
   # collects Failure Analysis Agent reports over a date range into CSV/XLSX
   # artifacts. It depends on nothing else; select only this stage to run it.
   - name: runFaaMetrics
@@ -76,17 +76,17 @@ parameters:
     default: true
 
 stages:
-  - ${{ if eq(parameters.runFaaMetrics, true) }}:
-    - stage: faa_metrics
-      displayName: FAA Success Metrics
-      dependsOn: []
-      jobs:
-        - template: faa-metrics/faa-metrics.job.yaml
-          parameters:
-            definitionId: ${{ parameters.faaDefinitionId }}
-            fromDate: ${{ parameters.faaFromDate }}
-            toDate: ${{ parameters.faaToDate }}
-            enableAI: ${{ parameters.faaEnableAI }}
+  - stage: faa_metrics
+    displayName: FAA Success Metrics
+    dependsOn: []
+    condition: and(succeeded(), eq('${{ parameters.runFaaMetrics }}', 'true'))
+    jobs:
+      - template: faa-metrics/faa-metrics.job.yaml
+        parameters:
+          definitionId: ${{ parameters.faaDefinitionId }}
+          fromDate: ${{ parameters.faaFromDate }}
+          toDate: ${{ parameters.faaToDate }}
+          enableAI: ${{ parameters.faaEnableAI }}
 
   - stage: setup
     displayName: ACN
