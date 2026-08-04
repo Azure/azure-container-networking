@@ -50,14 +50,18 @@ func TestEndpointLogDetails(t *testing.T) {
 		},
 		Routes: []hcn.Route{{
 			NextHop:           "169.254.128.1",
-			DestinationPrefix: "0.0.0.0/0",
+			DestinationPrefix: defaultRouteDestinationPrefix,
 			Metric:            0,
 		}},
 		MacAddress: "00-15-5D-E7-DE-A0",
 		Flags:      0,
 	}
 
-	assert.Equal(t,
-		"ID: endpoint-id, Name: endpoint-name, Network: network-id, IpConfigurations: [{IpAddress:169.254.128.6 PrefixLength:17}], Dns: {Domain:example.com Search:[] ServerList:[10.0.0.2] Options:[]}, Routes: [{NextHop:169.254.128.1 DestinationPrefix:0.0.0.0/0 Metric:0}], MacAddress: 00-15-5D-E7-DE-A0, Flags: 0",
-		endpointLogDetails(endpoint))
+	expected := "ID: endpoint-id, Name: endpoint-name, Network: network-id, " +
+		"IpConfigurations: [{IpAddress:169.254.128.6 PrefixLength:17}], " +
+		"Dns: {Domain:example.com Search:[] ServerList:[10.0.0.2] Options:[]}, " +
+		"Routes: [{NextHop:169.254.128.1 DestinationPrefix:" +
+		defaultRouteDestinationPrefix +
+		" Metric:0}], MacAddress: 00-15-5D-E7-DE-A0, Flags: 0"
+	assert.Equal(t, expected, endpointLogDetails(endpoint))
 }
