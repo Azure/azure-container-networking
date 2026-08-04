@@ -1,0 +1,75 @@
+name: Backport merged pull request
+
+on:
+  pull_request_target:
+    branches:
+      - master
+    types:
+      - closed
+      - labeled
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  backport:
+    name: Create backport pull requests
+    if: >-
+      github.event.pull_request.merged == true &&
+      contains(github.event.pull_request.labels.*.name, 'needs-backport') &&
+      (
+        github.event.action == 'closed' ||
+        github.event.label.name == 'needs-backport' ||
+        startsWith(github.event.label.name, 'release/')
+      )
+    runs-on: ubuntu-latest
+    concurrency:
+      group: backport-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: master
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Determine target branches
+        id: targets
+        env:
+          LABELS_JSON: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          set -euo pipefail
+
+          mapfile -t TARGET_BRANCHES < <(
+            jq -r '
+              .[]
+              | capture("^release/v?(?<version>[0-9]+\\.[0-9]+)$")
+              | "release/v\(.version)"
+            ' <<< "$LABELS_JSON" | sort -u
+          )
+
+          if [[ ${#TARGET_BRANCHES[@]} -eq 0 ]]; then
+            echo "::notice::No release/X.Y labels found; no backport pull request will be created."
+            echo "branches=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          for branch in "${TARGET_BRANCHES[@]}"; do
+            if ! git ls-remote --exit-code --heads origin "refs/heads/$branch" >/dev/null; then
+              echo "::error::Backport target branch '$branch' does not exist."
+              exit 1
+            fi
+          done
+
+          echo "branches=${TARGET_BRANCHES[*]}" >> "$GITHUB_OUTPUT"
+
+      - name: Create backport pull requests
+        if: steps.targets.outputs.branches != ''
+        uses: korthout/backport-action@2e830a1d0b8269505846ddd407a70876913ad1f8 # v4
+        with:
+          github_token: ${{ github.token }}
+          label_pattern: ''
+          target_branches: ${{ steps.targets.outputs.branches }}
+          comment_style: summary
