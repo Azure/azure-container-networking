@@ -85,9 +85,12 @@ extends:
       os: linux
 
     # Guardian source analysis is Windows-only, and the pool above is Linux.
+    # 1ES defaults to the pool's first image; pinned so a reorder of the pool's
+    # images can't select the older one that lacks the 1ES PT prerequisites.
     sdl:
       sourceAnalysisPool:
         name: $(BUILD_POOL_NAME_DEFAULT_WINDOWS_ALT)
+        image: acn-runner-vmss-image-windows-1es-v2.1
         os: windows
 
     stages:
