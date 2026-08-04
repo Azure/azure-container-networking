@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/logger"
 	loggerv2 "github.com/Azure/azure-container-networking/cns/logger/v2"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/pkg/errors"
@@ -203,7 +202,7 @@ func ReadConfig(cmdLineConfigPath string) (*CNSConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	logger.Printf("[Configuration] Using config path: %s", configpath)
+	log.Printf("[configuration] using config path: %s", configpath)
 	return readConfigFromFile(configpath)
 }
 
