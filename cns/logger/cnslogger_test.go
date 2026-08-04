@@ -65,7 +65,8 @@ func TestLogger_TraceLogsUseJSON(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			telemetry := &telemetryRecorder{}
-			baseLogger := log.NewLogger("trace-test", log.LevelAlert, log.TargetStderr, "")
+			baseLogger, err := log.NewLoggerE("trace-test", log.LevelAlert, log.TargetStderr, "")
+			require.NoError(t, err)
 			t.Cleanup(baseLogger.Close)
 
 			tt.log(&logger{
