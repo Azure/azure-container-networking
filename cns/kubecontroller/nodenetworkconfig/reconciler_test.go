@@ -268,8 +268,6 @@ func TestReconcileStaleNCs(t *testing.T) {
 }
 
 func TestReconcileInitializerRunsOnceOnSuccess(t *testing.T) {
-	logger.InitLogger("", 0, 0, "")
-
 	initializerCalls := 0
 	initializer := func(*v1alpha.NodeNetworkConfig) error {
 		initializerCalls++
@@ -277,7 +275,7 @@ func TestReconcileInitializerRunsOnceOnSuccess(t *testing.T) {
 	}
 
 	cnsClient := mockCNSClient{
-		state: cnsClientState{reqsByNCID: make(map[string]*cns.CreateNetworkContainerRequest)},
+		state:            cnsClientState{reqsByNCID: make(map[string]*cns.CreateNetworkContainerRequest)},
 		createOrUpdateNC: func(*cns.CreateNetworkContainerRequest) cnstypes.ResponseCode { return cnstypes.Success },
 		update:           func(*v1alpha.NodeNetworkConfig) error { return nil },
 	}
@@ -299,8 +297,6 @@ func TestReconcileInitializerRunsOnceOnSuccess(t *testing.T) {
 }
 
 func TestReconcileInitializerRetriesAfterFailure(t *testing.T) {
-	logger.InitLogger("", 0, 0, "")
-
 	initializerCalls := 0
 	initializer := func(*v1alpha.NodeNetworkConfig) error {
 		initializerCalls++

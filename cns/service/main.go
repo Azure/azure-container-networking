@@ -1431,9 +1431,9 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 	}
 
 	initializerWrapper := func(nnc *v1alpha.NodeNetworkConfig) error {
-		logger.Printf("Reconciling initial CNS state")
-		if err := reconcileInitialCNSState(nnc, httpRestServiceImplementation, podInfoByIPProvider); err != nil {
-			return err
+		z.Info("reconciling initial CNS state")
+		if initErr := reconcileInitialCNSState(nnc, httpRestServiceImplementation, podInfoByIPProvider); initErr != nil {
+			return initErr
 		}
 		return nil
 	}

@@ -96,7 +96,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	// call initFunc on first reconcile and never again
 	if r.initializer != nil {
 		if err := r.initializer(nnc); err != nil {
-			logger.Errorf("[cns-rc] initializer failed during reconcile: %v", err)
 			return reconcile.Result{}, errors.Wrap(err, "initializer failed during reconcile")
 		}
 		r.initializer = nil
