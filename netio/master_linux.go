@@ -14,20 +14,20 @@ type linkResolver interface {
 	LinkByIndex(index int) (vishnetlink.Link, error)
 }
 
-type vishLinkResolver struct{}
+type defaultLinkResolver struct{}
 
-func (vishLinkResolver) LinkByName(name string) (vishnetlink.Link, error) {
+func (defaultLinkResolver) LinkByName(name string) (vishnetlink.Link, error) {
 	link, err := vishnetlink.LinkByName(name)
 	return link, errors.Wrap(err, "netlink LinkByName")
 }
 
-func (vishLinkResolver) LinkByIndex(index int) (vishnetlink.Link, error) {
+func (defaultLinkResolver) LinkByIndex(index int) (vishnetlink.Link, error) {
 	link, err := vishnetlink.LinkByIndex(index)
 	return link, errors.Wrap(err, "netlink LinkByIndex")
 }
 
-// masterNl is the netlink client used by ResolveMasterInterface. Overridable in tests.
-var masterNl linkResolver = vishLinkResolver{}
+// masterLinkResolver is used by ResolveMasterInterface. Overridable in tests.
+var masterLinkResolver linkResolver = defaultLinkResolver{}
 
 // ResolveMasterInterface returns the upper (master) device for iface, routing to the
 // Linux netlink-based resolver.
@@ -57,7 +57,7 @@ func resolveMasterInterface(iface *net.Interface) (*net.Interface, error) {
 		return nil, ErrInterfaceNil
 	}
 
-	link, err := masterNl.LinkByName(iface.Name)
+	link, err := masterLinkResolver.LinkByName(iface.Name)
 	if err != nil {
 		return nil, errors.Wrapf(err, "get link %q", iface.Name)
 	}
@@ -67,7 +67,7 @@ func resolveMasterInterface(iface *net.Interface) (*net.Interface, error) {
 		return iface, nil
 	}
 
-	master, err := masterNl.LinkByIndex(masterIndex)
+	master, err := masterLinkResolver.LinkByIndex(masterIndex)
 	if err != nil {
 		return nil, errors.Wrapf(err, "get master link by index %d", masterIndex)
 	}

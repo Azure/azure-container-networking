@@ -97,9 +97,9 @@ func TestResolveMasterInterface(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			orig := masterNl
-			masterNl = &mockLinkResolver{byName: tt.byName, byIndex: tt.byIndex}
-			t.Cleanup(func() { masterNl = orig })
+			orig := masterLinkResolver
+			masterLinkResolver = &mockLinkResolver{byName: tt.byName, byIndex: tt.byIndex}
+			t.Cleanup(func() { masterLinkResolver = orig })
 
 			got, err := resolveMasterInterface(tt.iface)
 			if tt.wantErr {
