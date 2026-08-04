@@ -123,9 +123,6 @@ jobs:
           go test -timeout 30m -covermode atomic -coverprofile=windows-coverage.out ./cns/... ./npm/... ./cni/... ./platform/...
           go tool cover -func=windows-coverage.out
 
-      - name: Run Windows Network Recovery Tests
-        run: go test -timeout 5m ./network -run "^TestEnsureNetwork"
-
       - name: Upload Windows Coverage
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:

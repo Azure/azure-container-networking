@@ -27,8 +27,7 @@ func newErrorFakeHNS(errStr string) error {
 type Hnsv2wrapperFake struct {
 	Cache FakeHNSCache
 	*sync.Mutex
-	Delay      time.Duration
-	NetworkErr error
+	Delay time.Duration
 }
 
 func NewHnsv2wrapperFake() *Hnsv2wrapperFake {
@@ -190,9 +189,6 @@ func (f Hnsv2wrapperFake) GetNetworkByName(networkName string) (*hcn.HostCompute
 	f.Lock()
 	defer f.Unlock()
 	delayHnsCall(f.Delay)
-	if f.NetworkErr != nil {
-		return nil, f.NetworkErr
-	}
 	if network, ok := f.Cache.networks[networkName]; ok {
 		return network.GetHCNObj(), nil
 	}

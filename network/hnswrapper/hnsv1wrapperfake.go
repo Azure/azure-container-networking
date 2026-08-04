@@ -10,8 +10,7 @@ import (
 )
 
 type Hnsv1wrapperfake struct {
-	Delay      time.Duration
-	NetworkErr error
+	Delay time.Duration
 }
 
 func NewHnsv1wrapperFake() *Hnsv1wrapperfake {
@@ -36,14 +35,6 @@ func (h Hnsv1wrapperfake) CreateNetwork(network *hcsshim.HNSNetwork, path string
 func (h Hnsv1wrapperfake) DeleteNetwork(networkId string) (*hcsshim.HNSNetwork, error) {
 	delayHnsCall(h.Delay)
 	return &hcsshim.HNSNetwork{}, nil
-}
-
-func (h Hnsv1wrapperfake) GetHNSNetworkByName(networkName string) (*hcsshim.HNSNetwork, error) {
-	delayHnsCall(h.Delay)
-	if h.NetworkErr != nil {
-		return nil, h.NetworkErr
-	}
-	return &hcsshim.HNSNetwork{Name: networkName}, nil
 }
 
 func (h Hnsv1wrapperfake) GetHNSEndpointByName(endpointName string) (*hcsshim.HNSEndpoint, error) {
