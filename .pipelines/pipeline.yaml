@@ -79,7 +79,7 @@ stages:
   - stage: faa_metrics
     displayName: FAA Success Metrics
     dependsOn: []
-    condition: and(succeeded(), eq('${{ parameters.runFaaMetrics }}', 'true'))
+    condition: and(succeeded(), in('${{ parameters.runFaaMetrics }}', 'true', 'True'))
     jobs:
       - template: faa-metrics/faa-metrics.job.yaml
         parameters:
