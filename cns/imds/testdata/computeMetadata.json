@@ -1,0 +1,130 @@
+{
+    "azEnvironment": "AzurePublicCloud",
+    "customData": "",
+    "evictionPolicy": "",
+    "isHostCompatibilityLayerVm": "false",
+    "licenseType": "",
+    "location": "westus2",
+    "name": "aks-nodepool1-25781205-vmss_0",
+    "offer": "",
+    "osProfile": {
+        "adminUsername": "azureuser",
+        "computerName": "aks-nodepool1-25781205-vmss000000",
+        "disablePasswordAuthentication": "true"
+    },
+    "osType": "Linux",
+    "placementGroupId": "078e7cc3-c76f-46d2-91ff-64c4dbdd0d7c",
+    "plan": {
+        "name": "",
+        "product": "",
+        "publisher": ""
+    },
+    "platformFaultDomain": "0",
+    "platformUpdateDomain": "0",
+    "priority": "",
+    "provider": "Microsoft.Compute",
+    "publicKeys": [],
+    "publisher": "",
+    "resourceGroupName": "MC_matlong-test-imds_matlong-test-imds_westus2",
+    "resourceId": "/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/MC_matlong-test-imds_matlong-test-imds_westus2/providers/Microsoft.Compute/virtualMachineScaleSets/aks-nodepool1-25781205-vmss/virtualMachines/0",
+    "securityProfile": {
+        "secureBootEnabled": "false",
+        "virtualTpmEnabled": "false"
+    },
+    "sku": "",
+    "storageProfile": {
+        "dataDisks": [],
+        "imageReference": {
+            "id": "/subscriptions/109a5e88-712a-48ae-9078-9ca8b3c81345/resourceGroups/AKS-Ubuntu/providers/Microsoft.Compute/galleries/AKSUbuntu/images/2204gen2containerd/versions/202401.09.0",
+            "offer": "",
+            "publisher": "",
+            "sku": "",
+            "version": ""
+        },
+        "osDisk": {
+            "caching": "ReadWrite",
+            "createOption": "FromImage",
+            "diffDiskSettings": {
+                "option": ""
+            },
+            "diskSizeGB": "128",
+            "encryptionSettings": {
+                "enabled": "false"
+            },
+            "image": {
+                "uri": ""
+            },
+            "managedDisk": {
+                "id": "/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/MC_matlong-test-imds_matlong-test-imds_westus2/providers/Microsoft.Compute/disks/aks-nodepool1-257812aks-nodepool1-2578120disk1_7f5fbaaac4d7480b9f78b5da0206643c",
+                "storageAccountType": "Premium_LRS"
+            },
+            "name": "aks-nodepool1-257812aks-nodepool1-2578120disk1_7f5fbaaac4d7480b9f78b5da0206643c",
+            "osType": "Linux",
+            "vhd": {
+                "uri": ""
+            },
+            "writeAcceleratorEnabled": "false"
+        },
+        "resourceDisk": {
+            "size": "14336"
+        }
+    },
+    "subscriptionId": "9b8218f9-902a-4d20-a65c-e98acec5362f",
+    "tags": "aks-managed-azure-cni-overlay:true;aks-managed-consolidated-additional-properties:d9dfbd53-b974-11ee-bba9-b29ebea78e50;aks-managed-coordination:true;aks-managed-createOperationID:f9031ed6-4bd9-47e8-908f-90c6429c0790;aks-managed-creationSource:vmssclient-aks-nodepool1-25781205-vmss;aks-managed-kubeletIdentityClientID:58ada700-3bba-437e-b6a2-71df9a5148b5;aks-managed-orchestrator:Kubernetes:1.27.7;aks-managed-poolName:nodepool1;aks-managed-resourceNameSuffix:22973824;aks-managed-ssh-access:LocalUser;azsecpack:nonprod;platformsettings.host_environment.service.platform_optedin_for_rootcerts:true",
+    "tagsList": [
+        {
+            "name": "aks-managed-azure-cni-overlay",
+            "value": "true"
+        },
+        {
+            "name": "aks-managed-consolidated-additional-properties",
+            "value": "d9dfbd53-b974-11ee-bba9-b29ebea78e50"
+        },
+        {
+            "name": "aks-managed-coordination",
+            "value": "true"
+        },
+        {
+            "name": "aks-managed-createOperationID",
+            "value": "f9031ed6-4bd9-47e8-908f-90c6429c0790"
+        },
+        {
+            "name": "aks-managed-creationSource",
+            "value": "vmssclient-aks-nodepool1-25781205-vmss"
+        },
+        {
+            "name": "aks-managed-kubeletIdentityClientID",
+            "value": "58ada700-3bba-437e-b6a2-71df9a5148b5"
+        },
+        {
+            "name": "aks-managed-orchestrator",
+            "value": "Kubernetes:1.27.7"
+        },
+        {
+            "name": "aks-managed-poolName",
+            "value": "nodepool1"
+        },
+        {
+            "name": "aks-managed-resourceNameSuffix",
+            "value": "22973824"
+        },
+        {
+            "name": "aks-managed-ssh-access",
+            "value": "LocalUser"
+        },
+        {
+            "name": "azsecpack",
+            "value": "nonprod"
+        },
+        {
+            "name": "platformsettings.host_environment.service.platform_optedin_for_rootcerts",
+            "value": "true"
+        }
+    ],
+    "userData": "",
+    "version": "202401.09.0",
+    "vmId": "55b8499d-9b42-4f85-843f-24ff69f4a643",
+    "vmScaleSetName": "aks-nodepool1-25781205-vmss",
+    "vmSize": "Standard_DS2_v2",
+    "zone": ""
+}
