@@ -20,7 +20,7 @@ parameters:
     default:
       - name: linux_overlay_json
         displayName: "Linux overlay JSON control"
-        clusterName: "sm-json-linux-$(Build.BuildId)"
+        clusterName: "smj-l-$(Build.BuildId)"
         clusterType: overlay-up
         os: linux
         nodeCount: 2
@@ -33,7 +33,7 @@ parameters:
         iterations: 2
       - name: windows_overlay_json
         displayName: "Windows overlay JSON control"
-        clusterName: "sm-json-win-$(Build.BuildId)"
+        clusterName: "smj-w-$(Build.BuildId)"
         clusterType: overlay-up
         os: windows
         nodeCount: 1

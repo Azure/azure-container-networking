@@ -26,3 +26,5 @@ Run local contracts with:
 ```bash
 bash .pipelines/cni/state-migration-json/tests/run-contract-tests.sh
 ```
+
+The contract test requires Python 3 with PyYAML installed.

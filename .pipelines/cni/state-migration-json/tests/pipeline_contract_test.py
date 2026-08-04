@@ -1,9 +1,17 @@
 #!/usr/bin/env python3
+import re
 import subprocess
 import unittest
 from pathlib import Path
 
-import yaml
+try:
+    import yaml
+except ModuleNotFoundError as error:
+    if error.name == "yaml":
+        raise SystemExit(
+            "PyYAML is required; install it with: python3 -m pip install PyYAML"
+        ) from error
+    raise
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,6 +44,10 @@ def shell_blocks(node):
     elif isinstance(node, list):
         for value in node:
             yield from shell_blocks(value)
+
+
+def sanitize_template_expressions(script):
+    return re.sub(r"\$\{\{.*?\}\}", "template_value", script, flags=re.DOTALL)
 
 
 class PipelineContractTest(unittest.TestCase):
@@ -146,21 +158,29 @@ class PipelineContractTest(unittest.TestCase):
 
         jobs = stages[1]["jobs"]
         self.assertEqual(
-            [
-                "baseline",
-                "same_boot_cns_restart",
-                "active_scale_restart",
-                "node_reboot",
-                "capture",
-                "cleanup_workload",
-            ],
+            ["json_state_lifecycle"],
             [job["job"] for job in jobs],
         )
-        self.assertEqual("baseline", jobs[1]["dependsOn"])
-        self.assertEqual("same_boot_cns_restart", jobs[2]["dependsOn"])
-        self.assertEqual("active_scale_restart", jobs[3]["dependsOn"])
-        self.assertEqual("always()", jobs[4]["condition"])
-        self.assertEqual("always()", jobs[5]["condition"])
+        steps = jobs[0]["steps"]
+        self.assertEqual(
+            [
+                "baseline-json.steps.yaml",
+                "restart-cns-json.steps.yaml",
+                "active-scale-restart.steps.yaml",
+                "../../load-test-templates/restart-node-template.yaml",
+                "../../load-test-templates/validate-state-template.yaml",
+                "capture-json-state.steps.yaml",
+                "cleanup.steps.yaml",
+            ],
+            [step["template"] for step in steps],
+        )
+
+        capture_steps = load_yaml(ROOT / "templates" / "capture-json-state.steps.yaml")[
+            "steps"
+        ]
+        cleanup_steps = load_yaml(ROOT / "templates" / "cleanup.steps.yaml")["steps"]
+        self.assertTrue(all(step["condition"] == "always()" for step in capture_steps))
+        self.assertEqual("always()", cleanup_steps[0]["condition"])
 
     def test_embedded_and_standalone_shell_parse(self):
         shell_sources = list(sorted((ROOT / "scripts").glob("*.sh")))
@@ -169,7 +189,7 @@ class PipelineContractTest(unittest.TestCase):
                 with self.subTest(path=path.relative_to(ROOT), block=index):
                     subprocess.run(
                         ["bash", "-n"],
-                        input=block,
+                        input=sanitize_template_expressions(block),
                         text=True,
                         check=True,
                     )
