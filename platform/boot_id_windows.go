@@ -4,6 +4,7 @@
 package platform
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -15,28 +16,37 @@ const (
 	windowsBootIDValueName    = "BootId"
 )
 
-type bootIDQuery func() (uint64, error)
+var errWindowsBootIDNotDWORD = errors.New("platform: boot ID registry value is not a DWORD")
+
+type bootIDQuery func() (uint64, uint32, error)
 
 // BootID returns the identity of the current Windows boot.
 func BootID() (string, error) {
 	return bootID(queryBootIDRegistry)
 }
 
-func queryBootIDRegistry() (uint64, error) {
-	key, err := registry.OpenKey(registry.LOCAL_MACHINE, windowsBootIDRegistryPath, registry.READ)
+func queryBootIDRegistry() (id uint64, valueType uint32, err error) {
+	key, err := registry.OpenKey(registry.LOCAL_MACHINE, windowsBootIDRegistryPath, registry.QUERY_VALUE)
 	if err != nil {
-		return 0, err
+		return 0, 0, fmt.Errorf("open boot ID registry key: %w", err)
 	}
 	defer key.Close()
 
-	id, _, err := key.GetIntegerValue(windowsBootIDValueName)
-	return id, err
+	id, valueType, err = key.GetIntegerValue(windowsBootIDValueName)
+	if err != nil {
+		return 0, 0, fmt.Errorf("get boot ID registry value: %w", err)
+	}
+
+	return id, valueType, nil
 }
 
 func bootID(query bootIDQuery) (string, error) {
-	id, err := query()
+	id, valueType, err := query()
 	if err != nil {
 		return "", fmt.Errorf("query windows boot ID: %w", err)
+	}
+	if valueType != registry.DWORD {
+		return "", fmt.Errorf("%w: %d", errWindowsBootIDNotDWORD, valueType)
 	}
 
 	return strconv.FormatUint(id, 10), nil

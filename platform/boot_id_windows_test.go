@@ -10,27 +10,38 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/windows/registry"
 )
+
+var errBootIDRegistry = errors.New("registry failure")
 
 func TestBootIDNativeQueryBoundary(t *testing.T) {
 	t.Parallel()
 
-	errRegistry := errors.New("registry failure")
 	tests := []struct {
-		name     string
-		id       uint64
-		queryErr error
-		want     string
-		wantErr  string
+		name      string
+		id        uint64
+		valueType uint32
+		queryErr  error
+		wantCause error
+		want      string
+		wantErr   string
 	}{
 		{
-			name: "DWORD value conversion",
-			id:   uint64(^uint32(0)),
-			want: "4294967295",
+			name:      "DWORD value conversion",
+			id:        uint64(^uint32(0)),
+			valueType: registry.DWORD,
+			want:      "4294967295",
+		},
+		{
+			name:      "non DWORD registry value",
+			valueType: registry.QWORD,
+			wantErr:   "platform: boot ID registry value is not a DWORD: 11",
+			wantCause: errWindowsBootIDNotDWORD,
 		},
 		{
 			name:     "registry failure",
-			queryErr: errRegistry,
+			queryErr: errBootIDRegistry,
 			wantErr:  "query windows boot ID: registry failure",
 		},
 	}
@@ -40,9 +51,9 @@ func TestBootIDNativeQueryBoundary(t *testing.T) {
 			t.Parallel()
 
 			calls := 0
-			query := func() (uint64, error) {
+			query := func() (uint64, uint32, error) {
 				calls++
-				return test.id, test.queryErr
+				return test.id, test.valueType, test.queryErr
 			}
 
 			got, err := bootID(query)
@@ -56,6 +67,9 @@ func TestBootIDNativeQueryBoundary(t *testing.T) {
 			require.Equal(t, 1, calls)
 			if test.queryErr != nil {
 				require.ErrorIs(t, err, test.queryErr)
+			}
+			if test.wantCause != nil {
+				require.ErrorIs(t, err, test.wantCause)
 			}
 		})
 	}
