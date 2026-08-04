@@ -673,6 +673,8 @@ func (service *HTTPRestService) MarkIpsAsAvailableUntransacted(ncID string, newH
 			for uuid, secondaryIPConfigs := range ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs {
 				if ipConfigStatus, exist := service.PodIPConfigState[uuid]; !exist {
 					logger.Errorf("IP %s with uuid as %s exist in service state Secondary IP list but can't find in PodIPConfigState", ipConfigStatus.IPAddress, uuid)
+				} else if ipConfigStatus.NCID != ncID {
+					logger.Errorf("IP %s with uuid as %s NCID %s mismatch with current processing NCID %s, skip updating its status", ipConfigStatus.IPAddress, uuid, ipConfigStatus.NCID, ncID)
 				} else if ipConfigStatus.GetState() == types.PendingProgramming && secondaryIPConfigs.NCVersion <= newHostNCVersion {
 					_, err := service.updateIPConfigState(uuid, types.Available, nil)
 					if err != nil {

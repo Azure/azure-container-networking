@@ -1427,6 +1427,30 @@ func TestIPAMMarkIPAsPendingWithPendingProgrammingIPs(t *testing.T) {
 	}
 }
 
+func TestMarkIpsAsAvailableUntransactedSkipsMismatchedNCID(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{
+		testIP1: {
+			IPAddress: testIP1,
+			NCVersion: 0,
+		},
+	}
+
+	createAndValidateNCRequest(t, secondaryIPConfigs, testNCID, "0")
+	createAndValidateNCRequest(t, secondaryIPConfigs, testNCIDv6, "0")
+
+	ncInfo := svc.state.ContainerStatus[testNCIDv6]
+	ncInfo.HostVersion = "0"
+	svc.state.ContainerStatus[testNCIDv6] = ncInfo
+
+	svc.MarkIpsAsAvailableUntransacted(testNCIDv6, 1)
+
+	ipState := svc.PodIPConfigState[testIP1]
+	assert.Equal(t, types.PendingProgramming, ipState.GetState())
+	assert.Equal(t, testNCID, ipState.NCID)
+	assert.Equal(t, 0, svc.state.ContainerStatus[testNCIDv6].CreateNetworkContainerRequest.SecondaryIPConfigs[testIP1].NCVersion)
+}
+
 func constructSecondaryIPConfigs(ipAddress, uuid string, ncVersion int, secondaryIPConfigs map[string]cns.SecondaryIPConfig) {
 	secIPConfig := cns.SecondaryIPConfig{
 		IPAddress: ipAddress,
