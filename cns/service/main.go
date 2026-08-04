@@ -726,8 +726,8 @@ func main() {
 	logger.Printf("Running on %v", platform.GetOSInfo())
 
 	if cnsconfig.ManageEndpointState {
-		logger.Printf("[Azure CNS] Configured to manage endpoints state")
-		logger.Printf("EndpointStoreState path is %s", endpointStorePath+endpointStoreName+".json")
+		logger.Printf("[Azure CNS] Configured to manage endpoints state")                           //nolint:staticcheck // logger/v2 is not initialized yet
+		logger.Printf("EndpointStoreState path is %s", endpointStorePath+endpointStoreName+".json") //nolint:staticcheck // logger/v2 is not initialized yet
 	}
 
 	persistentState, err := newJSONPersistentStateStartup(
@@ -745,7 +745,7 @@ func main() {
 		},
 	)
 	if err != nil {
-		logger.Errorf("Failed to initialize persistent state: %v", err)
+		logger.Errorf("persistent state initialization failed: %v", err) //nolint:staticcheck // logger/v2 is not initialized yet
 		return
 	}
 	defer func() {

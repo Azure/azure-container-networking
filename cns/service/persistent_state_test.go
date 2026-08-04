@@ -22,6 +22,12 @@ type trackedFileLock struct {
 	unlockErr   error
 }
 
+var (
+	errPersistentStateStartup  = errors.New("startup failure")
+	errPersistentStateListener = errors.New("listener failure")
+	errPersistentStateCleanup  = errors.New("cleanup failure")
+)
+
 func (*trackedFileLock) Lock() error {
 	return nil
 }
@@ -31,9 +37,17 @@ func (l *trackedFileLock) Unlock() error {
 	return l.unlockErr
 }
 
-func TestNewPersistentStateStartup_GatesStartOnFailure(t *testing.T) {
-	failureErr := errors.New("startup failure")
+type startRecorder struct {
+	ctx context.Context
+	err error
+}
 
+func (r *startRecorder) start(ctx context.Context) error {
+	r.ctx = ctx
+	return r.err
+}
+
+func TestNewPersistentStateStartup_GatesStartOnFailure(t *testing.T) {
 	tests := []struct {
 		name              string
 		failDirectoryCall int
@@ -92,14 +106,14 @@ func TestNewPersistentStateStartup_GatesStartOnFailure(t *testing.T) {
 					createDirectory: func(string) error {
 						directoryCalls++
 						if directoryCalls == tt.failDirectoryCall {
-							return failureErr
+							return errPersistentStateStartup
 						}
 						return nil
 					},
 					newFileLock: func(string) (processlock.Interface, error) {
 						lockCalls++
 						if lockCalls == tt.failLockCall {
-							return nil, failureErr
+							return nil, errPersistentStateStartup
 						}
 						lock := &trackedFileLock{}
 						locks = append(locks, lock)
@@ -108,14 +122,14 @@ func TestNewPersistentStateStartup_GatesStartOnFailure(t *testing.T) {
 					openStore: func(path string, _ processlock.Interface) (store.KeyValueStore, error) {
 						storeCalls++
 						if storeCalls == tt.failStoreCall {
-							return nil, failureErr
+							return nil, errPersistentStateStartup
 						}
 						return store.NewMockStore(path), nil
 					},
 				},
 			)
 
-			require.ErrorIs(t, err, failureErr)
+			require.ErrorIs(t, err, errPersistentStateStartup)
 			require.Nil(t, startup)
 			require.False(t, startCalled)
 
@@ -129,24 +143,19 @@ func TestNewPersistentStateStartup_GatesStartOnFailure(t *testing.T) {
 }
 
 func TestPersistentStateStartup_StartPropagatesContextAndCleansUpFailure(t *testing.T) {
-	startErr := errors.New("listener failure")
-	cleanupErr := errors.New("cleanup failure")
 	stateLock := &trackedFileLock{}
-	endpointLock := &trackedFileLock{unlockErr: cleanupErr}
+	endpointLock := &trackedFileLock{unlockErr: errPersistentStateCleanup}
 	locks := []processlock.Interface{stateLock, endpointLock}
 	lockIndex := 0
 
 	type contextKey struct{}
 	ctx := context.WithValue(context.Background(), contextKey{}, "startup-context")
-	var receivedCtx context.Context
+	recorder := startRecorder{err: errPersistentStateListener}
 
 	startup, err := newPersistentStateStartup(
 		testPersistentStatePaths(),
 		true,
-		func(ctx context.Context) error {
-			receivedCtx = ctx
-			return startErr
-		},
+		recorder.start,
 		persistentStateDependencies{
 			createDirectory: func(string) error { return nil },
 			newFileLock: func(string) (processlock.Interface, error) {
@@ -162,13 +171,13 @@ func TestPersistentStateStartup_StartPropagatesContextAndCleansUpFailure(t *test
 	require.NoError(t, err)
 
 	err = startup.Start(ctx)
-	require.ErrorIs(t, err, startErr)
-	require.ErrorIs(t, err, cleanupErr)
-	require.Same(t, ctx, receivedCtx)
+	require.ErrorIs(t, err, errPersistentStateListener)
+	require.ErrorIs(t, err, errPersistentStateCleanup)
+	require.Same(t, ctx, recorder.ctx)
 	require.Equal(t, 1, stateLock.unlockCalls)
 	require.Equal(t, 1, endpointLock.unlockCalls)
 
-	require.ErrorIs(t, startup.Close(), cleanupErr)
+	require.ErrorIs(t, startup.Close(), errPersistentStateCleanup)
 	require.Equal(t, 1, stateLock.unlockCalls)
 	require.Equal(t, 1, endpointLock.unlockCalls)
 }
