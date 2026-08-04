@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Microsoft/hcsshim/hcn"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -32,4 +33,31 @@ func TestAdhocAdjustIPConfig(t *testing.T) {
 			assert.Equal(t, tt.expected.GatewayIPAddress, tt.ipConfig.GatewayIPAddress)
 		})
 	}
+}
+
+func TestEndpointLogDetails(t *testing.T) {
+	endpoint := &hcn.HostComputeEndpoint{
+		Id:                 "endpoint-id",
+		Name:               "endpoint-name",
+		HostComputeNetwork: "network-id",
+		IpConfigurations: []hcn.IpConfig{{
+			IpAddress:    "169.254.128.6",
+			PrefixLength: 17,
+		}},
+		Dns: hcn.Dns{
+			Domain:     "example.com",
+			ServerList: []string{"10.0.0.2"},
+		},
+		Routes: []hcn.Route{{
+			NextHop:           "169.254.128.1",
+			DestinationPrefix: "0.0.0.0/0",
+			Metric:            0,
+		}},
+		MacAddress: "00-15-5D-E7-DE-A0",
+		Flags:      0,
+	}
+
+	assert.Equal(t,
+		"ID: endpoint-id, Name: endpoint-name, Network: network-id, IpConfigurations: [{IpAddress:169.254.128.6 PrefixLength:17}], Dns: {Domain:example.com Search:[] ServerList:[10.0.0.2] Options:[]}, Routes: [{NextHop:169.254.128.1 DestinationPrefix:0.0.0.0/0 Metric:0}], MacAddress: 00-15-5D-E7-DE-A0, Flags: 0",
+		endpointLogDetails(endpoint))
 }
