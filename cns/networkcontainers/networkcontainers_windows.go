@@ -91,7 +91,7 @@ func setWeakHostOnInterface(ipAddress, ncID string) error {
 
 	if targetIface == nil {
 		errval := "[Azerrvalure CNS] Was not able to find the interface with ip " + ipAddress + " to enable weak host send/receive"
-		logger.Printf("%s", errval)
+		logger.Printf(errval)
 		return errors.New(errval)
 	}
 
