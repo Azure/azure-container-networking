@@ -8,7 +8,7 @@ parameters:
   osSKU: "Ubuntu"
   region: ""
   os: linux
-  LTS: true
+  LTS: auto
 
 steps:
   - task: AzureCLI@2
