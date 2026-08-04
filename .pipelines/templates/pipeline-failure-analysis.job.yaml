@@ -193,10 +193,13 @@ jobs:
         displayName: "Publish analysis summary"
         condition: succeededOrFailed()
 
-      - publish: $(Build.ArtifactStagingDirectory)/out
-        artifact: pipelineFailureAnalysis_${{ parameters.scope }}
+      - task: 1ES.PublishPipelineArtifact@1
         displayName: "Publish analysis artifact"
         condition: succeededOrFailed()
+        inputs:
+          targetPath: $(Build.ArtifactStagingDirectory)/out
+          artifactName: pipelineFailureAnalysis_${{ parameters.scope }}
+          sbomEnabled: false
 
       # Post a Teams ping via the shared ACN Notifier bot when the diagnosis is
       # confident and actionable (analyzed + confidence >= 0.51 + a proposed
