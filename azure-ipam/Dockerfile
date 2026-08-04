@@ -4,10 +4,10 @@ ARG OS_VERSION
 ARG OS
 
 # skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.24-cbl-mariner2.0 --format "{{.Name}}@{{.Digest}}"
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:b05a9bbf50a8ccfdd0ebe9f673ef29dca7c1d5e209434b35a560a4e8ae5f72b2 AS go
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.24-cbl-mariner2.0@sha256:b05a9bbf50a8ccfdd0ebe9f673ef29dca7c1d5e209434b35a560a4e8ae5f72b2 AS go
 
 # skopeo inspect docker://mcr.microsoft.com/cbl-mariner/base/core:2.0 --format "{{.Name}}@{{.Digest}}"
-FROM --platform=linux/${ARCH} mcr.microsoft.com/cbl-mariner/base/core@sha256:a490e0b0869dc570ae29782c2bc17643aaaad1be102aca83ce0b96e0d0d2d328 AS mariner-core
+FROM --platform=linux/${ARCH} mcr.microsoft.com/cbl-mariner/base/core:2.0@sha256:a490e0b0869dc570ae29782c2bc17643aaaad1be102aca83ce0b96e0d0d2d328 AS mariner-core
 
 FROM go AS azure-ipam
 ARG OS
@@ -38,6 +38,6 @@ COPY --from=dropgz /go/bin/dropgz dropgz
 ENTRYPOINT [ "/dropgz" ]
 
 # skopeo inspect docker://mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0 --format "{{.Name}}@{{.Digest}}"
-FROM mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image@sha256:b4c9637e032f667c52d1eccfa31ad8c63f1b035e8639f3f48a510536bf34032b as windows
+FROM mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0@sha256:b4c9637e032f667c52d1eccfa31ad8c63f1b035e8639f3f48a510536bf34032b as windows
 COPY --from=dropgz /go/bin/dropgz dropgz.exe
 ENTRYPOINT [ "/dropgz.exe" ]
