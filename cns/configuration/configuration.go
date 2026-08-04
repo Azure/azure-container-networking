@@ -33,6 +33,7 @@ type CNSConfig struct {
 	ChannelMode                 string
 	EnableAsyncPodDelete        bool
 	EnableCNIConflistGeneration bool
+	EnableHomeAZ                bool
 	EnableIPAMv2                bool
 	EnablePprof                 bool
 	EnableStateMigration        bool
