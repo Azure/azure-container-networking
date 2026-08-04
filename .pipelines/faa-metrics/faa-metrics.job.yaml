@@ -1,0 +1,101 @@
+# Reusable job template: FAA Success Metrics
+#
+# Harvests the Failure Analysis Agent (FAA) outputs that pipeline definition
+# 95007 publishes as failureAnalysis_* build artifacts, over a date range, and
+# turns them into success-metrics artifacts:
+#   - faa-metrics-raw.csv            (one row per analyzed failure)
+#   - faa-metrics-organized.xlsx     (relevant fields + AI "Solution / Conclusion
+#                                     / How it helped" columns + blank editable
+#                                     columns + a Summary metrics sheet)
+#   - faa-metrics-summary.md         (aggregate metrics as Markdown)
+#
+# This template runs inside the main pipeline (.pipelines/pipeline.yaml), so it
+# inherits the pipeline's linked variable group (the AZURE_OPENAI_* vars the FAA
+# already uses) and its System.AccessToken. No extra ADO wiring is required.
+
+parameters:
+  definitionId: "95007"
+  fromDate: ""      # YYYY-MM-DD (inclusive)
+  toDate: ""        # YYYY-MM-DD (inclusive)
+  enableAI: true    # set false to leave the AI columns blank
+
+jobs:
+  - job: faa_metrics
+    displayName: "Collect FAA Success Metrics"
+    pool:
+      type: linux
+      isCustom: true
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      demands:
+        - agent.os -equals Linux
+    timeoutInMinutes: 30
+    variables:
+      - name: scriptsDir
+        value: $(Build.SourcesDirectory)/.pipelines/faa-metrics/scripts
+      - name: outDir
+        value: $(Build.ArtifactStagingDirectory)/faa-metrics
+      - name: ob_outputDirectory
+        value: $(Build.ArtifactStagingDirectory)/faa-metrics
+    steps:
+      - checkout: self
+
+      - task: UsePythonVersion@0
+        displayName: "Setup Python"
+        inputs:
+          versionSpec: "3.x"
+
+      - script: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -r "$(scriptsDir)/requirements.txt"
+          mkdir -p "$(outDir)"
+        displayName: "Install dependencies"
+
+      - script: |
+          set -euo pipefail
+          python "$(scriptsDir)/collect_reports.py" \
+            --definition-id "${{ parameters.definitionId }}" \
+            --from-date "${{ parameters.fromDate }}" \
+            --to-date "${{ parameters.toDate }}" \
+            --out-dir "$(outDir)"
+        displayName: "Download FAA reports"
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+          SYSTEM_COLLECTIONURI: $(System.CollectionUri)
+          SYSTEM_TEAMPROJECT: $(System.TeamProject)
+
+      - script: |
+          set -euo pipefail
+          python "$(scriptsDir)/build_dataset.py" \
+            --in-dir "$(outDir)" \
+            --out-csv "$(outDir)/faa-metrics-raw.csv"
+        displayName: "Build raw CSV"
+
+      - script: |
+          set -euo pipefail
+          python "$(scriptsDir)/enrich.py" \
+            --in-csv "$(outDir)/faa-metrics-raw.csv" \
+            --out-xlsx "$(outDir)/faa-metrics-organized.xlsx" \
+            --out-md "$(outDir)/faa-metrics-summary.md" \
+            --from-date "${{ parameters.fromDate }}" \
+            --to-date "${{ parameters.toDate }}" \
+            --enable-ai "${{ parameters.enableAI }}"
+        displayName: "Enrich into workbook + summary"
+        env:
+          AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
+          AZURE_OPENAI_DEPLOYMENT: $(AZURE_OPENAI_DEPLOYMENT)
+          AZURE_OPENAI_API_KEY: $(AZURE_OPENAI_API_KEY)
+          AZURE_OPENAI_API_VERSION: $(AZURE_OPENAI_API_VERSION)
+
+      - script: |
+          set -euo pipefail
+          if [ -f "$(outDir)/faa-metrics-summary.md" ]; then
+            echo "##vso[task.uploadsummary]$(outDir)/faa-metrics-summary.md"
+          fi
+        displayName: "Surface summary in run"
+        condition: succeededOrFailed()
+
+      - publish: $(outDir)
+        artifact: faa-metrics
+        displayName: "Publish faa-metrics artifact"
+        condition: succeededOrFailed()
