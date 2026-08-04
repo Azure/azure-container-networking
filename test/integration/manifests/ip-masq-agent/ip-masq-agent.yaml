@@ -32,7 +32,7 @@ spec:
       - args:
         - --v=2
         - --resync-interval=60
-        image: mcr.microsoft.com/aks/ip-masq-agent-v2:v0.1.7
+        image: mcr.microsoft.com/aks/ip-masq-agent-v2:v0.1.15
         imagePullPolicy: IfNotPresent
         name: azure-ip-masq-agent
         resources:

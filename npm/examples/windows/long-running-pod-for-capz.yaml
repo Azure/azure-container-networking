@@ -21,7 +21,7 @@ spec:
         - --http=false
         - --port
         - "80"
-        image: k8s.gcr.io/e2e-test-images/agnhost:2.33
+        image: k8s.gcr.io/e2e-test-images/agnhost:2.61
         imagePullPolicy: IfNotPresent
         name: cont-80-tcp
         ports:

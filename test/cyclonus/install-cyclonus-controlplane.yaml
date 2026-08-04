@@ -28,5 +28,5 @@ spec:
             - --server-protocol=TCP,UDP
           name: cyclonus
           imagePullPolicy: IfNotPresent
-          image: acnpublic.azurecr.io/cyclonus:v0.4.6.8
+          image: acnpublic.azurecr.io/cyclonus:v0.4.6.9
       serviceAccount: cyclonus

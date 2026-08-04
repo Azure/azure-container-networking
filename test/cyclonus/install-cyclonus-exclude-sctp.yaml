@@ -23,5 +23,5 @@ spec:
             - --exclude=sctp
           name: cyclonus
           imagePullPolicy: IfNotPresent
-          image: mfenwick100/cyclonus:v0.4.7
+          image: mfenwick100/cyclonus:v0.5.6
       serviceAccount: cyclonus
