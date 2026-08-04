@@ -1,5 +1,5 @@
 #!/bin/bash
-set -eux
+set -euxo pipefail
 
 # Install Go by extracting it from the msft-go container image.
 # The golang image reference is read directly from the source Dockerfile for the
