@@ -68,19 +68,15 @@ func TestToJSONString(t *testing.T) {
 }
 
 func TestToJSONStringFallback(t *testing.T) {
-	// Create a circular reference that cannot be marshaled to JSON
 	type Circular struct {
 		Name     string
 		Referrer *Circular
 	}
 
 	circular := &Circular{Name: "test"}
-	circular.Referrer = circular // Create circular reference
+	circular.Referrer = circular
 
-	// This should fall back to %+v formatting
-	result := ToJSONString(circular)
-	assert.Contains(t, result, "test")
-	assert.Contains(t, result, "Referrer")
+	assert.Equal(t, fmt.Sprintf("%+v", circular), ToJSONString(circular))
 }
 
 func TestNewLoggerError(t *testing.T) {
