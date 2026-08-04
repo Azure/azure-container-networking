@@ -17,6 +17,9 @@ parameters:
   - name: vmSize
     type: string
     default: ""
+  - name: k8sVersion
+    type: string
+    default: ""
   - name: os
     type: string
     default: linux
@@ -71,6 +74,7 @@ stages:
               clusterType: ${{ parameters.clusterType }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               vmSize: ${{ parameters.vmSize }}
+              k8sVersion: ${{ parameters.k8sVersion }}
               region: $(REGION_AKS_CLUSTER_TEST)
           - template: ../../templates/network-install.yaml
             parameters:
