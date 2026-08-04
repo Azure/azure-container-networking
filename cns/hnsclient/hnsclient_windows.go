@@ -552,8 +552,7 @@ func configureHostNCApipaEndpoint(
 
 	endpoint.IpConfigurations = append(endpoint.IpConfigurations, ipConfiguration)
 
-	logger.Printf("[Azure CNS] Configured HostNCApipaEndpoint with ID: %s, Name: %s, Network: %s",
-		endpoint.Id, endpoint.Name, endpoint.HostComputeNetwork)
+	logger.Printf("[Azure CNS] Configured HostNCApipaEndpoint: %s", endpointLogDetails(endpoint))
 
 	return endpoint, nil
 }
@@ -585,8 +584,7 @@ func CreateHostNCApipaEndpoint(
 	}
 
 	if endpoint != nil {
-		logger.Debugf("[Azure CNS] Found existing endpoint with ID: %s, Name: %s, Network: %s",
-			endpoint.Id, endpoint.Name, endpoint.HostComputeNetwork)
+		logger.Debugf("[Azure CNS] Found existing endpoint: %s", endpointLogDetails(endpoint))
 		return endpoint.Id, nil
 	}
 
@@ -618,10 +616,14 @@ func CreateHostNCApipaEndpoint(
 		return "", err
 	}
 
-	logger.Printf("[Azure CNS] Successfully created HostNCApipaEndpoint with ID: %s, Name: %s, Network: %s",
-		endpoint.Id, endpoint.Name, endpoint.HostComputeNetwork)
+	logger.Printf("[Azure CNS] Successfully created HostNCApipaEndpoint: %s", endpointLogDetails(endpoint))
 
 	return endpoint.Id, nil
+}
+
+func endpointLogDetails(endpoint *hcn.HostComputeEndpoint) string {
+	return fmt.Sprintf("ID: %s, Name: %s, Network: %s, IpConfigurations: %+v, Dns: %+v, Routes: %+v, MacAddress: %s, Flags: %d",
+		endpoint.Id, endpoint.Name, endpoint.HostComputeNetwork, endpoint.IpConfigurations, endpoint.Dns, endpoint.Routes, endpoint.MacAddress, endpoint.Flags)
 }
 
 // updateGwForLocalIPConfiguration applies change on gw IP address for apipa NW and endpoint.
