@@ -31,7 +31,9 @@ jobs:
     outputs:
       go-version: ${{ steps.goversion.outputs.version }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Determine Go version
         id: goversion
@@ -51,11 +53,14 @@ jobs:
       matrix:
         os: [ubuntu-22.04, ubuntu-24.04]
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417  # v6
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
+          cache: false
           go-version: ${{ needs.setup.outputs.go-version }}
 
       - name: Install system dependencies
@@ -93,7 +98,7 @@ jobs:
           (exit "$test_exit")
 
       - name: Upload Linux Coverage
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: linux-coverage-${{ matrix.os }}
           path: linux-coverage.out
@@ -103,21 +108,23 @@ jobs:
     runs-on: windows-latest
     needs: setup
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417  # v6
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
+          cache: false
           go-version: ${{ needs.setup.outputs.go-version }}
 
       - name: Run Windows Tests
-        shell: cmd
         run: |
           go test -timeout 30m -covermode atomic -coverprofile=windows-coverage.out ./cns/... ./npm/... ./cni/... ./platform/...
           go tool cover -func=windows-coverage.out
 
       - name: Upload Windows Coverage
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: windows-coverage
           path: windows-coverage.out
@@ -128,11 +135,14 @@ jobs:
     needs: [setup, test-linux]
     if: always()
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417  # v6
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
+          cache: false
           go-version: ${{ needs.setup.outputs.go-version }}
 
       - name: Download Linux Coverage Artifact
@@ -157,7 +167,7 @@ jobs:
           mv linux-coverage.xml coverage/
 
       - name: Upload Coverage Report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: linux-coverage-report
           path: coverage/linux-coverage.xml

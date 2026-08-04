@@ -2,7 +2,10 @@
 version: 2
 updates:
   - package-ecosystem: "docker"
-    directory: "/"
+    directories:
+      - "**/*"
+    exclude-paths:
+      - "**/*.tmpl"
     schedule:
       interval: "daily"
     commit-message:
@@ -28,6 +31,7 @@ updates:
       all-github-actions:
         applies-to: version-updates
         patterns: ["*"]
+        update-types: ["minor", "patch"]
     cooldown:
       default-days: 7
 

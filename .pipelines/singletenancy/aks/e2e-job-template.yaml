@@ -36,9 +36,12 @@ parameters:
 stages:
   - stage: ${{ parameters.clusterName }}
     displayName: ${{ parameters.displayName }} - Create Cluster
-    condition: or(
-        eq('${{ parameters.os }}', 'linux'),
-        and(eq('${{ parameters.os }}', 'windows'), eq(dependencies.setup.outputs['env.GitDiffCheck.RunWindowsTests'], 'true'))
+    condition: and(
+        succeeded(),
+        or(
+          eq('${{ parameters.os }}', 'linux'),
+          and(eq('${{ parameters.os }}', 'windows'), eq(dependencies.setup.outputs['env.GitDiffCheck.RunWindowsTests'], 'true'))
+        )
       )
     dependsOn:
       - ${{ parameters.dependsOn }}

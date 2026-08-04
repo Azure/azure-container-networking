@@ -269,7 +269,7 @@ func testLRPLifecycle(t *testing.T, ctx context.Context, clientPod corev1.Pod, k
 
 	// Step 1: Validate LRP using cilium commands
 	t.Log("Step 1: Validating LRP using cilium commands")
-	validateCiliumLRP(t, ctx, cs, config)
+	validateCiliumLRP(t, ctx, cs, config, clientPod.Spec.NodeName)
 
 	// Step 2: Restart busybox pods and verify LRP still works
 	t.Log("Step 2: Restarting client pods to test persistence")
@@ -283,7 +283,7 @@ func testLRPLifecycle(t *testing.T, ctx context.Context, clientPod corev1.Pod, k
 
 	// Step 4: Validate cilium commands still show LRP
 	t.Log("Step 4: Re-validating cilium LRP after restart")
-	validateCiliumLRP(t, ctx, cs, config)
+	validateCiliumLRP(t, ctx, cs, config, restartedPod.Spec.NodeName)
 
 	// Step 5: Delete and recreate resources & restart nodelocaldns daemonset
 	t.Log("Step 5: Testing resource deletion and recreation")
@@ -332,17 +332,23 @@ func testLRPLifecycle(t *testing.T, ctx context.Context, clientPod corev1.Pod, k
 
 	// Step 7: Final cilium validation after node-local-dns restart
 	t.Log("Step 7: Final cilium validation - ensuring LRP is still active after node-local-dns restart")
-	validateCiliumLRP(t, ctx, cs, config)
+	validateCiliumLRP(t, ctx, cs, config, recreatedPod.Spec.NodeName)
 
 }
 
 // validateCiliumLRP checks that LRP is properly configured in cilium
-func validateCiliumLRP(t *testing.T, ctx context.Context, cs *k8sclient.Clientset, config *rest.Config) {
+// nodeName is the node this test targeted; validation runs against the cilium
+// pod on that node. Picking any cilium pod in the cluster is wrong once the
+// node-local-dns DaemonSet is pinned to a node pool (POOL_NODESELECTOR): cilium
+// runs on every node, so the two can land in different pools and the
+// node-local-dns lookup below then finds nothing.
+func validateCiliumLRP(t *testing.T, ctx context.Context, cs *k8sclient.Clientset, config *rest.Config, nodeName string) {
 	ciliumPods, err := cs.CoreV1().Pods(kubeSystemNamespace).List(ctx, metav1.ListOptions{
 		LabelSelector: "k8s-app=cilium",
+		FieldSelector: "spec.nodeName=" + nodeName,
 	})
 	require.NoError(t, err)
-	require.NotEmpty(t, ciliumPods.Items)
+	require.NotEmpty(t, ciliumPods.Items, "no cilium pod on node %s", nodeName)
 	ciliumPod := TakeOne(ciliumPods.Items)
 
 	// Get Kubernetes version to determine validation approach

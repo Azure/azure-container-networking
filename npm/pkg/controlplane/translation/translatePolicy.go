@@ -449,7 +449,7 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy,
 		// #2.1 Handle IPBlock and port if exist
 		if peer.IPBlock != nil {
 			if len(peer.IPBlock.CIDR) > 0 {
-				if npmLiteToggle {
+				if npmLiteToggle && util.IsWindowsDP() {
 					err = directPeerAndPortAllowRule(npmNetPol, direction, ports, peer.IPBlock.CIDR, npmLiteToggle)
 					if err != nil {
 						return err
