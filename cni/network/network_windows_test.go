@@ -1288,7 +1288,6 @@ func TestPluginWindowsAdd(t *testing.T) {
 						NetNsPath:         "bc526fae-4ba0-4e80-bc90-ad721e5850bf",
 						NetNs:             "bc526fae-4ba0-4e80-bc90-ad721e5850bf",
 						HostSubnetPrefix:  "<nil>",
-						// non-infra NICs carry nil options (see createEpInfo); matches Linux test
 						Options:           nil,
 						// matches with cns ip configuration
 						IPAddresses: []net.IPNet{

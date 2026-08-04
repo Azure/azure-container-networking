@@ -90,9 +90,7 @@ func setWeakHostOnInterface(ipAddress, ncID string) error {
 	}
 
 	if targetIface == nil {
-		// Error is returned to the caller; no separate log needed here.
-		errval := "[Azerrvalure CNS] Was not able to find the interface with ip " + ipAddress + " to enable weak host send/receive"
-		return errors.New(errval)
+		return errors.New("interface with ip " + ipAddress + " not found to enable weak host send/receive")
 	}
 
 	ethIndexString := strconv.Itoa(targetIface.Index)
