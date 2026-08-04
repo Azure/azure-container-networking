@@ -10,6 +10,12 @@ stages:
           STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
+        templateContext:
+          outputs:
+            - output: pipelineArtifact
+              targetPath: '$(System.DefaultWorkingDirectory)/linux-coverage.out'
+              artifactName: 'linux-coverage'
+              sbomEnabled: false
         steps:
           - script: |
               GO_VER=$(grep '^toolchain' go.mod | sed 's/toolchain go//' | cut -d. -f1,2)
@@ -44,10 +50,6 @@ stages:
             retryCountOnTaskFailure: 3
             name: "Test"
             displayName: "Run Tests"
-          - task: PublishPipelineArtifact@1
-            inputs:
-              targetPath: 'linux-coverage.out'
-              artifactName: 'linux-coverage'
 
   - stage: test_windows
     displayName: Test ACN Windows
@@ -60,6 +62,12 @@ stages:
           STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS_ALT)"
+        templateContext:
+          outputs:
+            - output: pipelineArtifact
+              targetPath: '$(System.DefaultWorkingDirectory)/windows-coverage.out'
+              artifactName: 'windows-coverage'
+              sbomEnabled: false
         steps:
           - powershell: |
               $gomod = $null
@@ -85,10 +93,6 @@ stages:
             retryCountOnTaskFailure: 3
             name: "TestWindows"
             displayName: "Run Windows Tests"
-          - task: PublishPipelineArtifact@1
-            inputs:
-              targetPath: 'windows-coverage.out'
-              artifactName: 'windows-coverage'
 
   - stage: code_coverage
     displayName: Code Coverage Check

@@ -137,8 +137,11 @@ steps:
       displayName: Windows Logs
       condition: always()
 
-  - publish: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
+  - task: 1ES.PublishPipelineArtifact@1
     condition: always()
-    artifact: ${{ parameters.clusterName }}_${{ parameters.logType }}_${{ parameters.os }}${{ parameters.jobName }}_Attempt_#$(System.StageAttempt)
     name: acnLogs_${{ parameters.logType }}
     displayName: Publish Cluster logs
+    inputs:
+      targetPath: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
+      artifactName: ${{ parameters.clusterName }}_${{ parameters.logType }}_${{ parameters.os }}${{ parameters.jobName }}_Attempt_#$(System.StageAttempt)
+      sbomEnabled: false
