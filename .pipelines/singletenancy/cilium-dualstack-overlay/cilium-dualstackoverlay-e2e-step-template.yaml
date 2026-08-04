@@ -21,7 +21,6 @@ steps:
       kubectlVersion: latest
 
   - task: AzureCLI@2
-    displayName: Set cluster credentials
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
