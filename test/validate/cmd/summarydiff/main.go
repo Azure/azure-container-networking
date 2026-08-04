@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -28,6 +29,11 @@ type compareOutput struct {
 	Baseline  summaryStats `json:"baseline"`
 	Candidate summaryStats `json:"candidate"`
 }
+
+var (
+	errUnexpectedPositionalArguments = errors.New("unexpected positional arguments")
+	errRequiredFlagsMissing          = errors.New("required flags missing")
+)
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -62,7 +68,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 	if err := statevalidate.CompareValidationSummaries(baseline, candidate, opts.expectedBackend); err != nil {
 		fmt.Fprintf(stderr, "summary comparison failed: %v\n", err)
-		return 1
+		if errors.Is(err, statevalidate.ErrSummaryRegression) {
+			return 1
+		}
+		return 2
 	}
 	return 0
 }
@@ -76,10 +85,10 @@ func parseOptions(args []string, stderr io.Writer) (options, error) {
 	flags.StringVar(&opts.candidatePath, "candidate", "", "path to candidate validation summary JSON")
 	expectedBackend := flags.String("expected-backend", "", "required state backend")
 	if err := flags.Parse(args); err != nil {
-		return options{}, err
+		return options{}, fmt.Errorf("parsing options: %w", err)
 	}
 	if flags.NArg() != 0 {
-		return options{}, fmt.Errorf("unexpected positional arguments: %v", flags.Args())
+		return options{}, fmt.Errorf("%w: %v", errUnexpectedPositionalArguments, flags.Args())
 	}
 
 	opts.expectedBackend = statevalidate.StateBackend(*expectedBackend)
@@ -94,8 +103,9 @@ func parseOptions(args []string, stderr io.Writer) (options, error) {
 		missing = append(missing, "-expected-backend")
 	}
 	if len(missing) != 0 {
-		return options{}, fmt.Errorf("required flags missing: %v", missing)
+		return options{}, fmt.Errorf("%w: %v", errRequiredFlagsMissing, missing)
 	}
+
 	return opts, nil
 }
 

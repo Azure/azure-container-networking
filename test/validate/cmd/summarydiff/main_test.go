@@ -11,6 +11,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	baselineFlag        = "-baseline"
+	candidateFlag       = "-candidate"
+	expectedBackendFlag = "-expected-backend"
+	beforePath          = "before.json"
+	afterPath           = "after.json"
+	testBackend         = "backend"
+)
+
 func TestRun(t *testing.T) {
 	const (
 		baseline = `{
@@ -92,9 +101,9 @@ func TestRun(t *testing.T) {
 			var stdout bytes.Buffer
 			var stderr bytes.Buffer
 			gotCode := run([]string{
-				"-baseline", baselinePath,
-				"-candidate", candidatePath,
-				"-expected-backend", "json",
+				baselineFlag, baselinePath,
+				candidateFlag, candidatePath,
+				expectedBackendFlag, "json",
 			}, &stdout, &stderr)
 
 			require.Equal(t, tt.wantCode, gotCode)
@@ -122,28 +131,28 @@ func TestParseOptions(t *testing.T) {
 		{
 			name: "all required flags",
 			args: []string{
-				"-baseline", "before.json",
-				"-candidate", "after.json",
-				"-expected-backend", "backend",
+				baselineFlag, beforePath,
+				candidateFlag, afterPath,
+				expectedBackendFlag, testBackend,
 			},
 			want: options{
-				baselinePath:    "before.json",
-				candidatePath:   "after.json",
-				expectedBackend: "backend",
+				baselinePath:    beforePath,
+				candidatePath:   afterPath,
+				expectedBackend: testBackend,
 			},
 		},
 		{
 			name:    "all required flags missing",
-			wantErr: "[-baseline -candidate -expected-backend]",
+			wantErr: "[" + baselineFlag + " " + candidateFlag + " " + expectedBackendFlag + "]",
 		},
 		{
 			name:    "expected backend missing",
-			args:    []string{"-baseline", "before.json", "-candidate", "after.json"},
-			wantErr: "-expected-backend",
+			args:    []string{baselineFlag, beforePath, candidateFlag, afterPath},
+			wantErr: expectedBackendFlag,
 		},
 		{
 			name:    "positional argument",
-			args:    []string{"extra", "-baseline", "before.json", "-candidate", "after.json", "-expected-backend", "backend"},
+			args:    []string{"extra", baselineFlag, beforePath, candidateFlag, afterPath, expectedBackendFlag, testBackend},
 			wantErr: "unexpected positional arguments",
 		},
 		{

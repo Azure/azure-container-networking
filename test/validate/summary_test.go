@@ -1,7 +1,6 @@
 package validate
 
 import (
-	"errors"
 	"net/netip"
 	"strings"
 	"testing"
@@ -11,6 +10,14 @@ import (
 
 const testStateBackend StateBackend = "test-backend"
 
+const (
+	wantErrInvalidIP            = "invalid IP"
+	wantErrMissingExpectedState = "missing expected state"
+	wantErrMissingActualState   = "missing actual state"
+	otherBackend                = "other"
+	wantErrDuplicateCheck       = "duplicate check"
+)
+
 func TestDecodeValidationSummary(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -19,8 +26,10 @@ func TestDecodeValidationSummary(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name:    "valid",
-			raw:     `{"stateBackend":"test-backend","checks":[{"checkName":"state","nodeName":"node-1","livePodCount":1,"expected":[{"podID":"ns/pod/uid","ip":"10.0.0.2"}],"actual":[{"podID":"ns/pod/uid","ip":"10.0.0.2"}]}]}`,
+			name: "valid",
+			raw: `{"stateBackend":"test-backend","checks":[{"checkName":"state","nodeName":"node-1",
+				"livePodCount":1,"expected":[{"podID":"ns/pod/uid","ip":"10.0.0.2"}],
+				"actual":[{"podID":"ns/pod/uid","ip":"10.0.0.2"}]}]}`,
 			backend: testStateBackend,
 		},
 		{
@@ -103,7 +112,7 @@ func TestDecodeValidationSummary(t *testing.T) {
 	}
 }
 
-func TestValidateValidationSummary(t *testing.T) {
+func TestCheckSummary(t *testing.T) {
 	valid := validValidationSummary()
 	tests := []struct {
 		name    string
@@ -148,7 +157,7 @@ func TestValidateValidationSummary(t *testing.T) {
 		{
 			name: "wrong backend",
 			mutate: func(summary *ValidationSummary) {
-				summary.StateBackend = "other"
+				summary.StateBackend = otherBackend
 			},
 			backend: testStateBackend,
 			wantErr: "does not match",
@@ -199,7 +208,7 @@ func TestValidateValidationSummary(t *testing.T) {
 				summary.Checks[0].Expected = nil
 			},
 			backend: testStateBackend,
-			wantErr: "missing expected state",
+			wantErr: wantErrMissingExpectedState,
 		},
 		{
 			name: "missing actual state",
@@ -207,7 +216,7 @@ func TestValidateValidationSummary(t *testing.T) {
 				summary.Checks[0].Actual = nil
 			},
 			backend: testStateBackend,
-			wantErr: "missing actual state",
+			wantErr: wantErrMissingActualState,
 		},
 		{
 			name: "live pods with empty expected state",
@@ -224,7 +233,7 @@ func TestValidateValidationSummary(t *testing.T) {
 				summary.Checks = append(summary.Checks, summary.Checks[0])
 			},
 			backend: testStateBackend,
-			wantErr: "duplicate check",
+			wantErr: wantErrDuplicateCheck,
 		},
 		{
 			name: "expected and actual differ",
@@ -242,7 +251,7 @@ func TestValidateValidationSummary(t *testing.T) {
 			if tt.mutate != nil {
 				tt.mutate(&summary)
 			}
-			err := ValidateValidationSummary(summary, tt.backend)
+			err := CheckSummary(summary, tt.backend)
 			if tt.wantErr == "" {
 				require.NoError(t, err)
 				return
@@ -294,7 +303,7 @@ func TestComparePodIPIdentities(t *testing.T) {
 			name:     "invalid IP",
 			expected: []PodIPIdentity{{PodID: "pod-1"}},
 			actual:   []PodIPIdentity{},
-			wantErr:  "invalid IP",
+			wantErr:  wantErrInvalidIP,
 		},
 		{
 			name:     "duplicate identity",
@@ -338,10 +347,8 @@ func TestCompareValidationSummaries(t *testing.T) {
 		{
 			name: "exact reordered summary",
 			mutate: func(summary *ValidationSummary) {
-				summary.Checks[0].Expected[0], summary.Checks[0].Expected[1] =
-					summary.Checks[0].Expected[1], summary.Checks[0].Expected[0]
-				summary.Checks[0].Actual[0], summary.Checks[0].Actual[1] =
-					summary.Checks[0].Actual[1], summary.Checks[0].Actual[0]
+				summary.Checks[0].Expected[0], summary.Checks[0].Expected[1] = summary.Checks[0].Expected[1], summary.Checks[0].Expected[0]
+				summary.Checks[0].Actual[0], summary.Checks[0].Actual[1] = summary.Checks[0].Actual[1], summary.Checks[0].Actual[0]
 			},
 		},
 		{
@@ -355,7 +362,7 @@ func TestCompareValidationSummaries(t *testing.T) {
 			name: "unexpected check",
 			mutate: func(summary *ValidationSummary) {
 				check := summary.Checks[0]
-				check.CheckName = "other"
+				check.CheckName = otherBackend
 				summary.Checks = append(summary.Checks, check)
 			},
 			wantErr: "unexpected check",
@@ -396,12 +403,12 @@ func TestCompareValidationSummaries(t *testing.T) {
 			mutate: func(summary *ValidationSummary) {
 				summary.Checks = append(summary.Checks, summary.Checks[0])
 			},
-			wantErr: "duplicate check",
+			wantErr: wantErrDuplicateCheck,
 		},
 		{
 			name: "wrong candidate backend",
 			mutate: func(summary *ValidationSummary) {
-				summary.StateBackend = "other"
+				summary.StateBackend = otherBackend
 			},
 			wantErr: "invalid candidate summary",
 		},
@@ -420,7 +427,7 @@ func TestCompareValidationSummaries(t *testing.T) {
 			}
 			require.ErrorContains(t, err, tt.wantErr)
 			if strings.Contains(tt.wantErr, "state changed") || strings.Contains(tt.wantErr, "live pod count") {
-				require.True(t, errors.Is(err, ErrSummaryRegression))
+				require.ErrorIs(t, err, ErrSummaryRegression)
 			}
 		})
 	}
