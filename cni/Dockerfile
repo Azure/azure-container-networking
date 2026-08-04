@@ -6,10 +6,10 @@ ARG OS_VERSION
 ARG OS
 
 # mcr.microsoft.com/oss/go/microsoft/golang:1.24-cbl-mariner2.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:b05a9bbf50a8ccfdd0ebe9f673ef29dca7c1d5e209434b35a560a4e8ae5f72b2 AS go
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.24-cbl-mariner2.0@sha256:b05a9bbf50a8ccfdd0ebe9f673ef29dca7c1d5e209434b35a560a4e8ae5f72b2 AS go
 
 # mcr.microsoft.com/cbl-mariner/base/core:2.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/cbl-mariner/base/core@sha256:61b8c8e5c769784be2137cba8612c3a0f0c1752a66276b3b1b5306014a1e20e0 AS mariner-core
+FROM --platform=linux/${ARCH} mcr.microsoft.com/cbl-mariner/base/core:2.0@sha256:61b8c8e5c769784be2137cba8612c3a0f0c1752a66276b3b1b5306014a1e20e0 AS mariner-core
 
 FROM go AS azure-vnet
 ARG OS
@@ -54,7 +54,7 @@ COPY --from=dropgz /go/bin/dropgz dropgz
 ENTRYPOINT [ "/dropgz" ]
 
 # mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0
-FROM --platform=windows/${ARCH} mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image@sha256:b4c9637e032f667c52d1eccfa31ad8c63f1b035e8639f3f48a510536bf34032b as hpc
+FROM --platform=windows/${ARCH} mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0@sha256:b4c9637e032f667c52d1eccfa31ad8c63f1b035e8639f3f48a510536bf34032b as hpc
 
 FROM hpc as windows
 COPY --from=dropgz /go/bin/dropgz dropgz.exe
