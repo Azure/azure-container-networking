@@ -161,5 +161,5 @@ steps:
     - bash: |
         set -e
         kubectl rollout status daemonset/azure-cns -n kube-system --timeout=20m
-        cilium status --wait --wait-duration 20m --ignore-warnings
+        cilium status --wait --wait-duration 20m
       displayName: Wait for ACN and Cilium networking
