@@ -1294,6 +1294,100 @@ func TestNameSpaceSelectorMultiValueNotIn(t *testing.T) {
 	require.Equal(t, expected, nsSelectorList)
 }
 
+// nsNotInPolicy builds a NetworkPolicy that selects all local pods and, for the given
+// direction, admits peers whose namespace matches `key NotIn values`.
+func nsNotInPolicy(name, ns, key string, direction networkingv1.PolicyType, values ...string) *networkingv1.NetworkPolicy {
+	peer := networkingv1.NetworkPolicyPeer{
+		NamespaceSelector: &metav1.LabelSelector{
+			MatchExpressions: []metav1.LabelSelectorRequirement{
+				{Key: key, Operator: metav1.LabelSelectorOpNotIn, Values: values},
+			},
+		},
+	}
+	pol := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{},
+			PolicyTypes: []networkingv1.PolicyType{direction},
+		},
+	}
+	if direction == networkingv1.PolicyTypeIngress {
+		pol.Spec.Ingress = []networkingv1.NetworkPolicyIngressRule{{From: []networkingv1.NetworkPolicyPeer{peer}}}
+	} else {
+		pol.Spec.Egress = []networkingv1.NetworkPolicyEgressRule{{To: []networkingv1.NetworkPolicyPeer{peer}}}
+	}
+	return pol
+}
+
+// TestTranslatePolicyMultiValueNotInConjunction is the end-to-end regression for a
+// multi-value namespaceSelector NotIn. It drives the full TranslatePolicy path (both
+// directions) and asserts every excluded value is negated within a SINGLE allow ACL
+// (a conjunction / AND). The pre-fix behavior emitted one additive allow ACL per value,
+// so a namespace carrying any one excluded value matched the ACL negating another value
+// and was admitted before the default drop.
+func TestTranslatePolicyMultiValueNotInConjunction(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		direction networkingv1.PolicyType
+		peerList  func(*policies.ACLPolicy) []policies.SetInfo
+	}{
+		{
+			name:      "ingress",
+			direction: networkingv1.PolicyTypeIngress,
+			peerList:  func(acl *policies.ACLPolicy) []policies.SetInfo { return acl.SrcList },
+		},
+		{
+			name:      "egress",
+			direction: networkingv1.PolicyTypeEgress,
+			peerList:  func(acl *policies.ACLPolicy) []policies.SetInfo { return acl.DstList },
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			pol := nsNotInPolicy("victim", "default", "tenant", tt.direction, "attacker", "quarantine")
+			npmNetPol, err := TranslatePolicy(pol, false)
+			require.NoError(t, err)
+
+			// Collect every allow ACL that references either excluded tenant set.
+			excluded := map[string]bool{"tenant:attacker": true, "tenant:quarantine": true}
+			var allowACLsTouchingTenant int
+			var negatedTenantValues []string
+			for i := range npmNetPol.ACLs {
+				acl := npmNetPol.ACLs[i]
+				if acl.Target != policies.Allowed {
+					continue
+				}
+				references := false
+				for _, si := range tt.peerList(acl) {
+					if excluded[si.IPSet.Name] {
+						references = true
+						// Excluded values must be a negative (Included == false) match.
+						require.False(t, si.Included,
+							"tenant set %s must be a negated match, not a positive allow", si.IPSet.Name)
+						negatedTenantValues = append(negatedTenantValues, si.IPSet.Name)
+					}
+				}
+				if references {
+					allowACLsTouchingTenant++
+				}
+			}
+
+			// The fix: exactly ONE allow ACL, carrying BOTH negations together (AND).
+			// Two separate allow ACLs here would be the additive (OR) bypass.
+			require.Equal(t, 1, allowACLsTouchingTenant,
+				"excluded values must share a single allow decision, not additive allow ACLs")
+			require.ElementsMatch(t, []string{"tenant:attacker", "tenant:quarantine"}, negatedTenantValues,
+				"the single allow ACL must negate every excluded value")
+		})
+	}
+}
+
 func TestAllowAllInternal(t *testing.T) {
 	matchType := policies.SrcMatch
 	tests := []struct {
