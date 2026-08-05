@@ -60,7 +60,10 @@ stages:
         displayName: Setup
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
+        variables:
+          prTargetBranch: $[ variables['System.PullRequest.TargetBranchName'] ]
         steps:
+          - template: templates/git-diff-check.yaml
           - script: |
               # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
               CUSTOM_RUN_NAME_PREFIX="${{ parameters.runNamePrefix }}"
