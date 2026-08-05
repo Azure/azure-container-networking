@@ -1263,6 +1263,37 @@ func TestNameSpaceSelector(t *testing.T) {
 	}
 }
 
+// TestNameSpaceSelectorMultiValueNotIn verifies that a namespaceSelector with a
+// single multi-value NotIn requirement is translated (after flatten, as translateRule
+// does) into one decision carrying a negated match-set for every excluded value.
+// Emitting these as separate allow rules would be additive (OR) and admit a namespace
+// that carries any one of the excluded values.
+func TestNameSpaceSelectorMultiValueNotIn(t *testing.T) {
+	matchType := policies.SrcMatch
+	selector := &metav1.LabelSelector{
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			{
+				Key:      "tenant",
+				Operator: metav1.LabelSelectorOpNotIn,
+				Values:   []string{"x", "y"},
+			},
+		},
+	}
+
+	flattened, err := flattenNameSpaceSelector(selector)
+	require.NoError(t, err)
+	// The NotIn conjunction must stay in a single selector, not fan out.
+	require.Len(t, flattened, 1)
+
+	_, nsSelectorList := nameSpaceSelector(matchType, &flattened[0])
+
+	expected := []policies.SetInfo{
+		policies.NewSetInfo("tenant:x", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
+		policies.NewSetInfo("tenant:y", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
+	}
+	require.Equal(t, expected, nsSelectorList)
+}
+
 func TestAllowAllInternal(t *testing.T) {
 	matchType := policies.SrcMatch
 	tests := []struct {
