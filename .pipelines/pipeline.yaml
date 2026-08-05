@@ -102,6 +102,7 @@ extends:
             displayName: Setup
             pool:
               name: "$(BUILD_POOL_NAME_DEFAULT)"
+              os: linux
             variables:
               prTargetBranch: $[ variables['System.PullRequest.TargetBranchName'] ]
             steps:
@@ -183,6 +184,7 @@ extends:
                 STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
               pool:
                 name: "$(BUILD_POOL_NAME_DEFAULT)"
+                os: linux
               templateContext:
                 outputs:
                   # 1ES owns artifact publishing. sbomEnabled is off on every leg that
@@ -225,6 +227,7 @@ extends:
               displayName: Build Images
               pool:
                 name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
+                os: linux
               strategy:
                 matrix:
                   ${{ if or(eq(parameters.ipamImage, '__use-default__'), eq(parameters.ipamImage, '')) }}:
@@ -284,6 +287,7 @@ extends:
               displayName: Build Images
               pool:
                 name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
+                os: linux
               strategy:
                 maxParallel: 2
                 matrix:
@@ -337,6 +341,7 @@ extends:
               displayName: Build NPM Images
               pool:
                 name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
+                os: linux
               strategy:
                 matrix:
                   npm_linux_amd64:
@@ -358,6 +363,7 @@ extends:
               displayName: Build NPM Images
               pool:
                 name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
+                os: linux
               strategy:
                 matrix:
                   npm_linux_arm64:
@@ -394,6 +400,7 @@ extends:
               displayName: Compile Manifests
               pool:
                 name: "$(BUILD_POOL_NAME_DEFAULT)"
+                os: linux
               templateContext:
                 outputs:
                   - output: buildArtifacts
@@ -446,6 +453,7 @@ extends:
               displayName: Compile NPM Manifest
               pool:
                 name: "$(BUILD_POOL_NAME_DEFAULT)"
+                os: linux
               templateContext:
                 outputs:
                   - output: buildArtifacts
@@ -473,6 +481,7 @@ extends:
               displayName: Generate and Sign SBOM
               pool:
                 name: "$(BUILD_POOL_NAME_DEFAULT)"
+                os: linux
               templateContext:
                 outputs:
                   - output: buildArtifacts
@@ -749,6 +758,7 @@ extends:
             commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
           pool:
             name: $(BUILD_POOL_NAME_DEFAULT)
+            os: linux
           jobs:
             - job: delete
               displayName: Delete Clusters
