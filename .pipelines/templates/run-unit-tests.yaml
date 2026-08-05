@@ -38,8 +38,10 @@ stages:
               else
                 sudo tdnf install -y ipset iptables
               fi
-              ipset --version
-              iptables --version
+              # Verify under sudo: ipset needs privileges to talk to the kernel,
+              # which is how the tests invoke it.
+              sudo ipset --version
+              sudo iptables --version
             displayName: "Install netfilter test dependencies"
           - script: |
               set -e
