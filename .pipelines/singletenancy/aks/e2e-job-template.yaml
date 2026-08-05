@@ -21,11 +21,10 @@ stages:
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     variables:
-      IMAGE_REPO_PATH: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.imageRepositoryPath'] ]
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
       CNI_VERSION: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
       CNI_IMAGE_REPO: ACN
-      CNI_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cni
+      CNI_IMAGE_NAME_OVERRIDE: azure-cni
     jobs:
       - job: ${{ parameters.name }}
         displayName: Cluster - ${{ parameters.name }}
