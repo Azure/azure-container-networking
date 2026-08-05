@@ -82,12 +82,20 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelS
 	}
 
 	multiValuePresent := false
+	// notInExpanded records whether a multi-value NotIn was rewritten into several
+	// single-value NotIn requirements on baseSelector. When it is, baseSelector no
+	// longer equals the input, so the original selector must not be returned as-is.
+	notInExpanded := false
 	multiValueMatchExprs := []metav1.LabelSelectorRequirement{}
 	for _, req := range nsSelector.MatchExpressions {
-		// Only In and NotIn operators of matchExprs have multiple values.
-		// NPM will ignore single value matchExprs of these operators.
+		// In/NotIn requirements carry the values; single-value requirements are added to
+		// baseSelector as-is, while multi-value requirements are handled per operator below.
+		// Exists/DoesNotExist carry no values and are added to baseSelector directly.
 		switch {
 		case req.Operator == metav1.LabelSelectorOpIn:
+			if len(req.Values) == 0 {
+				return nil, ErrEmptyMatchExpressionValues
+			}
 			for _, v := range req.Values {
 				if !isValidLabelValue(v) {
 					return nil, ErrInvalidMatchExpressionValues
@@ -104,6 +112,9 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelS
 				multiValueMatchExprs = append(multiValueMatchExprs, req)
 			}
 		case req.Operator == metav1.LabelSelectorOpNotIn:
+			if len(req.Values) == 0 {
+				return nil, ErrEmptyMatchExpressionValues
+			}
 			for _, v := range req.Values {
 				if !isValidLabelValue(v) {
 					return nil, ErrInvalidMatchExpressionValues
@@ -121,6 +132,7 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelS
 				// the rule negating another value. Keep every value as its own
 				// single-value NotIn within the same selector so all negations
 				// stay in one decision (AND).
+				notInExpanded = true
 				for _, v := range req.Values {
 					baseSelector.MatchExpressions = append(
 						baseSelector.MatchExpressions,
@@ -143,9 +155,9 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelS
 	// If there are no multiValue In match expressions to fan out, the baseSelector
 	// (which already carries any conjunctive NotIn expansions) is the only selector.
 	if !multiValuePresent {
-		// Preserve the original selector when nothing was rewritten so callers that
-		// compare against the input see an identical selector.
-		if len(baseSelector.MatchExpressions) == len(nsSelector.MatchExpressions) {
+		if !notInExpanded {
+			// Nothing was rewritten; return the original selector unchanged so callers
+			// that compare against the input see an identical selector.
 			return []metav1.LabelSelector{*nsSelector}, nil
 		}
 		return []metav1.LabelSelector{*baseSelector.DeepCopy()}, nil

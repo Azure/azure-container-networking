@@ -683,6 +683,26 @@ func TestFlattenNameSpaceSelectorMixedInAndNotIn(t *testing.T) {
 	}
 }
 
+// TestFlattenNameSpaceSelectorEmptyValues verifies that In/NotIn requirements with
+// no values are rejected (fail closed) rather than silently dropped, which could
+// otherwise widen a selector or produce no rules at all.
+func TestFlattenNameSpaceSelectorEmptyValues(t *testing.T) {
+	for _, op := range []metav1.LabelSelectorOperator{metav1.LabelSelectorOpIn, metav1.LabelSelectorOpNotIn} {
+		selector := &metav1.LabelSelector{
+			MatchExpressions: []metav1.LabelSelectorRequirement{
+				{
+					Key:      "tenant",
+					Operator: op,
+					Values:   []string{},
+				},
+			},
+		}
+		s, err := flattenNameSpaceSelector(selector)
+		require.ErrorIs(t, err, ErrEmptyMatchExpressionValues, "operator %s", op)
+		require.Nil(t, s)
+	}
+}
+
 func TestIsValidLabel(t *testing.T) {
 	good := []string{
 		"",
