@@ -56,10 +56,6 @@ parameters:
   - name: runNamePrefix
     type: string
     default: "__use-default__"
-  # Test the release path: use Official on a branch that would otherwise get Unofficial.
-  - name: forceOfficialTemplate
-    type: boolean
-    default: false
 
 resources:
   repositories:
@@ -68,15 +64,18 @@ resources:
       name: 1ESPipelineTemplates/1ESPipelineTemplates
       ref: refs/tags/release
 
+# The Makefile defaults to buildah and silently falls back to docker when that
+# binary is absent, so the container builder changes with the agent image. Pin it
+# so image builds behave identically on every pool.
+variables:
+  CONTAINER_BUILDER: docker
+
 # Extend a governed 1ES Pipeline Template so the downstream release pipeline can
-# verify which template produced this build's artifacts. Production refs (master,
-# release/*, tags) use Official, which release validation requires; everything else
-# uses Unofficial.
+# verify which template produced this build's artifacts. This pipeline is marked
+# Production in the 1ES Product Catalog because the release pipeline ships its
+# artifacts, so it must extend Official on every branch, not just release refs.
 extends:
-  ${{ if or(parameters.forceOfficialTemplate, startsWith(variables['Build.SourceBranch'], 'refs/tags/'), eq(variables['Build.SourceBranch'], 'refs/heads/master'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/')) }}:
-    template: v1/1ES.Official.PipelineTemplate.yml@1ESPipelineTemplates
-  ${{ else }}:
-    template: v1/1ES.Unofficial.PipelineTemplate.yml@1ESPipelineTemplates
+  template: v1/1ES.Official.PipelineTemplate.yml@1ESPipelineTemplates
   parameters:
     # Agent for the compliance jobs 1ES injects. `os` is explicit because the pool
     # is a variable, so 1ES can't resolve the OS when it compiles the template.
