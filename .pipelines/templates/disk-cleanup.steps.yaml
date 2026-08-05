@@ -6,8 +6,8 @@ steps:
       go version || true
       echo "=== Disk space BEFORE cleanup ==="
       df -h /
-      # PowerShell is deliberately kept: 1ES PT injects pwsh-based steps into
-      # every job, so removing it fails the compliance tasks that run afterwards.
+      # PowerShell and .NET are deliberately kept: 1ES PT injects pwsh-based steps
+      # into every job, and pwsh needs the .NET runtime to start.
       echo "Removing unnecessary files to free up disk space..."
       sudo rm -rf \
         /opt/google/chrome \
@@ -18,7 +18,6 @@ steps:
         /usr/local/lib/android \
         /usr/local/lib/node_modules \
         /usr/local/share/chromium \
-        /usr/share/dotnet \
         /usr/share/swift
       echo "=== Tool locations AFTER cleanup ==="
       which go || true
