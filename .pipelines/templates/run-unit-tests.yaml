@@ -10,6 +10,7 @@ stages:
           STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
+          os: linux
         templateContext:
           outputs:
             - output: pipelineArtifact
@@ -27,6 +28,19 @@ stages:
             inputs:
               version: '$(GO_TOOLCHAIN_VERSION)'
             displayName: "Install Go"
+          - script: |
+              set -e
+              # The NPM controller tests shell out to ipset and iptables. Ubuntu
+              # agent images ship them; Azure Linux images do not, so install the
+              # ones that are missing.
+              if [ -f /etc/debian_version ]; then
+                sudo apt-get update && sudo apt-get install -y ipset iptables
+              else
+                sudo tdnf install -y ipset iptables
+              fi
+              ipset --version
+              iptables --version
+            displayName: "Install netfilter test dependencies"
           - script: |
               set -e
               make bpf-lib
@@ -62,6 +76,10 @@ stages:
           STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS_ALT)"
+          # The pool serves two images and only v2.1 carries the 1ES PT
+          # prerequisites, so pin it rather than letting the pool choose.
+          image: acn-runner-vmss-image-windows-1es-v2.1
+          os: windows
         templateContext:
           outputs:
             - output: pipelineArtifact
@@ -104,6 +122,7 @@ stages:
         displayName: Check Coverage
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
+          os: linux
         steps:
           - script: |
               GO_VER=$(grep '^toolchain' go.mod | sed 's/toolchain go//' | cut -d. -f1,2)
