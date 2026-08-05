@@ -19,7 +19,6 @@ steps:
     set -e
     echo "=== Disk space BEFORE make image ==="
     df -h
-    if [ ${{ parameters.os }} = 'windows' ]; then export BUILDX_ACTION='--push'; fi
     make ${{ parameters.name }}-image OS=${{ parameters.os }} ARCH=${{ parameters.arch }}
     echo "=== Disk space AFTER make image ==="
     df -h
@@ -31,6 +30,9 @@ steps:
     # ship buildah without netavark or subuid/subgid, so image builds fail there.
     # Only the build needs docker; manifest jobs still use buildah.
     CONTAINER_BUILDER: docker
+    # buildah pushes as part of the build, buildx does not. Push here as well so
+    # the manifest stage can find every platform tag in the registry.
+    BUILDX_ACTION: --push
 
 - task: AzureCLI@2
   displayName: "Logout"
