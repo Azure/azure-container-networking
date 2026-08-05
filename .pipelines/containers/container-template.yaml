@@ -32,7 +32,9 @@ steps:
     CONTAINER_BUILDER: docker
     # buildah pushes as part of the build, buildx does not. Push here as well so
     # the manifest stage can find every platform tag in the registry.
-    BUILDX_ACTION: --push
+    # --provenance=false keeps buildx from wrapping the image in an index, which
+    # `buildah manifest add` cannot resolve for a non-host architecture.
+    BUILDX_ACTION: --push --provenance=false
 
 - task: AzureCLI@2
   displayName: "Logout"
