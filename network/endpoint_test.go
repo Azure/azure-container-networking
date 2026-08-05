@@ -324,6 +324,10 @@ var _ = Describe("Test Endpoint", func() {
 		})
 		// TODO: Add secondary endpoint client test coverage in a different way
 		Context("When secondary endpoint client is used", func() {
+			var restoreMasterResolution func()
+			BeforeEach(func() { restoreMasterResolution = setStubMasterResolution() })
+			AfterEach(func() { restoreMasterResolution() })
+
 			_, ipnet, _ := net.ParseCIDR("0.0.0.0/0")
 			nw := &network{
 				Endpoints: map[string]*endpoint{},

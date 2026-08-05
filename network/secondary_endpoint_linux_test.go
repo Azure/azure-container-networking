@@ -24,7 +24,23 @@ func (m *mockDHCPFail) DiscoverRequest(context.Context, net.HardwareAddr, string
 	return errors.New("mock DHCP discover request failed")
 }
 
+// mockDHCPFailThenSucceed fails failures times before succeeding, emulating a MANA
+// interface that gains carrier after a couple of Discover attempts.
+type mockDHCPFailThenSucceed struct {
+	failures int
+	calls    int
+}
+
+func (m *mockDHCPFailThenSucceed) DiscoverRequest(context.Context, net.HardwareAddr, string) error {
+	m.calls++
+	if m.calls <= m.failures {
+		return errors.New("mock DHCP discover request transient failure")
+	}
+	return nil
+}
+
 func TestSecondaryAddEndpoints(t *testing.T) {
+	stubMasterResolution(t) // resolve testMasterIface ("eth1") to itself; VF to its master
 	nl := netlink.NewMockNetlink(false, "")
 	plc := platform.NewMockExecClient(false)
 	mac, _ := net.ParseMAC("ab:cd:ef:12:34:56")
@@ -399,7 +415,38 @@ func TestSecondaryConfigureContainerInterfacesAndRoutes(t *testing.T) {
 			wantErr:    true,
 			wantErrMsg: NetworkNotReadyErrorMsg,
 		},
+		{
+			name: "Configure Interface and routes DHCP discover recovers after transient failures",
+			client: &SecondaryEndpointClient{
+				netlink:        netlink.NewMockNetlink(false, ""),
+				plClient:       platform.NewMockExecClient(false),
+				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+				netioshim:      netio.NewMockNetIO(false, 0),
+				dhcpClient:     &mockDHCPFailThenSucceed{failures: dhcpDiscoverAttempts - 1},
+				ep:             &endpoint{SecondaryInterfaces: map[string]*InterfaceInfo{"eth1": {Name: "eth1"}}},
+			},
+			epInfo: &EndpointInfo{
+				IfName: "eth1",
+				IPAddresses: []net.IPNet{
+					{
+						IP:   net.ParseIP("192.168.0.4"),
+						Mask: net.CIDRMask(subnetv4Mask, ipv4Bits),
+					},
+				},
+				Routes: []RouteInfo{
+					{
+						Dst: net.IPNet{IP: net.ParseIP("192.168.0.4"), Mask: net.CIDRMask(ipv4FullMask, ipv4Bits)},
+					},
+				},
+			},
+			wantErr: false,
+		},
 	}
+
+	// shorten retry backoff so the failure/recovery cases don't slow the suite
+	oldDelay := dhcpDiscoverRetryDelay
+	dhcpDiscoverRetryDelay = 0
+	defer func() { dhcpDiscoverRetryDelay = oldDelay }()
 
 	for _, tt := range tests {
 		tt := tt
