@@ -43,6 +43,10 @@ stages:
               echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(date "+%d%H%M"))"
               echo "##vso[task.setvariable variable=Tag;isOutput=true]$(make version)"
               echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
+              echo "##vso[task.setvariable variable=azureIpamVersion;isOutput=true]$(make azure-ipam-version)"
+              echo "##vso[task.setvariable variable=cniVersion;isOutput=true]$(make cni-version)"
+              echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]$(make cns-version)"
+              echo "##vso[task.setvariable variable=ciliumLogCollectorVersion;isOutput=true]$(make cilium-log-collector-version)"
               cat /etc/os-release
               uname -a
               sudo chown -R $(whoami):$(whoami) .

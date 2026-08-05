@@ -26,18 +26,17 @@ stages:
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     variables:
-      IMAGE_REPO_PATH: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.imageRepositoryPath'] ]
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
       runWindowsTest: $[ stagedependencies.setup.env.outputs['GitDiffCheck.RunWindowsTests'] ]
-      AZURE_IPAM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipamVersion'] ]
+      AZURE_IPAM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpamVersion'] ]
       CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
       CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
       CNS_IMAGE_REPO: ACN
       IPAM_IMAGE_REPO: ACN
       CNI_IMAGE_REPO: ACN
-      CNS_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cns
-      IPAM_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/azure-ipam
-      CNI_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cni
+      CNS_IMAGE_NAME_OVERRIDE: azure-cns
+      IPAM_IMAGE_NAME_OVERRIDE: azure-ipam
+      CNI_IMAGE_NAME_OVERRIDE: azure-cni
     jobs:
       - job: ${{ parameters.name }}
         displayName: Cluster - ${{ parameters.name }}

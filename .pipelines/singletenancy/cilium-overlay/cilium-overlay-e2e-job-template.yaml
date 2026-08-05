@@ -18,17 +18,16 @@ stages:
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     variables:
-      IMAGE_REPO_PATH: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.imageRepositoryPath'] ]
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
       CNS_VERSION: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
-      AZURE_IPAM_VERSION: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.ipamVersion'] ]
+      AZURE_IPAM_VERSION: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.azureIpamVersion'] ]
       CNI_VERSION: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
       CNS_IMAGE_REPO: ACN
       IPAM_IMAGE_REPO: ACN
       CNI_IMAGE_REPO: ACN
-      CNS_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cns
-      IPAM_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/azure-ipam
-      CNI_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cni
+      CNS_IMAGE_NAME_OVERRIDE: azure-cns
+      IPAM_IMAGE_NAME_OVERRIDE: azure-ipam
+      CNI_IMAGE_NAME_OVERRIDE: azure-cni
       CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY_OVERRIDE: acnpublic.azurecr.io
       CILIUM_LOG_COLLECTOR_VERSION_TAG_OVERRIDE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ciliumLogCollectorVersion'] ]
     jobs:
@@ -57,12 +56,11 @@ stages:
     - publish
     - ${{ parameters.clusterName }}
     variables:
-      IMAGE_REPO_PATH: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.imageRepositoryPath'] ]
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
       CNS_VERSION: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
-      AZURE_IPAM_VERSION: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.ipamVersion'] ]
-      CNS_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cns
-      IPAM_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/azure-ipam
+      AZURE_IPAM_VERSION: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.azureIpamVersion'] ]
+      CNS_IMAGE_NAME_OVERRIDE: azure-cns
+      IPAM_IMAGE_NAME_OVERRIDE: azure-ipam
       GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
