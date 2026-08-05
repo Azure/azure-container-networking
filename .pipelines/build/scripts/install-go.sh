@@ -11,9 +11,8 @@ set -euxo pipefail
 #   3. Hardcoded fallback digest below
 #
 # To update the fallback, run:
-#   IMG=mcr.microsoft.com/oss/go/microsoft/golang:1.24-azurelinux3.0
-#   echo "${IMG}@$(skopeo inspect docker://${IMG} --format '{{.Digest}}')"
-DEFAULT_IMAGE="mcr.microsoft.com/oss/go/microsoft/golang:1.24-azurelinux3.0@sha256:bc7423b52b62e8f0281b5f7f564eb1862dc315bc57e1373c6a81e87ef3ac39ab"
+#   skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.24-cbl-mariner2.0 --format "{{.Name}}@{{.Digest}}"
+DEFAULT_IMAGE="mcr.microsoft.com/oss/go/microsoft/golang@sha256:b05a9bbf50a8ccfdd0ebe9f673ef29dca7c1d5e209434b35a560a4e8ae5f72b2"
 
 # Resolves the golang image from the source Dockerfile for the given $name.
 # Echoes the image reference, or empty string if it cannot be determined.
@@ -24,6 +23,9 @@ resolve_go_image() {
     # so extract the mcr.* token directly.
     # e.g. FROM mcr.../golang:1.25.5 AS builder
     # e.g. FROM --platform=linux/amd64 mcr.../golang:1.25.5 AS builder
+    # ob-prepare intentionally does NOT rename npm/<os>.Dockerfile, so read the
+    # per-OS source directly and pick up the correct Go per platform (this keeps
+    # the signed binary's Go aligned with the unsigned Dockerfile-pinned Go).
     local buildfile="${REPO_ROOT}/npm/${OS:-linux}.Dockerfile"
     grep -m1 '^FROM.*golang' "${buildfile}" 2>/dev/null | grep -o 'mcr[^ ]*' || true
 
@@ -45,7 +47,17 @@ resolve_go_image() {
 
 if [[ -z "${MSFT_GO_IMAGE:-}" ]]; then
   MSFT_GO_IMAGE="$(resolve_go_image)"
-  MSFT_GO_IMAGE="${MSFT_GO_IMAGE:-$DEFAULT_IMAGE}"
+  if [[ -z "${MSFT_GO_IMAGE}" ]]; then
+    # Fail closed for npm: npm/<os>.Dockerfile is the source of truth for the
+    # signed npm Go version and must match the unsigned image. Silently falling
+    # back to DEFAULT_IMAGE (Go 1.24) is the exact regression this pipeline had,
+    # so error out instead of shipping signed npm on a different Go than unsigned.
+    if [[ "${name:-}" == "npm" ]]; then
+      echo "##[error]install-go.sh: could not resolve the golang image from ${REPO_ROOT}/npm/${OS:-linux}.Dockerfile; refusing to fall back to DEFAULT_IMAGE so signed npm never diverges from the unsigned Go version." >&2
+      exit 1
+    fi
+    MSFT_GO_IMAGE="$DEFAULT_IMAGE"
+  fi
 fi
 
 ARCH="${ARCH:-amd64}"
