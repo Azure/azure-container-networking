@@ -64,12 +64,6 @@ resources:
       name: 1ESPipelineTemplates/1ESPipelineTemplates
       ref: refs/tags/release
 
-# The Makefile defaults to buildah and silently falls back to docker when that
-# binary is absent, so the container builder changes with the agent image. Pin it
-# so image builds behave identically on every pool.
-variables:
-  CONTAINER_BUILDER: docker
-
 # Extend a governed 1ES Pipeline Template so the downstream release pipeline can
 # verify which template produced this build's artifacts. This pipeline is marked
 # Production in the 1ES Product Catalog because the release pipeline ships its

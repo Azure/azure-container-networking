@@ -26,6 +26,11 @@ steps:
   name: image_build
   displayName: Image Build
   retryCountOnTaskFailure: 2
+  env:
+    # The Makefile prefers buildah when the binary is present. Azure Linux agents
+    # ship buildah without netavark or subuid/subgid, so image builds fail there.
+    # Only the build needs docker; manifest jobs still use buildah.
+    CONTAINER_BUILDER: docker
 
 - task: AzureCLI@2
   displayName: "Logout"
