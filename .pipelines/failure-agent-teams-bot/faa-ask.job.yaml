@@ -1,0 +1,204 @@
+# Reusable job template: two-way `/faa <question>` grounded Q&A ask run.
+#
+# This is the governed (1ES/OneBranch) job form of faa-ask.pipeline.yml, meant
+# to be wired as a stage inside the main ACN pipeline (.pipelines/pipeline.yaml)
+# so it inherits that pipeline's authorized pool, AOAI variables, and the
+# acn-dalec-test service connection. Use faa-ask.pipeline.yml instead when a
+# standalone queueable definition (e.g. the Teams flow target) is authorized on
+# its own pool.
+#
+# It is a grounded question-answer run, NOT a re-triage: it downloads the target
+# build's already-published evidence + prior FAA analysis, runs the failure-agent
+# in --ask mode (which writes answer.md and never emits a new incident), and
+# posts the answer as a threaded reply that @mentions the initiator.
+#
+# THREADING: NOTIFY_RUN_ID is set to targetBuildId so the reply lands on that
+# run's original FAA card (the notifier keys cards by (NOTIFY_SOURCE, runId)).
+
+parameters:
+  - name: targetBuildId
+    type: string
+    default: ""
+  - name: question
+    type: string
+    default: ""
+  - name: initiatorUpn
+    type: string
+    default: ""
+  - name: initiatorName
+    type: string
+    default: ""
+
+jobs:
+  - job: faaAsk
+    displayName: "FAA ask: answer /faa question"
+    pool:
+      type: linux
+      isCustom: true
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      demands:
+        - agent.os -equals Linux
+    timeoutInMinutes: 15
+    variables:
+      - template: pipeline-constants.yml
+      - name: ob_outputDirectory
+        value: $(Build.ArtifactStagingDirectory)/out
+    steps:
+      - checkout: self
+
+      - task: GoTool@0
+        inputs:
+          version: '1.25'
+        displayName: "Setup Go"
+
+      # Download every artifact the target build published (evidence bundle +
+      # prior analysis) by build id alone, then resolve the evidence and
+      # prior-analysis directories. Uses the ADO REST API so no source pipeline
+      # definition id is needed, and python3 (present on this pool) so we don't
+      # depend on jq/unzip.
+      - script: |
+          set -euo pipefail
+
+          STAGING="$(Agent.TempDirectory)/target"
+          mkdir -p "$STAGING"
+
+          export STAGING TARGET_BUILD_ID SYSTEM_ACCESSTOKEN SYSTEM_COLLECTIONURI SYSTEM_TEAMPROJECT
+
+          python3 - <<'PY'
+          import json, os, subprocess, zipfile
+
+          staging = os.environ["STAGING"]
+          token = os.environ["SYSTEM_ACCESSTOKEN"]
+          build = os.environ["TARGET_BUILD_ID"]
+          col = os.environ["SYSTEM_COLLECTIONURI"].rstrip("/")
+          proj = os.environ["SYSTEM_TEAMPROJECT"]
+          api = f"{col}/{proj}/_apis/build/builds/{build}/artifacts?api-version=7.1"
+
+          def curl(url, out=None):
+              cmd = ["curl", "-fsSL", "-H", f"Authorization: Bearer {token}", url]
+              if out:
+                  cmd += ["-o", out]
+                  subprocess.run(cmd, check=True)
+                  return None
+              return subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
+
+          data = json.loads(curl(api))
+          print("Found", data.get("count", 0), "artifact(s)")
+          for a in data.get("value", []):
+              name = a.get("name", "")
+              url = a.get("resource", {}).get("downloadUrl", "")
+              if not name or not url:
+                  continue
+              zp = os.path.join(staging, name + ".zip")
+              print("Downloading artifact:", name)
+              try:
+                  curl(url, zp)
+                  with zipfile.ZipFile(zp) as z:
+                      z.extractall(staging)
+                  os.remove(zp)
+              except Exception as e:
+                  print("warn: failed", name, e)
+          PY
+
+          echo "=== staging contents ==="
+          ls -la "$STAGING" || true
+
+          # Prior analysis: first failureAnalysis_* dir (holds report.md + incident.json).
+          prior="$(find "$STAGING" -maxdepth 1 -type d -name 'failureAnalysis_*' | sort | head -n1)"
+
+          # Evidence: prefer the stable faa-evidence-* handle; fall back to the
+          # raw *FailedE2ELogs* bundle; else the staging root (agent walks it).
+          evidence="$(find "$STAGING" -maxdepth 1 -type d -name 'faa-evidence-*' | sort | head -n1)"
+          if [ -z "$evidence" ]; then
+            evidence="$(find "$STAGING" -maxdepth 1 -type d -name '*FailedE2ELogs*' | sort | head -n1)"
+          fi
+          if [ -z "$evidence" ]; then
+            evidence="$STAGING"
+          fi
+
+          echo "Resolved evidence dir:       ${evidence:-<none>}"
+          echo "Resolved prior-analysis dir: ${prior:-<none>}"
+          echo "##vso[task.setvariable variable=evidenceDir]$evidence"
+          echo "##vso[task.setvariable variable=priorDir]$prior"
+        displayName: "Download target build context"
+        env:
+          TARGET_BUILD_ID: ${{ parameters.targetBuildId }}
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+          SYSTEM_COLLECTIONURI: $(System.CollectionUri)
+          SYSTEM_TEAMPROJECT: $(System.TeamProject)
+
+      # Run the agent in ask mode. The question is passed via env (not
+      # interpolated into the script) so quotes/newlines can't break the shell;
+      # MVP treats it as trusted internal analyst text.
+      - script: |
+          set -euo pipefail
+
+          OUTPUT_DIR="$(Agent.TempDirectory)/answer"
+          mkdir -p "$OUTPUT_DIR"
+
+          PRIOR_FLAG=""
+          if [ -n "${PRIOR_DIR:-}" ]; then
+            PRIOR_FLAG="--prior-analysis $PRIOR_DIR"
+          fi
+
+          cd "$(Build.SourcesDirectory)/tools/failure-agent"
+          go run . \
+            --ask "$QUESTION" \
+            --input "$EVIDENCE_DIR" \
+            --output "$OUTPUT_DIR" \
+            $PRIOR_FLAG
+
+          echo "=== answer.md ==="
+          cat "$OUTPUT_DIR/answer.md" || echo "(no answer produced)"
+        displayName: "Run failure-agent ask mode"
+        env:
+          QUESTION: ${{ parameters.question }}
+          EVIDENCE_DIR: $(evidenceDir)
+          PRIOR_DIR: $(priorDir)
+          AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
+          AZURE_OPENAI_DEPLOYMENT: $(AZURE_OPENAI_DEPLOYMENT)
+          AZURE_OPENAI_API_KEY: $(AZURE_OPENAI_API_KEY)
+          AZURE_OPENAI_API_VERSION: $(AZURE_OPENAI_API_VERSION)
+
+      - script: |
+          set -euo pipefail
+          OUT_DIR="$(Build.ArtifactStagingDirectory)/out"
+          mkdir -p "$OUT_DIR"
+          ANSWER="$(Agent.TempDirectory)/answer/answer.md"
+          if [ -f "$ANSWER" ]; then
+            echo "##vso[task.uploadsummary]$ANSWER"
+            cp "$ANSWER" "$OUT_DIR/answer.md"
+          fi
+        displayName: "Publish answer summary"
+        condition: succeededOrFailed()
+
+      - publish: $(Build.ArtifactStagingDirectory)/out
+        artifact: faaAsk_answer
+        displayName: "Publish answer artifact"
+        condition: succeededOrFailed()
+
+      # Post the answer as a threaded reply that @mentions the initiator. The
+      # reply threads onto the target run's card via NOTIFY_RUN_ID.
+      - task: AzureCLI@2
+        displayName: "Reply to Teams with the answer"
+        condition: succeededOrFailed()
+        inputs:
+          azureSubscription: acn-dalec-test
+          scriptType: bash
+          scriptLocation: inlineScript
+          addSpnToEnvironment: true
+          inlineScript: |
+            bash "$(Build.SourcesDirectory)/.pipelines/failure-agent-teams-bot/scripts/notify-answer.sh" \
+              "$(Agent.TempDirectory)/answer/answer.md" \
+              "$INITIATOR_UPN"
+        env:
+          INITIATOR_UPN: ${{ parameters.initiatorUpn }}
+          NOTIFIER_ENDPOINT: $(notifierEndpoint)
+          NOTIFIER_API_AUDIENCE: $(notifierApiAudience)
+          NOTIFY_SOURCE: $(notifySource)
+          NOTIFY_RUN_ID: ${{ parameters.targetBuildId }}
+          NOTIFY_TEAM_ID: $(notifyTeamId)
+          NOTIFY_CHANNEL_ID: $(notifyChannelId)
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+          SYSTEM_COLLECTIONURI: $(System.CollectionUri)
+          SYSTEM_TEAMPROJECT: $(System.TeamProject)

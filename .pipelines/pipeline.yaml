@@ -56,6 +56,22 @@ parameters:
   - name: runNamePrefix
     type: string
     default: "__use-default__"
+  # Two-way /faa grounded Q&A (faa_ask stage). These stay empty on every normal
+  # CI/PR/nightly run, so the faa_ask stage is skipped. Set targetBuildId (and a
+  # question) on a manual run to answer a follow-up about that build; isolate the
+  # run to just the faa_ask stage via "Stages to run".
+  - name: faaTargetBuildId
+    type: string
+    default: ""
+  - name: faaQuestion
+    type: string
+    default: ""
+  - name: faaInitiatorUpn
+    type: string
+    default: ""
+  - name: faaInitiatorName
+    type: string
+    default: ""
 
 stages:
   - stage: setup
@@ -335,6 +351,22 @@ stages:
         - template: templates/pipeline-failure-analysis.job.yaml
           parameters:
             scope: build
+
+    # Two-way /faa grounded Q&A. Independent of the build graph (dependsOn: [])
+    # and skipped unless a manual run sets faaTargetBuildId, so it never runs on
+    # normal CI/PR/nightly builds. To test: run this pipeline manually, set the
+    # faa* parameters, and use "Stages to run" to select only faa_ask.
+    - stage: faa_ask
+      displayName: FAA Ask
+      dependsOn: []
+      condition: ne('${{ parameters.faaTargetBuildId }}', '')
+      jobs:
+        - template: failure-agent-teams-bot/faa-ask.job.yaml
+          parameters:
+            targetBuildId: ${{ parameters.faaTargetBuildId }}
+            question: ${{ parameters.faaQuestion }}
+            initiatorUpn: ${{ parameters.faaInitiatorUpn }}
+            initiatorName: ${{ parameters.faaInitiatorName }}
 
     - stage: publish
       displayName: Publish Multiarch Manifests
