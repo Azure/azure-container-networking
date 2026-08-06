@@ -19,8 +19,6 @@ steps:
     inputs:
       kubectlVersion: latest
 
-  - template: ../../templates/cilium-cli.yaml
-
   - task: AzureCLI@2
     displayName: Set cluster credentials
     inputs:
