@@ -6,8 +6,8 @@ ARG OS
 # mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0
 FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0@sha256:7eaa7ec1b6c116d1b914d4699ff7726189e0dd78ff29801af48b559a5922a3d6 AS go
 
-# mcr.microsoft.com/azurelinux/distroless/minimal:3.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/distroless/minimal:3.0@sha256:576d9769c0146cbf0cf7946bacf536c5758464c29eadfa03ef5090ae708e641f AS mariner-distroless
+# mcr.microsoft.com/azurelinux/distroless/base:3.0
+FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/distroless/base:3.0@sha256:178f25fadf466549d31e234b3091bf815161159f2f2bc98720bbf39f7368aff4 AS mariner-distroless
 
 FROM go AS azure-ip-masq-merger
 ARG OS
