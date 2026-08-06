@@ -21,8 +21,9 @@ const (
 )
 
 // GetNICResourceInfoFromMTPNC must node-scope and compute capacity from DRA state.
-// It must NOT populate NetworkID/SubnetGUID/SubnetName from the MTPNC Spec (dedicated NICs
-// don't need them), and must tolerate a not-ready MTPNC without erroring.
+// It must NOT populate NetworkID/SubnetGUID/SubnetName from the MTPNC (dedicated NICs
+// don't need them) even when they are set on Status.InterfaceInfos, and must tolerate a
+// not-ready MTPNC without erroring.
 func TestGetNICResourceInfoFromMTPNC(t *testing.T) {
 	scheme := runtime.NewScheme()
 	if err := v1alpha1.AddToScheme(scheme); err != nil {
@@ -40,14 +41,17 @@ func TestGetNICResourceInfoFromMTPNC(t *testing.T) {
 			mtpnc: v1alpha1.MultitenantPodNetworkConfig{
 				ObjectMeta: metav1.ObjectMeta{Name: "ready-dra", Namespace: "ns"},
 				Spec: v1alpha1.MultitenantPodNetworkConfigSpec{
-					NetworkID:        "net-a",
-					SubnetGUID:       "guid-a",
-					SubnetResourceID: "/subscriptions/x/subnets/subA",
-					ResourceClaims:   []string{"claim-a"}, // scheduled with DRA
+					ResourceClaims: []string{"claim-a"}, // scheduled with DRA
 				},
 				Status: v1alpha1.MultitenantPodNetworkConfigStatus{
-					NodeName:       testNode,
-					InterfaceInfos: []v1alpha1.InterfaceInfo{{MacAddress: "aa:bb:cc:dd:ee:0a"}},
+					NodeName: testNode,
+					// Network/subnet info is populated on the InterfaceInfo, but CNS must not read it here.
+					InterfaceInfos: []v1alpha1.InterfaceInfo{{
+						MacAddress:       "aa:bb:cc:dd:ee:0a",
+						NetworkID:        "net-a",
+						SubnetGUID:       "guid-a",
+						SubnetResourceID: "/subscriptions/x/subnets/subA",
+					}},
 				},
 			},
 			mac: "aa:bb:cc:dd:ee:0a",
@@ -70,10 +74,9 @@ func TestGetNICResourceInfoFromMTPNC(t *testing.T) {
 			name: "MTPNC on another node is excluded",
 			mtpnc: v1alpha1.MultitenantPodNetworkConfig{
 				ObjectMeta: metav1.ObjectMeta{Name: "othernode", Namespace: "ns"},
-				Spec:       v1alpha1.MultitenantPodNetworkConfigSpec{NetworkID: "net-c"},
 				Status: v1alpha1.MultitenantPodNetworkConfigStatus{
 					NodeName:       "node2",
-					InterfaceInfos: []v1alpha1.InterfaceInfo{{MacAddress: "aa:bb:cc:dd:ee:0c"}},
+					InterfaceInfos: []v1alpha1.InterfaceInfo{{MacAddress: "aa:bb:cc:dd:ee:0c", NetworkID: "net-c"}},
 				},
 			},
 			mac:  "aa:bb:cc:dd:ee:0c",
