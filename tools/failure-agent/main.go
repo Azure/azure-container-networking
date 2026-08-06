@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/ask"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/classify"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/collect"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/command"
@@ -65,6 +66,12 @@ type options struct {
 	live            bool
 	privileged      bool
 	flakinessOutput string
+
+	// Ask mode: when ask is set the agent answers the question grounded in the
+	// evidence bundle (--input) and the target build's prior FAA analysis
+	// (--prior-analysis), writing answer.md instead of classifying.
+	ask           string
+	priorAnalysis string
 }
 
 func main() {
@@ -77,6 +84,17 @@ func main() {
 
 	ctx := context.Background()
 	opts := parseFlags()
+
+	// Ask mode is a distinct, self-contained path: it answers a question and
+	// never classifies, opens the knowledge store, collects live diagnostics, or
+	// writes back to a PR.
+	if opts.ask != "" {
+		if err := runAsk(ctx, logger, opts); err != nil {
+			logger.Error("failure ask failed", zap.Error(err))
+			os.Exit(1)
+		}
+		return
+	}
 
 	var ks knowledgeStore = noopStore{}
 	var sqlStore *store.Store
@@ -126,6 +144,8 @@ func parseFlags() options {
 	flag.BoolVar(&o.live, "live", true, "collect read-only kubectl diagnostics from the retained cluster (requires kubectl + KUBECONFIG)")
 	flag.BoolVar(&o.privileged, "privileged", true, "collect host-level logs via kubectl debug node (requires --live; creates ephemeral debug pods)")
 	flag.StringVar(&o.flakinessOutput, "flakiness-output", "", "write the knowledge-store flakiness report to this path")
+	flag.StringVar(&o.ask, "ask", "", "ask mode: answer this question grounded in --input evidence and --prior-analysis, writing answer.md instead of classifying")
+	flag.StringVar(&o.priorAnalysis, "prior-analysis", "", "ask mode: directory holding the target build's prior FAA report.md and incident.json")
 	flag.Parse()
 	return o
 }
@@ -249,6 +269,56 @@ func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, k
 			logger.Warn("failed to publish analysis to pull request", zap.Error(err))
 		}
 	}
+	return nil
+}
+
+// runAsk implements ask mode: it answers an analyst question grounded in the
+// target build's prior FAA analysis and evidence bundle, writing answer.md. It
+// does not classify, emit an incident, collect live diagnostics, or write back
+// to a PR.
+func runAsk(ctx context.Context, logger *zap.Logger, opts options) error {
+	if opts.input == "" {
+		return errors.New("--input is required")
+	}
+	if opts.aoaiEndpoint == "" || opts.aoaiDeployment == "" || opts.aoaiAPIKey == "" {
+		return errors.New("azure openai endpoint, deployment, and api key are required for ask mode")
+	}
+	client, err := classify.NewAzureClient(opts.aoaiEndpoint, opts.aoaiDeployment, opts.aoaiAPIVersion, opts.aoaiAPIKey)
+	if err != nil {
+		return fmt.Errorf("configuring azure openai client: %w", err)
+	}
+
+	ev, err := collect.ParseEvidence(opts.input)
+	if err != nil {
+		logger.Warn("parsing evidence failed; answering with thin evidence", zap.Error(err))
+		ev = model.Evidence{Excerpts: map[string]string{}}
+	}
+	logger.Info("evidence collected for ask",
+		zap.Int("files", len(ev.Files)),
+		zap.Int("errorLines", len(ev.TopErrorLines)),
+	)
+
+	prior, err := ask.LoadPriorAnalysis(opts.priorAnalysis)
+	if err != nil {
+		logger.Warn("loading prior analysis failed; answering from evidence only", zap.Error(err))
+	}
+
+	askCtx, cancel := context.WithTimeout(ctx, opts.timeout)
+	defer cancel()
+
+	answer, err := ask.NewAnswerer(client).Answer(askCtx, opts.ask, prior, ev)
+	if err != nil {
+		return fmt.Errorf("answering question: %w", err)
+	}
+
+	outPath := filepath.Join(opts.output, ask.AnswerFile)
+	if err := os.WriteFile(outPath, []byte(answer), 0o644); err != nil {
+		return fmt.Errorf("writing answer: %w", err)
+	}
+	logger.Info("answer written",
+		zap.String("event", "answer_written"),
+		zap.String("path", outPath),
+	)
 	return nil
 }
 

@@ -192,6 +192,15 @@ var nodeEvidenceKeys = []string{
 	"node-network-configs.txt",
 }
 
+// EvidenceExcerpts renders the evidence excerpts block used in the grounded
+// prompt, applying the same node-evidence prioritization and size budgeting as
+// the classifier. It is exported so ask mode reuses identical grounding.
+func EvidenceExcerpts(ev model.Evidence) string {
+	var b strings.Builder
+	writeExcerpts(&b, ev.Excerpts)
+	return b.String()
+}
+
 func writeExcerpts(b *strings.Builder, excerpts map[string]string) {
 	names := make([]string, 0, len(excerpts))
 	for name := range excerpts {

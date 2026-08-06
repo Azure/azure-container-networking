@@ -196,6 +196,18 @@ jobs:
         displayName: "Publish analysis artifact"
         condition: succeededOrFailed()
 
+      # Publish the raw evidence bundle under a stable, buildId-keyed name so a
+      # later `/faa` ask run (faa-ask.pipeline.yml) has a predictable handle to
+      # download this run's evidence, independent of the analysis artifact. The
+      # scenario suffix keeps the name unique when multiple scenarios fail in one
+      # build; the ask side matches on the shared `faa-evidence-` prefix.
+      # Best-effort: never fail the job over a missing/empty evidence dir.
+      - publish: $(Agent.TempDirectory)/evidence
+        artifact: faa-evidence-$(Build.BuildId)_${{ parameters.os }}_${{ parameters.clusterName }}
+        displayName: "Publish evidence bundle (faa-ask handle)"
+        condition: succeededOrFailed()
+        continueOnError: true
+
       # Post a Teams ping via the shared ACN Notifier bot when the diagnosis is
       # confident and actionable (analyzed + confidence >= 0.51 + a proposed
       # fix). Best-effort: below-threshold incidents are a quiet no-op and this

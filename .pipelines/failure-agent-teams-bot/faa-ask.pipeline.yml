@@ -1,0 +1,190 @@
+# ----------------------------------------------------------------------------
+# faa-ask — two-way `/faa <question>` grounded Q&A pipeline
+#
+# Queued (by the Teams "Workflows"/Power Automate flow, or manually) to answer an
+# engineer's follow-up question about a specific failed build. It is a grounded
+# question-answer run, NOT a re-triage: it downloads the target build's already
+# published evidence + prior FAA analysis, runs the failure-agent in --ask mode
+# (which writes answer.md and never emits a new incident), and posts the answer
+# as a threaded reply that @mentions the initiator.
+#
+# TRIGGER CONTRACT (must match the Teams flow exactly):
+#   POST https://dev.azure.com/msazure/One/_apis/pipelines/{pipelineId}/runs?api-version=7.1
+#   {
+#     "templateParameters": {
+#       "targetBuildId":  "<ADO build id to answer about>",
+#       "question":       "<the analyst question>",
+#       "initiatorUpn":   "<sender UPN/email, for the @mention>",
+#       "initiatorName":  "<sender display name (optional)>"
+#     },
+#     "resources": { "repositories": { "self": { "refName": "refs/heads/<branch>" } } }
+#   }
+# Register this YAML as a pipeline in ADO once (any branch — it need not be on
+# master); the resulting definition id becomes the flow's {pipelineId}.
+#
+# THREADING: NOTIFY_RUN_ID is set to targetBuildId so the reply lands on that
+# run's original FAA card (the notifier keys cards by (NOTIFY_SOURCE, runId)).
+#
+# PREREQUISITES on the pipeline definition (same as the E2E pipeline):
+#   - AZURE_OPENAI_ENDPOINT / _DEPLOYMENT / _API_KEY / _API_VERSION available as
+#     pipeline variables (link the AOAI variable group).
+#   - BUILD_POOL_NAME_DEFAULT variable and the acn-dalec-test WIF connection.
+#   - Agent tools: Go (installed below), jq, unzip, curl.
+# ----------------------------------------------------------------------------
+
+pr: none
+trigger: none
+
+parameters:
+  - name: targetBuildId
+    displayName: "Target ADO build id to answer about"
+    type: string
+  - name: question
+    displayName: "The /faa question"
+    type: string
+  - name: initiatorUpn
+    displayName: "Initiator UPN (for @mention)"
+    type: string
+    default: ""
+  - name: initiatorName
+    displayName: "Initiator display name"
+    type: string
+    default: ""
+
+variables:
+  - template: pipeline-constants.yml
+  # WIF service connection used to mint the AAD bearer for the notifier.
+  - name: serviceConnection
+    value: acn-dalec-test
+
+stages:
+  - stage: ask
+    displayName: "Answer /faa question"
+    jobs:
+      - job: answer
+        displayName: "Download context, run ask, reply"
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        timeoutInMinutes: 15
+        steps:
+          - checkout: self
+
+          - task: GoTool@0
+            inputs:
+              version: '1.25'
+            displayName: "Setup Go"
+
+          # Download every artifact the target build published (evidence bundle +
+          # prior analysis) by build id alone, then resolve the evidence and
+          # prior-analysis directories. Uses the ADO REST API so no source
+          # pipeline definition id is needed — works against any build id,
+          # including builds that predate the faa-evidence-* artifact.
+          - script: |
+              set -euo pipefail
+
+              STAGING="$(Agent.TempDirectory)/target"
+              mkdir -p "$STAGING"
+
+              api="${SYSTEM_COLLECTIONURI%/}/${SYSTEM_TEAMPROJECT}/_apis/build/builds/${TARGET_BUILD_ID}/artifacts?api-version=7.1"
+              auth="Authorization: Bearer ${SYSTEM_ACCESSTOKEN}"
+
+              echo "Listing artifacts for build ${TARGET_BUILD_ID}"
+              list="$(curl -sS -H "$auth" "$api")"
+              count="$(printf '%s' "$list" | jq -r '.count // 0')"
+              echo "Found ${count} artifact(s)"
+
+              printf '%s' "$list" | jq -r '.value[] | [.name, .resource.downloadUrl] | @tsv' \
+              | while IFS=$'\t' read -r name url; do
+                  [ -z "$name" ] && continue
+                  echo "Downloading artifact: $name"
+                  if curl -sS -H "$auth" -o "$STAGING/${name}.zip" "$url"; then
+                    unzip -q -o "$STAGING/${name}.zip" -d "$STAGING" || echo "warn: unzip $name failed"
+                    rm -f "$STAGING/${name}.zip"
+                  else
+                    echo "warn: download $name failed"
+                  fi
+                done
+
+              echo "=== staging contents ==="
+              ls -la "$STAGING" || true
+
+              # Prior analysis: first failureAnalysis_* dir (holds report.md + incident.json).
+              prior="$(find "$STAGING" -maxdepth 1 -type d -name 'failureAnalysis_*' | sort | head -n1)"
+
+              # Evidence: prefer the stable faa-evidence-* handle; fall back to the
+              # raw *FailedE2ELogs* bundle; else the staging root (agent walks it).
+              evidence="$(find "$STAGING" -maxdepth 1 -type d -name 'faa-evidence-*' | sort | head -n1)"
+              if [ -z "$evidence" ]; then
+                evidence="$(find "$STAGING" -maxdepth 1 -type d -name '*FailedE2ELogs*' | sort | head -n1)"
+              fi
+              if [ -z "$evidence" ]; then
+                evidence="$STAGING"
+              fi
+
+              echo "Resolved evidence dir:      ${evidence:-<none>}"
+              echo "Resolved prior-analysis dir: ${prior:-<none>}"
+              echo "##vso[task.setvariable variable=evidenceDir]$evidence"
+              echo "##vso[task.setvariable variable=priorDir]$prior"
+            displayName: "Download target build context"
+            env:
+              TARGET_BUILD_ID: ${{ parameters.targetBuildId }}
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+              SYSTEM_COLLECTIONURI: $(System.CollectionUri)
+              SYSTEM_TEAMPROJECT: $(System.TeamProject)
+
+          # Run the agent in ask mode. The question is passed via env (not
+          # interpolated into the script) so quotes/newlines can't break the
+          # shell; MVP treats it as trusted internal analyst text.
+          - script: |
+              set -euo pipefail
+
+              OUTPUT_DIR="$(Agent.TempDirectory)/answer"
+              mkdir -p "$OUTPUT_DIR"
+
+              PRIOR_FLAG=""
+              if [ -n "${PRIOR_DIR:-}" ]; then
+                PRIOR_FLAG="--prior-analysis $PRIOR_DIR"
+              fi
+
+              cd "$(Build.SourcesDirectory)/tools/failure-agent"
+              go run . \
+                --ask "$QUESTION" \
+                --input "$EVIDENCE_DIR" \
+                --output "$OUTPUT_DIR" \
+                $PRIOR_FLAG
+
+              echo "=== answer.md ==="
+              cat "$OUTPUT_DIR/answer.md" || echo "(no answer produced)"
+            displayName: "Run failure-agent ask mode"
+            env:
+              QUESTION: ${{ parameters.question }}
+              EVIDENCE_DIR: $(evidenceDir)
+              PRIOR_DIR: $(priorDir)
+              AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
+              AZURE_OPENAI_DEPLOYMENT: $(AZURE_OPENAI_DEPLOYMENT)
+              AZURE_OPENAI_API_KEY: $(AZURE_OPENAI_API_KEY)
+              AZURE_OPENAI_API_VERSION: $(AZURE_OPENAI_API_VERSION)
+
+          # Post the answer as a threaded reply that @mentions the initiator. The
+          # reply threads onto the target run's card via NOTIFY_RUN_ID.
+          - task: AzureCLI@2
+            displayName: "Reply to Teams with the answer"
+            condition: succeededOrFailed()
+            inputs:
+              azureSubscription: $(serviceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              addSpnToEnvironment: true
+              inlineScript: |
+                bash "$(Build.SourcesDirectory)/.pipelines/failure-agent-teams-bot/scripts/notify-answer.sh" \
+                  "$(Agent.TempDirectory)/answer/answer.md" \
+                  "$INITIATOR_UPN"
+            env:
+              INITIATOR_UPN: ${{ parameters.initiatorUpn }}
+              NOTIFIER_ENDPOINT: $(notifierEndpoint)
+              NOTIFIER_API_AUDIENCE: $(notifierApiAudience)
+              NOTIFY_SOURCE: $(notifySource)
+              NOTIFY_RUN_ID: ${{ parameters.targetBuildId }}
+              NOTIFY_TEAM_ID: $(notifyTeamId)
+              NOTIFY_CHANNEL_ID: $(notifyChannelId)
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
