@@ -95,6 +95,10 @@ jobs:
               build = str(found[0]["id"])
               print(f"Resolved build number to id: {build}")
 
+          # Thread the reply on the same key the original FAA card used:
+          # NOTIFY_RUN_ID = Build.BuildId (numeric id), never the build number.
+          print(f"##vso[task.setvariable variable=resolvedBuildId]{build}")
+
           api = f"{col}/{proj}/_apis/build/builds/{build}/artifacts?api-version=7.1"
           data = json.loads(curl(api))
           print("Found", data.get("count", 0), "artifact(s)")
@@ -210,7 +214,7 @@ jobs:
           NOTIFIER_ENDPOINT: $(notifierEndpoint)
           NOTIFIER_API_AUDIENCE: $(notifierApiAudience)
           NOTIFY_SOURCE: $(notifySource)
-          NOTIFY_RUN_ID: ${{ parameters.targetBuildId }}
+          NOTIFY_RUN_ID: $(resolvedBuildId)
           NOTIFY_TEAM_ID: $(notifyTeamId)
           NOTIFY_CHANNEL_ID: $(notifyChannelId)
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
