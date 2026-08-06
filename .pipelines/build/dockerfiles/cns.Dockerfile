@@ -12,13 +12,12 @@ ENTRYPOINT ["azure-cns.exe"]
 EXPOSE 10090
 
 
-# mcr.microsoft.com/cbl-mariner/base/core:2.0
-# skopeo inspect docker://mcr.microsoft.com/cbl-mariner/base/core:2.0 --format "{{.Name}}@{{.Digest}}"
-FROM --platform=linux/${ARCH} mcr.microsoft.com/cbl-mariner/base/core@sha256:61b8c8e5c769784be2137cba8612c3a0f0c1752a66276b3b1b5306014a1e20e0 AS build-helper
+# mcr.microsoft.com/azurelinux/base/core:3.0
+FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/base/core:3.0@sha256:a30e18dd24a8080ee0b72d0f998a688e99380678a407bdd7c3a0ac7417b15eb3 AS build-helper
 RUN tdnf install -y iptables
 
-# mcr.microsoft.com/cbl-mariner/distroless/minimal:2.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/cbl-mariner/distroless/minimal@sha256:16d7c214232ee1db683e767a7a30a47f9976801c929b0f2f300521c595eb33ff AS linux
+# mcr.microsoft.com/azurelinux/distroless/base:3.0
+FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/distroless/base:3.0@sha256:178f25fadf466549d31e234b3091bf815161159f2f2bc98720bbf39f7368aff4 AS linux
 ARG ARTIFACT_DIR .
 
 COPY --from=build-helper /usr/sbin/*tables* /usr/sbin/
