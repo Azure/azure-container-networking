@@ -138,11 +138,13 @@ func TestValidateState(t *testing.T) {
 	if testConfig.ValidateStateFile {
 		deployment := kubernetes.MustParseDeployment(noopDeploymentMap[testConfig.OSType])
 		deploymentsClient := clientset.AppsV1().Deployments(namespace)
+		createdDeployment := false
 
 		// Ensure pods exist on nodes to validate state files properly. Can obtain false positives without pods.
 		nodes, err := kubernetes.GetNodeListByLabelSelector(ctx, clientset, "kubernetes.io/os="+testConfig.OSType)
 		require.NoError(t, err)
 		nodeCount := len(nodes.Items)
+		require.Positive(t, nodeCount, "no %s nodes found for state validation", testConfig.OSType)
 		replicas := int32(nodeCount) * 2
 
 		deploymentExists, err := kubernetes.DeploymentExists(ctx, deploymentsClient, deployment.Name)
@@ -157,6 +159,7 @@ func TestValidateState(t *testing.T) {
 			}
 
 			kubernetes.MustCreateDeployment(ctx, deploymentsClient, deployment)
+			createdDeployment = true
 			kubernetes.MustScaleDeployment(ctx, deploymentsClient, deployment, clientset, namespace, podLabelSelector, int(replicas), false)
 		} else {
 			t.Log("Test deployment exists! Use existing setup")
@@ -173,6 +176,21 @@ func TestValidateState(t *testing.T) {
 		t.Log("Ensure deployment is in ready status")
 		err = kubernetes.WaitForPodDeployment(ctx, clientset, namespace, deployment.Name, podLabelSelector, int(replicas))
 		require.NoError(t, err)
+
+		for index := range nodes.Items {
+			nodeName := nodes.Items[index].Name
+			pods, err := kubernetes.GetPodsByNode(ctx, clientset, namespace, podLabelSelector, nodeName)
+			require.NoError(t, err)
+			require.NotEmpty(t, pods.Items, "state validation requires a workload pod on %s node %s", testConfig.OSType, nodeName)
+		}
+
+		if createdDeployment && testConfig.Cleanup {
+			defer func() {
+				kubernetes.MustDeleteDeployment(ctx, deploymentsClient, deployment)
+				err := kubernetes.WaitForPodsDelete(ctx, clientset, namespace, podLabelSelector)
+				require.NoError(t, err, "error waiting for state-validation pods to delete")
+			}()
+		}
 	}
 
 	validator, err := validate.CreateValidator(ctx, clientset, config, namespace, testConfig.CNIType, testConfig.RestartCase, testConfig.OSType, testConfig.PoolLabelSelector)

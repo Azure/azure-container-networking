@@ -3,9 +3,16 @@ package validate
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 const testIPv4 = "10.224.0.55"
+
+func TestCompareIPsRejectsEmptyStateWithWorkloadIPs(t *testing.T) {
+	err := compareIPs(map[string]string{}, []string{testIPv4})
+	require.ErrorContains(t, err, "actual ip")
+}
 
 func makeCiliumEndpointJSON(t *testing.T, endpoints []CiliumEndpointStatus) []byte {
 	t.Helper()
