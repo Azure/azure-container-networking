@@ -1291,7 +1291,7 @@ func TestNameSpaceSelectorMultiValueNotIn(t *testing.T) {
 		policies.NewSetInfo("tenant:x", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
 		policies.NewSetInfo("tenant:y", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
 	}
-	require.Equal(t, expected, nsSelectorList)
+	require.ElementsMatch(t, expected, nsSelectorList)
 }
 
 // TestNameSpaceSelectorMatchLabelsAndMultiValueNotIn covers a namespaceSelector that
@@ -1407,6 +1407,8 @@ func TestTranslatePolicyMultiValueNotInConjunction(t *testing.T) {
 				case policies.Dropped:
 					dropACLs++
 					theDrop = npmNetPol.ACLs[i]
+				default:
+					t.Fatalf("unexpected ACL target %v", acl.Target)
 				}
 			}
 

@@ -148,7 +148,10 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelS
 			// since Exists and NotExists do not contain any values, NPM can safely add them to the baseSelector
 			baseSelector.MatchExpressions = append(baseSelector.MatchExpressions, req)
 		default:
-			log.Errorf("Invalid operator [%s] for selector [%v] requirement", req.Operator, *nsSelector)
+			// Fail closed: an unknown operator must not silently drop the requirement
+			// and widen the selector. Kubernetes only admits In/NotIn/Exists/DoesNotExist.
+			log.Errorf("unsupported operator [%s] for selector [%v] requirement", req.Operator, *nsSelector)
+			return nil, ErrUnsupportedMatchExpressionOperator
 		}
 	}
 

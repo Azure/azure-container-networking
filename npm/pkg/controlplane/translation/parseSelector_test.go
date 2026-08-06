@@ -683,6 +683,24 @@ func TestFlattenNameSpaceSelectorMixedInAndNotIn(t *testing.T) {
 	}
 }
 
+// TestFlattenNameSpaceSelectorUnsupportedOperator verifies that a matchExpression with
+// an operator other than In/NotIn/Exists/DoesNotExist is rejected (fail closed) rather
+// than silently dropped, which could otherwise widen the selector.
+func TestFlattenNameSpaceSelectorUnsupportedOperator(t *testing.T) {
+	selector := &metav1.LabelSelector{
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			{
+				Key:      "tenant",
+				Operator: metav1.LabelSelectorOperator("Frobnicate"),
+				Values:   []string{"x"},
+			},
+		},
+	}
+	s, err := flattenNameSpaceSelector(selector)
+	require.ErrorIs(t, err, ErrUnsupportedMatchExpressionOperator)
+	require.Nil(t, s)
+}
+
 // TestFlattenNameSpaceSelectorEmptyValues verifies that In/NotIn requirements with
 // no values are rejected (fail closed) rather than silently dropped, which could
 // otherwise widen a selector or produce no rules at all.

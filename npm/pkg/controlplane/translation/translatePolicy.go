@@ -36,6 +36,10 @@ var (
 	// Kubernetes rejects such requirements; NPM fails closed rather than dropping the requirement,
 	// which could otherwise widen a selector (e.g. a dropped NotIn) or yield no rules at all.
 	ErrEmptyMatchExpressionValues = errors.New("In and NotIn matchExpression requirements must have at least one value")
+	// ErrUnsupportedMatchExpressionOperator is returned when a matchExpression uses an operator that is
+	// none of In, NotIn, Exists or DoesNotExist. NPM fails closed rather than dropping the requirement,
+	// which could otherwise silently widen the selector.
+	ErrUnsupportedMatchExpressionOperator = errors.New("unsupported matchExpression operator")
 	// ErrUnsupportedIPAddress is returned when an unsupported IP address, such as IPV6, is used
 	ErrUnsupportedIPAddress = errors.New("unsupported IP address")
 	// ErrUnsupportedNonCIDR is returned when non-CIDR blocks are passed in with NPM Lite enabled. NPM Lite allows deny-all and allow-all policies
