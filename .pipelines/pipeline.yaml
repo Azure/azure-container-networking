@@ -27,6 +27,31 @@ schedules:
     include: ["master"]
   always: true
 
+parameters:
+  - name: buildCni
+    type: boolean
+    default: true
+  - name: buildCns
+    type: boolean
+    default: true
+  - name: buildIpam
+    type: boolean
+    default: true
+  - name: cniImage
+    type: string
+    default: "__use-default__"
+  - name: cnsImage
+    type: string
+    default: "__use-default__"
+  - name: ipamImage
+    type: string
+    default: "__use-default__"
+  # Optional build-number prefix to differentiate DALEC release runs.
+  # Applied in setup only when the value contains "dalec".
+  - name: runNamePrefix
+    type: string
+    default: "__use-default__"
+
 stages:
   - stage: setup
     displayName: ACN
@@ -35,14 +60,50 @@ stages:
         displayName: Setup
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
+        variables:
+          prTargetBranch: $[ variables['System.PullRequest.TargetBranchName'] ]
         steps:
+          - template: templates/git-diff-check.yaml
           - script: |
               # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
+              CUSTOM_RUN_NAME_PREFIX="${{ parameters.runNamePrefix }}"
+              if [ -n "$CUSTOM_RUN_NAME_PREFIX" ] && [[ "${CUSTOM_RUN_NAME_PREFIX,,}" == *dalec* ]]; then
+                BUILD_REV="$(Build.BuildNumber)"
+                BUILD_REV="${BUILD_REV##*.}"
+                RUN_DATE="$(date +%Y%m%d)"
+                echo "##vso[build.updatebuildnumber]${CUSTOM_RUN_NAME_PREFIX}-${RUN_DATE}.${BUILD_REV}"
+              fi
+
               BUILD_NUMBER=$(Build.BuildNumber)
               echo "##vso[task.setvariable variable=StorageID;isOutput=true]$(echo ${BUILD_NUMBER//./-})"
               echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(date "+%d%H%M"))"
               echo "##vso[task.setvariable variable=Tag;isOutput=true]$(make version)"
               echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
+              echo "##vso[task.setvariable variable=imageRepositoryPath;isOutput=true]acnpublic.azurecr.io"
+              echo "##vso[task.setvariable variable=cnsImagePrefix;isOutput=true]azure-"
+
+              . ./hack/scripts/parse_override_image.sh
+
+              read -r USE_CNI CNI_REPO CNI_NAME CNI_VERSION <<< "$(parse_override_image '${{ parameters.cniImage }}' azure-cni $(make cni-version))"
+              read -r USE_CNS CNS_REPO CNS_NAME CNS_VERSION <<< "$(parse_override_image '${{ parameters.cnsImage }}' azure-cns $(make cns-version))"
+              read -r USE_IPAM IPAM_REPO IPAM_NAME IPAM_VERSION <<< "$(parse_override_image '${{ parameters.ipamImage }}' azure-ipam $(make azure-ipam-version))"
+
+              echo "##vso[task.setvariable variable=useProvidedCniImage;isOutput=true]${USE_CNI}"
+              echo "##vso[task.setvariable variable=cniImageRepo;isOutput=true]${CNI_REPO}"
+              echo "##vso[task.setvariable variable=cniImageNameOverride;isOutput=true]${CNI_NAME}"
+              echo "##vso[task.setvariable variable=cniVersion;isOutput=true]${CNI_VERSION}"
+
+              echo "##vso[task.setvariable variable=useProvidedCnsImage;isOutput=true]${USE_CNS}"
+              echo "##vso[task.setvariable variable=cnsImageRepo;isOutput=true]${CNS_REPO}"
+              echo "##vso[task.setvariable variable=cnsImageNameOverride;isOutput=true]${CNS_NAME}"
+              echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]${CNS_VERSION}"
+
+              echo "##vso[task.setvariable variable=useProvidedIpamImage;isOutput=true]${USE_IPAM}"
+              echo "##vso[task.setvariable variable=ipamImageRepo;isOutput=true]${IPAM_REPO}"
+              echo "##vso[task.setvariable variable=ipamImageNameOverride;isOutput=true]${IPAM_NAME}"
+              echo "##vso[task.setvariable variable=ipamVersion;isOutput=true]${IPAM_VERSION}"
+              echo "##vso[task.setvariable variable=azureIpamVersion;isOutput=true]${IPAM_VERSION}"
+              echo "##vso[task.setvariable variable=ciliumLogCollectorVersion;isOutput=true]$(make cilium-log-collector-version)"
               cat /etc/os-release
               uname -a
               sudo chown -R $(whoami):$(whoami) .
@@ -51,7 +112,7 @@ stages:
               which go
               echo $PATH
               echo "------"
-              echo $(Build.QueuedBy)
+              echo "$(Build.QueuedBy)"
               echo $(Build.Reason) # manual, PR, IndividualCI
               echo $(Build.SourceBranch)
               echo $(System.PullRequest.TargetBranch)
@@ -115,14 +176,15 @@ stages:
             name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
           strategy:
             matrix:
-              azure_ipam_linux_amd64:
-                arch: amd64
-                name: azure-ipam
-                os: linux
-              azure_ipam_windows:
-                arch: amd64
-                name: azure-ipam
-                os: windows
+              ${{ if eq(parameters.buildIpam, true) }}:
+                azure_ipam_linux_amd64:
+                  arch: amd64
+                  name: azure-ipam
+                  os: linux
+                azure_ipam_windows:
+                  arch: amd64
+                  name: azure-ipam
+                  os: windows
               azure_ip_masq_merger_linux_amd64:
                 arch: amd64
                 name: azure-ip-masq-merger
@@ -131,22 +193,24 @@ stages:
                 arch: amd64
                 name: azure-iptables-monitor
                 os: linux
-              cni_linux_amd64:
-                arch: amd64
-                name: cni
-                os: linux
-              cni_windows_amd64:
-                arch: amd64
-                name: cni
-                os: windows
-              cns_linux_amd64:
-                arch: amd64
-                name: cns
-                os: linux
-              cns_windows_amd64:
-                arch: amd64
-                name: cns
-                os: windows
+              ${{ if eq(parameters.buildCni, true) }}:
+                cni_linux_amd64:
+                  arch: amd64
+                  name: cni
+                  os: linux
+                cni_windows_amd64:
+                  arch: amd64
+                  name: cni
+                  os: windows
+              ${{ if eq(parameters.buildCns, true) }}:
+                cns_linux_amd64:
+                  arch: amd64
+                  name: cns
+                  os: linux
+                cns_windows_amd64:
+                  arch: amd64
+                  name: cns
+                  os: windows
               ipv6_hp_bpf_linux_amd64:
                 arch: amd64
                 name: ipv6-hp-bpf
@@ -167,11 +231,13 @@ stages:
           pool:
             name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
           strategy:
+            maxParallel: 2
             matrix:
-              azure_ipam_linux_arm64:
-                arch: arm64
-                name: azure-ipam
-                os: linux
+              ${{ if eq(parameters.buildIpam, true) }}:
+                azure_ipam_linux_arm64:
+                  arch: arm64
+                  name: azure-ipam
+                  os: linux
               azure_ip_masq_merger_linux_arm64:
                 arch: arm64
                 name: azure-ip-masq-merger
@@ -180,14 +246,16 @@ stages:
                 arch: arm64
                 name: azure-iptables-monitor
                 os: linux
-              cni_linux_arm64:
-                arch: arm64
-                name: cni
-                os: linux
-              cns_linux_arm64:
-                arch: arm64
-                name: cns
-                os: linux
+              ${{ if eq(parameters.buildCni, true) }}:
+                cni_linux_arm64:
+                  arch: arm64
+                  name: cni
+                  os: linux
+              ${{ if eq(parameters.buildCns, true) }}:
+                cns_linux_arm64:
+                  arch: arm64
+                  name: cns
+                  os: linux
               ipv6_hp_bpf_linux_arm64:
                 arch: arm64
                 name: ipv6-hp-bpf
@@ -259,15 +327,18 @@ stages:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
           strategy:
             matrix:
-              azure_ipam:
-                name: azure-ipam
-                platforms: linux/amd64 linux/arm64 windows/amd64
-              cni:
-                name: cni
-                platforms: linux/amd64 linux/arm64 windows/amd64
-              cns:
-                name: cns
-                platforms: linux/amd64 linux/arm64 windows/amd64
+              ${{ if eq(parameters.buildIpam, true) }}:
+                azure_ipam:
+                  name: azure-ipam
+                  platforms: linux/amd64 linux/arm64 windows/amd64
+              ${{ if eq(parameters.buildCni, true) }}:
+                cni:
+                  name: cni
+                  platforms: linux/amd64 linux/arm64 windows/amd64
+              ${{ if eq(parameters.buildCns, true) }}:
+                cns:
+                  name: cns
+                  platforms: linux/amd64 linux/arm64 windows/amd64
               ipv6_hp_bpf:
                 name: ipv6-hp-bpf
                 platforms: linux/amd64 linux/arm64
@@ -305,7 +376,7 @@ stages:
     - template: singletenancy/cilium/cilium-e2e-job-template.yaml
       parameters:
         name: "cilium_e2e"
-        displayName: Cilium Podsubnet
+        displayName: Cil Podsubnet
         clusterType: swift-byocni-nokubeproxy-up
         clusterName: "ciliume2e"
         vmSize: Standard_B2ms
@@ -316,7 +387,7 @@ stages:
     - template: singletenancy/cilium/cilium-e2e-job-template.yaml
       parameters:
         name: "cilium_vnetscale_e2e"
-        displayName: Cilium Podsubnet Vnet Scale Ubuntu
+        displayName: Cil Podsubnet Vnet Scale Ubuntu
         os: linux
         clusterType: vnetscale-swift-byocni-nokubeproxy-up
         clusterName: "ciliumvscalee2e"
@@ -328,7 +399,7 @@ stages:
     - template: singletenancy/cilium-ebpf/cilium-e2e-job-template.yaml
       parameters:
         name: "cilium_ebpf_podsubnet_e2e"
-        displayName: Cilium EBPF Podsubnet Ubuntu 24
+        displayName: Cil EBPF Podsubnet Ubuntu 24
         clusterType: swift-byocni-nokubeproxy-up
         clusterName: "cilbpfpode2e"
         vmSize: Standard_B2ms
@@ -339,7 +410,7 @@ stages:
     - template: singletenancy/cilium-nodesubnet/cilium-nodesubnet-e2e-job-template.yaml
       parameters:
         name: "cilium_nodesubnet_e2e"
-        displayName: Cilium NodeSubnet
+        displayName: Cil NodeSubnet
         clusterType: nodesubnet-byocni-nokubeproxy-up
         clusterName: "cilndsubnete2e"
         vmSize: Standard_B2s
@@ -350,7 +421,7 @@ stages:
     - template: singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml
       parameters:
         name: "cilium_overlay_e2e"
-        displayName: Cilium on AKS Overlay
+        displayName: Cil on AKS Overlay
         clusterType: overlay-byocni-nokubeproxy-up
         clusterName: "cilovere2e"
         vmSize: Standard_B2ms
@@ -361,7 +432,7 @@ stages:
     - template: singletenancy/cilium-dualstack-overlay/cilium-dualstackoverlay-e2e-job-template.yaml
       parameters:
         name: "cilium_dualstackoverlay_e2e"
-        displayName: Cilium on AKS DualStack Overlay
+        displayName: Cil on AKS DualStack Overlay
         os: linux
         clusterType: dualstack-byocni-nokubeproxy-up
         clusterName: "cildsovere2e"
@@ -373,7 +444,7 @@ stages:
     - template: singletenancy/cilium-overlay-ebpf/cilium-overlay-e2e-job-template.yaml
       parameters:
         name: "cilium_ebpf_overlay_e2e"
-        displayName: Cilium EBPF on AKS Overlay Azure Linux
+        displayName: Cil EBPF on AKS Overlay Azure Linux
         clusterType: overlay-byocni-nokubeproxy-up
         clusterName: "cilbpfovere2e"
         vmSize: Standard_B2ms
@@ -384,7 +455,7 @@ stages:
     - template: singletenancy/cilium-overlay-withhubble/cilium-overlay-e2e-job-template.yaml
       parameters:
         name: "cilium_h_overlay_e2e"
-        displayName: Cilium on AKS Overlay with Hubble
+        displayName: Cil on AKS Overlay with Hubble
         clusterType: overlay-byocni-nokubeproxy-up
         clusterName: "cilwhleovere2e"
         vmSize: Standard_B2ms
@@ -449,7 +520,6 @@ stages:
         clusterType: vnetscale-swift-byocni-up
         clusterName: "vscaleswifte2e"
         vmSize: Standard_B2ms
-        k8sVersion: "1.30"
         dependsOn: ["test"]
 
     # CNIv1 E2E tests
@@ -462,7 +532,6 @@ stages:
         clusterType: cniv1-up
         clusterName: "ubuntu22e2e"
         vmSize: Standard_B2s
-        k8sVersion: 1.25
         scaleup: 100
         dependsOn: ["test"]
 
@@ -535,84 +604,30 @@ stages:
         commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
       jobs:
         - job: delete_build
-          displayName: Delete Cluster
+          displayName: Delete Clusters
           pool:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
-          strategy:
-            matrix:
-              cilium_e2e:
-                name: cilium_e2e
-                clusterName: "ciliume2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              cilium_vnetscale_e2e:
-                name: cilium_vnetscale_e2e
-                clusterName: "ciliumvscalee2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              cilium_ebpf_podsubnet_e2e:
-                name: cilium_ebpf_podsubnet_e2e
-                clusterName: "cilbpfpode2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              cilium_nodesubnet_e2e:
-                name: cilium_nodesubnet_e2e
-                clusterName: "cilndsubnete2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              cilium_overlay_e2e:
-                name: cilium_overlay_e2e
-                clusterName: "cilovere2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              cilium_ebpf_overlay_e2e:
-                name: cilium_ebpf_overlay_e2e
-                clusterName: "cilbpfovere2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              cilium_h_overlay_e2e:
-                name: cilium_h_overlay_e2e
-                clusterName: "cilwhleovere2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              linux_azure_overlay_e2e:
-                name: linux_azure_overlay_e2e
-                clusterName: "linuxazovere2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              windows_azure_overlay_e2e:
-                name: win_azure_overlay_e2e
-                clusterName: "winazovere2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              azure_overlay_stateless_e2e:
-                name: azure_overlay_stateless_e2e
-                clusterName: "statelesswin"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              aks_swift_e2e:
-                name: aks_swift_e2e
-                clusterName: "swifte2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              aks_swift_vnetscale_e2e:
-                name: aks_swift_vnetscale_e2e
-                clusterName: "vscaleswifte2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              aks_ubuntu_22_linux_e2e:
-                name: aks_ubuntu_22_linux_e2e
-                clusterName: "ubuntu22e2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              aks_windows_22_e2e:
-                name: aks_windows_22_e2e
-                clusterName: "win22e2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              linux_dualstackoverlay_e2e:
-                name: linux_dualstackoverlay_e2e
-                clusterName: "linuxdsovere2e"
-                region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
-              windows_dualstackoverlay_e2e:
-                name: windows_dualstackoverlay_e2e
-                clusterName: "windsovere2e"
-                region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
-              cilium_dualstackoverlay_e2e:
-                name: cilium_dualstackoverlay_e2e
-                clusterName: "cildsovere2e"
-                region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
           steps:
             - template: templates/delete-cluster.yaml
               parameters:
-                name: $(name)
-                clusterName: $(clusterName)-$(commitID)
-                region: $(region)
                 sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
                 svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+                suffix: -$(commitID)
+                clusters:
+                  - ciliume2e
+                  - ciliumvscalee2e
+                  - cilbpfpode2e
+                  - cilndsubnete2e
+                  - cilovere2e
+                  - cilbpfovere2e
+                  - cilwhleovere2e
+                  - linuxazovere2e
+                  - winazovere2e
+                  - statelesswin
+                  - swifte2e
+                  - vscaleswifte2e
+                  - ubuntu22e2e
+                  - win22e2e
+                  - linuxdsovere2e
+                  - windsovere2e
+                  - cildsovere2e

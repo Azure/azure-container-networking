@@ -47,9 +47,9 @@ stages:
                 scriptType: "bash"
                 addSpnToEnvironment: true
                 inlineScript: |
-                  make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
+                  make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
                   make -C ./hack/aks ${{ parameters.clusterType }} \
-                  AZCLI=az REGION=$(REGION_DUALSTACKOVERLAY_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \
+                  AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \
                   CLUSTER=${{ parameters.clusterName }}-$(commitID) \
                   VM_SIZE=${{ parameters.vmSize }} \
                   AUTOUPGRADE=none

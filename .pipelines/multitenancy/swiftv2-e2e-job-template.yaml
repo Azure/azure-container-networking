@@ -11,7 +11,7 @@ parameters:
 
 stages:
   - stage: ${{ parameters.clusterName }}
-    displayName: Create Cluster - ${{ parameters.displayName }}
+    displayName: ${{ parameters.displayName }} - Create Cluster
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
@@ -34,7 +34,7 @@ stages:
 
   - stage: ${{ parameters.name }}
     condition: and( succeeded(), not(eq(dependencies.mtacluster.result,'SucceededWithIssues')) ) # Cant use parameters in dependencies
-    displayName: E2E - ${{ parameters.displayName }}
+    displayName: E2E-${{ parameters.displayName }}
     dependsOn:
     - setup
     - publish
