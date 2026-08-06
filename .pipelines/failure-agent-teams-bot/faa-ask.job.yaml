@@ -69,19 +69,33 @@ jobs:
 
           staging = os.environ["STAGING"]
           token = os.environ["SYSTEM_ACCESSTOKEN"]
-          build = os.environ["TARGET_BUILD_ID"]
+          build = os.environ["TARGET_BUILD_ID"].strip()
           col = os.environ["SYSTEM_COLLECTIONURI"].rstrip("/")
           proj = os.environ["SYSTEM_TEAMPROJECT"]
-          api = f"{col}/{proj}/_apis/build/builds/{build}/artifacts?api-version=7.1"
 
           def curl(url, out=None):
-              cmd = ["curl", "-fsSL", "-H", f"Authorization: Bearer {token}", url]
               if out:
-                  cmd += ["-o", out]
+                  cmd = ["curl", "-fsSL", "-H", f"Authorization: Bearer {token}", "-o", out, url]
                   subprocess.run(cmd, check=True)
                   return None
-              return subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
+              cmd = ["curl", "-sSL", "-w", "\n%{http_code}", "-H", f"Authorization: Bearer {token}", url]
+              r = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
+              body, _, code = r.rpartition("\n")
+              if not code.startswith("2"):
+                  raise SystemExit(f"##[error]GET {url} returned HTTP {code}: {body[:300]}")
+              return body
 
+          # The trigger contract sends a numeric build id, but analysts often paste
+          # the visible build *number* (e.g. 20260806.7). Resolve number -> id.
+          if not build.isdigit():
+              q = f"{col}/{proj}/_apis/build/builds?buildNumber={build}&api-version=7.1"
+              found = json.loads(curl(q)).get("value", [])
+              if not found:
+                  raise SystemExit(f"##[error]No build found for buildNumber '{build}'. Pass the numeric build id (from the run URL's buildId=...).")
+              build = str(found[0]["id"])
+              print(f"Resolved build number to id: {build}")
+
+          api = f"{col}/{proj}/_apis/build/builds/{build}/artifacts?api-version=7.1"
           data = json.loads(curl(api))
           print("Found", data.get("count", 0), "artifact(s)")
           for a in data.get("value", []):
