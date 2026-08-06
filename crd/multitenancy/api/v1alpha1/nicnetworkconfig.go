@@ -126,6 +126,7 @@ type NICNetworkConfigStatus struct {
 	AccelnetEnabled bool `json:"accelnetEnabled,omitempty"`
 	// ConsumableCapacity indicates the number of pods that can share this NIC.
 	// Total number of pods.
+	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Optional
 	ConsumableCapacity int `json:"consumableCapacity,omitempty"`
 }

@@ -131,6 +131,7 @@ spec:
                 description: |-
                   ConsumableCapacity indicates the number of pods that can share this NIC.
                   Total number of pods.
+                minimum: 0
                 type: integer
               cooldownExpiresAt:
                 description: |-

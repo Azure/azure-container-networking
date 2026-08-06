@@ -136,7 +136,7 @@ spec:
                       type: string
                     networkID:
                       description: |-
-                        NetworkID identifies the network (e.g. VNet GUID) this pod belongs to.
+                        NetworkID identifies the network (e.g. VNet GUID) this interface is connected to.
                         Denormalized from PodNetwork.Spec.NetworkID.
                       type: string
                     primaryIP:
@@ -153,12 +153,12 @@ spec:
                       type: string
                     subnetGUID:
                       description: |-
-                        SubnetGUID is the GUID of the subnet this pod belongs to.
+                        SubnetGUID is the GUID of the subnet this interface is connected to.
                         Denormalized from PodNetwork.Spec.SubnetGUID.
                       type: string
                     subnetResourceID:
                       description: |-
-                        SubnetResourceID is the ARM resource ID of the subnet this pod belongs to.
+                        SubnetResourceID is the ARM resource ID of the subnet this interface is connected to.
                         Denormalized from PodNetwork.Spec.SubnetResourceID.
                       type: string
                   type: object
