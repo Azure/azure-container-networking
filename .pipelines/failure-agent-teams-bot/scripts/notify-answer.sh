@@ -44,4 +44,24 @@ if [[ -n "$INITIATOR_UPN" ]]; then
   reply_args+=(--mention-user "$INITIATOR_UPN")
 fi
 
-notify_reply "${reply_args[@]}"
+# Try to thread the answer onto the target run's existing FAA card. notify_reply
+# is best-effort (always returns 0), so detect delivery from its output: it
+# prints "replied (HTTP 2xx)" on success, or a non-2xx line (e.g. 404 when no
+# thread exists for this build) on failure.
+reply_out="$(notify_reply "${reply_args[@]}" 2>&1)"
+printf '%s\n' "$reply_out"
+
+if printf '%s' "$reply_out" | grep -q 'replied (HTTP'; then
+  exit 0
+fi
+
+# No thread to reply to (build never posted a card, or the thread aged out).
+# Post the answer as a standalone card so it still reaches the channel; this
+# also creates the (source, runId) thread so later asks about this build thread.
+echo "notify-answer: no existing thread; posting a standalone answer card" >&2
+card_args=(--status succeeded --stage "faa-ask" --severity info \
+  --title "FAA answer" --summary "$text")
+if [[ -n "$INITIATOR_UPN" ]]; then
+  card_args+=(--cc-label "Asked by" --cc-user "$INITIATOR_UPN")
+fi
+notify_status "${card_args[@]}"

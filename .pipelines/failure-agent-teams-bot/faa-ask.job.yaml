@@ -138,6 +138,14 @@ jobs:
           echo "Resolved prior-analysis dir: ${prior:-<none>}"
           echo "##vso[task.setvariable variable=evidenceDir]$evidence"
           echo "##vso[task.setvariable variable=priorDir]$prior"
+
+          # Loudly flag a target build with no FAA context. The agent will still
+          # answer (saying evidence is insufficient), but this almost always
+          # means the wrong build id was passed or its artifacts have expired.
+          evidence_files="$(find "$evidence" -type f 2>/dev/null | wc -l | tr -d ' ')"
+          if [ "$evidence_files" = "0" ] && [ -z "$prior" ]; then
+            echo "##vso[task.logissue type=warning]No evidence or prior analysis found for build ${TARGET_BUILD_ID}. Pass the numeric build id of the failed E2E run that published failureAnalysis_*/faa-evidence-* artifacts and posted the FAA card."
+          fi
         displayName: "Download target build context"
         env:
           TARGET_BUILD_ID: ${{ parameters.targetBuildId }}
