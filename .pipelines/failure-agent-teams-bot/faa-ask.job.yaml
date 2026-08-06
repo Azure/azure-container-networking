@@ -64,7 +64,8 @@ jobs:
 
           export STAGING TARGET_BUILD_ID SYSTEM_ACCESSTOKEN SYSTEM_COLLECTIONURI SYSTEM_TEAMPROJECT
 
-          python3 - <<'PY'
+          # -u: unbuffered stdout so progress/diagnostics survive a timeout kill.
+          python3 -u - <<'PY'
           import json, os, subprocess, zipfile
 
           staging = os.environ["STAGING"]
@@ -73,12 +74,21 @@ jobs:
           col = os.environ["SYSTEM_COLLECTIONURI"].rstrip("/")
           proj = os.environ["SYSTEM_TEAMPROJECT"]
 
+          # Only these artifacts ground an ask run. A full E2E build publishes
+          # dozens of large, unrelated artifacts (logs, binaries, images); pulling
+          # them all previously ran the step past the job timeout.
+          WANTED_PREFIXES = ("failureAnalysis_", "faa-evidence-")
+
+          # Bound every request so a stuck transfer fails fast instead of hanging
+          # silently until the job timeout cancels the step.
+          TIMEOUTS = ["--connect-timeout", "30", "--max-time", "300"]
+
           def curl(url, out=None):
               if out:
-                  cmd = ["curl", "-fsSL", "-H", f"Authorization: Bearer {token}", "-o", out, url]
+                  cmd = ["curl", "-fsSL", *TIMEOUTS, "-H", f"Authorization: Bearer {token}", "-o", out, url]
                   subprocess.run(cmd, check=True)
                   return None
-              cmd = ["curl", "-sSL", "-w", "\n%{http_code}", "-H", f"Authorization: Bearer {token}", url]
+              cmd = ["curl", "-sSL", *TIMEOUTS, "-w", "\n%{http_code}", "-H", f"Authorization: Bearer {token}", url]
               r = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
               body, _, code = r.rpartition("\n")
               if not code.startswith("2"):
@@ -101,8 +111,10 @@ jobs:
 
           api = f"{col}/{proj}/_apis/build/builds/{build}/artifacts?api-version=7.1"
           data = json.loads(curl(api))
-          print("Found", data.get("count", 0), "artifact(s)")
-          for a in data.get("value", []):
+          all_artifacts = data.get("value", [])
+          wanted = [a for a in all_artifacts if a.get("name", "").startswith(WANTED_PREFIXES)]
+          print(f"Found {len(all_artifacts)} artifact(s); {len(wanted)} match FAA prefixes {WANTED_PREFIXES}")
+          for a in wanted:
               name = a.get("name", "")
               url = a.get("resource", {}).get("downloadUrl", "")
               if not name or not url:
