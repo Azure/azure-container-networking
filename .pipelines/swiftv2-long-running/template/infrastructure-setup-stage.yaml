@@ -226,78 +226,78 @@ stages:
                 $(rgName)
                 ${{ parameters.location }}
 
-      - job: DeployLinuxBYON
-        displayName: "Join Linux BYON VMSS to AKS Cluster"
-        dependsOn:
-          - CreateCluster
-          - NetworkingAndStorage
-        condition: |
-          and(
-            ${{ parameters.enableLinuxBYON }},
-            not(failed())
-          )
-        pool:
-          vmImage: ubuntu-latest
-        steps:
-          - checkout: self
-            displayName: "Checkout main repository"
-          - checkout: Networking-Aquarius
-            displayName: "Checkout Networking-Aquarius repository"
-          - task: AzureCLI@2
-            displayName: "Deploy Linux VMSS"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: scriptPath
-              scriptPath: "$(Build.SourcesDirectory)/azure-container-networking/.pipelines/swiftv2-long-running/scripts/deploy_linuxbyon.sh"
-              arguments: >
-                $(rgName)
-                $(Build.SourcesDirectory)
-                ${{ parameters.subscriptionId }}
-            env:
-              SSH_PUBLIC_KEY_SECRET_NAME: $(SSH_PUBLIC_KEY_SECRET_NAME)
-              CLUSTER_KUBECONFIG_KEYVAULT_NAME: $(CLUSTER_KUBECONFIG_KEYVAULT_NAME)
-              KEY_VAULT_RESOURCE_GROUP: $(KEY_VAULT_RESOURCE_GROUP)
-              KEY_VAULT_SUBSCRIPTION: $(KEY_VAULT_SUBSCRIPTION)
+  # BYON scale sets live in their own stage so that a BYON provisioning failure
+  # does not fail the infrastructure stage. The zonal long-running tests depend on
+  # that stage and run against managed node pools on aks-1, so they have no reason
+  # to be blocked by BYON, which joins aks-2 and is only exercised by the BYON
+  # datapath stages.
+  - ${{ if or(eq(parameters.enableLinuxBYON, true), eq(parameters.enableAccelnetBYON, true)) }}:
+    - stage: ByonSetup_${{ replace(parameters.stageLabel, '-', '_') }}
+      displayName: "Verify & Setup BYON VMSS (${{ parameters.stageLabel }})"
+      dependsOn:
+        - AKSClusterAndNetworking_${{ replace(parameters.stageLabel, '-', '_') }}
+      condition: and(eq(variables.isAllowedRun, true), succeeded())
+      variables:
+        rgName: ${{ parameters.resourceGroupName }}-${{ parameters.location }}
+      jobs:
+        - ${{ if eq(parameters.enableLinuxBYON, true) }}:
+          - job: DeployLinuxBYON
+            displayName: "Join Linux BYON VMSS to AKS Cluster"
+            pool:
+              vmImage: ubuntu-latest
+            steps:
+              - checkout: self
+                displayName: "Checkout main repository"
+              - checkout: Networking-Aquarius
+                displayName: "Checkout Networking-Aquarius repository"
+              - task: AzureCLI@2
+                displayName: "Deploy Linux VMSS"
+                inputs:
+                  azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                  scriptType: bash
+                  scriptLocation: scriptPath
+                  scriptPath: "$(Build.SourcesDirectory)/azure-container-networking/.pipelines/swiftv2-long-running/scripts/deploy_linuxbyon.sh"
+                  arguments: >
+                    $(rgName)
+                    $(Build.SourcesDirectory)
+                    ${{ parameters.subscriptionId }}
+                env:
+                  SSH_PUBLIC_KEY_SECRET_NAME: $(SSH_PUBLIC_KEY_SECRET_NAME)
+                  CLUSTER_KUBECONFIG_KEYVAULT_NAME: $(CLUSTER_KUBECONFIG_KEYVAULT_NAME)
+                  KEY_VAULT_RESOURCE_GROUP: $(KEY_VAULT_RESOURCE_GROUP)
+                  KEY_VAULT_SUBSCRIPTION: $(KEY_VAULT_SUBSCRIPTION)
 
-      # Accelnet BYON - only for regions explicitly enabled by the pipeline parameters.
-      # The deploy script itself checks VMSS existence and skips if already joined.
-      - job: DeployAccelnetBYON
-        displayName: "Join Accelnet BYON VMSS to AKS Cluster"
-        dependsOn:
-          - CreateCluster
-          - NetworkingAndStorage
-        condition: |
-          and(
-            ${{ parameters.enableAccelnetBYON }},
-            not(failed())
-          )
-        timeoutInMinutes: 480
-        pool:
-          vmImage: ubuntu-latest
-        steps:
-          - checkout: self
-            displayName: "Checkout main repository"
-          - checkout: Networking-Aquarius
-            displayName: "Checkout Networking-Aquarius repository"
-          - task: AzureCLI@2
-            displayName: "Deploy Accelnet VMSS"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: scriptPath
-              scriptPath: "$(Build.SourcesDirectory)/azure-container-networking/.pipelines/swiftv2-long-running/scripts/deploy_accelnetbyon.sh"
-              arguments: >
-                $(rgName)
-                ${{ parameters.location }}
-                $(Build.SourcesDirectory)
-                ${{ parameters.subscriptionId }}
-            env:
-              SSH_PUBLIC_KEY_SECRET_NAME: $(SSH_PUBLIC_KEY_SECRET_NAME)
-              CLUSTER_KUBECONFIG_KEYVAULT_NAME: $(CLUSTER_KUBECONFIG_KEYVAULT_NAME)
-              KEY_VAULT_RESOURCE_GROUP: $(KEY_VAULT_RESOURCE_GROUP)
-              KEY_VAULT_SUBSCRIPTION: $(KEY_VAULT_SUBSCRIPTION)
-              L1VH_KEYVAULT_NAME: $(L1VH_KEYVAULT_NAME)
-              L1VH_VMSS_PASSWORD_SECRET: $(L1VH_VMSS_PASSWORD_SECRET)
-              L1VH_VM_BICEP_PASSWORD_SECRET: $(L1VH_VM_BICEP_PASSWORD_SECRET)
-              L1VH_STORAGE_SECRET: $(L1VH_STORAGE_SECRET)
+        # Accelnet BYON - only for regions explicitly enabled by the pipeline parameters.
+        # The deploy script itself checks VMSS existence and skips if already joined.
+        - ${{ if eq(parameters.enableAccelnetBYON, true) }}:
+          - job: DeployAccelnetBYON
+            displayName: "Join Accelnet BYON VMSS to AKS Cluster"
+            timeoutInMinutes: 480
+            pool:
+              vmImage: ubuntu-latest
+            steps:
+              - checkout: self
+                displayName: "Checkout main repository"
+              - checkout: Networking-Aquarius
+                displayName: "Checkout Networking-Aquarius repository"
+              - task: AzureCLI@2
+                displayName: "Deploy Accelnet VMSS"
+                inputs:
+                  azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                  scriptType: bash
+                  scriptLocation: scriptPath
+                  scriptPath: "$(Build.SourcesDirectory)/azure-container-networking/.pipelines/swiftv2-long-running/scripts/deploy_accelnetbyon.sh"
+                  arguments: >
+                    $(rgName)
+                    ${{ parameters.location }}
+                    $(Build.SourcesDirectory)
+                    ${{ parameters.subscriptionId }}
+                env:
+                  SSH_PUBLIC_KEY_SECRET_NAME: $(SSH_PUBLIC_KEY_SECRET_NAME)
+                  CLUSTER_KUBECONFIG_KEYVAULT_NAME: $(CLUSTER_KUBECONFIG_KEYVAULT_NAME)
+                  KEY_VAULT_RESOURCE_GROUP: $(KEY_VAULT_RESOURCE_GROUP)
+                  KEY_VAULT_SUBSCRIPTION: $(KEY_VAULT_SUBSCRIPTION)
+                  L1VH_KEYVAULT_NAME: $(L1VH_KEYVAULT_NAME)
+                  L1VH_VMSS_PASSWORD_SECRET: $(L1VH_VMSS_PASSWORD_SECRET)
+                  L1VH_VM_BICEP_PASSWORD_SECRET: $(L1VH_VM_BICEP_PASSWORD_SECRET)
+                  L1VH_STORAGE_SECRET: $(L1VH_STORAGE_SECRET)

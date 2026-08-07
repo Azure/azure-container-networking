@@ -143,6 +143,7 @@ stages:
           storageAccount2: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorage.storageAccount2'] ]
           dependsOn:
             - AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}
+            - ByonSetup_${{ replace(scenario.label, '-', '_') }}
             - AcquireLease_${{ replace(scenario.label, '-', '_') }}
             - DataPathTests_swiftv2_linux_${{ replace(scenario.label, '-', '_') }}
 
@@ -160,6 +161,7 @@ stages:
           storageAccount2: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorage.storageAccount2'] ]
           dependsOn:
             - AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}
+            - ByonSetup_${{ replace(scenario.label, '-', '_') }}
             - AcquireLease_${{ replace(scenario.label, '-', '_') }}
             - DataPathTests_swiftv2_linux_byon_${{ replace(scenario.label, '-', '_') }}
 

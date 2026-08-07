@@ -210,8 +210,12 @@ pipeline.yaml
         │   ├── EnsureNodeLabels      ← re-applies labels every run (survives node replacements)
         │   ├── CreateResourceGroup   ← conditional on !infraExists
         │   ├── CreateCluster          ...
-        │   ├── NetworkingAndStorage    ...
-        │   └── DeployLinuxBYON        ...
+        │   └── NetworkingAndStorage    ...
+        │
+        ├── ByonSetup_<loc> (only when a BYON workload is enabled)
+        │   ├── (depends on AKSClusterAndNetworking_<loc>)
+        │   ├── DeployLinuxBYON        ...
+        │   └── DeployAccelnetBYON     ...
         │
         ├── LongRunningPodTests_Z<N>_<loc>  (per zone, parallel, NOT lease-gated)
         │   ├── (depends on AKSClusterAndNetworking_<loc>)
@@ -230,6 +234,7 @@ pipeline.yaml
         │
         ├── DataPathTests_<workload>_<loc> (per location × workload type, parallel, lease-gated)
         │   ├── (depends on AKSClusterAndNetworking_<loc> + AcquireLease_<loc>)
+        │   ├── BYON workloads additionally depend on ByonSetup_<loc>
         │   └── swiftv2-linux + swiftv2-linux-byon run in parallel
         │
         └── ReleaseLease_<loc> (always runs, depends on all DataPathTests)
@@ -239,6 +244,8 @@ All 4 zones run as **separate stages in parallel**, starting immediately after i
 Within each zone stage, `EnsureNodePool_Z<N>` runs first; `SetupKubeconfig` and `BuildMetricsBinary` follow; `RotatingPods` and `AlwaysOnPods` run in parallel; `LongRunningConnectivityTest` waits for both.
 
 **Note**: Long-running pod tests are **not gated by the lease** — each zone stage depends only on `AKSClusterAndNetworking_<loc>`. They start immediately after infrastructure is ready, without waiting for the lease or datapath tests.
+
+**Note**: BYON provisioning is a separate `ByonSetup_<loc>` stage rather than a job inside `AKSClusterAndNetworking_<loc>`. The zonal tests run entirely on managed node pools on `aks-1`, while BYON joins scale sets to `aks-2`, so a BYON provisioning failure has no bearing on them. Keeping BYON in the infrastructure stage made any BYON failure fail that stage, which the zonal stages' `not(failed())` condition then treated as a reason to skip. Only the BYON datapath stages depend on `ByonSetup_<loc>`.
 
 ### Idempotent Infrastructure Setup
 
