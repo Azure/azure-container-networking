@@ -39,7 +39,7 @@ spec:
           effect: NoSchedule
       initContainers:
         - name: azure-cni
-          image:  mcr.microsoft.com/containernetworking/azure-cni:v1.5.16
+          image:  mcr.microsoft.com/containernetworking/azure-cni:v1.7.12
           imagePullPolicy: Always
           command: ["/dropgz"]
           args:
@@ -63,7 +63,7 @@ spec:
               mountPath: /etc/cni/net.d
       containers:
         - name: pause
-          image: mcr.microsoft.com/oss/kubernetes/pause:3.6
+          image: mcr.microsoft.com/oss/kubernetes/pause:3.10
       hostNetwork: true
       volumes:
         - name: cni-conflist

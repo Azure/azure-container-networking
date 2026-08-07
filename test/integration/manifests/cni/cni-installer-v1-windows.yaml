@@ -78,7 +78,7 @@ spec:
               mountPath: /k/azurecni/bin/
       containers:
         - name: pause
-          image: mcr.microsoft.com/oss/kubernetes/pause:3.6
+          image: mcr.microsoft.com/oss/kubernetes/pause:3.10
           command: ["%CONTAINER_SANDBOX_MOUNT_POINT%/pause.exe"]
       volumes:
         - name: cni-bin
