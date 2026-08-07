@@ -1263,6 +1263,193 @@ func TestNameSpaceSelector(t *testing.T) {
 	}
 }
 
+// TestNameSpaceSelectorMultiValueNotIn verifies that a namespaceSelector with a
+// single multi-value NotIn requirement is translated (after flatten, as translateRule
+// does) into one decision carrying a negated match-set for every excluded value.
+// Emitting these as separate allow rules would be additive (OR) and admit a namespace
+// that carries any one of the excluded values.
+func TestNameSpaceSelectorMultiValueNotIn(t *testing.T) {
+	matchType := policies.SrcMatch
+	selector := &metav1.LabelSelector{
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			{
+				Key:      "tenant",
+				Operator: metav1.LabelSelectorOpNotIn,
+				Values:   []string{"x", "y"},
+			},
+		},
+	}
+
+	flattened, err := flattenNameSpaceSelector(selector)
+	require.NoError(t, err)
+	// The NotIn conjunction must stay in a single selector, not fan out.
+	require.Len(t, flattened, 1)
+
+	_, nsSelectorList := nameSpaceSelector(matchType, &flattened[0])
+
+	expected := []policies.SetInfo{
+		policies.NewSetInfo("tenant:x", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
+		policies.NewSetInfo("tenant:y", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
+	}
+	require.ElementsMatch(t, expected, nsSelectorList)
+}
+
+// TestNameSpaceSelectorMatchLabelsAndMultiValueNotIn covers a namespaceSelector that
+// combines matchLabels with a multi-value NotIn matchExpression. The matchLabels set
+// must be ANDed into the same decision as the two negated values (a positive match plus
+// two negated matches in one ACL), matching Kubernetes' conjunction of all requirements.
+func TestNameSpaceSelectorMatchLabelsAndMultiValueNotIn(t *testing.T) {
+	matchType := policies.SrcMatch
+	selector := &metav1.LabelSelector{
+		MatchLabels: map[string]string{"team": "blue"},
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			{Key: "tenant", Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x", "y"}},
+		},
+	}
+
+	flattened, err := flattenNameSpaceSelector(selector)
+	require.NoError(t, err)
+	// matchLabels + a single conjunctive NotIn must stay in ONE selector, not fan out.
+	require.Len(t, flattened, 1)
+
+	_, nsSelectorList := nameSpaceSelector(matchType, &flattened[0])
+
+	expected := []policies.SetInfo{
+		policies.NewSetInfo("team:blue", ipsets.KeyValueLabelOfNamespace, included, matchType),
+		policies.NewSetInfo("tenant:x", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
+		policies.NewSetInfo("tenant:y", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
+	}
+	require.ElementsMatch(t, expected, nsSelectorList,
+		"matchLabels set must be ANDed with both negated tenant sets in one decision")
+}
+
+// nsNotInPolicy builds a NetworkPolicy that selects all local pods and, for the given
+// direction, admits peers whose namespace matches `key NotIn values`. When ports is
+// non-empty, the peer rule also carries those ports.
+func nsNotInPolicy(name, ns, key string, direction networkingv1.PolicyType, ports []networkingv1.NetworkPolicyPort, values ...string) *networkingv1.NetworkPolicy {
+	peer := networkingv1.NetworkPolicyPeer{
+		NamespaceSelector: &metav1.LabelSelector{
+			MatchExpressions: []metav1.LabelSelectorRequirement{
+				{Key: key, Operator: metav1.LabelSelectorOpNotIn, Values: values},
+			},
+		},
+	}
+	pol := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{},
+			PolicyTypes: []networkingv1.PolicyType{direction},
+		},
+	}
+	if direction == networkingv1.PolicyTypeIngress {
+		pol.Spec.Ingress = []networkingv1.NetworkPolicyIngressRule{{Ports: ports, From: []networkingv1.NetworkPolicyPeer{peer}}}
+	} else {
+		pol.Spec.Egress = []networkingv1.NetworkPolicyEgressRule{{Ports: ports, To: []networkingv1.NetworkPolicyPeer{peer}}}
+	}
+	return pol
+}
+
+// TestTranslatePolicyMultiValueNotInConjunction is the end-to-end regression for a
+// multi-value namespaceSelector NotIn. It drives the full TranslatePolicy path (both
+// directions, with and without a port) and asserts the complete enforcement invariant:
+// exactly ONE allow ACL exists, it negates every excluded value within that single
+// decision (a conjunction / AND) and references no positive tenant set, and a default
+// drop is still present. The pre-fix behavior emitted one additive allow ACL per value,
+// so a namespace carrying any one excluded value matched the ACL negating another value
+// and was admitted before the default drop.
+func TestTranslatePolicyMultiValueNotInConjunction(t *testing.T) {
+	t.Parallel()
+
+	tcpPort := networkingv1.NetworkPolicyPort{Port: &intstr.IntOrString{Type: intstr.Int, IntVal: 80}}
+
+	tests := []struct {
+		name      string
+		direction networkingv1.PolicyType
+		ports     []networkingv1.NetworkPolicyPort
+		peerList  func(*policies.ACLPolicy) []policies.SetInfo
+	}{
+		{
+			name:      "ingress",
+			direction: networkingv1.PolicyTypeIngress,
+			peerList:  func(acl *policies.ACLPolicy) []policies.SetInfo { return acl.SrcList },
+		},
+		{
+			name:      "egress",
+			direction: networkingv1.PolicyTypeEgress,
+			peerList:  func(acl *policies.ACLPolicy) []policies.SetInfo { return acl.DstList },
+		},
+		{
+			name:      "ingress-with-port",
+			direction: networkingv1.PolicyTypeIngress,
+			ports:     []networkingv1.NetworkPolicyPort{tcpPort},
+			peerList:  func(acl *policies.ACLPolicy) []policies.SetInfo { return acl.SrcList },
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			pol := nsNotInPolicy("victim", "default", "tenant", tt.direction, tt.ports, "attacker", "quarantine")
+			npmNetPol, err := TranslatePolicy(pol, false)
+			require.NoError(t, err)
+
+			excluded := map[string]bool{"tenant:attacker": true, "tenant:quarantine": true}
+			var allowACLs, dropACLs int
+			var theAllow, theDrop *policies.ACLPolicy
+			for i := range npmNetPol.ACLs {
+				acl := npmNetPol.ACLs[i]
+				switch acl.Target {
+				case policies.Allowed:
+					allowACLs++
+					theAllow = npmNetPol.ACLs[i]
+				case policies.Dropped:
+					dropACLs++
+					theDrop = npmNetPol.ACLs[i]
+				default:
+					t.Fatalf("unexpected ACL target %v", acl.Target)
+				}
+			}
+
+			// Full enforcement invariant: exactly one allow decision and exactly one
+			// default drop. An additive-OR bypass would yield two allow ACLs; a missing
+			// drop or an allow-all leaking in would also be caught here.
+			require.Equal(t, 1, allowACLs, "there must be exactly one allow ACL, not additive allow ACLs")
+			require.Equal(t, 1, dropACLs, "there must be exactly one default drop ACL")
+			require.NotNil(t, theAllow)
+			require.NotNil(t, theDrop)
+
+			// The single allow ACL's peer list must be EXACTLY the two excluded values,
+			// each a negated match (Included == false) and nothing else (no stray positive
+			// set such as an all-namespaces allow).
+			allowPeers := tt.peerList(theAllow)
+			require.Len(t, allowPeers, 2, "allow ACL must reference exactly the two excluded sets and no positive set")
+			var negated []string
+			for _, si := range allowPeers {
+				require.True(t, excluded[si.IPSet.Name], "unexpected set %s in allow ACL", si.IPSet.Name)
+				require.False(t, si.Included, "tenant set %s must be a negated match", si.IPSet.Name)
+				require.Equal(t, ipsets.KeyValueLabelOfNamespace, si.IPSet.Type)
+				negated = append(negated, si.IPSet.Name)
+			}
+			require.ElementsMatch(t, []string{"tenant:attacker", "tenant:quarantine"}, negated,
+				"the single allow ACL must negate every excluded value")
+
+			// The default drop must be same-direction and unconditional (no peer match),
+			// so the excluded namespaces have no allow path and fall through to it.
+			require.Equal(t, theAllow.Direction, theDrop.Direction, "drop must be the same direction as the allow")
+			require.Empty(t, tt.peerList(theDrop), "the default drop must be unconditional")
+
+			// When a port is present it must be carried in the same allow decision,
+			// conjunctively with the negated tenant sets.
+			if len(tt.ports) > 0 {
+				require.EqualValues(t, 80, theAllow.DstPorts.Port,
+					"the port must render in the same allow ACL as the negated tenant sets")
+			}
+		})
+	}
+}
+
 func TestAllowAllInternal(t *testing.T) {
 	matchType := policies.SrcMatch
 	tests := []struct {

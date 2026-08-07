@@ -599,6 +599,128 @@ func TestFlattenNamespaceSelectorError(t *testing.T) {
 	}
 }
 
+// TestFlattenNameSpaceSelectorMultiValueNotIn verifies that a multi-value NotIn
+// requirement is preserved as a single conjunction rather than fanned out into
+// separate selectors. Separate selectors would become independent additive allow
+// rules, so a namespace carrying one excluded value could still match the rule
+// negating a different value.
+func TestFlattenNameSpaceSelectorMultiValueNotIn(t *testing.T) {
+	selector := &metav1.LabelSelector{
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			{
+				Key:      "tenant",
+				Operator: metav1.LabelSelectorOpNotIn,
+				Values:   []string{"x", "y"},
+			},
+		},
+	}
+
+	testSelectors, err := flattenNameSpaceSelector(selector)
+	require.NoError(t, err)
+
+	expected := []metav1.LabelSelector{
+		{
+			MatchExpressions: []metav1.LabelSelectorRequirement{
+				{
+					Key:      "tenant",
+					Operator: metav1.LabelSelectorOpNotIn,
+					Values:   []string{"x"},
+				},
+				{
+					Key:      "tenant",
+					Operator: metav1.LabelSelectorOpNotIn,
+					Values:   []string{"y"},
+				},
+			},
+		},
+	}
+
+	require.Equal(t, expected, testSelectors)
+}
+
+// TestFlattenNameSpaceSelectorMixedInAndNotIn verifies that multi-value In values
+// fan out into disjunctive branches while every multi-value NotIn exclusion is
+// carried conjunctively into each branch.
+func TestFlattenNameSpaceSelectorMixedInAndNotIn(t *testing.T) {
+	selector := &metav1.LabelSelector{
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			{
+				Key:      "tenant",
+				Operator: metav1.LabelSelectorOpNotIn,
+				Values:   []string{"x", "y"},
+			},
+			{
+				Key:      "role",
+				Operator: metav1.LabelSelectorOpIn,
+				Values:   []string{"a", "b"},
+			},
+		},
+	}
+
+	testSelectors, err := flattenNameSpaceSelector(selector)
+	require.NoError(t, err)
+
+	// Two In branches, each carrying both NotIn exclusions conjunctively.
+	require.Len(t, testSelectors, 2)
+	for _, s := range testSelectors {
+		var notInValues []string
+		var inValues []string
+		for _, req := range s.MatchExpressions {
+			require.Len(t, req.Values, 1, "every requirement must be single-value after flatten")
+			switch req.Operator {
+			case metav1.LabelSelectorOpNotIn:
+				require.Equal(t, "tenant", req.Key)
+				notInValues = append(notInValues, req.Values[0])
+			case metav1.LabelSelectorOpIn:
+				require.Equal(t, "role", req.Key)
+				inValues = append(inValues, req.Values[0])
+			default:
+				t.Fatalf("unexpected operator %s", req.Operator)
+			}
+		}
+		require.ElementsMatch(t, []string{"x", "y"}, notInValues, "both exclusions must be present in every branch")
+		require.Len(t, inValues, 1)
+	}
+}
+
+// TestFlattenNameSpaceSelectorUnsupportedOperator verifies that a matchExpression with
+// an operator other than In/NotIn/Exists/DoesNotExist is rejected (fail closed) rather
+// than silently dropped, which could otherwise widen the selector.
+func TestFlattenNameSpaceSelectorUnsupportedOperator(t *testing.T) {
+	selector := &metav1.LabelSelector{
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			{
+				Key:      "tenant",
+				Operator: metav1.LabelSelectorOperator("Frobnicate"),
+				Values:   []string{"x"},
+			},
+		},
+	}
+	s, err := flattenNameSpaceSelector(selector)
+	require.ErrorIs(t, err, ErrUnsupportedMatchExpressionOperator)
+	require.Nil(t, s)
+}
+
+// TestFlattenNameSpaceSelectorEmptyValues verifies that In/NotIn requirements with
+// no values are rejected (fail closed) rather than silently dropped, which could
+// otherwise widen a selector or produce no rules at all.
+func TestFlattenNameSpaceSelectorEmptyValues(t *testing.T) {
+	for _, op := range []metav1.LabelSelectorOperator{metav1.LabelSelectorOpIn, metav1.LabelSelectorOpNotIn} {
+		selector := &metav1.LabelSelector{
+			MatchExpressions: []metav1.LabelSelectorRequirement{
+				{
+					Key:      "tenant",
+					Operator: op,
+					Values:   []string{},
+				},
+			},
+		}
+		s, err := flattenNameSpaceSelector(selector)
+		require.ErrorIs(t, err, ErrEmptyMatchExpressionValues, "operator %s", op)
+		require.Nil(t, s)
+	}
+}
+
 func TestIsValidLabel(t *testing.T) {
 	good := []string{
 		"",
