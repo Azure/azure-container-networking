@@ -86,7 +86,7 @@ data:
   external-envoy-proxy: "false"
   k8s-client-qps: "10"
   k8s-client-burst: "20"
-  mesh-auth-enabled: "true"
+  mesh-auth-enabled: "false"
   mesh-auth-queue-size: "1024"
   mesh-auth-rotated-identities-queue-size: "1024"
   mesh-auth-gc-interval: "5m0s"
