@@ -79,6 +79,39 @@ MAX_REMEDIATION_ATTEMPTS=2
 INITIAL_WAIT_TIMEOUT=120   # seconds – short initial wait before checking VM health
 POST_REMEDIATION_TIMEOUT=600  # seconds – longer wait after VM remediation
 
+count_pool_nodes() {
+  local count
+  count=$(kubectl --kubeconfig "$KUBECONFIG_FILE" get nodes -l agentpool="$1" \
+    --no-headers 2>/dev/null | wc -l | tr -d '[:space:]') || count=0
+  echo "${count:-0}"
+}
+
+# "kubectl wait" exits immediately with "no matching resources found" when the
+# selector matches nothing, so it cannot be used to wait for a node that has not
+# registered yet. Poll instead, and treat "no nodes" as not-ready rather than as
+# an instant failure.
+wait_pool_ready() {
+  local pool="$1" timeout="$2"
+  local deadline=$(( $(date +%s) + timeout ))
+  local total ready
+
+  while :; do
+    total=$(count_pool_nodes "$pool")
+    if [ "$total" -gt 0 ]; then
+      ready=$(kubectl --kubeconfig "$KUBECONFIG_FILE" get nodes -l agentpool="$pool" \
+        -o jsonpath='{range .items[*]}{range .status.conditions[?(@.type=="Ready")]}{.status}{"\n"}{end}{end}' 2>/dev/null \
+        | grep -c '^True$') || ready=0
+      if [ "$ready" -eq "$total" ]; then
+        return 0
+      fi
+    fi
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      return 1
+    fi
+    sleep 10
+  done
+}
+
 for ZONE in $ZONES; do
   POOL_NAME="npz${ZONE}"
   echo "==> Checking node pool $POOL_NAME for remediator taints before waiting for Ready"
@@ -119,8 +152,7 @@ for ZONE in $ZONES; do
       fi
 
       echo "    Waiting for replacement node to become Ready (timeout ${POST_REMEDIATION_TIMEOUT}s)..."
-      kubectl --kubeconfig "$KUBECONFIG_FILE" wait --for=condition=Ready nodes \
-        -l agentpool="$POOL_NAME" --timeout="${POST_REMEDIATION_TIMEOUT}s" 2>/dev/null || true
+      wait_pool_ready "$POOL_NAME" "$POST_REMEDIATION_TIMEOUT" || true
     fi
   fi
 
@@ -131,14 +163,18 @@ for ZONE in $ZONES; do
 
   while [ "$node_ready" = "false" ] && [ $attempt -le $MAX_REMEDIATION_ATTEMPTS ]; do
     # Try a short wait first
-    if kubectl --kubeconfig "$KUBECONFIG_FILE" wait --for=condition=Ready nodes \
-        -l agentpool="$POOL_NAME" --timeout="${INITIAL_WAIT_TIMEOUT}s" 2>/dev/null; then
+    if wait_pool_ready "$POOL_NAME" "$INITIAL_WAIT_TIMEOUT"; then
       echo "    Node pool $POOL_NAME nodes are Ready"
       node_ready=true
       break
     fi
 
-    echo "    Nodes in pool $POOL_NAME not ready after ${INITIAL_WAIT_TIMEOUT}s, checking Azure VM health..."
+    NODE_COUNT=$(count_pool_nodes "$POOL_NAME")
+    if [ "$NODE_COUNT" -eq 0 ]; then
+      echo "    No Kubernetes node registered for pool $POOL_NAME after ${INITIAL_WAIT_TIMEOUT}s, checking Azure VM health..."
+    else
+      echo "    Nodes in pool $POOL_NAME not ready after ${INITIAL_WAIT_TIMEOUT}s, checking Azure VM health..."
+    fi
     attempt=$((attempt + 1))
 
     # Find the VMSS backing this node pool
@@ -165,11 +201,21 @@ for ZONE in $ZONES; do
 
       echo "    Instance $INSTANCE_ID: provisioningState=$PROV_STATE, powerState=$POWER_STATE"
 
+      UNHEALTHY_REASON=""
       if [ "$PROV_STATE" = "Failed" ] || [ "$POWER_STATE" = "VM stopped" ] || [ "$POWER_STATE" = "VM deallocated" ]; then
-        echo "    WARNING: Instance $INSTANCE_ID is in unhealthy state ($PROV_STATE / $POWER_STATE)"
-        echo "    Deleting failed instance $INSTANCE_ID from VMSS $VMSS_NAME..."
+        UNHEALTHY_REASON="in unhealthy state ($PROV_STATE / $POWER_STATE)"
+      elif [ "$NODE_COUNT" -eq 0 ]; then
+        # Azure reports the VM as healthy but kubelet never registered it, which happens
+        # when a node extension is wedged (e.g. AKSLinuxExtension stuck mid-update).
+        # Reimaging the instance is the only way to recover.
+        UNHEALTHY_REASON="provisioned in Azure but never registered as a Kubernetes node"
+      fi
 
-        # Delete the failed instance – VMSS auto-scaling will provision a replacement
+      if [ -n "$UNHEALTHY_REASON" ]; then
+        echo "    WARNING: Instance $INSTANCE_ID is $UNHEALTHY_REASON"
+        echo "    Deleting instance $INSTANCE_ID from VMSS $VMSS_NAME..."
+
+        # Delete the instance – VMSS auto-scaling will provision a replacement
         az vmss delete-instances -g "$MC_RG" -n "$VMSS_NAME" --subscription "$SUBSCRIPTION_ID" --instance-ids "$INSTANCE_ID" --no-wait || true
 
         remediated=true
@@ -189,8 +235,7 @@ for ZONE in $ZONES; do
       fi
 
       echo "    Waiting for replacement node to become Ready (timeout ${POST_REMEDIATION_TIMEOUT}s)..."
-      if kubectl --kubeconfig "$KUBECONFIG_FILE" wait --for=condition=Ready nodes \
-          -l agentpool="$POOL_NAME" --timeout="${POST_REMEDIATION_TIMEOUT}s" 2>/dev/null; then
+      if wait_pool_ready "$POOL_NAME" "$POST_REMEDIATION_TIMEOUT"; then
         echo "    Replacement node in pool $POOL_NAME is Ready"
         node_ready=true
       else
@@ -198,8 +243,7 @@ for ZONE in $ZONES; do
       fi
     else
       echo "    All VMs appear provisioned OK but K8s node not Ready. Waiting longer..."
-      if kubectl --kubeconfig "$KUBECONFIG_FILE" wait --for=condition=Ready nodes \
-          -l agentpool="$POOL_NAME" --timeout="${POST_REMEDIATION_TIMEOUT}s" 2>/dev/null; then
+      if wait_pool_ready "$POOL_NAME" "$POST_REMEDIATION_TIMEOUT"; then
         echo "    Node pool $POOL_NAME nodes are now Ready"
         node_ready=true
       else
