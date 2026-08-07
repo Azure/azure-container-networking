@@ -1235,7 +1235,7 @@ func TestPluginWindowsAdd(t *testing.T) {
 						NetNsPath:         "bc526fae-4ba0-4e80-bc90-ad721e5850bf",
 						NetNs:             "bc526fae-4ba0-4e80-bc90-ad721e5850bf",
 						HostSubnetPrefix:  "20.224.0.0/16",
-						Options:           map[string]interface{}{},
+						Options:           nil,
 						// matches with cns ip configuration
 						IPAddresses: []net.IPNet{
 							{
