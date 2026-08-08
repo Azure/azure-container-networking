@@ -91,13 +91,18 @@ delegate_subnet() {
     local subnet_id
     subnet_id=$(az network vnet subnet show -g "$RG" --vnet-name "$vnet" -n "$subnet" --query id -o tsv)
 
-    # Check if SAL already exists — skip expensive delegation if so
-    local sal
-    sal=$(az rest --method get \
+    # Gate on the delegation GUID rather than on the link's mere presence. The GUID
+    # is what everything downstream actually consumes - GetSubnetGUID in
+    # test/integration/swiftv2/helpers/az_helpers.go reads this same field to
+    # populate the PodNetwork CR's subnetGUID. A service association link can be
+    # present by name without carrying one, and skipping on the name alone would
+    # leave that subnet permanently undelegated for the tests.
+    local delegation_guid
+    delegation_guid=$(az rest --method get \
       --url "${subnet_id}?api-version=2024-05-01" \
-      2>/dev/null | jq -r '.properties.serviceAssociationLinks[0].name // empty')
-    if [[ -n "$sal" ]]; then
-      echo "SAL already exists on $subnet in $vnet (name: $sal). Skipping delegation."
+      2>/dev/null | jq -r '.properties.serviceAssociationLinks[0].properties.subnetId // empty')
+    if [[ -n "$delegation_guid" ]]; then
+      echo "Subnet $subnet in $vnet is already delegated (GUID: $delegation_guid). Skipping delegation."
       return 0
     fi
 
