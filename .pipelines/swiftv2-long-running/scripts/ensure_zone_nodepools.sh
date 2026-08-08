@@ -79,11 +79,18 @@ MAX_REMEDIATION_ATTEMPTS=2
 INITIAL_WAIT_TIMEOUT=120   # seconds – short initial wait before checking VM health
 POST_REMEDIATION_TIMEOUT=600  # seconds – longer wait after VM remediation
 
+# Returns non-zero when the cluster cannot be queried, so callers can tell "no nodes
+# are registered" apart from "the query failed". Those must not be conflated: the
+# remediation below deletes VMSS instances when it believes no node registered, and
+# losing the API server for a moment is not evidence that a VM failed to join.
 count_pool_nodes() {
-  local count
-  count=$(kubectl --kubeconfig "$KUBECONFIG_FILE" get nodes -l agentpool="$1" \
-    --no-headers 2>/dev/null | wc -l | tr -d '[:space:]') || count=0
-  echo "${count:-0}"
+  local out
+  out=$(kubectl --kubeconfig "$KUBECONFIG_FILE" get nodes -l agentpool="$1" --no-headers) || return 1
+  if [ -z "$out" ]; then
+    echo 0
+  else
+    printf '%s\n' "$out" | wc -l | tr -d '[:space:]'
+  fi
 }
 
 # "kubectl wait" exits immediately with "no matching resources found" when the
@@ -96,10 +103,11 @@ wait_pool_ready() {
   local total ready
 
   while :; do
-    total=$(count_pool_nodes "$pool")
-    if [ "$total" -gt 0 ]; then
+    # A failed query is not "zero nodes", so keep polling rather than concluding
+    # anything from it; a real outage still ends at the deadline below.
+    if total=$(count_pool_nodes "$pool") && [ "$total" -gt 0 ]; then
       ready=$(kubectl --kubeconfig "$KUBECONFIG_FILE" get nodes -l agentpool="$pool" \
-        -o jsonpath='{range .items[*]}{range .status.conditions[?(@.type=="Ready")]}{.status}{"\n"}{end}{end}' 2>/dev/null \
+        -o jsonpath='{range .items[*]}{range .status.conditions[?(@.type=="Ready")]}{.status}{"\n"}{end}{end}' \
         | grep -c '^True$') || ready=0
       if [ "$ready" -eq "$total" ]; then
         return 0
@@ -169,7 +177,13 @@ for ZONE in $ZONES; do
       break
     fi
 
-    NODE_COUNT=$(count_pool_nodes "$POOL_NAME")
+    # Never let a failed query stand in for "no node registered": that inference
+    # deletes VMSS instances below. If the count is unknown, fall back to deleting
+    # only on Azure-reported VM health.
+    if ! NODE_COUNT=$(count_pool_nodes "$POOL_NAME"); then
+      echo "    WARNING: could not query nodes for pool $POOL_NAME; remediating on Azure VM health only"
+      NODE_COUNT=-1
+    fi
     if [ "$NODE_COUNT" -eq 0 ]; then
       echo "    No Kubernetes node registered for pool $POOL_NAME after ${INITIAL_WAIT_TIMEOUT}s, checking Azure VM health..."
     else

@@ -14,7 +14,7 @@ DELEGATOR_BASE_URL=${9:-"http://localhost:8080"}
 CLUSTER_COUNT=2
 PODS_PER_NODE=7
 CLUSTER_PREFIX="aks"
-STALE_NODE_THRESHOLD=1800  # seconds without a kubelet heartbeat before a Node is considered unrecoverable
+STALE_NODE_THRESHOLD=1800  # seconds a Node may stay unreachable and non-Ready before it is considered unrecoverable
 
 echo "Setting active subscription to $SUBSCRIPTION_ID"
 az account set --subscription "$SUBSCRIPTION_ID"
@@ -104,7 +104,7 @@ check_unreachable_nodes() {
     return 0
   fi
 
-  echo "##vso[task.logissue type=error]Cluster $clusterName has nodes whose kubelet stopped reporting more than ${STALE_NODE_THRESHOLD}s ago:"
+  echo "##vso[task.logissue type=error]Cluster $clusterName has nodes that have been unreachable and non-Ready for more than ${STALE_NODE_THRESHOLD}s:"
   echo "$unreachable"
   echo "They cannot become Ready, so waiting for node readiness would only time out."
   echo "Check the backing scale sets for a failed provisioningState or missing instances, repair them, then re-run."
