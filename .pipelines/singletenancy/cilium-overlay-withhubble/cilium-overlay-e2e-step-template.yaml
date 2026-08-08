@@ -28,26 +28,12 @@ steps:
       kubectlVersion: latest
 
   - task: AzureCLI@2
+    displayName: Set cluster credentials
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-      scriptLocation: "inlineScript"
-      scriptType: "bash"
-      addSpnToEnvironment: true
-      inlineScript: |
-        set -e
-        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
-        ls -lah
-        export CILIUM_VERSION_TAG=${CILIUM_HUBBLE_VERSION_TAG}
-        export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
-        echo "installing files from ${DIR}"
-        kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config-hubble.yaml
-        kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
-        kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
-        envsubst '${CILIUM_IMAGE_REGISTRY},${CILIUM_VERSION_TAG}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
-        envsubst '${CILIUM_IMAGE_REGISTRY},${CILIUM_VERSION_TAG}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
-        # Use different file directories for nightly and current cilium version
-    name: "installCilium"
-    displayName: "Install Cilium on AKS Overlay"
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
 
   - template: ../../templates/cilium-cli.yaml
 
@@ -59,7 +45,7 @@ steps:
       else
           CNS=$(make cns-version) IPAM=$(make azure-ipam-version)
       fi
-      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_OVERLAY=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CLEANUP=true
+      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true INSTALL_OVERLAY=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CLEANUP=true
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E on AKS Overlay"

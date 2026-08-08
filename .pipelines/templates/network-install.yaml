@@ -1,0 +1,151 @@
+parameters:
+  - name: clusterName
+    type: string
+  - name: networkType
+    type: string
+  - name: azureIpamVersion
+    type: string
+  - name: cnsVersion
+    type: string
+  - name: cniVersion
+    type: string
+  - name: installFlag
+    type: string
+  - name: os
+    type: string
+    default: linux
+  - name: scaleup
+    type: number
+    default: 32
+  - name: testHubble
+    type: boolean
+    default: false
+  - name: nightly
+    type: boolean
+    default: false
+
+steps:
+  - task: KubectlInstaller@0
+    inputs:
+      kubectlVersion: latest
+
+  - ${{ if startsWith(parameters.networkType, 'cilium') }}:
+    - template: cilium-cli.yaml
+
+  - task: AzureCLI@2
+    displayName: Install ACN Networking
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -e
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+        kubectl cluster-info
+
+        CNI_TYPE=cniv2
+        WAIT_FOR_CNS=true
+        case "${{ parameters.networkType }}" in
+          cilium-dualstack|cilium-ebpf-dualstack)
+            CNI_TYPE=cilium_dualstack
+            WAIT_FOR_CNS=false
+            ;;
+          cilium-*)
+            CNI_TYPE=cilium
+            WAIT_FOR_CNS=false
+            ;;
+          azure-vnet|azure-cni-overlay|azure-cni-overlay-stateless|azure-cni-dualstack-overlay)
+            ;;
+          *)
+            echo "Unsupported networkType: ${{ parameters.networkType }}"
+            exit 1
+            ;;
+        esac
+
+        if [ "${{ parameters.networkType }}" = "cilium-nodesubnet" ]; then
+          mkdir -p "$(Agent.TempDirectory)/go/pkg/mod" "$(Agent.TempDirectory)/go-build"
+          SECONDARY_IP_COUNT=$(( ${{ parameters.scaleup }} * 2 )) \
+          RESOURCE_GROUP="MC_${{ parameters.clusterName }}_${{ parameters.clusterName }}_$(REGION_AKS_CLUSTER_TEST)" \
+          GOPATH="$(Agent.TempDirectory)/go" \
+          GOMODCACHE="$(Agent.TempDirectory)/go/pkg/mod" \
+          GOCACHE="$(Agent.TempDirectory)/go-build" \
+          go run $(Build.SourcesDirectory)/test/integration/cilium-nodesubnet/ipconfigupdate.go
+        fi
+
+        sudo -E env "PATH=$PATH" make test-load \
+          CNS_ONLY=true \
+          OS_TYPE=${{ parameters.os }} \
+          CNI_TYPE="$CNI_TYPE" \
+          WAIT_FOR_CNS="$WAIT_FOR_CNS" \
+          INSTALL_CNS=true \
+          ${{ parameters.installFlag }}=true \
+          AZURE_IPAM_VERSION=${{ parameters.azureIpamVersion }} \
+          CNS_VERSION=${{ parameters.cnsVersion }} \
+          CNI_VERSION=${{ parameters.cniVersion }} \
+          IPAM_IMAGE_NAME_OVERRIDE=$(IPAM_IMAGE_NAME_OVERRIDE) \
+          CNS_IMAGE_NAME_OVERRIDE=$(CNS_IMAGE_NAME_OVERRIDE) \
+          CNI_IMAGE_NAME_OVERRIDE=$(CNI_IMAGE_NAME_OVERRIDE)
+
+  - ${{ if startsWith(parameters.networkType, 'cilium') }}:
+    - bash: |
+        set -e
+        kubectl cluster-info
+
+        case "${{ parameters.networkType }}" in
+          cilium-podsubnet|cilium-nodesubnet)
+            DIR=$(echo "${CILIUM_VERSION_TAG#v}" | cut -d. -f1,2)
+            kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config.yaml
+            kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
+            kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
+            envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
+            envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
+            ;;
+          cilium-overlay)
+            if [ "${{ parameters.testHubble }}" = "True" ]; then
+              export CILIUM_VERSION_TAG=${CILIUM_HUBBLE_VERSION_TAG}
+              DIR=$(echo "${CILIUM_VERSION_TAG#v}" | cut -d. -f1,2)
+              kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config-hubble.yaml
+              kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
+              kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
+              envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
+              envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
+            elif [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ] || [ "${{ parameters.nightly }}" = "True" ]; then
+              kubectl apply -f test/integration/manifests/cilium/cilium-nightly-config.yaml
+              envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
+              envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/deployment.yaml | kubectl apply -f -
+              kubectl apply -f test/integration/manifests/cilium/cilium-nightly-agent
+              kubectl apply -f test/integration/manifests/cilium/cilium-nightly-operator
+            else
+              DIR=$(echo "${CILIUM_VERSION_TAG#v}" | cut -d. -f1,2)
+              kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config.yaml
+              kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
+              kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
+              envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
+              envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
+            fi
+            ;;
+          cilium-dualstack)
+            export CILIUM_VERSION_TAG=${CILIUM_DUALSTACK_VERSION}
+            export IPV6_HP_BPF_VERSION=${IPV6_HP_BPF_VERSION:-$(make ipv6-hp-bpf-version)}
+            DIR=$(echo "${CILIUM_VERSION_TAG#v}" | cut -d. -f1,2)
+            kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config-dualstack.yaml
+            kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
+            kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
+            envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY},${IPV6_IMAGE_REGISTRY},${IPV6_HP_BPF_VERSION}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset-dualstack.yaml | kubectl apply -f -
+            envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
+            ;;
+          *)
+            echo "Unsupported networkType: ${{ parameters.networkType }}"
+            exit 1
+            ;;
+        esac
+
+        kubectl get pods -A -o wide
+      displayName: Install Cilium networking
+
+    - bash: |
+        set -e
+        kubectl rollout status daemonset/azure-cns -n kube-system --timeout=20m
+        cilium status --wait --wait-duration 20m
+      displayName: Wait for ACN and Cilium networking
