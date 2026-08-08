@@ -169,7 +169,7 @@ for ZONE in $ZONES; do
   attempt=0
   node_ready=false
 
-  while [ "$node_ready" = "false" ] && [ $attempt -le $MAX_REMEDIATION_ATTEMPTS ]; do
+  while [ "$node_ready" = "false" ] && [ $attempt -lt $MAX_REMEDIATION_ATTEMPTS ]; do
     # Try a short wait first
     if wait_pool_ready "$POOL_NAME" "$INITIAL_WAIT_TIMEOUT"; then
       echo "    Node pool $POOL_NAME nodes are Ready"
