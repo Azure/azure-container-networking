@@ -32,14 +32,16 @@ import (
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/report"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/signatures"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/store"
+	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/weekly"
 	"go.uber.org/zap"
 )
 
 const (
-	defaultSignaturesPath = "signatures/signatures.yaml"
-	defaultAOAIAPIVersion = "2024-10-21"
-	defaultTimeout        = 90 * time.Second
-	publishTimeout        = 30 * time.Second
+	defaultSignaturesPath   = "signatures/signatures.yaml"
+	defaultAOAIAPIVersion   = "2024-10-21"
+	defaultTimeout          = 90 * time.Second
+	publishTimeout          = 30 * time.Second
+	defaultWeeklyWindowDays = 7
 )
 
 type options struct {
@@ -65,6 +67,9 @@ type options struct {
 	live            bool
 	privileged      bool
 	flakinessOutput string
+
+	weeklyReport string
+	weeklyWindow int
 }
 
 func main() {
@@ -77,6 +82,18 @@ func main() {
 
 	ctx := context.Background()
 	opts := parseFlags()
+
+	// Weekly-trends mode is a distinct entrypoint: it aggregates a window of
+	// prior incident.json artifacts and synthesizes a digest, rather than
+	// analyzing a single failed run. It shares the Azure OpenAI client but none
+	// of the per-run evidence-collection or knowledge-store machinery.
+	if opts.weeklyReport != "" {
+		if err := runWeekly(ctx, logger, opts); err != nil {
+			logger.Error("weekly trends synthesis failed", zap.Error(err))
+			os.Exit(1)
+		}
+		return
+	}
 
 	var ks knowledgeStore = noopStore{}
 	var sqlStore *store.Store
@@ -126,6 +143,8 @@ func parseFlags() options {
 	flag.BoolVar(&o.live, "live", true, "collect read-only kubectl diagnostics from the retained cluster (requires kubectl + KUBECONFIG)")
 	flag.BoolVar(&o.privileged, "privileged", true, "collect host-level logs via kubectl debug node (requires --live; creates ephemeral debug pods)")
 	flag.StringVar(&o.flakinessOutput, "flakiness-output", "", "write the knowledge-store flakiness report to this path")
+	flag.StringVar(&o.weeklyReport, "weekly-report", "", "weekly-trends mode: aggregate the incident.json artifacts under this directory and synthesize a trends digest (writes weekly-report.md + weekly-incident.json to --output)")
+	flag.IntVar(&o.weeklyWindow, "weekly-window-days", defaultWeeklyWindowDays, "weekly-trends mode: reporting window in days, surfaced on the digest")
 	flag.Parse()
 	return o
 }
@@ -456,14 +475,70 @@ func (e errorClassifier) Classify(context.Context, model.RunContext, model.Evide
 // buildClassifier returns the LLM classifier, or an errorClassifier carrying the
 // configuration error when Azure OpenAI is not set up.
 func buildClassifier(opts options) classifier {
+	client, err := buildCompleter(opts)
+	if err != nil {
+		return errorClassifier{err: err}
+	}
+	return classify.NewLLMClassifier(client)
+}
+
+// buildCompleter constructs the Azure OpenAI ChatCompleter shared by the per-run
+// classifier and the weekly-trends synthesis. It returns an error (rather than a
+// fallback) when the endpoint, deployment, or key is missing.
+func buildCompleter(opts options) (classify.ChatCompleter, error) {
 	if opts.aoaiEndpoint == "" || opts.aoaiDeployment == "" || opts.aoaiAPIKey == "" {
-		return errorClassifier{err: errors.New("azure openai endpoint, deployment, and api key are required for analysis")}
+		return nil, errors.New("azure openai endpoint, deployment, and api key are required for analysis")
 	}
 	client, err := classify.NewAzureClient(opts.aoaiEndpoint, opts.aoaiDeployment, opts.aoaiAPIVersion, opts.aoaiAPIKey)
 	if err != nil {
-		return errorClassifier{err: fmt.Errorf("configuring azure openai client: %w", err)}
+		return nil, fmt.Errorf("configuring azure openai client: %w", err)
 	}
-	return classify.NewLLMClassifier(client)
+	return client, nil
+}
+
+// runWeekly aggregates the incident.json artifacts under opts.weeklyReport,
+// synthesizes a trends digest with the LLM, and writes weekly-report.md +
+// weekly-incident.json to opts.output. When the LLM is unavailable or fails, it
+// falls back to a deterministic stats-only digest so the weekly card still
+// posts.
+func runWeekly(ctx context.Context, logger *zap.Logger, opts options) error {
+	incidents, err := weekly.LoadIncidents(opts.weeklyReport)
+	if err != nil {
+		return fmt.Errorf("loading weekly incidents: %w", err)
+	}
+	stats := weekly.Aggregate(incidents)
+	logger.Info("weekly incidents aggregated",
+		zap.String("event", "weekly_aggregated"),
+		zap.String("dir", opts.weeklyReport),
+		zap.Int("incidents", stats.TotalIncidents),
+		zap.Int("recurringSignatures", len(stats.TopRecurring)),
+	)
+
+	summary := weekly.FallbackSummary(stats)
+	if client, cErr := buildCompleter(opts); cErr != nil {
+		logger.Warn("azure openai not configured; emitting deterministic weekly digest", zap.Error(cErr))
+	} else {
+		synthCtx, cancel := context.WithTimeout(ctx, opts.timeout)
+		defer cancel()
+		if synth, sErr := weekly.Synthesize(synthCtx, client, stats, incidents); sErr != nil {
+			logger.Warn("weekly synthesis failed; emitting deterministic weekly digest", zap.Error(sErr))
+		} else {
+			summary = synth
+		}
+	}
+
+	now := time.Now()
+	windowStart := now.AddDate(0, 0, -opts.weeklyWindow)
+	wi := weekly.Build(now, windowStart, opts.weeklyWindow, stats, summary)
+	if err := weekly.WriteFiles(opts.output, wi); err != nil {
+		return err
+	}
+	logger.Info("weekly digest written",
+		zap.String("event", "weekly_digest_written"),
+		zap.String("report", filepath.Join(opts.output, weekly.MarkdownFile)),
+		zap.Int("incidents", stats.TotalIncidents),
+	)
+	return nil
 }
 
 // maxFailedEvidenceLines caps how many error lines are surfaced when analysis fails.
