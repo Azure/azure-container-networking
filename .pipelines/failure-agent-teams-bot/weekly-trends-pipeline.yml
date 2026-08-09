@@ -9,8 +9,9 @@
 #
 # BEFORE THIS RUNS you MUST fill in:
 #   1. pipeline-constants.yml → notifyTeamId, notifyChannelId
-#   2. parameters.analysisPipelineIds → the ADO build-definition id(s) whose
-#      failureAnalysis_* artifacts should be aggregated (comma-separated).
+#   2. parameters.analysisPipelineIds → defaults to 95007 (ACN E2E, msazure/One);
+#      add more comma-separated ADO build-definition ids to aggregate additional
+#      pipelines' failureAnalysis_* artifacts.
 #   3. The AzureCLI@2 azureSubscription below → your WIF service connection.
 #   4. Enable "Allow scripts to access the OAuth token" so SYSTEM_ACCESSTOKEN is
 #      available for the artifact-aggregation REST calls.
@@ -33,9 +34,10 @@ schedules:
 parameters:
   # ADO build-definition id(s) whose failureAnalysis_* artifacts are aggregated.
   # Comma-separated. Empty = the aggregation step is a quiet no-op.
+  # 95007 = ACN E2E (msazure/One) — the pipeline that publishes failureAnalysis_* artifacts.
   - name: analysisPipelineIds
     type: string
-    default: ""
+    default: "95007"
   - name: windowDays
     type: string
     default: "7"
