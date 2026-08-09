@@ -187,6 +187,9 @@ jobs:
             echo "##vso[task.uploadsummary]$REPORT"
             cp "$REPORT" "$OUT_DIR/report.md"
             cp "$(Agent.TempDirectory)/analysis/incident.json" "$OUT_DIR/incident.json" 2>/dev/null || true
+            # fix.md is only written for high-confidence regressions on non-PR
+            # builds; ship it when present so the draft-PR workflow can pull it.
+            cp "$(Agent.TempDirectory)/analysis/fix.md" "$OUT_DIR/fix.md" 2>/dev/null || true
           fi
         displayName: "Publish analysis summary"
         condition: succeededOrFailed()
