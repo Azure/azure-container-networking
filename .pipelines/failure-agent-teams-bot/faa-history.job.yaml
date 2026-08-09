@@ -37,6 +37,11 @@ jobs:
       - template: pipeline-constants.yml
       - name: ob_outputDirectory
         value: $(Build.ArtifactStagingDirectory)/out
+      # Default container name so an unset pipeline variable can't pass the raw
+      # "$(FAA_STORAGE_CONTAINER)" macro through as an invalid blob container name.
+      # A pipeline UI / queue-time variable of the same name still overrides this.
+      - name: FAA_STORAGE_CONTAINER
+        value: incidents
     steps:
       - checkout: self
 
