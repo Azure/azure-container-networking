@@ -96,8 +96,10 @@ jobs:
         condition: succeededOrFailed()
 
       # Post the answer as a standalone card that @mentions the initiator. History
-      # mode has no target run, so there is no card to thread onto; NOTIFY_ANSWER_TAG
-      # marks it as a history answer.
+      # mode has no target run, so there is no card to thread onto: NOTIFY_RUN_ID
+      # is this history run's own build id (a fresh notifier key -> a new card),
+      # NOTIFY_ANSWER_STANDALONE skips the futile thread attempt, and
+      # NOTIFY_ANSWER_TAG marks it as a history answer.
       - task: AzureCLI@2
         displayName: "Reply to Teams with the history answer"
         condition: succeededOrFailed()
@@ -115,6 +117,8 @@ jobs:
           NOTIFIER_ENDPOINT: $(notifierEndpoint)
           NOTIFIER_API_AUDIENCE: $(notifierApiAudience)
           NOTIFY_SOURCE: $(notifySource)
+          NOTIFY_RUN_ID: $(Build.BuildId)
+          NOTIFY_ANSWER_STANDALONE: "1"
           NOTIFY_ANSWER_TAG: faa-history
           NOTIFY_TEAM_ID: $(notifyTeamId)
           NOTIFY_CHANNEL_ID: $(notifyChannelId)

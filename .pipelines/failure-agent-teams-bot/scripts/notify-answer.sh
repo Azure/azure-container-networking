@@ -24,6 +24,11 @@ INITIATOR_UPN="${2:-${INITIATOR_UPN:-}}"
 # distinguishable and don't reuse the build-ask thread semantics.
 TAG="${NOTIFY_ANSWER_TAG:-faa-ask}"
 
+# When NOTIFY_ANSWER_STANDALONE is set (history mode), there is never a prior card
+# to thread onto, so skip the notify_reply attempt (which would always 404) and
+# post the standalone card directly. Build-ask leaves this unset and threads.
+STANDALONE="${NOTIFY_ANSWER_STANDALONE:-}"
+
 if [[ -z "$ANSWER" ]]; then
   echo "notify-answer: usage: notify-answer.sh <answer.md> [initiator-upn]" >&2
   exit 0
@@ -44,26 +49,33 @@ if [[ -z "${text//[[:space:]]/}" ]]; then
   exit 0
 fi
 
-reply_args=(--text "$text" --tag "$TAG")
-if [[ -n "$INITIATOR_UPN" ]]; then
-  reply_args+=(--mention-user "$INITIATOR_UPN")
+# Build-ask threads the answer onto the target run's existing FAA card. History
+# mode (NOTIFY_ANSWER_STANDALONE set) has no such card, so it skips straight to
+# the standalone card below.
+if [[ -z "$STANDALONE" ]]; then
+  reply_args=(--text "$text" --tag "$TAG")
+  if [[ -n "$INITIATOR_UPN" ]]; then
+    reply_args+=(--mention-user "$INITIATOR_UPN")
+  fi
+
+  # Try to thread the answer onto the target run's existing FAA card. notify_reply
+  # is best-effort (always returns 0), so detect delivery from its output: it
+  # prints "replied (HTTP 2xx)" on success, or a non-2xx line (e.g. 404 when no
+  # thread exists for this build) on failure.
+  reply_out="$(notify_reply "${reply_args[@]}" 2>&1)"
+  printf '%s\n' "$reply_out"
+
+  if printf '%s' "$reply_out" | grep -q 'replied (HTTP'; then
+    exit 0
+  fi
+
+  # No thread to reply to (build never posted a card, or the thread aged out).
+  # Fall through to a standalone card so the answer still reaches the channel.
+  echo "notify-answer: no existing thread; posting a standalone answer card" >&2
 fi
 
-# Try to thread the answer onto the target run's existing FAA card. notify_reply
-# is best-effort (always returns 0), so detect delivery from its output: it
-# prints "replied (HTTP 2xx)" on success, or a non-2xx line (e.g. 404 when no
-# thread exists for this build) on failure.
-reply_out="$(notify_reply "${reply_args[@]}" 2>&1)"
-printf '%s\n' "$reply_out"
-
-if printf '%s' "$reply_out" | grep -q 'replied (HTTP'; then
-  exit 0
-fi
-
-# No thread to reply to (build never posted a card, or the thread aged out).
-# Post the answer as a standalone card so it still reaches the channel; this
-# also creates the (source, runId) thread so later asks about this build thread.
-echo "notify-answer: no existing thread; posting a standalone answer card" >&2
+# Standalone card: reaches the channel with no prior card, and creates the
+# (source, runId) thread so any later reply can attach to it.
 card_args=(--status succeeded --stage "$TAG" --severity info \
   --title "FAA answer" --summary "$text")
 if [[ -n "$INITIATOR_UPN" ]]; then
