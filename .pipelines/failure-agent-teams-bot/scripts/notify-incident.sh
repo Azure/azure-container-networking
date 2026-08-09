@@ -123,25 +123,12 @@ if [[ -n "$pr_number" && -n "$repository" ]]; then
   status_args+=(--fact "Pull request|#${pr_number}|https://github.com/${repository}/pull/${pr_number}")
 fi
 
-# @mention whoever queued this run so the ping lands on them in the shared
-# channel. Build.RequestedForEmail is the AAD UPN the notifier resolves; empty
-# (some scheduled/service triggers) is a quiet skip. Build.RequestedFor is the
-# display name; notify_status defaults to the email prefix when it's absent.
-status_args+=(--cc-label "Initiated by")
-initiator_upn="${BUILD_REQUESTEDFOREMAIL:-}"
-initiator_name="${BUILD_REQUESTEDFOR:-}"
-if [[ -n "$initiator_upn" ]]; then
-  if [[ -n "$initiator_name" ]]; then
-    status_args+=(--cc-user "${initiator_upn}|${initiator_name}")
-  else
-    status_args+=(--cc-user "$initiator_upn")
-  fi
-fi
-
-# Always cc the failure-analysis owners so they're pinged on every card.
-status_args+=(--cc-user "johnpayne@microsoft.com|John Payne")
-status_args+=(--cc-user "behzadm@microsoft.com|Behzad Mirkhanzadeh")
-
+# Per-run cards post to the channel but deliberately @mention no one: a ping on
+# every confident analysis is high-volume, so individual mentions (the run
+# initiator and the failure-analysis owners) were dropped to avoid notification
+# fatigue. Owners are @mentioned on the low-frequency weekly trends card instead
+# (see notify-weekly.sh). The card still lands in the shared channel for anyone
+# watching it.
 notify_status "${status_args[@]}"
 
 # --- Threaded detail: notify_reply -----------------------------------------
