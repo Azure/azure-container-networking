@@ -1,0 +1,118 @@
+# Reusable job template: `/faa history <question>` grounded Q&A over the corpus
+# of past FAA reports.
+#
+# This is the governed (1ES/OneBranch) job form for history-ask, wired as a stage
+# inside the main ACN pipeline (.pipelines/pipeline.yaml) so it inherits that
+# pipeline's authorized pool, AOAI variables, storage connection string, and the
+# acn-dalec-test service connection.
+#
+# Unlike faa-ask.job.yaml this run is build-independent: it needs no target build
+# and downloads no artifacts. It runs the failure-agent in --history --ask mode,
+# which reads past report.md files from the storage account, writes answer.md, and
+# never emits a new incident. The answer is posted as a standalone card that
+# @mentions the initiator (there is no original run card to thread onto).
+
+parameters:
+  - name: question
+    type: string
+    default: ""
+  - name: initiatorUpn
+    type: string
+    default: ""
+  - name: initiatorName
+    type: string
+    default: ""
+
+jobs:
+  - job: faaHistory
+    displayName: "FAA history: answer /faa history question"
+    pool:
+      type: linux
+      isCustom: true
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      demands:
+        - agent.os -equals Linux
+    timeoutInMinutes: 15
+    variables:
+      - template: pipeline-constants.yml
+      - name: ob_outputDirectory
+        value: $(Build.ArtifactStagingDirectory)/out
+    steps:
+      - checkout: self
+
+      - task: GoTool@0
+        inputs:
+          version: '1.25'
+        displayName: "Setup Go"
+
+      # Run the agent in history ask mode. The question is passed via env (not
+      # interpolated into the script) so quotes/newlines can't break the shell;
+      # MVP treats it as trusted internal analyst text. The corpus of past
+      # reports is read from the storage account via the connection string.
+      - script: |
+          set -euo pipefail
+
+          OUTPUT_DIR="$(Agent.TempDirectory)/answer"
+          mkdir -p "$OUTPUT_DIR"
+
+          cd "$(Build.SourcesDirectory)/tools/failure-agent"
+          go run . \
+            --history \
+            --ask "$QUESTION" \
+            --output "$OUTPUT_DIR"
+
+          echo "=== answer.md ==="
+          cat "$OUTPUT_DIR/answer.md" || echo "(no answer produced)"
+        displayName: "Run failure-agent history ask mode"
+        env:
+          QUESTION: ${{ parameters.question }}
+          FAA_STORAGE_CONNECTION_STRING: $(FAA_STORAGE_CONNECTION_STRING)
+          FAA_STORAGE_CONTAINER: $(FAA_STORAGE_CONTAINER)
+          AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
+          AZURE_OPENAI_DEPLOYMENT: $(AZURE_OPENAI_DEPLOYMENT)
+          AZURE_OPENAI_API_KEY: $(AZURE_OPENAI_API_KEY)
+          AZURE_OPENAI_API_VERSION: $(AZURE_OPENAI_API_VERSION)
+
+      - script: |
+          set -euo pipefail
+          OUT_DIR="$(Build.ArtifactStagingDirectory)/out"
+          mkdir -p "$OUT_DIR"
+          ANSWER="$(Agent.TempDirectory)/answer/answer.md"
+          if [ -f "$ANSWER" ]; then
+            echo "##vso[task.uploadsummary]$ANSWER"
+            cp "$ANSWER" "$OUT_DIR/answer.md"
+          fi
+        displayName: "Publish answer summary"
+        condition: succeededOrFailed()
+
+      - publish: $(Build.ArtifactStagingDirectory)/out
+        artifact: faaHistory_answer
+        displayName: "Publish answer artifact"
+        condition: succeededOrFailed()
+
+      # Post the answer as a standalone card that @mentions the initiator. History
+      # mode has no target run, so there is no card to thread onto; NOTIFY_ANSWER_TAG
+      # marks it as a history answer.
+      - task: AzureCLI@2
+        displayName: "Reply to Teams with the history answer"
+        condition: succeededOrFailed()
+        inputs:
+          azureSubscription: acn-dalec-test
+          scriptType: bash
+          scriptLocation: inlineScript
+          addSpnToEnvironment: true
+          inlineScript: |
+            bash "$(Build.SourcesDirectory)/.pipelines/failure-agent-teams-bot/scripts/notify-answer.sh" \
+              "$(Agent.TempDirectory)/answer/answer.md" \
+              "$INITIATOR_UPN"
+        env:
+          INITIATOR_UPN: ${{ parameters.initiatorUpn }}
+          NOTIFIER_ENDPOINT: $(notifierEndpoint)
+          NOTIFIER_API_AUDIENCE: $(notifierApiAudience)
+          NOTIFY_SOURCE: $(notifySource)
+          NOTIFY_ANSWER_TAG: faa-history
+          NOTIFY_TEAM_ID: $(notifyTeamId)
+          NOTIFY_CHANNEL_ID: $(notifyChannelId)
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+          SYSTEM_COLLECTIONURI: $(System.CollectionUri)
+          SYSTEM_TEAMPROJECT: $(System.TeamProject)

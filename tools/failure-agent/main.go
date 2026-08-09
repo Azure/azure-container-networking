@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/classify"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/collect"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/command"
+	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/corpus"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/fingerprint"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/live"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/model"
@@ -41,6 +42,8 @@ const (
 	defaultAOAIAPIVersion = "2024-10-21"
 	defaultTimeout        = 90 * time.Second
 	publishTimeout        = 30 * time.Second
+
+	defaultStorageContainer = "incidents"
 )
 
 type options struct {
@@ -72,6 +75,13 @@ type options struct {
 	// (--prior-analysis), writing answer.md instead of classifying.
 	ask           string
 	priorAnalysis string
+
+	// History ask mode: when history is true (with --ask) the agent answers the
+	// question grounded in the corpus of past FAA reports in the storage
+	// account instead of a single build's evidence.
+	history          bool
+	storageConnStr   string
+	storageContainer string
 }
 
 func main() {
@@ -87,9 +97,14 @@ func main() {
 
 	// Ask mode is a distinct, self-contained path: it answers a question and
 	// never classifies, opens the knowledge store, collects live diagnostics, or
-	// writes back to a PR.
+	// writes back to a PR. History mode answers from the reports corpus; the
+	// default ask answers from a single build's evidence.
 	if opts.ask != "" {
-		if err := runAsk(ctx, logger, opts); err != nil {
+		runner := runAsk
+		if opts.history {
+			runner = runAskHistory
+		}
+		if err := runner(ctx, logger, opts); err != nil {
 			logger.Error("failure ask failed", zap.Error(err))
 			os.Exit(1)
 		}
@@ -146,6 +161,9 @@ func parseFlags() options {
 	flag.StringVar(&o.flakinessOutput, "flakiness-output", "", "write the knowledge-store flakiness report to this path")
 	flag.StringVar(&o.ask, "ask", "", "ask mode: answer this question grounded in --input evidence and --prior-analysis, writing answer.md instead of classifying")
 	flag.StringVar(&o.priorAnalysis, "prior-analysis", "", "ask mode: directory holding the target build's prior FAA report.md and incident.json")
+	flag.BoolVar(&o.history, "history", false, "history ask mode: with --ask, answer grounded in the corpus of past FAA reports in the storage account instead of a single build's evidence")
+	flag.StringVar(&o.storageConnStr, "storage-connection-string", os.Getenv("FAA_STORAGE_CONNECTION_STRING"), "history mode: Azure Storage account connection string for the reports corpus (or FAA_STORAGE_CONNECTION_STRING)")
+	flag.StringVar(&o.storageContainer, "storage-container", envOrDefault("FAA_STORAGE_CONTAINER", defaultStorageContainer), "history mode: blob container holding the past FAA reports (or FAA_STORAGE_CONTAINER)")
 	flag.Parse()
 	return o
 }
@@ -322,7 +340,62 @@ func runAsk(ctx context.Context, logger *zap.Logger, opts options) error {
 	return nil
 }
 
-// handleDuplicate is taken when an unresolved incident with the same fingerprint
+// historyReportLimit caps how many past reports are fed to the model.
+const historyReportLimit = 15
+
+// runAskHistory answers a build-independent question grounded in the corpus of
+// past FAA reports in the storage account. Like runAsk it writes answer.md and
+// never classifies; unlike runAsk it needs no --input evidence bundle or
+// prior-analysis directory.
+func runAskHistory(ctx context.Context, logger *zap.Logger, opts options) error {
+	if opts.storageConnStr == "" {
+		return errors.New("--storage-connection-string (or FAA_STORAGE_CONNECTION_STRING) is required for history mode")
+	}
+	if opts.aoaiEndpoint == "" || opts.aoaiDeployment == "" || opts.aoaiAPIKey == "" {
+		return errors.New("azure openai endpoint, deployment, and api key are required for history mode")
+	}
+	client, err := classify.NewAzureClient(opts.aoaiEndpoint, opts.aoaiDeployment, opts.aoaiAPIVersion, opts.aoaiAPIKey)
+	if err != nil {
+		return fmt.Errorf("configuring azure openai client: %w", err)
+	}
+
+	cc, err := corpus.NewClient(opts.storageConnStr, opts.storageContainer, logger)
+	if err != nil {
+		return fmt.Errorf("configuring corpus client: %w", err)
+	}
+
+	fetchCtx, cancelFetch := context.WithTimeout(ctx, opts.timeout)
+	defer cancelFetch()
+	records, err := cc.Fetch(fetchCtx)
+	if err != nil {
+		return fmt.Errorf("fetching reports corpus: %w", err)
+	}
+	selected := corpus.SelectRelevant(records, opts.ask, historyReportLimit)
+	logger.Info("corpus reports collected for history ask",
+		zap.String("container", opts.storageContainer),
+		zap.Int("reports", len(records)),
+		zap.Int("selected", len(selected)),
+	)
+
+	askCtx, cancel := context.WithTimeout(ctx, opts.timeout)
+	defer cancel()
+
+	answer, err := ask.NewAnswerer(client).AnswerFromHistory(askCtx, opts.ask, selected)
+	if err != nil {
+		return fmt.Errorf("answering question: %w", err)
+	}
+
+	outPath := filepath.Join(opts.output, ask.AnswerFile)
+	if err := os.WriteFile(outPath, []byte(answer), 0o644); err != nil {
+		return fmt.Errorf("writing answer: %w", err)
+	}
+	logger.Info("answer written",
+		zap.String("event", "answer_written"),
+		zap.String("path", outPath),
+	)
+	return nil
+}
+
 // already exists. It skips the LLM call and PR write-back to avoid churn, records
 // the recurrence on the existing incident, and still writes local artifacts.
 func handleDuplicate(ctx context.Context, logger *zap.Logger, opts options, rc model.RunContext, fp model.Fingerprint, matches []model.SignatureMatch, ev model.Evidence, ks knowledgeStore, active *store.Incident) error {

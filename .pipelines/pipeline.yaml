@@ -72,6 +72,16 @@ parameters:
   - name: faaInitiatorName
     type: string
     default: ""
+  # faaMode selects which /faa flavor runs: "build" (default) answers about a
+  # specific target build via faa_ask; "history" answers a build-independent
+  # question over the corpus of past FAA reports via faa_history. The Teams
+  # history flow sets faaMode=history and isolates to the faa_history stage.
+  - name: faaMode
+    type: string
+    default: "build"
+    values:
+      - build
+      - history
 
 stages:
   - stage: setup
@@ -359,11 +369,27 @@ stages:
     - stage: faa_ask
       displayName: FAA Ask
       dependsOn: []
-      condition: ne('${{ parameters.faaTargetBuildId }}', '')
+      condition: and(ne('${{ parameters.faaTargetBuildId }}', ''), ne('${{ parameters.faaMode }}', 'history'))
       jobs:
         - template: failure-agent-teams-bot/faa-ask.job.yaml
           parameters:
             targetBuildId: ${{ parameters.faaTargetBuildId }}
+            question: ${{ parameters.faaQuestion }}
+            initiatorUpn: ${{ parameters.faaInitiatorUpn }}
+            initiatorName: ${{ parameters.faaInitiatorName }}
+
+    # FAA History answers a build-independent question over the corpus of past
+    # FAA reports in the storage account. Runs only when faaMode == history
+    # (set by the dedicated Teams history flow, which also isolates the run to
+    # this stage via "Stages to run"). dependsOn: [] so it starts immediately and
+    # pulls in no other stages.
+    - stage: faa_history
+      displayName: FAA History
+      dependsOn: []
+      condition: eq('${{ parameters.faaMode }}', 'history')
+      jobs:
+        - template: failure-agent-teams-bot/faa-history.job.yaml
+          parameters:
             question: ${{ parameters.faaQuestion }}
             initiatorUpn: ${{ parameters.faaInitiatorUpn }}
             initiatorName: ${{ parameters.faaInitiatorName }}

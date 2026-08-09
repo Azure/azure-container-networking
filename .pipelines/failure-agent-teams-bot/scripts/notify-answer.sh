@@ -19,6 +19,11 @@ set -uo pipefail
 ANSWER="${1:-}"
 INITIATOR_UPN="${2:-${INITIATOR_UPN:-}}"
 
+# Tag/stage label for the reply and standalone card. Defaults to the build-ask
+# tag; history mode sets NOTIFY_ANSWER_TAG=faa-history so its replies are
+# distinguishable and don't reuse the build-ask thread semantics.
+TAG="${NOTIFY_ANSWER_TAG:-faa-ask}"
+
 if [[ -z "$ANSWER" ]]; then
   echo "notify-answer: usage: notify-answer.sh <answer.md> [initiator-upn]" >&2
   exit 0
@@ -39,7 +44,7 @@ if [[ -z "${text//[[:space:]]/}" ]]; then
   exit 0
 fi
 
-reply_args=(--text "$text" --tag "faa-ask")
+reply_args=(--text "$text" --tag "$TAG")
 if [[ -n "$INITIATOR_UPN" ]]; then
   reply_args+=(--mention-user "$INITIATOR_UPN")
 fi
@@ -59,7 +64,7 @@ fi
 # Post the answer as a standalone card so it still reaches the channel; this
 # also creates the (source, runId) thread so later asks about this build thread.
 echo "notify-answer: no existing thread; posting a standalone answer card" >&2
-card_args=(--status succeeded --stage "faa-ask" --severity info \
+card_args=(--status succeeded --stage "$TAG" --severity info \
   --title "FAA answer" --summary "$text")
 if [[ -n "$INITIATOR_UPN" ]]; then
   card_args+=(--cc-label "Asked by" --cc-user "$INITIATOR_UPN")
