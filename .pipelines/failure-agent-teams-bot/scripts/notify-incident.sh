@@ -69,6 +69,10 @@ pr_number="$(jq -r '.pullRequestNumber // ""' "$INCIDENT")"
 recommended_action="$(jq -r '.recommendedAction // ""' "$INCIDENT")"
 retention="$(jq -r '.retentionDecision // ""' "$INCIDENT")"
 
+# A fix.md next to the incident means the agent produced a draft-fix prompt that
+# the FAA Draft PR workflow can turn into a draft PR.
+fix_md="$(dirname "$INCIDENT")/fix.md"
+
 # Compact confidence, e.g. "high (0.87)".
 conf_pretty="$(jq -rn --argjson c "$confidence" '($c * 100 | floor) / 100 | tostring')"
 
@@ -100,6 +104,7 @@ status_args=(
 
 status_args+=(--fact "Confidence|${band} (${conf_pretty})")
 [[ -n "$category" ]] && status_args+=(--fact "Category|${category}")
+[[ -f "$fix_md" ]] && status_args+=(--fact "Draft fix|prompt ready → draft PR")
 
 stage_job="$(printf '%s / %s' "$stage" "$job" | sed 's#^ / ##; s# / $##')"
 [[ -n "$stage_job" ]] && status_args+=(--fact "Stage / Job|${stage_job}")
@@ -145,6 +150,9 @@ if [[ -n "$recommended_action" ]]; then
 fi
 if [[ -n "$retention" ]]; then
   reply="$(printf '%s\n\n_Cluster retention: %s_' "$reply" "$retention")"
+fi
+if [[ -f "$fix_md" ]]; then
+  reply="$(printf '%s\n\n**Draft fix prompt**\nA draft-fix prompt (fix.md) was produced; the FAA Draft PR workflow can open a draft PR from it.' "$reply")"
 fi
 
 notify_reply --text "$reply" --tag "diagnosis" --severity "$severity"
