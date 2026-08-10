@@ -3,12 +3,15 @@ package translation
 import (
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
 	"github.com/Azure/azure-container-networking/npm/util"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog"
 )
 
 /*
@@ -644,6 +647,40 @@ func egressPolicy(npmNetPol *policies.NPMNetworkPolicy, netPolName string, egres
 	return nil
 }
 
+// l1vhAllowedPortsAnnotation is a NetworkPolicy annotation whose value is a comma-separated
+// list of ports. Egress from the policy's selected pods to the node's IP on these ports is
+// explicitly allowed for the supported transport protocols (TCP/UDP on Windows); other
+// protocols such as ICMP or SCTP are not opened. Only consumed by the Windows dataplane.
+const l1vhAllowedPortsAnnotation = "npm.azure.com/allow-l1vh-ports"
+
+const maxPortNumber = 65535
+
+// parseNodeEgressPorts reads the l1vhAllowedPortsAnnotation and returns the valid ports.
+// Invalid tokens are skipped with a warning so a single malformed entry doesn't drop the rest.
+func parseNodeEgressPorts(annotations map[string]string) []int32 {
+	val, ok := annotations[l1vhAllowedPortsAnnotation]
+	if !ok {
+		return nil
+	}
+
+	var ports []int32
+	for _, token := range strings.Split(val, ",") {
+		token = strings.TrimSpace(token)
+		if token == "" {
+			continue
+		}
+
+		port, err := strconv.Atoi(token)
+		if err != nil || port < 1 || port > maxPortNumber {
+			klog.Warningf("[translatePolicy] ignoring invalid port %q in annotation %s (must be an integer in [1,%d])",
+				token, l1vhAllowedPortsAnnotation, maxPortNumber)
+			continue
+		}
+		ports = append(ports, int32(port))
+	}
+	return ports
+}
+
 // TranslatePolicy translates networkpolicy object to NPMNetworkPolicy object
 // and returns the NPMNetworkPolicy object.
 func TranslatePolicy(npObj *networkingv1.NetworkPolicy, npmLiteToggle bool) (*policies.NPMNetworkPolicy, error) {
@@ -676,6 +713,10 @@ func TranslatePolicy(npObj *networkingv1.NetworkPolicy, npmLiteToggle bool) (*po
 			}
 		}
 	}
+
+	// Allow egress from the selected pods to the node's IP on any ports listed in the
+	// l1vh annotation. Only the Windows dataplane consumes this (it knows the node IP).
+	npmNetPol.NodeEgressPorts = parseNodeEgressPorts(npObj.Annotations)
 
 	// ad-hoc validation to reduce code changes (modifying function signatures and returning errors in all the correct places)
 	if util.IsWindowsDP() {
