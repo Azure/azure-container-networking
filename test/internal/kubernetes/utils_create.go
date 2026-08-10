@@ -31,7 +31,9 @@ const (
 	EnvInstallAzureVnet          CNSScenario = "INSTALL_AZURE_VNET"
 	EnvInstallAzureVnetStateless CNSScenario = "INSTALL_AZURE_VNET_STATELESS"
 	// EnvInstallAzureVnetStatelessSwift installs Swift (podsubnet) with the stateless azure-vnet CNI,
-	// where CNS owns endpoint state and synthesizes the swift conflist (CNIConflistScenario: "swift").
+	// where CNS owns endpoint state (ManageEndpointState). On Linux, CNS also synthesizes the swift
+	// conflist (CNIConflistScenario: "swift") when EnableCNIConflistGeneration is set; the Windows
+	// configmap disables conflist generation. See the swiftstateless*configmap.yaml manifests.
 	EnvInstallAzureVnetStatelessSwift CNSScenario = "INSTALL_AZURE_VNET_STATELESS_SWIFT"
 	EnvInstallOverlay                 CNSScenario = "INSTALL_OVERLAY"
 	EnvInstallAzureCNIOverlay         CNSScenario = "INSTALL_AZURE_CNI_OVERLAY"

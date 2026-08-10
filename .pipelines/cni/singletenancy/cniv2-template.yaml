@@ -290,7 +290,10 @@ stages:
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
-              cni: cniv2
+              ${{ if contains(parameters.clusterType, 'swift') }}:
+                cni: stateless
+              ${{ else }}:
+                cni: cniv2
               region: $(location)
               ${{ if eq(parameters.upgradeScenario, 'true') }}:
                 logType: upgradeRestartNode
@@ -312,7 +315,10 @@ stages:
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
-              cni: cniv2
+              ${{ if contains(parameters.clusterType, 'swift') }}:
+                cni: stateless
+              ${{ else }}:
+                cni: cniv2
               scaleup: ${{ parameters.scaleup }}
               nodeCount: ${{ parameters.nodeCount }}
               ${{ if eq(parameters.upgradeScenario, 'true') }}:
@@ -401,7 +407,10 @@ stages:
             - template: ../load-test-templates/restart-hns-template.yaml
               parameters:
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
-                cni: cniv2
+                ${{ if contains(parameters.clusterType, 'swift') }}:
+                  cni: stateless
+                ${{ else }}:
+                  cni: cniv2
         - job: deploy_pods
           displayName: "Scale Test"
           dependsOn: restart_hns
@@ -451,7 +460,10 @@ stages:
               parameters:
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
                 os: ${{ parameters.os }}
-                cni: cniv2
+                ${{ if contains(parameters.clusterType, 'swift') }}:
+                  cni: stateless
+                ${{ else }}:
+                  cni: cniv2
                 scaleup: ${{ parameters.scaleup }}
                 nodeCount: ${{ parameters.nodeCountWin }}
                 jobName: "HNS_restart_cns"
