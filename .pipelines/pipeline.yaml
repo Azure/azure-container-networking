@@ -179,10 +179,14 @@ extends:
               templateContext:
                 outputs:
                   # 1ES owns artifact publishing. sbomEnabled is off on every leg that
-                  # writes to `output` so the sbom stage stays the only SBOM producer.
+                  # writes to `output_staging` so the sbom stage stays the only SBOM
+                  # producer. Build legs accumulate into the `output_staging` build
+                  # artifact because build artifacts merge across jobs; the sbom stage
+                  # republishes the assembled drop as the single `output` pipeline
+                  # artifact that releases consume.
                   - output: buildArtifacts
                     PathtoPublish: "$(Build.ArtifactStagingDirectory)"
-                    ArtifactName: "output"
+                    ArtifactName: "output_staging"
                     sbomEnabled: false
                     condition: succeeded()
               steps:
@@ -390,7 +394,7 @@ extends:
                 outputs:
                   - output: buildArtifacts
                     PathtoPublish: "$(Build.ArtifactStagingDirectory)"
-                    ArtifactName: "output"
+                    ArtifactName: "output_staging"
                     sbomEnabled: false
                     condition: succeeded()
               strategy:
@@ -440,7 +444,7 @@ extends:
                 outputs:
                   - output: buildArtifacts
                     PathtoPublish: "$(Build.ArtifactStagingDirectory)"
-                    ArtifactName: "output"
+                    ArtifactName: "output_staging"
                     sbomEnabled: false
                     condition: succeeded()
               steps:
@@ -466,10 +470,15 @@ extends:
                 os: linux
               templateContext:
                 outputs:
-                  - output: buildArtifacts
-                    displayName: Publish _manifest into output artifact
-                    PathtoPublish: $(Build.ArtifactStagingDirectory)/sbom
-                    ArtifactName: output
+                  # Releases consume `output` and 1ES source-build validation rejects
+                  # build artifacts ("Container") in release jobs, so the release drop
+                  # must be a pipeline artifact. Pipeline artifacts are immutable and
+                  # cannot be published by more than one job, so this job assembles the
+                  # staged drop plus the signed _manifest and publishes it exactly once.
+                  - output: pipelineArtifact
+                    displayName: Publish assembled output pipeline artifact
+                    targetPath: $(Pipeline.Workspace)/output_staging
+                    artifactName: output
                     sbomEnabled: false
                     condition: succeeded()
               steps:
@@ -477,7 +486,7 @@ extends:
                   displayName: Download full output artifact drop
                   inputs:
                     buildType: current
-                    artifactName: output
+                    artifactName: output_staging
                     downloadPath: $(Pipeline.Workspace)
 
                 - script: mkdir -p "$(Build.ArtifactStagingDirectory)/sbom"
@@ -486,8 +495,11 @@ extends:
                 - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
                   displayName: Generate SBOM over full output artifact drop and sign _manifest
                   inputs:
-                    BuildDropPath: $(Pipeline.Workspace)/output
+                    BuildDropPath: $(Pipeline.Workspace)/output_staging
                     ManifestDirPath: $(Build.ArtifactStagingDirectory)/sbom
+
+                - script: cp -r "$(Build.ArtifactStagingDirectory)/sbom/_manifest" "$(Pipeline.Workspace)/output_staging/_manifest"
+                  displayName: Assemble signed _manifest into the release drop
 
         # Cilium Podsubnet E2E tests
         - template: /.pipelines/singletenancy/cilium/cilium-e2e-job-template.yaml@self
