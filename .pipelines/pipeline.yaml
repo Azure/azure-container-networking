@@ -162,6 +162,7 @@ stages:
           pool:
             name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
           strategy:
+            maxParallel: 2
             matrix:
               azure_ipam_linux_arm64:
                 arch: arm64
