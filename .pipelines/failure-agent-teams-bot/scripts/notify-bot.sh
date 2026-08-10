@@ -326,19 +326,33 @@ notify_reply() {
      + (if $mentionChannel == "true" then {mentionChannel: true} else {} end)
      + (if ($mentionUpns | length) > 0 then {mentionUpns: $mentionUpns} else {} end)')"
 
-  local http_code
-  http_code="$(curl -sS -o /tmp/notify-bot.out -w '%{http_code}' \
-    -X POST \
-    -H "Authorization: Bearer $token" \
-    -H "Content-Type: application/json" \
-    --data "$payload" \
-    "$NOTIFIER_ENDPOINT/api/notifications/reply" || echo "000")"
+  local http_code attempt
+  local -a retry_delays=(2 5 10)
+  for attempt in 1 2 3 4; do
+    http_code="$(curl -sS -o /tmp/notify-bot.out -w '%{http_code}' \
+      -X POST \
+      -H "Authorization: Bearer $token" \
+      -H "Content-Type: application/json" \
+      --data "$payload" \
+      "$NOTIFIER_ENDPOINT/api/notifications/reply" || echo "000")"
 
-  if [[ "$http_code" -lt 200 || "$http_code" -ge 300 ]]; then
-    echo "notify-bot: /api/notifications/reply -> HTTP $http_code" >&2
+    if [[ "$http_code" -ge 200 && "$http_code" -lt 300 ]]; then
+      echo "notify-bot: replied (HTTP $http_code)"
+      return 0
+    fi
+
+    echo "notify-bot: /api/notifications/reply attempt $attempt -> HTTP $http_code" >&2
     head -c 500 /tmp/notify-bot.out >&2 || true
     echo "" >&2
+
+    case "$http_code" in
+      000|404|409|425|429|5??)
+        if (( attempt < 4 )); then
+          sleep "${retry_delays[$((attempt - 1))]}"
+          continue
+        fi
+        ;;
+    esac
     return 0
-  fi
-  echo "notify-bot: replied (HTTP $http_code)"
+  done
 }
