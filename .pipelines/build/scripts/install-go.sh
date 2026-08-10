@@ -24,8 +24,11 @@ resolve_go_image() {
     # so extract the mcr.* token directly.
     # e.g. FROM mcr.../golang:1.25.5 AS builder
     # e.g. FROM --platform=linux/amd64 mcr.../golang:1.25.5 AS builder
+    # ob-prepare intentionally does NOT rename npm/<os>.Dockerfile, so read the
+    # per-OS source directly and pick up the correct Go per platform (this keeps
+    # the signed binary's Go aligned with the unsigned Dockerfile-pinned Go).
     local buildfile="${REPO_ROOT}/npm/${OS:-linux}.Dockerfile"
-    grep -m1 '^FROM.*golang' "${buildfile}" | grep -o 'mcr[^ ]*'
+    grep -m1 '^FROM.*golang' "${buildfile}" 2>/dev/null | grep -o 'mcr[^ ]*' || true
 
   else
     # All other images use a digest-pinned reference and always have --platform,
@@ -38,14 +41,24 @@ resolve_go_image() {
     fi
 
     if [[ -n "${buildfile:-}" && -f "${buildfile}" ]]; then
-      grep -m1 '^FROM.*golang' "${buildfile}" | awk '{print $3}'
+      grep -m1 '^FROM.*golang' "${buildfile}" | awk '{print $3}' || true
     fi
   fi
 }
 
 if [[ -z "${MSFT_GO_IMAGE:-}" ]]; then
   MSFT_GO_IMAGE="$(resolve_go_image)"
-  MSFT_GO_IMAGE="${MSFT_GO_IMAGE:-$DEFAULT_IMAGE}"
+  if [[ -z "${MSFT_GO_IMAGE}" ]]; then
+    # Fail closed for npm: npm/<os>.Dockerfile is the source of truth for the
+    # signed npm Go version and must match the unsigned image. Silently falling
+    # back to DEFAULT_IMAGE is a regression this pipeline had, so error out
+    # instead of shipping signed npm on a different Go than unsigned.
+    if [[ "${name:-}" == "npm" ]]; then
+      echo "##[error]install-go.sh: could not resolve the golang image from ${REPO_ROOT}/npm/${OS:-linux}.Dockerfile; refusing to fall back to DEFAULT_IMAGE so signed npm never diverges from the unsigned Go version." >&2
+      exit 1
+    fi
+    MSFT_GO_IMAGE="$DEFAULT_IMAGE"
+  fi
 fi
 
 ARCH="${ARCH:-amd64}"

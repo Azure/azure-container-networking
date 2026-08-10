@@ -16,14 +16,13 @@ steps:
 #     target_path: npm-windows
 #     source_dockerfile: windows.Dockerfile
 
-# - template: utils/rename-dockerfile-references.steps.yaml
-#   parameters:
-#     topic: "Linux - npm"
-#     replace_references: true
-#     working_directory: $(ACN_DIR)
-#     source_path: npm
-#     target_path: npm
-#     source_dockerfile: linux.Dockerfile
+# NOTE: npm/<os>.Dockerfile are intentionally NOT renamed here. The signed
+# container build uses .pipelines/build/dockerfiles/npm.Dockerfile (obDockerfile),
+# not the root npm/*.Dockerfile, so no OneBranch rename is required. Renaming
+# npm/linux.Dockerfile -> npm/Dockerfile (and deleting npm/windows.Dockerfile)
+# hid the per-OS golang pin from install-go.sh's resolve_go_image, causing npm to
+# fall back to DEFAULT_IMAGE. Keeping both files lets resolve read the correct Go
+# version per OS, matching the unsigned image.
 
 - bash: |
     rm -rf .hooks .github
