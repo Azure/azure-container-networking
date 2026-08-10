@@ -17,6 +17,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// NOTE: transparent-tunnel mode is IPv4-only. All tunnel state (ipset, NOTRACK,
+// fwmark ip rule, and the table-101 route) is provisioned for IPv4 exclusively,
+// and IPv6 pod addresses are intentionally skipped. IPv6 support is out of scope
+// for this mode and would require a separate v6 dataplane.
 const (
 	transparentTunnelFwmark = 3
 
