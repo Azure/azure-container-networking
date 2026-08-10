@@ -100,20 +100,37 @@ count_pool_nodes() {
 wait_pool_ready() {
   local pool="$1" timeout="$2"
   local deadline=$(( $(date +%s) + timeout ))
-  local total ready
+  local total ready state last_state=""
 
   while :; do
     # A failed query is not "zero nodes", so keep polling rather than concluding
     # anything from it; a real outage still ends at the deadline below.
-    if total=$(count_pool_nodes "$pool") && [ "$total" -gt 0 ]; then
-      ready=$(kubectl --kubeconfig "$KUBECONFIG_FILE" get nodes -l agentpool="$pool" \
-        -o jsonpath='{range .items[*]}{range .status.conditions[?(@.type=="Ready")]}{.status}{"\n"}{end}{end}' \
-        | grep -c '^True$') || ready=0
-      if [ "$ready" -eq "$total" ]; then
-        return 0
+    if total=$(count_pool_nodes "$pool"); then
+      if [ "$total" -gt 0 ]; then
+        ready=$(kubectl --kubeconfig "$KUBECONFIG_FILE" get nodes -l agentpool="$pool" \
+          -o jsonpath='{range .items[*]}{range .status.conditions[?(@.type=="Ready")]}{.status}{"\n"}{end}{end}' \
+          | grep -c '^True$') || ready=0
+        if [ "$ready" -eq "$total" ]; then
+          return 0
+        fi
+        state="$ready/$total node(s) Ready"
+      else
+        state="no nodes registered yet"
       fi
+    else
+      state="node query failed, retrying"
     fi
+
+    # Report the first miss and any change after it, so the build log says why the
+    # wait is still running. Only on change: at one poll per 10s an unconditional
+    # echo would add 60 identical lines to a 10 minute wait.
+    if [ "$state" != "$last_state" ]; then
+      echo "    Waiting for pool $pool: $state"
+      last_state="$state"
+    fi
+
     if [ "$(date +%s)" -ge "$deadline" ]; then
+      echo "    Gave up waiting for pool $pool after ${timeout}s ($state)"
       return 1
     fi
     sleep 10
