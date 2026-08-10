@@ -528,7 +528,7 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 				initContainerName:         initContainerNameCNI,
 				volumes:                   volumesForAzureCNIOverlayLinux(),
 				initContainerVolumeMounts: dropgzVolumeMountsForAzureCNIOverlayLinux(),
-				containerVolumeMounts:     cnsVolumeMountsForAzureCNIOverlayLinux(),
+				containerVolumeMounts:     cnsVolumeMountsForSwiftStatelessLinux(),
 				configMapPath:             cnsSwiftStatelessLinuxConfigMapPath,
 				installIPMasqAgent:        false,
 			},
@@ -989,6 +989,18 @@ func cnsVolumeMountsForAzureCNIOverlayLinux() []corev1.VolumeMount {
 			MountPath: "/etc/cni/net.d",
 		},
 	}
+}
+
+// cnsVolumeMountsForSwiftStatelessLinux mirrors cnsVolumeMountsForAzureCNIOverlayLinux but also
+// mounts the azure-endpoints hostPath into the CNS container. In stateless mode CNS owns the
+// endpoint state (ManageEndpointState=true) and persists it to /var/run/azure-cns/azure-endpoints.json.
+// Without this hostPath mount CNS writes the file to its own container filesystem, so the sidecar
+// debug container that validation execs into cannot read it and state-file validation fails.
+func cnsVolumeMountsForSwiftStatelessLinux() []corev1.VolumeMount {
+	return append(cnsVolumeMountsForAzureCNIOverlayLinux(), corev1.VolumeMount{
+		Name:      "azure-endpoints",
+		MountPath: "/var/run/azure-cns/",
+	})
 }
 
 func cnsVolumeMountsForAzureCNIOverlayWindows() []corev1.VolumeMount {

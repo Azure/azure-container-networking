@@ -579,6 +579,8 @@ stages:
         clusterName: "swifte2e"
         vmSize: Standard_B2ms
         k8sVersion: ""
+        cniType: stateless
+        installFlag: INSTALL_AZURE_VNET_STATELESS_SWIFT
         dependsOn: ["test"]
 
     # AKS Swift Vnet Scale E2E tests
