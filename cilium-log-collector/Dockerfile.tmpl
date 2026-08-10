@@ -8,6 +8,7 @@ FROM --platform=linux/${ARCH} {{.GO_PIN}} AS go
 
 FROM go AS fluent-bit-plugin
 ARG VERSION
+ENV GOEXPERIMENT=systemcrypto
 WORKDIR /cilium-log-collector
 COPY ./cilium-log-collector .
 RUN go build -buildmode=c-shared -a -o out_azure_app_insights.so -trimpath -ldflags "-X main.version=$VERSION" -gcflags="-dwarflocationlists=true" .

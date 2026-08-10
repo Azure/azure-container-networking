@@ -1,6 +1,6 @@
 module github.com/Azure/azure-container-networking/cilium-log-collector
 
-go 1.24.1
+go 1.26.1
 
 require (
 	github.com/Azure/azure-container-networking v1.7.12

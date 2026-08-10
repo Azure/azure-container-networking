@@ -3,18 +3,19 @@
 ARG ARCH
 
 # mcr.microsoft.com/azurelinux/base/core:3.0
-FROM mcr.microsoft.com/azurelinux/base/core:3.0@sha256:a452d39c91576f5a2c983c7d3b62521fabd08e16b4a7237e24bf2be3b06e1651 AS mariner-core
+FROM mcr.microsoft.com/azurelinux/base/core:3.0@sha256:4ecd6b297db85c54ec2df07145a28536c3655a3e98e54eb2364189bc4e6eac23 AS mariner-core
 
-# mcr.microsoft.com/azurelinux/distroless/minimal:3.0
-FROM mcr.microsoft.com/azurelinux/distroless/minimal:3.0@sha256:22810fd97d6ad5ec7d5bdd5b00233a3050be01d9e26b47b16cb6f1a7f178834b AS mariner-distroless
+# mcr.microsoft.com/azurelinux/distroless/base:3.0
+FROM mcr.microsoft.com/azurelinux/distroless/base:3.0@sha256:178f25fadf466549d31e234b3091bf815161159f2f2bc98720bbf39f7368aff4 AS mariner-distroless
 
-# mcr.microsoft.com/oss/go/microsoft/golang:1.24-azurelinux3.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.24-azurelinux3.0@sha256:bc7423b52b62e8f0281b5f7f564eb1862dc315bc57e1373c6a81e87ef3ac39ab AS go
+# mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0@sha256:7eaa7ec1b6c116d1b914d4699ff7726189e0dd78ff29801af48b559a5922a3d6 AS go
 
 
 FROM go AS azure-iptables-monitor
 ARG OS
 ARG VERSION
+ENV GOEXPERIMENT=ms_nocgo_opensslcrypto
 WORKDIR /azure-iptables-monitor
 COPY ./azure-iptables-monitor .
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/iptables-monitor -trimpath -ldflags "-s -w -X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" .
@@ -30,6 +31,7 @@ COPY ./go.mod ./go.sum ./
 RUN tdnf install -y llvm clang libbpf-devel gcc binutils glibc
 # Set up C include path for BPF
 ENV C_INCLUDE_PATH=/usr/include/bpf
+ENV GOEXPERIMENT=ms_nocgo_opensslcrypto
 # Set up architecture-specific symlinks for cross-compilation support
 RUN if [ "$ARCH" = "amd64" ]; then \
         ARCH_DIR=x86_64-linux-gnu; \
@@ -48,12 +50,14 @@ RUN if [ "$ARCH" = "amd64" ]; then \
 RUN GOOS=$OS CGO_ENABLED=0 go generate ./bpf-prog/azure-block-iptables/...
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-block-iptables -trimpath -ldflags "-s -w -X main.version="$AZURE_BLOCK_IPTABLES_VERSION"" -gcflags="-dwarflocationlists=true" ./bpf-prog/azure-block-iptables/cmd/azure-block-iptables
 
-FROM mariner-core AS iptables
-RUN tdnf install -y iptables
+FROM mariner-core AS iptools
+RUN tdnf install -y iptables iproute
 
 FROM mariner-distroless AS linux
-COPY --from=iptables /usr/sbin/*tables* /usr/sbin/
-COPY --from=iptables /usr/lib /usr/lib
+COPY --from=iptools /usr/sbin/*tables* /usr/sbin/
+COPY --from=iptools /usr/sbin/ip /usr/sbin/
+COPY --from=iptools /usr/lib /usr/lib
+COPY --from=iptools /usr/lib64 /usr/lib64
 COPY --from=azure-iptables-monitor /go/bin/iptables-monitor azure-iptables-monitor
 COPY --from=azure-block-iptables /go/bin/azure-block-iptables azure-block-iptables
 

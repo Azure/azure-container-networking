@@ -453,7 +453,7 @@ func sendRegisterNodeRequest(ctx context.Context, httpClient httpDoer, httpRestS
 
 	if response.StatusCode != http.StatusOK {
 		err = fmt.Errorf("[Azure CNS] Failed to register node, DNC replied with http status code %s", strconv.Itoa(response.StatusCode))
-		logger.Errorf(err.Error())
+		logger.Errorf("%s", err.Error()) //nolint:staticcheck // will migrate to logger/v2
 		return errors.Wrap(err, "failed to sendRegisterNodeRequest")
 	}
 

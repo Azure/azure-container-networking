@@ -1,6 +1,6 @@
 module github.com/Azure/azure-container-networking/bpf-prog/ipv6-hp-bpf
 
-go 1.24.0
+go 1.26.1
 
 require (
 	github.com/cilium/ebpf v0.15.0

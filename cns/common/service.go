@@ -73,7 +73,7 @@ func NewService(name, version, channelMode string, store store.KeyValueStore) (*
 func (service *Service) Initialize(config *ServiceConfig) error {
 	if config == nil {
 		err := "[Azure CNS Errror] Initialize called with nil ServiceConfig."
-		logger.Errorf(err)
+		logger.Errorf("%s", err) //nolint:staticcheck // will migrate to logger/v2
 		return errors.New(err)
 	}
 
