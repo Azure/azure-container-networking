@@ -41,7 +41,7 @@ resolve_go_image() {
     fi
 
     if [[ -n "${buildfile:-}" && -f "${buildfile}" ]]; then
-      grep -m1 '^FROM.*golang' "${buildfile}" | awk '{print $3}' || true
+      grep -m1 '^FROM.*golang' "${buildfile}" 2>/dev/null | awk '{print $3}'
     fi
   fi
 }
