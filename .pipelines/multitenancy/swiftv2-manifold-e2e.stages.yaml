@@ -10,6 +10,8 @@ stages:
     variables:
       - name: IMAGE_REPO_PATH
         value: $[ format('{0}/', stageDependencies.setup.env.outputs['EnvironmentalVariables.imageRepositoryPath']) ]
+      - name: SWIFTV2_MANIFOLD_REGIONS
+        value: 'westus2: false, centraluseuap: false, australiaeast: true'
       # Azure Container Networking PR Pipeline
       - ${{ if eq(parameters.dependsOn, 'publish') }}:
         # Use azure-npm, azure-cni, and azure-cns images
@@ -41,10 +43,10 @@ stages:
           isCustom: true
           type: linux
         steps:
-          - task: TriggerBuild@3
+          - task: TriggerBuild@4
             inputs:
               buildDefinition: '391699'
-              templateParameters: 'regions: ["australiaeast"], useAcnPublic: true, cnscniversion: $(CNS_VERSION), cnscniversionwindows: $(CNS_VERSION), cnscniImagePrefix: $(IMAGE_REPO_PATH_REF), npmversion: $(NPM_VERSION)'
+              templateParameters: '$(SWIFTV2_MANIFOLD_REGIONS), useAcnPublic: true, cnscniversion: $(CNS_VERSION), cnscniversionwindows: $(CNS_VERSION), cnscniImagePrefix: $(IMAGE_REPO_PATH_REF), npmversion: $(NPM_VERSION)'
               useSameBranch: false
               queueBuildForUserThatTriggeredBuild: true
               branchToUse: 'refs/heads/master'
