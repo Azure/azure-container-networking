@@ -169,7 +169,13 @@ func (client *TransparentTunnelEndpointClient) addTransparentTunnelRules(epInfo 
 	}
 
 	notrackMatch := buildTransparentTunnelNotrackMatch(client.hostPrimaryIfName)
-	if err := client.iptablesClient.AppendIptableRule(iptables.V4, iptables.Raw, iptables.Prerouting, notrackMatch, iptables.Notrack); err != nil {
+	// The NOTRACK rule is node-scoped and identical for every pod, so append it
+	// only when absent. Without this check every CNI ADD would stack another
+	// duplicate in raw PREROUTING that nothing ever removes.
+	if client.iptablesClient.RuleExists(iptables.V4, iptables.Raw, iptables.Prerouting, notrackMatch, iptables.Notrack) {
+		logger.Info("transparent-tunnel: NOTRACK rule already present, skipping append",
+			zap.String("dev", client.hostPrimaryIfName))
+	} else if err := client.iptablesClient.AppendIptableRule(iptables.V4, iptables.Raw, iptables.Prerouting, notrackMatch, iptables.Notrack); err != nil {
 		return errors.Wrap(err, "failed to append NOTRACK rule")
 	}
 

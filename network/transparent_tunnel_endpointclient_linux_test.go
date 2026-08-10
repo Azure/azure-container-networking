@@ -32,7 +32,7 @@ type transparentTunnelMockIPTablesClient struct {
 	// appendErr, when non-nil, is returned from every AppendIptableRule call.
 	appendErr error
 	// ruleExistsFn, when non-nil, decides whether a given rule exists. Defaults
-	// to "exists" when nil so existing tests continue to invoke deletes.
+	// to "absent" when nil so a fresh node installs its shared rules.
 	ruleExistsFn func(version, tableName, chainName, match, target string) bool
 }
 
@@ -60,7 +60,7 @@ func (c *transparentTunnelMockIPTablesClient) RuleExists(version, tableName, cha
 	if c.ruleExistsFn != nil {
 		return c.ruleExistsFn(version, tableName, chainName, match, target)
 	}
-	return true
+	return false
 }
 
 func (c *transparentTunnelMockIPTablesClient) CreateChain(_, _, _ string) error { return nil }
@@ -486,6 +486,73 @@ func TestTransparentTunnelAddEndpointRules_IpsetAddFails(t *testing.T) {
 	assert.Equal(t, iptables.Raw, iptMock.appendCalls[0].tableName)
 	assert.Len(t, nlMock.ruleAddCalls, 1)
 	assert.Len(t, nlMock.routeReplaceCalls, 1)
+}
+
+func TestTransparentTunnelAddEndpointRules_NotrackRuleIsIdempotent(t *testing.T) {
+	// Model a node's iptables: RuleExists reports whatever was already appended,
+	// so repeated ADDs on the same node must not stack duplicate NOTRACK rules.
+	iptMock := &transparentTunnelMockIPTablesClient{}
+	iptMock.ruleExistsFn = func(version, tableName, chainName, match, target string) bool {
+		for _, call := range iptMock.appendCalls {
+			if call.version == version && call.tableName == tableName &&
+				call.chainName == chainName && call.match == match && call.target == target {
+				return true
+			}
+		}
+		return false
+	}
+
+	newClient := func(hostVeth string) *TransparentTunnelEndpointClient {
+		return &TransparentTunnelEndpointClient{
+			TransparentEndpointClient: &TransparentEndpointClient{
+				hostVethName:      hostVeth,
+				hostPrimaryIfName: InfraInterfaceName,
+				netioshim:         netio.NewMockNetIO(false, 0),
+			},
+			iptablesClient: iptMock,
+			nlPolicyRoute:  &transparentTunnelMockNlClient{},
+			ipsetClient:    &transparentTunnelMockIpsetClient{},
+			gateway:        net.ParseIP("10.224.0.1"),
+		}
+	}
+
+	// Three pods land on the same node, each with its own host veth.
+	pods := []struct {
+		hostVeth string
+		podIP    string
+	}{
+		{testHostVethName, "10.224.0.46"},
+		{"azveth2", "10.224.0.47"},
+		{"azveth3", "10.224.0.48"},
+	}
+
+	for _, pod := range pods {
+		epInfo := &EndpointInfo{IPAddresses: []net.IPNet{
+			{IP: net.ParseIP(pod.podIP), Mask: net.CIDRMask(32, 32)},
+		}}
+		require.NoError(t, newClient(pod.hostVeth).addTransparentTunnelRules(epInfo))
+	}
+
+	var notrackAppends, markAppends []iptablesCall
+	for _, call := range iptMock.appendCalls {
+		switch call.tableName {
+		case iptables.Raw:
+			notrackAppends = append(notrackAppends, call)
+		case iptables.Mangle:
+			markAppends = append(markAppends, call)
+		}
+	}
+
+	// The NOTRACK rule is node-scoped, so it must be installed exactly once no
+	// matter how many pods are added.
+	assert.Len(t, notrackAppends, 1, "NOTRACK rule must be appended exactly once per node")
+	assert.Equal(t, iptables.Notrack, notrackAppends[0].target)
+
+	// The MARK rule is per-pod, so every pod still gets its own.
+	require.Len(t, markAppends, len(pods), "each pod needs its own MARK rule")
+	for i, pod := range pods {
+		assert.Contains(t, markAppends[i].match, "-i "+pod.hostVeth)
+	}
 }
 
 func TestTransparentTunnelDeleteEndpointRules(t *testing.T) {
