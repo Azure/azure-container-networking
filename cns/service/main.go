@@ -1431,10 +1431,15 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 	if _, ok := node.Labels[configuration.LabelNodeSwiftV2]; ok {
 		cnsconfig.EnableSwiftV2 = true
 		cnsconfig.WatchPods = true
+	}
+
+	// populate the NodeInfo CRD if any scenario requires it (SwiftV2 or HomeAZ)
+	if cnsconfig.EnableSwiftV2 || cnsconfig.EnableHomeAZ {
 		if nodeInfoErr := createOrUpdateNodeInfoCRD(ctx, kubeConfig, node); nodeInfoErr != nil {
 			return errors.Wrap(nodeInfoErr, "error creating or updating nodeinfo crd")
 		}
 	}
+
 
 	// perform state migration from CNI in case CNS is set to manage the endpoint state and has emty state
 	if cnsconfig.EnableStateMigration && !httpRestServiceImplementation.EndpointStateStore.Exists() {
