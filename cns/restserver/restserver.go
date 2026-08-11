@@ -244,6 +244,7 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 	serviceState := &httpRestServiceState{
 		Networks:          make(map[string]*networkInfo),
 		joinedNetworks:    make(map[string]struct{}),
+		joinedSubnets:     make(map[string]struct{}),
 		primaryInterface:  primaryInterface,
 		PnpIDByMacAddress: make(map[string]string),
 	}
