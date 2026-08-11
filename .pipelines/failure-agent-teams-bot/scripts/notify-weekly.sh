@@ -29,6 +29,8 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=notify-bot.sh
 source "$SCRIPT_DIR/notify-bot.sh"
+# shellcheck source=render-verdict.sh
+source "$SCRIPT_DIR/render-verdict.sh"
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "notify-weekly: jq not found, skipping" >&2
@@ -98,5 +100,10 @@ fi
 if [[ -z "$(printf '%s' "$reply" | tr -d '[:space:]')" ]]; then
   reply="No incidents were recorded in the last ${window} days."
 fi
+
+# Downgrade the trends narrative to the Markdown subset a Teams Adaptive Card
+# TextBlock renders (see render-verdict.sh): the model can emit tables/code
+# fences that otherwise collapse in the threaded reply.
+reply="$(printf '%s' "$reply" | _sanitize_teams_md)"
 
 notify_reply --text "$reply" --tag "weekly-trends" --severity info
