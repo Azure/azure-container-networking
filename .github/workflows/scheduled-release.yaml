@@ -19,9 +19,12 @@ name: Scheduled Release
 
 on:
   schedule:
-    # Every Friday at 14:00/14:15 UTC — check_cadence job gates to first Friday only
-    - cron: "0 14 * * 5"   # release/v1.7
-    - cron: "15 14 * * 5"  # master
+    # 1st of month at 14:00/14:15 UTC — notification + dependabot collection (no wait)
+    - cron: "0 14 1 * *"    # release/v1.7
+    - cron: "15 14 1 * *"   # master
+    # Every Friday at 14:00/14:15 UTC — check_cadence gates to first Friday only (tag creation)
+    - cron: "0 14 * * 5"    # release/v1.7
+    - cron: "15 14 * * 5"   # master
   workflow_dispatch:
     inputs:
       release_branch:
@@ -49,7 +52,7 @@ on:
         type: boolean
 
 concurrency:
-  group: scheduled-release-${{ inputs.release_branch || (github.event.schedule == '15 14 * * 5' && 'master') || 'release/v1.7' }}
+  group: scheduled-release-${{ inputs.release_branch || (github.event.schedule == '15 14 * * 5' && 'master') || (github.event.schedule == '15 14 1 * *' && 'master') || 'release/v1.7' }}
   cancel-in-progress: false
 
 permissions:
@@ -57,8 +60,10 @@ permissions:
   pull-requests: read
 
 env:
-  # Map cron schedules to branches: 14:00 → release/v1.7, 14:15 → master
-  RELEASE_BRANCH: ${{ inputs.release_branch || (github.event.schedule == '15 14 * * 5' && 'master') || 'release/v1.7' }}
+  # Map cron schedules to branches: *:15 → master, *:00 → release/v1.7
+  RELEASE_BRANCH: ${{ inputs.release_branch || (github.event.schedule == '15 14 * * 5' && 'master') || (github.event.schedule == '15 14 1 * *' && 'master') || 'release/v1.7' }}
+  # True when the trigger is the 1st-of-month notification run (not tag creation)
+  IS_NOTIFICATION_RUN: ${{ github.event.schedule == '0 14 1 * *' || github.event.schedule == '15 14 1 * *' }}
   MAX_PIPELINE_RETRIES: 5
   NOTIFIER_URL: https://acn-notifier-bot.azurewebsites.net
   NOTIFIER_AUDIENCE: api://3976eca5-3f9d-4528-987f-c20c1f9f27f7
@@ -75,21 +80,32 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       should_run: ${{ steps.check.outputs.should_run }}
+      notification_only: ${{ steps.check.outputs.notification_only }}
     steps:
       - name: Determine if this is a release week
         id: check
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "notification_only=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # Check if today is the first Friday of the month (day <= 7)
+          # 1st-of-month triggers always pass (notification run)
+          if [[ "$IS_NOTIFICATION_RUN" == "true" ]]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "notification_only=true" >> "$GITHUB_OUTPUT"
+            echo "1st of the month — notification run"
+            exit 0
+          fi
+          # Friday triggers: only pass on first Friday (day <= 7)
           DAY_OF_MONTH=$(date +%d)
           if (( DAY_OF_MONTH <= 7 )); then
             echo "should_run=true" >> "$GITHUB_OUTPUT"
-            echo "First Friday of the month (day $DAY_OF_MONTH) — release week"
+            echo "notification_only=false" >> "$GITHUB_OUTPUT"
+            echo "First Friday of the month (day $DAY_OF_MONTH) — tag creation run"
           else
             echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "notification_only=false" >> "$GITHUB_OUTPUT"
             echo "Not the first Friday (day $DAY_OF_MONTH). Skipping."
           fi
 
@@ -315,23 +331,25 @@ jobs:
           if [[ "$RESUMED" == "true" ]]; then
             MSG="🔄 Release workflow re-triggered for ${NEW_TAG}
 
+          📋 Tracking issue: ${ISSUE_URL}
+
           Still pending (${OPEN_COUNT}):
           ${PR_LIST}
 
-          Previous skip commands still apply. Tracking issue: ${ISSUE_URL}"
+          Previous skip commands still apply."
           else
             MSG="🚀 Release cycle starting: ${NEW_TAG}
+
+          📋 Tracking issue: ${ISSUE_URL}
+          ⚠️ To skip a PR: comment \`skip #NUMBER\` on tracking issue
+          ⚠️ To skip all: comment \`skip all\`
 
           Tags to be created:
           • ${NEW_TAG} (CNI/CNS/NPM)
           ${BINARY_TAGS_MD}
 
           Pending PRs — Dependabot (${DEPENDABOT_COUNT}) + Go Upgrade (${GO_UPGRADE_COUNT}):
-          ${PR_LIST}
-
-          ⚠️ These PRs must merge before the release proceeds.
-          To skip a PR, comment skip #NUMBER on tracking issue ${ISSUE_URL}
-          To skip all: comment skip all"
+          ${PR_LIST}"
           fi
 
           /tmp/release-cli notify \
@@ -343,7 +361,7 @@ jobs:
 
       - name: Wait for PRs to merge or be skipped
         id: wait
-        if: ${{ inputs.skip_dependabot_wait != true }}
+        if: ${{ inputs.skip_dependabot_wait != true && env.IS_NOTIFICATION_RUN != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ steps.create_issue.outputs.issue_number }}
@@ -357,7 +375,7 @@ jobs:
           echo "skipped_prs=$(echo "$RESULT" | jq -r '.skipped_prs')" >> "$GITHUB_OUTPUT"
 
       - name: Post update to CNI channel
-        if: ${{ inputs.skip_dependabot_wait != true && steps.wait.outcome == 'success' }}
+        if: ${{ inputs.skip_dependabot_wait != true && env.IS_NOTIFICATION_RUN != 'true' && steps.wait.outcome == 'success' }}
         env:
           MERGED: ${{ steps.wait.outputs.merged_count }}
           SKIPPED: ${{ steps.wait.outputs.skipped_prs }}
@@ -391,8 +409,8 @@ jobs:
   vuln_check:
     name: "Step 2: Vulnerability Gate"
     runs-on: ubuntu-latest
-    needs: wait_dependabot
-    if: ${{ inputs.skip_vuln_check != true }}
+    needs: [check_cadence, wait_dependabot]
+    if: ${{ inputs.skip_vuln_check != true && needs.check_cadence.outputs.notification_only != 'true' }}
     permissions:
       contents: read
       id-token: write
@@ -487,8 +505,8 @@ jobs:
   detect_binary_changes:
     name: "Step 2b: Detect Binary Changes"
     runs-on: ubuntu-latest
-    needs: [wait_dependabot, vuln_check]
-    if: always() && needs.wait_dependabot.result == 'success' && (needs.vuln_check.result == 'success' || needs.vuln_check.result == 'skipped')
+    needs: [check_cadence, wait_dependabot, vuln_check]
+    if: always() && needs.check_cadence.outputs.notification_only != 'true' && needs.wait_dependabot.result == 'success' && (needs.vuln_check.result == 'success' || needs.vuln_check.result == 'skipped')
     outputs:
       matrix: ${{ steps.detect.outputs.matrix }}
       has_changes: ${{ steps.detect.outputs.has_changes }}
@@ -672,8 +690,8 @@ jobs:
   create_tag:
     name: "Step 3: Determine Version & Create Tag"
     runs-on: ubuntu-latest
-    needs: [wait_dependabot, vuln_check]
-    if: always() && needs.wait_dependabot.result == 'success' && (needs.vuln_check.result == 'success' || needs.vuln_check.result == 'skipped')
+    needs: [check_cadence, wait_dependabot, vuln_check]
+    if: always() && needs.check_cadence.outputs.notification_only != 'true' && needs.wait_dependabot.result == 'success' && (needs.vuln_check.result == 'success' || needs.vuln_check.result == 'skipped')
     permissions:
       contents: write
       actions: write
@@ -1025,7 +1043,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: [create_tag, release_channel_post]
     if: ${{ !inputs.dry_run }}
-    timeout-minutes: 360
     permissions:
       contents: read
       id-token: write
