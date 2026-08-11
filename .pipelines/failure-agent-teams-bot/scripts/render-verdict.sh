@@ -37,13 +37,100 @@ render_verdict() {
   command -v jq >/dev/null 2>&1 || return 0
 
   # A non-empty string finalVerdict selects the verdict-led path.
-  local final_verdict
+  local final_verdict body
   final_verdict="$(jq -r '(.finalVerdict // "") | if type == "string" then . else "" end' "$incident" 2>/dev/null || true)"
   if [[ -n "$(printf '%s' "$final_verdict" | tr -d '[:space:]')" ]]; then
-    _render_verdict_led "$incident"
+    body="$(_render_verdict_led "$incident")"
   else
-    _render_structured "$incident"
+    body="$(_render_structured "$incident")"
   fi
+
+  # Nothing to say — stay silent so notify-incident.sh can fall back.
+  [[ -n "$(printf '%s' "$body" | tr -d '[:space:]')" ]] || return 0
+
+  # The verdict lands verbatim in the Teams reply, but a Teams Adaptive Card
+  # TextBlock renders only a subset of Markdown: fenced code blocks and pipe
+  # tables do not render, so flatten them to the supported subset (inline-code
+  # bullets and "cell — cell" lines) before sending. The rich report.md keeps
+  # the original Markdown — only the Teams reply is downgraded.
+  body="$(printf '%s' "$body" | _sanitize_teams_md)"
+
+  # Keep the reply within a safe size for the notifier and the Teams card.
+  local max=3900
+  if (( ${#body} > max )); then
+    body="${body:0:max}"$'\n\n_… verdict truncated; open the run’s analysis summary for the full write-up._'
+  fi
+
+  printf '%s\n' "$body"
+}
+
+# _sanitize_teams_md flattens Markdown that a Teams Adaptive Card TextBlock does
+# not render into the subset it does. Reads stdin, writes stdout.
+#   - fenced code blocks (``` … ```)      -> each inner line as an inline-code bullet
+#   - pipe tables (| a | b |)             -> "- a — b" bullet rows (separator rows dropped)
+#   - ATX headings (#, ##, …)             -> bold text
+# Bold, italics, links, inline code, and ordered/unordered lists already render,
+# so they pass through untouched.
+_sanitize_teams_md() {
+  awk '
+    function emit(s) {
+      if (pending_blank && s != "") { print ""; pending_blank = 0 }
+      print s
+      if (s == "") pending_blank = 0
+    }
+    BEGIN { in_fence = 0; pending_blank = 0 }
+    {
+      line = $0
+
+      # Toggle fenced code blocks; drop the ``` marker lines themselves.
+      if (line ~ /^[[:space:]]*```/) { in_fence = 1 - in_fence; next }
+      if (in_fence) {
+        l = line
+        gsub(/`/, "", l)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", l)
+        if (l != "") emit("- `" l "`")
+        next
+      }
+
+      # ATX heading -> bold (own paragraph).
+      if (line ~ /^[[:space:]]*#{1,6}[[:space:]]+/) {
+        sub(/^[[:space:]]*#{1,6}[[:space:]]+/, "", line)
+        sub(/[[:space:]]*#*[[:space:]]*$/, "", line)
+        emit("**" line "**"); pending_blank = 1
+        next
+      }
+
+      # Drop table separator rows (|---|:--:|).
+      if (index(line, "|") > 0) {
+        t = line
+        gsub(/[[:space:]|:\-]/, "", t)
+        if (t == "" && line ~ /-/) next
+      }
+
+      # Flatten table data rows to "- cell — cell — cell".
+      if (line ~ /^[[:space:]]*\|.*\|[[:space:]]*$/) {
+        row = line
+        sub(/^[[:space:]]*\|/, "", row)
+        sub(/\|[[:space:]]*$/, "", row)
+        n = split(row, cells, /\|/)
+        out = ""
+        for (i = 1; i <= n; i++) {
+          c = cells[i]
+          gsub(/^[[:space:]]+|[[:space:]]+$/, "", c)
+          if (c == "") continue
+          out = (out == "" ? c : out " — " c)
+        }
+        if (out != "") emit("- " out)
+        next
+      }
+
+      # A whole-line-bold header renders on its own line only if a paragraph
+      # break follows it — Teams collapses a single "\n" between two such lines.
+      if (line ~ /^\*\*.+\*\*$/) { emit(line); pending_blank = 1; next }
+
+      emit(line)
+    }
+  '
 }
 
 # _render_verdict_led emits finalVerdict verbatim, then the raw evidence snippets
