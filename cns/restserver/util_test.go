@@ -1,6 +1,8 @@
 package restserver
 
 import (
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -125,6 +127,7 @@ func TestRestoreState(t *testing.T) {
 		manageEndpointState  bool
 		nilEndpointStore     bool
 		wantEndpointRestored bool
+		wantErr              error
 	}{
 		{
 			name:                 "endpoint state restored when main state read fails",
@@ -140,6 +143,12 @@ func TestRestoreState(t *testing.T) {
 		{
 			name:                 "skips endpoint state when OptManageEndpointState not set",
 			wantEndpointRestored: false,
+		},
+		{
+			name:                "fails when endpoint state management has no store",
+			manageEndpointState: true,
+			nilEndpointStore:    true,
+			wantErr:             ErrStoreEmpty,
 		},
 	}
 
@@ -173,7 +182,12 @@ func TestRestoreState(t *testing.T) {
 				EndpointState:      make(map[string]*EndpointInfo),
 			}
 
-			svc.restoreState()
+			err := svc.restoreState()
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
 
 			if tt.wantEndpointRestored {
 				require.Len(t, svc.EndpointState, 1)
@@ -183,6 +197,44 @@ func TestRestoreState(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRestoreStateFailsClosedWhenEndpointStateCannotBeRead(t *testing.T) {
+	mainStore := store.NewMockStore("")
+	endpointStore := store.NewMockStore("")
+	svc := HTTPRestService{
+		Service: &cns.Service{
+			Service: &common.Service{Options: map[string]interface{}{acn.OptManageEndpointState: true}},
+		},
+		store: mainStore,
+		state: &httpRestServiceState{},
+		EndpointStateStore: keyReadFailStore{
+			KeyValueStore: endpointStore,
+			failKey:       EndpointStoreKey,
+			err:           errForcedEndpointStateRead,
+		},
+		EndpointState: make(map[string]*EndpointInfo),
+	}
+
+	require.ErrorIs(t, svc.restoreState(), errForcedEndpointStateRead)
+}
+
+var errForcedEndpointStateRead = errors.New("forced endpoint state read failure")
+
+type keyReadFailStore struct {
+	store.KeyValueStore
+	failKey string
+	err     error
+}
+
+func (s keyReadFailStore) Read(key string, value interface{}) error {
+	if key == s.failKey {
+		return s.err
+	}
+	if err := s.KeyValueStore.Read(key, value); err != nil {
+		return fmt.Errorf("reading key %q: %w", key, err)
+	}
+	return nil
 }
 
 // test to check if nc can be deleted from ncList for Delete() method
