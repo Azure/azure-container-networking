@@ -45,7 +45,40 @@ RAW_COLUMNS: list[str] = [
     "verdict",
     "falsificationOutcome",
     "reportUrl",
+    "sourceFolder",
 ]
+
+# Curated "Real Issues" view (enrich.py). Manager-facing proof that FAA caught
+# substantive issues. The three AI_* narrative fields are written by the model
+# after combing the full report.md; valueTag is derived deterministically from
+# the incident signals; managerNotes is left blank for the reviewer.
+CURATED_COLUMNS: list[str] = [
+    "buildDate",
+    "pipelineName",
+    "stage",
+    "clusterName",
+    "os",
+    "cni",
+    "category",
+    "confidenceBand",
+    "valueTag",
+    "whatHappened",
+    "faaFinding",
+    "faaValue",
+    "prNumber",
+    "commit",
+    "reportUrl",
+    "managerNotes",
+]
+
+# Human-friendly labels for the FAA failure categories (model.FailureCategory).
+CATEGORY_LABELS: dict[str, str] = {
+    "pr_regression": "Product regression",
+    "cluster_bringup_failure": "Cluster bringup failure",
+    "pipeline_infra_config": "Infra / config issue",
+    "known_flake": "Flake identified",
+    "unknown_needs_human": "Needs human triage",
+}
 
 # Extra columns added by enrich.py in the organized workbook. The first three
 # are AI-generated; the rest are intentionally blank for the user to fill in.

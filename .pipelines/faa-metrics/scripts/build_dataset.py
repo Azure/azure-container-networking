@@ -149,6 +149,7 @@ def main() -> int:
 
         meta = builds_meta.get(build_id, {})
         row.setdefault("buildId", build_id)
+        row["sourceFolder"] = folder
         for key in ("buildNumber", "buildDate", "pipelineName", "reportUrl", "commit"):
             if not row.get(key) and meta.get(key):
                 row[key] = meta[key]

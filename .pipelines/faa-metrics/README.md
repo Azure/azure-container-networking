@@ -17,14 +17,27 @@ Published as the **`faa-metrics`** build artifact:
 | File | Contents |
 | --- | --- |
 | `faa-metrics-raw.csv` | One row per analyzed failure, machine-parsed. |
-| `faa-metrics-organized.xlsx` | **Runs** sheet (relevant fields + AI columns + blank editable columns) and a **Summary** success-metrics sheet. |
-| `faa-metrics-summary.md` | The aggregate metrics as Markdown (also surfaced on the run's Extensions tab). |
+| `faa-metrics-organized.xlsx` | **Real Issues** curated proof sheet, an **All Runs** backing sheet, and a **Summary** metrics sheet. |
+| `faa-metrics-real-issues.md` | Paste-ready highlights doc for a manager (drops into Word / Confluence / a wiki). Also surfaced on the run's Extensions tab. |
+| `faa-metrics-summary.md` | The aggregate metrics as Markdown. |
 | `raw/` | The downloaded `report.md` / `incident.json` per build, for auditing. |
 
-The organized workbook adds three **AI-generated** columns
-(`aiSolutionSummary`, `aiConclusion`, `aiHowItHelped`) and three **blank,
-hand-editable** columns (`reviewerNotes`, `actualResolution`,
-`wasHelpful (Y/N)`) for you to fill in.
+### The "Real Issues" view
+
+The curated sheet + highlights doc are the evidence that FAA catches **real**
+issues. A row is included only if it is a **substantive find**: FAA produced a
+classification, landed a root cause, and carries at least one impact signal —
+a concrete proposed fix, a high-confidence verdict, or an overturned pre-match
+(`refuted` falsification). All categories qualify, including a **flake** the
+agent correctly identified.
+
+For each curated row an LLM combs the **full `report.md`** and writes three
+narrative columns — `whatHappened`, `faaFinding`, `faaValue` (what failed →
+what FAA found → why it mattered) — alongside a deterministic `valueTag` and a
+blank `managerNotes` column for you to annotate.
+
+Tune the curation in `enrich.py` (`is_substantive`) and the category labels in
+`common.py` (`CATEGORY_LABELS`).
 
 ## How to run it
 
@@ -59,11 +72,12 @@ its `System.AccessToken` — **no extra ADO wiring is required.**
 `enrich.py` calls the same Azure OpenAI deployment the FAA uses, via these env
 vars (sourced from the pipeline's variable group):
 `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT`, `AZURE_OPENAI_API_KEY`,
-`AZURE_OPENAI_API_VERSION`.
+`AZURE_OPENAI_API_VERSION`. It runs only on the curated "Real Issues" rows,
+combing each full `report.md`.
 
-If any are missing, or `faaEnableAI=false`, enrichment is skipped and the AI
-columns are written blank — the stage still succeeds. You can fill or re-run the
-column later.
+If any are missing, or `faaEnableAI=false`, enrichment is skipped and the
+narrative columns are written blank — the stage still succeeds. You can fill or
+re-run them later.
 
 ## Layout
 
@@ -75,7 +89,7 @@ column later.
     common.py              # shared CSV schema + helpers
     collect_reports.py     # ADO REST: list builds in range, download failureAnalysis_* artifacts
     build_dataset.py       # parse incident.json (+report.md) -> faa-metrics-raw.csv
-    enrich.py              # AOAI enrichment -> xlsx + summary + markdown
+    enrich.py              # curate "real issues" + AOAI narrative -> xlsx + docs
     requirements.txt       # requests, openpyxl
 ```
 
@@ -96,7 +110,9 @@ python scripts/build_dataset.py --in-dir ./out --out-csv ./out/faa-metrics-raw.c
 
 # 3. Enrich (set AZURE_OPENAI_* to enable AI, or pass --enable-ai false):
 python scripts/enrich.py --in-csv ./out/faa-metrics-raw.csv \
+  --raw-dir ./out/raw \
   --out-xlsx ./out/faa-metrics-organized.xlsx \
   --out-md ./out/faa-metrics-summary.md \
+  --out-issues-md ./out/faa-metrics-real-issues.md \
   --from-date 2026-06-15 --to-date 2026-08-04 --enable-ai false
 ```
