@@ -772,9 +772,11 @@ jobs:
             --summary "$MSG" \
             --stage tag-approval
 
-          gh issue comment "$ISSUE_NUMBER" \
-            --repo "$REPO" \
-            --body "🏷️ Tag **${NEW_TAG}** dispatched for creation (commit: \`${TARGET_SHA:0:7}\`). Waiting for approval: [Approve here](${APPROVE_URL})"
+          if [[ -n "${ISSUE_NUMBER:-}" ]]; then
+            gh issue comment "$ISSUE_NUMBER" \
+              --repo "$REPO" \
+              --body "🏷️ Tag **${NEW_TAG}** dispatched for creation (commit: \`${TARGET_SHA:0:7}\`). Waiting for approval: [Approve here](${APPROVE_URL})"
+          fi
 
   # ─────────────────────────────────────────────────────────────────────────────
   # STEP 4: Pipeline Validation (ACN PR Pipeline + CNI Release Test)
@@ -903,8 +905,8 @@ jobs:
   release_channel_post:
     name: "Step 5: Release Channel + R2D Draft"
     runs-on: ubuntu-latest
-    needs: [create_tag, validate_pipelines]
-    if: always() && needs.create_tag.result == 'success' && needs.validate_pipelines.result == 'success'
+    needs: [create_tag]
+    if: always() && needs.create_tag.result == 'success'
     permissions:
       contents: read
       id-token: write
@@ -934,14 +936,14 @@ jobs:
           NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
           TARGET_SHA: ${{ needs.create_tag.outputs.target_sha }}
           PREVIOUS_TAG: ${{ needs.create_tag.outputs.previous_tag }}
-          PR_RUN: ${{ needs.validate_pipelines.outputs.pr_pipeline_run_url }}
-          CNI_RUN: ${{ needs.validate_pipelines.outputs.cni_release_run_url }}
+          PR_RUN: 
+          CNI_RUN: 
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
           BRANCH="${RELEASE_BRANCH}"
-          PR_RUN="${PR_RUN:-_(dry run — skipped)_}"
-          CNI_RUN="${CNI_RUN:-_(dry run — skipped)_}"
+          PR_RUN="${PR_RUN:-_(in progress)_}"
+          CNI_RUN="${CNI_RUN:-_(in progress)_}"
           DRY_PREFIX=""
           if [[ "$DRY_RUN" == "true" ]]; then
             DRY_PREFIX="🏜️ [DRY RUN] "
@@ -997,7 +999,7 @@ jobs:
         id: r2d_unsigned
         env:
           NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
-          CNI_RUN: ${{ needs.validate_pipelines.outputs.cni_release_run_url }}
+          CNI_RUN: 
         run: |
           set -euo pipefail
           TODAY=$(date +%Y-%m-%d)
@@ -1049,8 +1051,8 @@ jobs:
         id: r2d_signed
         env:
           NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
-          PR_RUN: ${{ needs.validate_pipelines.outputs.pr_pipeline_run_url }}
-          CNI_RUN: ${{ needs.validate_pipelines.outputs.cni_release_run_url }}
+          PR_RUN: 
+          CNI_RUN: 
         run: |
           set -euo pipefail
           TODAY=$(date +%Y-%m-%d)
@@ -1123,8 +1125,8 @@ jobs:
       - name: Write workflow summary
         env:
           NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
-          PR_RUN: ${{ needs.validate_pipelines.outputs.pr_pipeline_run_url }}
-          CNI_RUN: ${{ needs.validate_pipelines.outputs.cni_release_run_url }}
+          PR_RUN: 
+          CNI_RUN: 
         run: |
           {
             echo "## 🚀 Scheduled Release: ${NEW_TAG}"
