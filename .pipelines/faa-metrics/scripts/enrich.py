@@ -170,11 +170,12 @@ class AzureOpenAI:
                 {"role": "system", "content": AI_SYSTEM_PROMPT},
                 {"role": "user", "content": user_content},
             ],
-            "temperature": 0.2,
             "response_format": {"type": "json_object"},
         }
         resp = requests.post(self.url, headers=self.headers, json=body, timeout=120)
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            detail = resp.text[:300].replace("\n", " ")
+            raise ValueError(f"HTTP {resp.status_code}: {detail}")
         content = resp.json()["choices"][0]["message"]["content"]
         parsed = json.loads(content)
         return {

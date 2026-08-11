@@ -70,7 +70,7 @@ parameters:
     default: "2026-06-15"
   - name: faaToDate
     type: string
-    default: "2026-08-04"
+    default: "2026-08-11"
   - name: faaEnableAI
     type: boolean
     default: true
