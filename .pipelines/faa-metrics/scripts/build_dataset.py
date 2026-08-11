@@ -135,7 +135,7 @@ def main() -> int:
             row = {}
 
         if os.path.isfile(report_path):
-            with open(report_path, "r", encoding="utf-8") as fh:
+            with open(report_path, "r", encoding="utf-8", errors="replace") as fh:
                 report_text = fh.read()
             report_fields = parse_report_md(report_text)
             # incident.json wins; report.md fills blanks and adds narrative.
