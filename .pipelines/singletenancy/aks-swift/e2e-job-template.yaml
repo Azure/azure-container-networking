@@ -69,7 +69,7 @@ stages:
               azureIpamVersion: $(AZURE_IPAM_VERSION)
               cnsVersion: $(CNS_VERSION)
               cniVersion: $(CNI_VERSION)
-              installFlag: INSTALL_AZURE_VNET
+              installFlag: ${{ parameters.installFlag }}
               os: ${{ parameters.os }}
   - stage: ${{ parameters.name }}
     displayName: E2E-${{ parameters.displayName }}
