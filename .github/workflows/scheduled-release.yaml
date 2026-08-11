@@ -516,6 +516,7 @@ jobs:
         with:
           ref: ${{ env.RELEASE_BRANCH }}
           fetch-depth: 0
+          fetch-tags: true
           persist-credentials: false
 
       - name: Build release-cli
