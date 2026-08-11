@@ -55,8 +55,12 @@ render_verdict() {
   # the original Markdown — only the Teams reply is downgraded.
   body="$(printf '%s' "$body" | _sanitize_teams_md)"
 
-  # Keep the reply within a safe size for the notifier and the Teams card.
-  local max=3900
+  # The notifier rejects a reply whose text exceeds 2000 characters (HTTP 400),
+  # so keep the rendered verdict comfortably under that, leaving headroom for the
+  # retention line notify-incident.sh appends after this returns. notify_reply
+  # enforces the hard 2000 limit as a backstop; this cap is the graceful one that
+  # points the on-call at the full write-up.
+  local max=1800
   if (( ${#body} > max )); then
     body="${body:0:max}"$'\n\n_… verdict truncated; open the run’s analysis summary for the full write-up._'
   fi

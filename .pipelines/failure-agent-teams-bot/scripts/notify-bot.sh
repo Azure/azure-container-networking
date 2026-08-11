@@ -302,6 +302,14 @@ notify_reply() {
     return 0
   fi
 
+  # The notifier rejects a reply whose text exceeds 2000 characters with an
+  # HTTP 400 ("/text must NOT have more than 2000 characters"), and a 400 is not
+  # retried below — so enforce the limit here as a hard backstop that protects
+  # every caller regardless of how it assembled $text.
+  if (( ${#text} > 2000 )); then
+    text="${text:0:1990}"$'\n…'
+  fi
+
   local token
   token="$(notify_mint_token)" || return 0
 
