@@ -212,6 +212,15 @@ func (client *TransparentTunnelEndpointClient) addTransparentTunnelRules(epInfo 
 
 	markMatch := "-i " + hostVeth
 	markTarget := "MARK --set-mark " + markStr
+	// Host veth names are derived from the endpoint ID, so a retried ADD for the
+	// same pod reuses the same name and match string. Deleting the veth link does
+	// not remove iptables rules referencing it, so append only when absent to
+	// avoid stacking duplicates in mangle PREROUTING.
+	if client.iptablesClient.RuleExists(iptables.V4, iptables.Mangle, iptables.Prerouting, markMatch, markTarget) {
+		logger.Info("transparent-tunnel: fwmark MARK rule already present, skipping append",
+			zap.String("veth", hostVeth), zap.String("mark", markStr))
+		return nil
+	}
 	if err := client.iptablesClient.AppendIptableRule(iptables.V4, iptables.Mangle, iptables.Prerouting, markMatch, markTarget); err != nil {
 		return errors.Wrap(err, "failed to append fwmark MARK rule")
 	}

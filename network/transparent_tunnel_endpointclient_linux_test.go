@@ -555,6 +555,55 @@ func TestTransparentTunnelAddEndpointRules_NotrackRuleIsIdempotent(t *testing.T)
 	}
 }
 
+func TestTransparentTunnelAddEndpointRules_MarkRuleIsIdempotent(t *testing.T) {
+	// Host veth names are derived from the endpoint ID, so a retried ADD for the
+	// same pod reuses the same veth name. Deleting the veth link does not remove
+	// iptables rules referencing it, so a retry must not stack a duplicate MARK
+	// rule in mangle PREROUTING.
+	iptMock := &transparentTunnelMockIPTablesClient{}
+	iptMock.ruleExistsFn = func(version, tableName, chainName, match, target string) bool {
+		for _, call := range iptMock.appendCalls {
+			if call.version == version && call.tableName == tableName &&
+				call.chainName == chainName && call.match == match && call.target == target {
+				return true
+			}
+		}
+		return false
+	}
+
+	newClient := func() *TransparentTunnelEndpointClient {
+		return &TransparentTunnelEndpointClient{
+			TransparentEndpointClient: &TransparentEndpointClient{
+				hostVethName:      testHostVethName,
+				hostPrimaryIfName: InfraInterfaceName,
+				netioshim:         netio.NewMockNetIO(false, 0),
+			},
+			iptablesClient: iptMock,
+			nlPolicyRoute:  &transparentTunnelMockNlClient{},
+			ipsetClient:    &transparentTunnelMockIpsetClient{},
+			gateway:        net.ParseIP("10.224.0.1"),
+		}
+	}
+
+	epInfo := &EndpointInfo{IPAddresses: []net.IPNet{
+		{IP: net.ParseIP("10.224.0.46"), Mask: net.CIDRMask(32, 32)},
+	}}
+
+	// The same pod is added twice, as happens when a CNI ADD is retried.
+	require.NoError(t, newClient().addTransparentTunnelRules(epInfo))
+	require.NoError(t, newClient().addTransparentTunnelRules(epInfo))
+
+	var markAppends []iptablesCall
+	for _, call := range iptMock.appendCalls {
+		if call.tableName == iptables.Mangle {
+			markAppends = append(markAppends, call)
+		}
+	}
+
+	require.Len(t, markAppends, 1, "MARK rule must be appended exactly once per pod")
+	assert.Equal(t, "-i "+testHostVethName, markAppends[0].match)
+}
+
 func TestTransparentTunnelDeleteEndpointRules(t *testing.T) {
 	makeClient := func(nlMock *transparentTunnelMockNlClient,
 		iptMock *transparentTunnelMockIPTablesClient,
