@@ -28,8 +28,8 @@ ARG ARTIFACT_DIR
 #                 CVE-2026-42009, CVE-2026-42010, CVE-2026-42011, CVE-2026-42012,
 #                 CVE-2026-42013, CVE-2026-42014, CVE-2026-42015, CVE-2026-5260,
 #                 CVE-2026-5419 (MEDIUM)
-# libsystemd0:    CVE-2026-29111, CVE-2026-40225 (MEDIUM)
-# libudev1:       CVE-2026-29111, CVE-2026-40225 (MEDIUM)
+# libsystemd0:    CVE-2026-29111, CVE-2026-40225, CVE-2026-40226 (MEDIUM)
+# libudev1:       CVE-2026-29111, CVE-2026-40225, CVE-2026-40226 (MEDIUM)
 # liblzma5:       CVE-2026-34743 (LOW)
 # sed:            CVE-2026-5958 (MEDIUM)
 # gzip:           CVE-2026-41991, CVE-2026-41992 (LOW)
@@ -48,8 +48,8 @@ RUN apt-get update && apt-get install -y \
     libcap2=1:2.66-5ubuntu2.4 \
     libgcrypt20=1.10.3-2ubuntu0.1 \
     libgnutls30t64=3.8.3-1.1ubuntu3.6 \
-    libsystemd0=255.4-1ubuntu8.16 \
-    libudev1=255.4-1ubuntu8.16 \
+    libsystemd0=255.4-1ubuntu8.17 \
+    libudev1=255.4-1ubuntu8.17 \
     liblzma5=5.6.1+really5.4.5-1ubuntu0.3 \
     sed=4.9-2ubuntu0.24.04.1 \
     gzip=1.12-1ubuntu3.2 \
