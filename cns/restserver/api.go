@@ -21,7 +21,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	"github.com/Azure/azure-container-networking/common"
-	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/pkg/errors"
 )
 
@@ -39,6 +38,15 @@ var (
 const (
 	ncURLExpectedMatches = 5
 )
+
+type ncPublishBody struct {
+	UseRNCPublisher bool `json:"useRNCPublisher"`
+}
+
+type ncUnpublishBody struct {
+	UseRNCPublisher bool `json:"useRNCPublisher"`
+	AZREnabled      bool `json:"azrEnabled"`
+}
 
 // This file contains implementation of all HTTP APIs which are exposed to external clients.
 // TODO: break it even further per module (network, nc, etc) like it is done for ipam
@@ -948,7 +956,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 
 	ctx := r.Context()
 
-	var publishBody nmagent.PutNetworkContainerRequest
+	var publishBody ncPublishBody
 	var useRNCPublisher bool
 
 	err = json.Unmarshal(req.CreateNetworkContainerRequestBody, &publishBody)
@@ -1093,7 +1101,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 
 	ctx := r.Context()
 
-	var unpublishBody nmagent.DeleteContainerRequest
+	var unpublishBody ncUnpublishBody
 	var azrNC bool
 	var useRNCPublisher bool
 	err = json.Unmarshal(req.DeleteNetworkContainerRequestBody, &unpublishBody)
