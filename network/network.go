@@ -17,13 +17,17 @@ import (
 
 const (
 	// Operational modes.
-	opModeBridge          = "bridge"
-	opModeTunnel          = "tunnel"
-	opModeTransparent     = "transparent"
+	opModeBridge            = "bridge"
+	opModeTunnel            = "tunnel"
+	opModeTransparent       = "transparent"
 	opModeTransparentVlan   = "transparent-vlan"
 	opModeTransparentTunnel = "transparent-tunnel"
 	opModeDefault           = opModeTunnel
 )
+
+// OpModeTransparentTunnel is the exported form of opModeTransparentTunnel so
+// callers outside this package (the CNI plugin) can detect the mode.
+const OpModeTransparentTunnel = opModeTransparentTunnel
 
 const (
 	// ipv6 modes

@@ -1915,3 +1915,62 @@ func TestWireServerAddressForEnv(t *testing.T) {
 		})
 	}
 }
+
+// A stateless DEL must not silently succeed when CNS is unreachable in
+// transparent-tunnel mode, or the per-pod tunnel rules leak permanently.
+func TestPluginStatelessDeleteTransparentTunnelCNSFailure(t *testing.T) {
+	tests := []struct {
+		name                string
+		mode                string
+		getEndpointStateErr error
+		wantErr             bool
+	}{
+		{
+			name:                "transparent-tunnel with CNS connection failure is retriable",
+			mode:                acnnetwork.OpModeTransparentTunnel,
+			getEndpointStateErr: acnnetwork.ErrConnectionFailure,
+			wantErr:             true,
+		},
+		{
+			name:                "transparent-tunnel with endpoint not found returns success",
+			mode:                acnnetwork.OpModeTransparentTunnel,
+			getEndpointStateErr: acnnetwork.ErrEndpointStateNotFound,
+			wantErr:             false,
+		},
+		{
+			name:                "other modes keep returning success on CNS connection failure",
+			mode:                "transparent",
+			getEndpointStateErr: acnnetwork.ErrConnectionFailure,
+			wantErr:             false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			plugin := GetTestResources()
+			mockNM, ok := plugin.nm.(*acnnetwork.MockNetworkManager)
+			require.True(t, ok)
+			mockNM.StatelessCNIMode = true
+			mockNM.GetEndpointStateErr = tt.getEndpointStateErr
+
+			delCfg := nwCfg
+			delCfg.Mode = tt.mode
+
+			args := &cniSkel.CmdArgs{
+				StdinData:   delCfg.Serialize(),
+				ContainerID: "test-container",
+				Netns:       "test-container",
+				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
+				IfName:      eth0IfName,
+			}
+
+			err := plugin.Delete(args)
+			if tt.wantErr {
+				require.Error(t, err)
+				require.ErrorContains(t, err, "failed to delete endpoint")
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

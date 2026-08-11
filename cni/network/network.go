@@ -1167,6 +1167,17 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		}
 		// set the error to nil if endpoint state is not found or connection failure to CNS;
 		// the next if block (len(epInfos) == 0) will handle that ip release if necessary
+		//
+		// A CNS connection failure in transparent-tunnel mode is the exception: falling
+		// through leaves epInfos empty, so DeleteEndpoint never runs and the per-pod MARK
+		// rule and ipset entry leak permanently. Return a retriable error so the runtime
+		// retries the DEL once CNS is reachable again. Endpoint-not-found still returns
+		// success because without the endpoint state the tunnel rules cannot be matched.
+		if errors.Is(err, network.ErrConnectionFailure) && nwCfg.Mode == network.OpModeTransparentTunnel {
+			logger.Error("Could not reach CNS to delete transparent-tunnel endpoint, will retry",
+				zap.String("containerID", args.ContainerID), zap.Error(err))
+			return plugin.RetriableError(fmt.Errorf("failed to delete endpoint: %w", err))
+		}
 		err = nil
 	} else {
 		epInfos = plugin.nm.GetEndpointInfosFromContainerID(args.ContainerID)
