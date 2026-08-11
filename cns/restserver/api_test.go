@@ -937,6 +937,7 @@ func TestPublishNCWithRNCPublisherJoinsSubnetOnce(t *testing.T) {
 
 	cleanup := setWireserverProxy(svc, &wsproxy)
 	t.Cleanup(cleanup)
+	cleanupJoinedSubnetState(t, networkID, subnetName)
 
 	createNetworkContainerURL := "http://" + nmagentEndpoint +
 		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1"
@@ -1269,6 +1270,7 @@ func TestUnpublishNCWithRNCPublisherSkipsJoinedSubnet(t *testing.T) {
 	)
 
 	svc.setSubnetStateJoined(networkID, subnetName)
+	cleanupJoinedSubnetState(t, networkID, subnetName)
 
 	var (
 		joinSubnetCalls int
@@ -1892,6 +1894,16 @@ func encodeRequestBody(t *testing.T, request any) bytes.Buffer {
 	require.NoError(t, err)
 
 	return body
+}
+
+func cleanupJoinedSubnetState(t *testing.T, vnetID, subnetName string) {
+	t.Helper()
+
+	t.Cleanup(func() {
+		namedLock.LockAcquire(stateJoinedSubnets)
+		defer namedLock.LockRelease(stateJoinedSubnets)
+		delete(svc.state.joinedSubnets, vnetID+"_"+subnetName)
+	})
 }
 
 func setEnv(t *testing.T) *httptest.ResponseRecorder {
