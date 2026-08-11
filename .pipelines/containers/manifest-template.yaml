@@ -51,6 +51,6 @@ steps:
   - ${{ if eq(parameters.publishArtifact, true) }}:
       - task: PublishBuildArtifacts@1
         inputs:
-          artifactName: "output_staging"
+          artifactName: "output"
           pathtoPublish: "$(Build.ArtifactStagingDirectory)"
         condition: succeeded()
