@@ -149,6 +149,31 @@ updates:
     cooldown:
       default-days: 7
 
+  # Catch-all (master/default branch only): every remaining Go module that does
+  # not have its own dedicated entry above.
+  - package-ecosystem: "gomod"
+    directories:
+      - "**/*"
+    exclude-paths:
+      - "azure-ipam/**"
+      - "dropgz/**"
+      - "zapai/**"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "12:00"  # UTC
+    commit-message:
+      prefix: "deps"
+    labels: ["dependencies"]
+    open-pull-requests-limit: 2
+    groups:
+      all-go-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    cooldown:
+      default-days: 7
+
   # =========================
   # RELEASE BRANCHES — keep daily for v1.5, v1.6, and v1.7
   # =========================
