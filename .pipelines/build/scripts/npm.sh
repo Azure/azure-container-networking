@@ -4,11 +4,13 @@ set -eux
 [[ $OS =~ windows ]] && FILE_EXT='.exe' || FILE_EXT=''
 
 export CGO_ENABLED=0
-# Go 1.26 crypto backend: Linux (CGO_ENABLED=0) needs the cgo-free OpenSSL
-# experiment; Windows selects the CNG backend automatically from GOOS=windows
-# and needs no experiment (the Linux OpenSSL experiment is a no-op there and is
-# removed in Go 1.27), so only set it for Linux.
-[[ $OS =~ windows ]] || export GOEXPERIMENT=ms_nocgo_opensslcrypto
+# npm ships on the Ubuntu base image (it needs iptables/ipset at runtime), which
+# does not provide Microsoft's FIPS-capable OpenSSL. GOEXPERIMENT=ms_nocgo_openssl
+# crypto would make the binary require that OpenSSL and crash-loop on FIPS-enabled
+# clusters, so use the standard Go crypto backend (matches npm/*.Dockerfile and
+# the shipped release/v1.6 image). Components on the AzureLinux distroless base
+# use ms_nocgo_opensslcrypto instead.
+export MS_GO_NOSYSTEMCRYPTO=1
 
 mkdir -p "$OUT_DIR"/files
 mkdir -p "$OUT_DIR"/bin
