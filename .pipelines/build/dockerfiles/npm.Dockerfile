@@ -10,7 +10,7 @@ COPY ${ARTIFACT_DIR}/scripts/setkubeconfigpath.ps1 setkubeconfigpath.ps1
 COPY ${ARTIFACT_DIR}/scripts/setkubeconfigpath-capz.ps1 setkubeconfigpath-capz.ps1
 COPY ${ARTIFACT_DIR}/bin/azure-npm.exe npm.exe
 
-CMD ["npm.exe", "start" "--kubeconfig=.\\kubeconfig"]
+CMD ["npm.exe", "start", "--kubeconfig=.\\kubeconfig"]
 
 
 FROM --platform=linux/${ARCH} mcr.microsoft.com/mirror/docker/library/ubuntu:24.04 as linux
