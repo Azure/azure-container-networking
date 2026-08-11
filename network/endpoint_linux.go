@@ -316,9 +316,13 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 	}
 
 	// Tunnel cleanup is separate because DeleteEndpointRules cannot return errors.
+	var tunnelErr error
 	if ttClient, ok := epClient.(*TransparentTunnelEndpointClient); ok {
 		if err := ttClient.DeleteTransparentTunnelRules(ep); err != nil {
-			return fmt.Errorf("failed to delete transparent tunnel rules: %w", err)
+			// Continue with the remaining cleanup so a tunnel failure does not leak
+			// veth and base endpoint state, then surface the error to the runtime.
+			logger.Error("Failed to delete transparent tunnel rules, continuing cleanup", zap.Error(err))
+			tunnelErr = fmt.Errorf("failed to delete transparent tunnel rules: %w", err)
 		}
 	}
 
@@ -328,7 +332,7 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 	//nolint:errcheck // ignore error
 	epClient.DeleteEndpoints(ep)
 
-	return nil
+	return tunnelErr
 }
 
 // getInfoImpl returns information about the endpoint.

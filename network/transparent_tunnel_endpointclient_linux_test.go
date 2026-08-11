@@ -8,6 +8,7 @@ import (
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
+	"github.com/Azure/azure-container-networking/platform"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -792,4 +793,48 @@ func TestGetTunnelGateway(t *testing.T) {
 		require.NotNil(t, got)
 		assert.True(t, got.Equal(v4("10.224.0.1")))
 	})
+}
+
+func TestTransparentTunnelDeleteEndpointImplCleansUpOnTunnelFailure(t *testing.T) {
+	// A tunnel cleanup failure must not abort the rest of the DEL path, or the
+	// veth and base endpoint state leak on every retry.
+	iptMock := &transparentTunnelMockIPTablesClient{
+		deleteIfExistsErr: errors.New("xtables lock held"),
+	}
+
+	routesDeleted := 0
+	nl := netlink.NewMockNetlink(false, "")
+	nl.SetDeleteRouteValidationFn(func(_ *netlink.Route) error {
+		routesDeleted++
+		return nil
+	})
+
+	nw := &network{
+		Endpoints: map[string]*endpoint{},
+		extIf: &externalInterface{
+			Name:        InfraInterfaceName,
+			IPv4Gateway: net.ParseIP("10.224.0.1"),
+		},
+	}
+
+	ep := &endpoint{
+		Id:         "test-ep",
+		HostIfName: testHostVethName,
+		IPAddresses: []net.IPNet{
+			{IP: net.ParseIP("10.224.0.46"), Mask: net.CIDRMask(32, 32)},
+		},
+	}
+
+	// epClient is nil so deleteEndpointImpl builds a real tunnel client around the mocks.
+	err := nw.deleteEndpointImpl(nl, platform.NewMockExecClient(false), nil,
+		netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptMock, &mockDHCP{},
+		ep, opModeTransparentTunnel)
+
+	// The failure still surfaces so the runtime retries the DEL.
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to delete transparent tunnel rules")
+
+	// ...but the base cleanup ran anyway rather than being skipped.
+	assert.Positive(t, routesDeleted, "base endpoint routes must be deleted despite tunnel failure")
+	require.Len(t, iptMock.deleteIfExistsCalls, 1, "tunnel MARK rule delete must be attempted")
 }
