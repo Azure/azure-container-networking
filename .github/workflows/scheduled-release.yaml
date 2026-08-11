@@ -777,24 +777,260 @@ jobs:
               --repo "$REPO" \
               --body "🏷️ Tag **${NEW_TAG}** dispatched for creation (commit: \`${TARGET_SHA:0:7}\`). Waiting for approval: [Approve here](${APPROVE_URL})"
           fi
+  # ─────────────────────────────────────────────────────────────────────────────
+  # STEP 4: Post in Release Channel + Draft R2D
+  # ─────────────────────────────────────────────────────────────────────────────
+  release_channel_post:
+    name: "Step 4: Release Channel + R2D Draft"
+    runs-on: ubuntu-latest
+    needs: [create_tag]
+    if: always() && needs.create_tag.result == 'success'
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      message_id: ${{ steps.release_thread.outputs.message_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.RELEASE_BRANCH }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Build release-cli
+        run: |
+          cd tools/release && go build -o /tmp/release-cli ./cmd/release-cli/
+
+      - name: Azure Login (OIDC)
+        continue-on-error: true
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - name: Post release thread in Release Channel
+        id: release_thread
+        env:
+          NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
+          TARGET_SHA: ${{ needs.create_tag.outputs.target_sha }}
+          PREVIOUS_TAG: ${{ needs.create_tag.outputs.previous_tag }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          BRANCH="${RELEASE_BRANCH}"
+          DRY_PREFIX=""
+          if [[ "$DRY_RUN" == "true" ]]; then
+            DRY_PREFIX="🏜️ [DRY RUN] "
+          fi
+          REPO="${GITHUB_REPOSITORY}"
+          COMMIT_LINK="https://github.com/${REPO}/commit/${TARGET_SHA}"
+          CHANGELOG_LINK="https://github.com/${REPO}/compare/${PREVIOUS_TAG}...${NEW_TAG}"
+
+          RELEASE_MSG="${DRY_PREFIX}@Release I will start the release process for the acn repo (cni/cns/npm) ${NEW_TAG} based on this commit: ${COMMIT_LINK} from the ${BRANCH} branch. I intend for this release to make it to AKS.
+
+          ---
+          **SIGNED PATH (CNI/CNS) — Managed DALEC:**
+          - Changelog Link: ${CHANGELOG_LINK}
+          - CNI Release Test Pipeline Run Link: _(in progress)_
+          - ACN PR Pipeline Run Link: _(in progress)_
+          - Managed DALEC Build: _(automatic — triggered by tag)_
+          - Managed DALEC Lead Approval: _(pending — 18hr timeout)_
+          - Managed DALEC MCR Publish: _(automatic after approval)_
+          - AgentBaker PR Link: _(pending BumpBump)_
+          - AKS PR/ENO Link: _(pending)_
+          - ENO Release Networking Sig Link: _(pending)_
+
+          ---
+          **SIGNED PATH (Other binaries) — Manual pipelines:**
+          - ACN Official Build Pipeline Run Link: _(pending — human to trigger)_
+          - ACN Official Image Release Pipeline Run Link: _(pending — human to trigger)_
+          - Safefly/R2D Link: _(human to fill after filing)_
+
+          ---
+          **UNSIGNED PATH CHECKLIST:**
+          - Changelog Link: ${CHANGELOG_LINK}
+          - CNI Release Test Pipeline Run Link: _(in progress)_
+          - ACN PR Pipeline Run Link: _(in progress)_
+          - GitHub Release Pipeline Run Link: _(pending)_
+          - Safefly/R2D Link: _(human to fill after filing)_
+          - GitHub Release Link: _(pending)_
+          - NA Build Pipeline Run Link: _(pending)_
+          - OBP Signed Binaries Pipeline Run Link: _(pending)_"
+
+          echo "Release channel message:"
+          echo "$RELEASE_MSG"
+
+          RESPONSE=$(/tmp/release-cli notify \
+            --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
+            --title "Release ${NEW_TAG}" \
+            --status running \
+            --summary "$RELEASE_MSG" \
+            --stage release-thread)
+          MESSAGE_ID=$(echo "$RESPONSE" | jq -r '.messageId // empty' 2>/dev/null || true)
+          echo "message_id=$MESSAGE_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Generate R2D Draft (Unsigned)
+        id: r2d_unsigned
+        env:
+          NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
+        run: |
+          set -euo pipefail
+          TODAY=$(date +%Y-%m-%d)
+          END_DATE=$(date -d "+7 days" +%Y-%m-%d)
+
+          cat <<EOF > /tmp/r2d-unsigned-draft.md
+          # R2D DRAFT — UNSIGNED PATH
+          ## File at: https://aka.ms/R2D (Clone from Request #193479)
+
+          | Field | Value |
+          |-------|-------|
+          | Service Name | Azure Container Networking |
+          | Change Title | CNI/CNS Github Release ${NEW_TAG} |
+          | Change Description | Release ${NEW_TAG} binaries to our Github Release page to be consumed by ACI |
+          | Engineering Director | R2D-AzNet-SDN-ED-GRP |
+          | CVP | R2D-AzNet-CVP-GRP |
+          | Additional Users to Notify | tamanoha@microsoft.com |
+          | Deployment Type | regular |
+          | Deployment Tool | ev2 |
+          | Service Group Name | microsoft.azure.networking.containernetworking.githubrelease |
+          | Build Number | _(fill from Github Release Pipeline run)_ |
+          | ADO Build Link | _(fill from Github Release Pipeline run)_ |
+          | SFI Changes? | no |
+          | Anticipated Start Date | ${TODAY} |
+          | Anticipated End Date | ${END_DATE} |
+          | Targeted Regions | All regions |
+          | Covered by lease? | No |
+          | Nature of Deployment | General bug fixes, New feature |
+          | Deployment Following SDP | Standard SDP |
+          | Retakes? | no |
+          | Impact Type to Customer | None |
+          | Expected duration of impact | 0 |
+          | Blast Radius | Single Cluster |
+          | Pre-Prod Testing Types | End to End Testing |
+          | Rollback/Roll-Forward | DRI determines rollback or rollforward in real time based on the issue |
+          | Rollback Tested | yes |
+          | Average Rollback Time | 01:00 (HH:MM) |
+          | Health signals integration | yes — Binaries are consumed by partners who have health checks |
+          | R2D Risk | Low |
+          | Team Assessed Risk | Low |
+          | Deployment Impact | Zero Impact |
+          | Auto Approval | Disabled |
+          EOF
+
+          echo "✅ Unsigned R2D draft generated at /tmp/r2d-unsigned-draft.md"
+          cat /tmp/r2d-unsigned-draft.md
+
+      - name: Generate R2D Draft (Signed)
+        id: r2d_signed
+        env:
+          NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
+        run: |
+          set -euo pipefail
+          TODAY=$(date +%Y-%m-%d)
+          END_DATE=$(date -d "+7 days" +%Y-%m-%d)
+
+          cat <<EOF > /tmp/r2d-signed-draft.md
+          # R2D DRAFT — SIGNED PATH (Managed DALEC)
+          ## File at: https://aka.ms/R2D (Clone from Request #174991)
+
+          | Field | Value |
+          |-------|-------|
+          | Service Name | Azure Container Networking |
+          | Change Title | CNI/CNS MCR Release ${NEW_TAG} |
+          | Change Description | Release ${NEW_TAG} signed container images via Managed DALEC to MCR |
+          | Engineering Director | R2D-AzNet-SDN-ED-GRP |
+          | CVP | R2D-AzNet-CVP-GRP |
+          | Additional Users to Notify | tamanoha@microsoft.com |
+          | Deployment Type | regular |
+          | Deployment Tool | ev2 |
+          | Service Group Name | microsoft.azure.networking.containernetworking |
+          | Build Number | _(auto — from Managed DALEC)_ |
+          | ADO Build Link | _(auto — Managed DALEC pipeline)_ |
+          | SFI Changes? | no |
+          | Anticipated Start Date | ${TODAY} |
+          | Anticipated End Date | ${END_DATE} |
+          | Targeted Regions | All regions |
+          | Covered by lease? | No |
+          | Nature of Deployment | General bug fixes, New feature |
+          | Deployment Following SDP | Standard SDP |
+          | Retakes? | no |
+          | Impact Type to Customer | None |
+          | Expected duration of impact | 0 |
+          | Blast Radius | Single Cluster |
+          | Pre-Prod Testing Types | End to End Testing (CNI Release Test + AKS-Swift) |
+          | Rollback/Roll-Forward | DRI determines rollback or rollforward in real time based on the issue |
+          | Rollback Tested | yes |
+          | Average Rollback Time | 00:01 (HH:MM) |
+          | Health signals integration | yes — AKS-Swift deployment follows AKS service health checks |
+          | R2D Risk | Low |
+          | Team Assessed Risk | Low |
+          | Deployment Impact | Zero Impact |
+          | Auto Approval | Disabled |
+          EOF
+
+          echo "✅ Signed R2D draft generated at /tmp/r2d-signed-draft.md"
+          cat /tmp/r2d-signed-draft.md
+
+      - name: Post R2D drafts summary to Release thread
+        env:
+          NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
+        run: |
+          /tmp/release-cli notify \
+            --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
+            --title "R2D Drafts: ${NEW_TAG}" \
+            --status running \
+            --summary "📋 R2D Drafts prepared for ${NEW_TAG}: UNSIGNED — Clone from SafeFly Request #193479 • Service Group: microsoft.azure.networking.containernetworking.githubrelease • File at: https://aka.ms/R2D | SIGNED — Clone from SafeFly Request #174991 • Service Group: microsoft.azure.networking.containernetworking • File at: https://aka.ms/R2D | ⚠️ Human action required: File both R2Ds, then post the Safefly/R2D links back in this thread." \
+            --stage r2d-draft
+
+      - name: Send email to leads
+        env:
+          NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
+        run: |
+          echo "📧 Email notification (manual step or integrate with Logic App/Power Automate):"
+          echo "  To: chandan.aggarwal@microsoft.com, neaggarw@microsoft.com, tamanoha@microsoft.com, caggard@microsoft.com"
+          echo "  Subject: ACN Release ${NEW_TAG}"
+          echo "  Body: I am currently making a CNI/CNS/NPM release for ${NEW_TAG}."
+          # NOTE: Email sending requires integration with a mail service (Graph API, Logic App, etc.)
+          # This step serves as documentation of the requirement
+
+      - name: Write workflow summary
+        env:
+          NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
+        run: |
+          {
+            echo "## 🚀 Scheduled Release: ${NEW_TAG}"
+            echo ""
+            echo "| Step | Status |"
+            echo "|------|--------|"
+            echo "| Dependabot PRs | ✅ Complete |"
+            echo "| Vuln Check | ✅ Complete |"
+            echo "| Tag Created | ✅ ${NEW_TAG} |"
+            echo "| Release Channel Post | ✅ Posted |"
+            echo "| R2D Drafts | ✅ Generated (human to file) |"
+            echo ""
+            echo "### Next Steps (Human):"
+            echo "1. File R2D at https://aka.ms/R2D (clone from previous requests)"
+            echo "2. Post Safefly/R2D links back to Release channel thread"
+            echo "3. Trigger ACN Official Build Pipeline + Image Release Pipeline"
+            echo "4. Monitor BumpBump for AgentBaker PR"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # STEP 4: Pipeline Validation (ACN PR Pipeline + CNI Release Test)
+  # STEP 5: Pipeline Validation (ACN PR Pipeline + CNI Release Test)
   # ─────────────────────────────────────────────────────────────────────────────
   validate_pipelines:
-    name: "Step 4: Pipeline Validation"
+    name: "Step 5: Pipeline Validation"
     runs-on: ubuntu-latest
-    needs: create_tag
+    needs: [create_tag, release_channel_post]
     if: ${{ !inputs.dry_run }}
     timeout-minutes: 360
     permissions:
       contents: read
       id-token: write
-    outputs:
-      pr_pipeline_run_url: ${{ steps.pr_pipeline.outputs.run_url }}
-      cni_release_run_url: ${{ steps.cni_release.outputs.run_url }}
     steps:
-      - name: Checkout (needed for git ls-remote)
+      - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ env.RELEASE_BRANCH }}
@@ -836,16 +1072,15 @@ jobs:
             elapsed=$((elapsed + POLL))
           done
 
-      - name: Get ADO Bearer token
+      - name: Get ADO token
         id: ado_token
         run: |
           set -euo pipefail
-          # Azure DevOps resource ID
           TOKEN=$(az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv)
           echo "::add-mask::$TOKEN"
           echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
 
-      - name: Wait for ACN PR Pipeline
+      - name: Wait for ACN PR Pipeline (with retry)
         id: pr_pipeline
         env:
           ADO_TOKEN: ${{ steps.ado_token.outputs.token }}
@@ -853,17 +1088,29 @@ jobs:
           PIPELINE_DEF_ID: ${{ vars.ACN_PR_PIPELINE_ID }}
         run: |
           set -euo pipefail
-          RESULT=$(/tmp/release-cli wait-pipeline \
-            --org "msazure" \
-            --project "One" \
-            --definition-id "$PIPELINE_DEF_ID" \
-            --token "$ADO_TOKEN" \
-            --tag "$NEW_TAG" \
-            --timeout 3h \
-            --name "ACN PR Pipeline")
-          echo "run_url=$(echo "$RESULT" | jq -r '.run_url')" >> "$GITHUB_OUTPUT"
+          for attempt in $(seq 1 $MAX_PIPELINE_RETRIES); do
+            echo "Attempt $attempt/$MAX_PIPELINE_RETRIES for ACN PR Pipeline..."
+            if RESULT=$(/tmp/release-cli wait-pipeline \
+              --org "msazure" \
+              --project "One" \
+              --definition-id "$PIPELINE_DEF_ID" \
+              --token "$ADO_TOKEN" \
+              --tag "$NEW_TAG" \
+              --timeout 3h \
+              --name "ACN PR Pipeline"); then
+              echo "run_url=$(echo "$RESULT" | jq -r '.run_url')" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "::warning::ACN PR Pipeline failed (attempt $attempt/$MAX_PIPELINE_RETRIES)"
+            if [[ $attempt -eq $MAX_PIPELINE_RETRIES ]]; then
+              echo "::error::ACN PR Pipeline failed after $MAX_PIPELINE_RETRIES attempts"
+              echo "run_url=FAILED" >> "$GITHUB_OUTPUT"
+              exit 1
+            fi
+            sleep 60
+          done
 
-      - name: Wait for ACN CNI Release Test
+      - name: Wait for ACN CNI Release Test (with retry)
         id: cni_release
         env:
           ADO_TOKEN: ${{ steps.ado_token.outputs.token }}
@@ -871,279 +1118,50 @@ jobs:
           PIPELINE_DEF_ID: ${{ vars.ACN_CNI_RELEASE_PIPELINE_ID }}
         run: |
           set -euo pipefail
-          RESULT=$(/tmp/release-cli wait-pipeline \
-            --org "msazure" \
-            --project "One" \
-            --definition-id "$PIPELINE_DEF_ID" \
-            --token "$ADO_TOKEN" \
-            --tag "$NEW_TAG" \
-            --timeout 3h \
-            --name "ACN CNI Release Test")
-          echo "run_url=$(echo "$RESULT" | jq -r '.run_url')" >> "$GITHUB_OUTPUT"
+          for attempt in $(seq 1 $MAX_PIPELINE_RETRIES); do
+            echo "Attempt $attempt/$MAX_PIPELINE_RETRIES for ACN CNI Release Test..."
+            if RESULT=$(/tmp/release-cli wait-pipeline \
+              --org "msazure" \
+              --project "One" \
+              --definition-id "$PIPELINE_DEF_ID" \
+              --token "$ADO_TOKEN" \
+              --tag "$NEW_TAG" \
+              --timeout 3h \
+              --name "ACN CNI Release Test"); then
+              echo "run_url=$(echo "$RESULT" | jq -r '.run_url')" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "::warning::ACN CNI Release Test failed (attempt $attempt/$MAX_PIPELINE_RETRIES)"
+            if [[ $attempt -eq $MAX_PIPELINE_RETRIES ]]; then
+              echo "::error::ACN CNI Release Test failed after $MAX_PIPELINE_RETRIES attempts"
+              echo "run_url=FAILED" >> "$GITHUB_OUTPUT"
+              exit 1
+            fi
+            sleep 60
+          done
 
-      - name: Post pipeline validation to CNI Teams channel
+      - name: Post pipeline results to Release Channel
+        if: always()
         env:
           NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
           PR_RUN: ${{ steps.pr_pipeline.outputs.run_url }}
           CNI_RUN: ${{ steps.cni_release.outputs.run_url }}
         run: |
           set -euo pipefail
-          MSG="✅ Pipeline validation complete for ${NEW_TAG}
-          • ACN PR Pipeline: ${PR_RUN}
-          • ACN CNI Release Test: ${CNI_RUN}
+          PR_STATUS="✅"
+          CNI_STATUS="✅"
+          OVERALL_STATUS="succeeded"
+          if [[ "${PR_RUN:-FAILED}" == "FAILED" ]]; then PR_STATUS="❌"; OVERALL_STATUS="failed"; fi
+          if [[ "${CNI_RUN:-FAILED}" == "FAILED" ]]; then CNI_STATUS="❌"; OVERALL_STATUS="failed"; fi
+
+          MSG="Pipeline validation for ${NEW_TAG}:
+          ${PR_STATUS} ACN PR Pipeline: ${PR_RUN:-_(not available)_}
+          ${CNI_STATUS} ACN CNI Release Test: ${CNI_RUN:-_(not available)_}
           • CNI/CNS Signed Release: Managed DALEC (automatic — tag picked up)"
+
           /tmp/release-cli notify \
-            --channel-id "$TEAMS_CNI_CHANNEL_ID" \
+            --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
             --title "Pipeline Validation: ${NEW_TAG}" \
-            --status succeeded \
+            --status "$OVERALL_STATUS" \
             --summary "$MSG" \
             --stage pipeline-validation
-
-  # ─────────────────────────────────────────────────────────────────────────────
-  # STEP 5: Post in Release Channel + Draft R2D
-  # ─────────────────────────────────────────────────────────────────────────────
-  release_channel_post:
-    name: "Step 5: Release Channel + R2D Draft"
-    runs-on: ubuntu-latest
-    needs: [create_tag]
-    if: always() && needs.create_tag.result == 'success'
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ env.RELEASE_BRANCH }}
-          fetch-depth: 1
-          persist-credentials: false
-
-      - name: Build release-cli
-        run: |
-          cd tools/release && go build -o /tmp/release-cli ./cmd/release-cli/
-
-      - name: Azure Login (OIDC)
-        continue-on-error: true
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          allow-no-subscriptions: true
-
-      - name: Post release thread in Release Channel
-        id: release_thread
-        env:
-          NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
-          TARGET_SHA: ${{ needs.create_tag.outputs.target_sha }}
-          PREVIOUS_TAG: ${{ needs.create_tag.outputs.previous_tag }}
-          PR_RUN: 
-          CNI_RUN: 
-          DRY_RUN: ${{ inputs.dry_run }}
-        run: |
-          set -euo pipefail
-          BRANCH="${RELEASE_BRANCH}"
-          PR_RUN="${PR_RUN:-_(in progress)_}"
-          CNI_RUN="${CNI_RUN:-_(in progress)_}"
-          DRY_PREFIX=""
-          if [[ "$DRY_RUN" == "true" ]]; then
-            DRY_PREFIX="🏜️ [DRY RUN] "
-          fi
-          REPO="${GITHUB_REPOSITORY}"
-          COMMIT_LINK="https://github.com/${REPO}/commit/${TARGET_SHA}"
-          CHANGELOG_LINK="https://github.com/${REPO}/compare/${PREVIOUS_TAG}...${NEW_TAG}"
-
-          RELEASE_MSG="${DRY_PREFIX}@Release I will start the release process for the acn repo (cni/cns/npm) ${NEW_TAG} based on this commit: ${COMMIT_LINK} from the ${BRANCH} branch. I intend for this release to make it to AKS.
-
-          ---
-          **SIGNED PATH (CNI/CNS) — Managed DALEC:**
-          - Changelog Link: ${CHANGELOG_LINK}
-          - CNI Release Test Pipeline Run Link: ${CNI_RUN}
-          - ACN PR Pipeline Run Link: ${PR_RUN}
-          - Managed DALEC Build: _(automatic — triggered by tag)_
-          - Managed DALEC Lead Approval: _(pending — 18hr timeout)_
-          - Managed DALEC MCR Publish: _(automatic after approval)_
-          - AgentBaker PR Link: _(pending BumpBump)_
-          - AKS PR/ENO Link: _(pending)_
-          - ENO Release Networking Sig Link: _(pending)_
-
-          ---
-          **SIGNED PATH (Other binaries) — Manual pipelines:**
-          - ACN Official Build Pipeline Run Link: _(pending — human to trigger)_
-          - ACN Official Image Release Pipeline Run Link: _(pending — human to trigger)_
-          - Safefly/R2D Link: _(human to fill after filing)_
-
-          ---
-          **UNSIGNED PATH CHECKLIST:**
-          - Changelog Link: ${CHANGELOG_LINK}
-          - CNI Release Test Pipeline Run Link: ${CNI_RUN}
-          - ACN PR Pipeline Run Link: ${PR_RUN}
-          - GitHub Release Pipeline Run Link: _(pending)_
-          - Safefly/R2D Link: _(human to fill after filing)_
-          - GitHub Release Link: _(pending)_
-          - NA Build Pipeline Run Link: _(pending)_
-          - OBP Signed Binaries Pipeline Run Link: _(pending)_"
-
-          echo "Release channel message:"
-          echo "$RELEASE_MSG"
-
-          RESPONSE=$(/tmp/release-cli notify \
-            --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
-            --title "Release ${NEW_TAG}" \
-            --status running \
-            --summary "$RELEASE_MSG" \
-            --stage release-thread)
-          MESSAGE_ID=$(echo "$RESPONSE" | jq -r '.messageId // empty' 2>/dev/null || true)
-          echo "message_id=$MESSAGE_ID" >> "$GITHUB_OUTPUT"
-
-      - name: Generate R2D Draft (Unsigned)
-        id: r2d_unsigned
-        env:
-          NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
-          CNI_RUN: 
-        run: |
-          set -euo pipefail
-          TODAY=$(date +%Y-%m-%d)
-          END_DATE=$(date -d "+7 days" +%Y-%m-%d)
-
-          cat <<EOF > /tmp/r2d-unsigned-draft.md
-          # R2D DRAFT — UNSIGNED PATH
-          ## File at: https://aka.ms/R2D (Clone from Request #193479)
-
-          | Field | Value |
-          |-------|-------|
-          | Service Name | Azure Container Networking |
-          | Change Title | CNI/CNS Github Release ${NEW_TAG} |
-          | Change Description | Release ${NEW_TAG} binaries to our Github Release page to be consumed by ACI |
-          | Engineering Director | R2D-AzNet-SDN-ED-GRP |
-          | CVP | R2D-AzNet-CVP-GRP |
-          | Additional Users to Notify | tamanoha@microsoft.com |
-          | Deployment Type | regular |
-          | Deployment Tool | ev2 |
-          | Service Group Name | microsoft.azure.networking.containernetworking.githubrelease |
-          | Build Number | _(fill from Github Release Pipeline run)_ |
-          | ADO Build Link | _(fill from Github Release Pipeline run)_ |
-          | SFI Changes? | no |
-          | Anticipated Start Date | ${TODAY} |
-          | Anticipated End Date | ${END_DATE} |
-          | Targeted Regions | All regions |
-          | Covered by lease? | No |
-          | Nature of Deployment | General bug fixes, New feature |
-          | Deployment Following SDP | Standard SDP |
-          | Retakes? | no |
-          | Impact Type to Customer | None |
-          | Expected duration of impact | 0 |
-          | Blast Radius | Single Cluster |
-          | Pre-Prod Testing Types | End to End Testing (${CNI_RUN}) |
-          | Rollback/Roll-Forward | DRI determines rollback or rollforward in real time based on the issue |
-          | Rollback Tested | yes |
-          | Average Rollback Time | 01:00 (HH:MM) |
-          | Health signals integration | yes — Binaries are consumed by partners who have health checks |
-          | R2D Risk | Low |
-          | Team Assessed Risk | Low |
-          | Deployment Impact | Zero Impact |
-          | Auto Approval | Disabled |
-          EOF
-
-          echo "✅ Unsigned R2D draft generated at /tmp/r2d-unsigned-draft.md"
-          cat /tmp/r2d-unsigned-draft.md
-
-      - name: Generate R2D Draft (Signed)
-        id: r2d_signed
-        env:
-          NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
-          PR_RUN: 
-          CNI_RUN: 
-        run: |
-          set -euo pipefail
-          TODAY=$(date +%Y-%m-%d)
-          END_DATE=$(date -d "+7 days" +%Y-%m-%d)
-
-          cat <<EOF > /tmp/r2d-signed-draft.md
-          # R2D DRAFT — SIGNED PATH
-          ## File at: https://aka.ms/R2D (Clone from Request #174991)
-
-          | Field | Value |
-          |-------|-------|
-          | Service Name | Azure Container Networking |
-          | Change Title | CNS and CNI release ${NEW_TAG} |
-          | Change Description | _(describe key changes in this release)_ |
-          | Engineering Director | AzNet_R2D_GroupA_SM, R2D-AzNet-SDN-ED-GRP |
-          | CVP | AzNet_R2D_CVP, R2D-AzNet-CVP-GRP |
-          | Additional Users to Notify | _(add leads if needed)_ |
-          | Deployment Type | regular |
-          | Deployment Tool | ev2 |
-          | Service Group Name | microsoft.azure.networking.containernetworking |
-          | Build Number | _(fill from ACN Official Build Pipeline run)_ |
-          | ADO Build Link | _(fill from ACN Official Build Pipeline run)_ |
-          | SFI Changes? | no |
-          | Anticipated Start Date | ${TODAY} |
-          | Anticipated End Date | ${END_DATE} |
-          | Targeted Regions | All regions |
-          | Covered by lease? | No |
-          | Nature of Deployment | New feature |
-          | Deployment Following SDP | Standard SDP |
-          | Retakes? | no |
-          | Impact Type to Customer | None |
-          | Expected duration of impact | 0 |
-          | Blast Radius | Single Cluster |
-          | Pre-Prod Testing Types | Unit Testing + Integration Testing (${PR_RUN}, ${CNI_RUN}) |
-          | Rollback/Roll-Forward | DRI determines rollback or rollforward in real time based on the issue |
-          | Rollback Tested | yes |
-          | Average Rollback Time | 00:01 (HH:MM) |
-          | Health signals integration | yes — AKS-Swift deployment follows AKS service health checks |
-          | R2D Risk | Low |
-          | Team Assessed Risk | Low |
-          | Deployment Impact | Zero Impact |
-          | Auto Approval | Disabled |
-          EOF
-
-          echo "✅ Signed R2D draft generated at /tmp/r2d-signed-draft.md"
-          cat /tmp/r2d-signed-draft.md
-
-      - name: Post R2D drafts summary to Release thread
-        env:
-          NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
-        run: |
-          /tmp/release-cli notify \
-            --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
-            --title "R2D Drafts: ${NEW_TAG}" \
-            --status running \
-            --summary "📋 R2D Drafts prepared for ${NEW_TAG}: UNSIGNED — Clone from SafeFly Request #193479 • Service Group: microsoft.azure.networking.containernetworking.githubrelease • File at: https://aka.ms/R2D | SIGNED — Clone from SafeFly Request #174991 • Service Group: microsoft.azure.networking.containernetworking • File at: https://aka.ms/R2D | ⚠️ Human action required: File both R2Ds, then post the Safefly/R2D links back in this thread." \
-            --stage r2d-draft
-
-      - name: Send email to leads
-        env:
-          NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
-        run: |
-          echo "📧 Email notification (manual step or integrate with Logic App/Power Automate):"
-          echo "  To: chandan.aggarwal@microsoft.com, neaggarw@microsoft.com, tamanoha@microsoft.com, caggard@microsoft.com"
-          echo "  Subject: ACN Release ${NEW_TAG}"
-          echo "  Body: I am currently making a CNI/CNS/NPM release for ${NEW_TAG}."
-          # NOTE: Email sending requires integration with a mail service (Graph API, Logic App, etc.)
-          # This step serves as documentation of the requirement
-
-      - name: Write workflow summary
-        env:
-          NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
-          PR_RUN: 
-          CNI_RUN: 
-        run: |
-          {
-            echo "## 🚀 Scheduled Release: ${NEW_TAG}"
-            echo ""
-            echo "| Step | Status |"
-            echo "|------|--------|"
-            echo "| Dependabot PRs | ✅ Complete |"
-            echo "| Vuln Check | ✅ Complete |"
-            echo "| Tag Created | ✅ ${NEW_TAG} |"
-            echo "| ACN PR Pipeline | ✅ [Run](${PR_RUN}) |"
-            echo "| ACN CNI Release Test | ✅ [Run](${CNI_RUN}) |"
-            echo "| Release Channel Post | ✅ Posted |"
-            echo "| R2D Drafts | ✅ Generated (human to file) |"
-            echo ""
-            echo "### Next Steps (Human):"
-            echo "1. File R2D at https://aka.ms/R2D (clone from previous requests)"
-            echo "2. Post Safefly/R2D links back to Release channel thread"
-            echo "3. Trigger ACN Official Build Pipeline + Image Release Pipeline"
-            echo "4. Monitor BumpBump for AgentBaker PR"
-          } >> "$GITHUB_STEP_SUMMARY"
