@@ -1003,18 +1003,18 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 	service.setNetworkStateJoined(req.NetworkID)
 	logger.Printf("[Azure-CNS] joined vnet %s during nc %s publish. wireserver response: %v", req.NetworkID, req.NetworkContainerID, string(joinBytes))
 
-	if useRNCPublisher {
+	if useRNCPublisher && !service.isSubnetJoined(req.NetworkID, req.SubnetName) {
 		joinSubnetResp, errSubnetJoin := service.wsproxy.JoinSubnet(ctx, req.NetworkID, req.SubnetName, ncParams) //nolint:govet // ok to shadow
 		if errSubnetJoin != nil {
 			resp := cns.PublishNetworkContainerResponse{
 				Response: cns.Response{
 					ReturnCode: types.SubnetJoinFailed,
-					Message:    fmt.Sprintf("failed to join subnet %s in network %s: %v", req.SubnetName, req.NetworkID, err),
+					Message:    fmt.Sprintf("failed to join subnet %s in network %s: %v", req.SubnetName, req.NetworkID, errSubnetJoin),
 				},
 				PublishErrorStr: errSubnetJoin.Error(),
 			}
-			respondJSON(w, http.StatusOK, resp) // legacy behavior
-			logger.Response(service.Name, resp, resp.Response.ReturnCode, errSubnetJoin)
+			respondJSON(w, http.StatusOK, resp)                                          // legacy behavior
+			logger.Response(service.Name, resp, resp.Response.ReturnCode, errSubnetJoin) //nolint:staticcheck // match existing logger usage in this handler
 			return
 		}
 
@@ -1030,13 +1030,19 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 				PublishStatusCode:   joinSubnetResp.StatusCode,
 				PublishResponseBody: subnetJoinBytes,
 			}
-			respondJSON(w, http.StatusOK, resp) // legacy behavior
-			logger.Response(service.Name, resp, resp.Response.ReturnCode, nil)
+			respondJSON(w, http.StatusOK, resp)                                // legacy behavior
+			logger.Response(service.Name, resp, resp.Response.ReturnCode, nil) //nolint:staticcheck // match existing logger usage in this handler
 			return
 		}
 
 		service.setSubnetStateJoined(req.NetworkID, req.SubnetName)
-		logger.Printf("[Azure-CNS] joined subnet %s in vnet %s during nc %s publish. wireserver response: %v", req.SubnetName, req.NetworkID, req.NetworkContainerID, string(subnetJoinBytes))
+		logger.Printf( //nolint:staticcheck // match existing logger usage in this handler
+			"[Azure-CNS] joined subnet %s in vnet %s during nc %s publish. wireserver response: %v",
+			req.SubnetName,
+			req.NetworkID,
+			req.NetworkContainerID,
+			string(subnetJoinBytes),
+		)
 	}
 
 	publishResp, err := service.wsproxy.PublishNC(ctx, ncParams, req.CreateNetworkContainerRequestBody, useRNCPublisher)
@@ -1173,8 +1179,8 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 					},
 					UnpublishErrorStr: err.Error(),
 				}
-				respondJSON(w, http.StatusOK, resp) // legacy behavior
-				logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
+				respondJSON(w, http.StatusOK, resp)                                // legacy behavior
+				logger.Response(service.Name, resp, resp.Response.ReturnCode, err) //nolint:staticcheck // match existing logger usage in this handler
 				return
 			}
 
@@ -1190,13 +1196,20 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 					UnpublishStatusCode:   joinSubnetResp.StatusCode,
 					UnpublishResponseBody: subnetJoinBytes,
 				}
-				respondJSON(w, http.StatusOK, resp) // legacy behavior
-				logger.Response(service.Name, resp, resp.Response.ReturnCode, nil)
+				respondJSON(w, http.StatusOK, resp)                                // legacy behavior
+				logger.Response(service.Name, resp, resp.Response.ReturnCode, nil) //nolint:staticcheck // match existing logger usage in this handler
 				return
 			}
 
 			service.setSubnetStateJoined(req.NetworkID, req.SubnetName)
-			logger.Printf("[Azure-CNS] joined subnet %s in vnet %s during nc %s unpublish. AZREnabled: %t, wireserver response: %v", req.SubnetName, req.NetworkID, req.NetworkContainerID, unpublishBody.AZREnabled, string(subnetJoinBytes))
+			logger.Printf( //nolint:staticcheck // match existing logger usage in this handler
+				"[Azure-CNS] joined subnet %s in vnet %s during nc %s unpublish. AZREnabled: %t, wireserver response: %v",
+				req.SubnetName,
+				req.NetworkID,
+				req.NetworkContainerID,
+				unpublishBody.AZREnabled,
+				string(subnetJoinBytes),
+			)
 		}
 	}
 
