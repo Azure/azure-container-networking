@@ -645,11 +645,11 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		return rsp, errors.New("boom") //nolint:goerr113 // it's just a test
 	}
 
-	wsproxy.JoinNetworkFunc = func(ctx context.Context, s string) (*http.Response, error) {
+	wsproxy.JoinNetworkFunc = func(ctx context.Context, s string, _ bool) (*http.Response, error) {
 		return nil, errors.New("boom") //nolint:goerr113 // it's just a test
 	}
 
-	wsproxy.PublishNCFunc = func(ctx context.Context, parameters cns.NetworkContainerParameters, i []byte) (*http.Response, error) {
+	wsproxy.PublishNCFunc = func(ctx context.Context, parameters cns.NetworkContainerParameters, i []byte, _ bool) (*http.Response, error) {
 		return nil, errors.New("boom") //nolint:goerr113 // it's just a test
 	}
 
@@ -764,7 +764,7 @@ func TestPublishNC_NMAgentApplicationErrors(t *testing.T) {
 	wireserverBody := `{"httpStatusCode":"401"}`
 
 	wsproxy := fakes.WireserverProxyFake{
-		PublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte) (*http.Response, error) {
+		PublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte, _ bool) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Body:       io.NopCloser(bytes.NewBufferString(wireserverBody)),
@@ -837,6 +837,64 @@ func TestPublishNC_NMAgentApplicationErrors(t *testing.T) {
 	if !bytes.Equal(expResponse.PublishResponseBody, resp.PublishResponseBody) {
 		t.Errorf("unexpected PublishStatusCode: exp: %q, got %q", expResponse.PublishResponseBody, resp.PublishResponseBody)
 	}
+}
+
+func TestPublishNCAllowsEmptyRequestBody(t *testing.T) {
+	var (
+		joinUsedRNCPublisher    bool
+		publishUsedRNCPublisher bool
+	)
+
+	wsproxy := fakes.WireserverProxyFake{
+		JoinNetworkFunc: func(_ context.Context, _ string, useRNCPublisher bool) (*http.Response, error) {
+			joinUsedRNCPublisher = useRNCPublisher
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
+			}, nil
+		},
+		PublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte, useRNCPublisher bool) (*http.Response, error) {
+			publishUsedRNCPublisher = useRNCPublisher
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
+			}, nil
+		},
+	}
+
+	cleanup := setWireserverProxy(svc, &wsproxy)
+	defer cleanup()
+
+	joinNetworkURL := "http://" + nmagentEndpoint + "/dummyVnetURL"
+	createNetworkContainerURL := "http://" + nmagentEndpoint +
+		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1"
+	publishNCRequest := &cns.PublishNetworkContainerRequest{
+		NetworkID:                         "foo",
+		NetworkContainerID:                "bar",
+		JoinNetworkURL:                    joinNetworkURL,
+		CreateNetworkContainerURL:         createNetworkContainerURL,
+		CreateNetworkContainerRequestBody: []byte("{}"),
+	}
+
+	var body bytes.Buffer
+	err := json.NewEncoder(&body).Encode(publishNCRequest)
+	require.NoError(t, err)
+
+	//nolint:noctx // not needed in test
+	req, err := http.NewRequest(http.MethodPost, cns.PublishNetworkContainer, &body)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var resp cns.PublishNetworkContainerResponse
+	err = decodeResponse(w, &resp)
+	require.NoError(t, err)
+	require.Equal(t, types.Success, resp.Response.ReturnCode)
+	require.False(t, joinUsedRNCPublisher)
+	require.False(t, publishUsedRNCPublisher)
 }
 
 func publishNCViaCNS(
@@ -1001,7 +1059,7 @@ func TestUnpublishViaCNSRequestBody(t *testing.T) {
 
 func TestUnpublishNCViaCNS401(t *testing.T) {
 	wsproxy := fakes.WireserverProxyFake{
-		UnpublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, i []byte) (*http.Response, error) {
+		UnpublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, i []byte, _ bool) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"401"}`)),
