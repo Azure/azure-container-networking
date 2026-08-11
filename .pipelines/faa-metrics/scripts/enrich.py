@@ -33,7 +33,9 @@ import argparse
 import json
 import os
 import sys
+import time
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 from openpyxl import Workbook
@@ -211,20 +213,52 @@ def read_report(raw_dir: str, row: dict) -> str:
         return fh.read()
 
 
-def enrich_curated(rows: list[dict], client, raw_dir: str) -> None:
-    """Populate value tags (always) and AI narrative (when configured)."""
+def enrich_curated(rows, client, raw_dir, max_ai, workers, budget_s) -> int:
+    """Populate value tags (all rows) and AI narrative (top ``max_ai`` rows).
+
+    ``rows`` must be pre-sorted by descending value, so the AI budget is spent on
+    the most compelling finds. Calls run in a small thread pool and stop starting
+    new work once ``budget_s`` seconds have elapsed, so the step always finishes
+    within the job timeout and writes whatever it completed. Returns the number
+    of rows that got an AI narrative.
+    """
     for row in rows:
         row["valueTag"] = "; ".join(value_tags(row))
         row["managerNotes"] = ""
         for col in AI_NARRATIVE_COLUMNS:
             row.setdefault(col, "")
-        if client is None:
-            continue
-        report_text = read_report(raw_dir, row)
-        try:
-            row.update(client.summarize(row, report_text))
-        except (requests.RequestException, KeyError, ValueError) as exc:
-            log(f"build {row.get('buildId', '?')}: AI enrichment failed: {exc}")
+
+    if client is None:
+        return 0
+
+    targets = rows[: max_ai if max_ai > 0 else len(rows)]
+    log(f"AI-enriching top {len(targets)} of {len(rows)} rows "
+        f"({workers} workers, {budget_s}s budget).")
+    deadline = time.monotonic() + budget_s
+    done = 0
+
+    def work(row):
+        return row, client.summarize(row, read_report(raw_dir, row))
+
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+        futures = {pool.submit(work, r): r for r in targets}
+        for fut in as_completed(futures):
+            row = futures[fut]
+            try:
+                _, narrative = fut.result()
+                row.update(narrative)
+                done += 1
+            except (requests.RequestException, KeyError, ValueError) as exc:
+                log(f"build {row.get('buildId', '?')}: AI enrichment failed: {exc}")
+            if time.monotonic() > deadline:
+                log(f"AI time budget ({budget_s}s) reached; stopping after {done} rows.")
+                for pending in futures:
+                    pending.cancel()
+                break
+
+    log(f"AI narrative written for {done} row(s).")
+    return done
+
 
 
 # --------------------------------------------------------------------------- #
@@ -309,27 +343,36 @@ def _md_escape(text: str) -> str:
     return (text or "").replace("|", "\\|").replace("\n", " ").strip()
 
 
-def write_real_issues_md(path, curated, from_date, to_date) -> None:
-    """Paste-ready highlights doc for a manager."""
+def write_real_issues_md(path, curated, top, from_date, to_date) -> None:
+    """Paste-ready highlights doc for a manager (shows the top ``top`` rows)."""
     captured = len(curated)
     with_fix = sum(1 for r in curated if _norm(r, "proposedFix"))
     refuted = sum(1 for r in curated if _norm(r, "falsificationOutcome").lower() == "refuted")
+
+    lead = (
+        f"Over this window the agent captured **{captured}** substantive issues - "
+        f"**{with_fix}** with a concrete proposed fix and **{refuted}** where it "
+        f"overturned the deterministic pre-match."
+    )
+    if len(top) < captured:
+        lead += (
+            f" The table below highlights the top **{len(top)}** by impact; the full "
+            f"list is in the workbook's *Real Issues* sheet."
+        )
+    else:
+        lead += " Each row links to the full report."
 
     lines = [
         "# FAA - Real Issues Captured",
         "",
         f"_Failure Analysis Agent findings, {from_date} to {to_date}._",
         "",
-        (
-            f"Over this window the agent captured **{captured}** substantive issues - "
-            f"**{with_fix}** with a concrete proposed fix and **{refuted}** where it "
-            f"overturned the deterministic pre-match. Each row links to the full report."
-        ),
+        lead,
         "",
         "| Date | Scenario | Category | Value | What happened | What FAA found | Why it mattered | Report |",
         "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
-    for r in curated:
+    for r in top:
         scenario = _md_escape(
             " / ".join(x for x in (_norm(r, "pipelineName"), _norm(r, "clusterName")) if x)
             or _norm(r, "stage")
@@ -349,7 +392,7 @@ def write_real_issues_md(path, curated, from_date, to_date) -> None:
                 link=link,
             )
         )
-    if not curated:
+    if not top:
         lines.append("| _no substantive findings in range_ | | | | | | | |")
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     with open(path, "w", encoding="utf-8") as fh:
@@ -377,6 +420,12 @@ def main() -> int:
     parser.add_argument("--from-date", default="")
     parser.add_argument("--to-date", default="")
     parser.add_argument("--enable-ai", default="true")
+    parser.add_argument("--max-ai", type=int, default=80,
+                        help="max rows to AI-enrich / show in the highlights doc (0 = all)")
+    parser.add_argument("--ai-workers", type=int, default=4,
+                        help="parallel Azure OpenAI requests")
+    parser.add_argument("--ai-budget-seconds", type=int, default=1200,
+                        help="stop starting new AI calls after this many seconds")
     args = parser.parse_args()
 
     enable_ai = str(args.enable_ai).strip().lower() in ("true", "1", "yes")
@@ -388,12 +437,14 @@ def main() -> int:
     log(f"{len(curated)} substantive 'real issue' row(s) selected")
 
     client = build_ai_client(enable_ai)
-    enrich_curated(curated, client, args.raw_dir)
+    enrich_curated(curated, client, args.raw_dir, args.max_ai, args.ai_workers,
+                   args.ai_budget_seconds)
 
+    top = curated[: args.max_ai] if args.max_ai > 0 else curated
     summary = compute_summary(rows, curated, args.from_date, args.to_date)
 
     write_workbook(args.out_xlsx, curated, rows, summary)
-    write_real_issues_md(args.out_issues_md, curated, args.from_date, args.to_date)
+    write_real_issues_md(args.out_issues_md, curated, top, args.from_date, args.to_date)
     write_summary_md(args.out_md, summary)
     log(f"wrote {args.out_xlsx}, {args.out_issues_md}, and {args.out_md}")
     return 0

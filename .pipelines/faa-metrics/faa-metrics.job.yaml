@@ -19,6 +19,7 @@ parameters:
   fromDate: ""      # YYYY-MM-DD (inclusive)
   toDate: ""        # YYYY-MM-DD (inclusive)
   enableAI: true    # set false to leave the AI columns blank
+  maxAiRows: 80     # AI-enrich / highlight only the top-N most valuable finds (0 = all)
 
 jobs:
   - job: faa_metrics
@@ -29,7 +30,7 @@ jobs:
       name: $(BUILD_POOL_NAME_DEFAULT)
       demands:
         - agent.os -equals Linux
-    timeoutInMinutes: 30
+    timeoutInMinutes: 60
     variables:
       - name: scriptsDir
         value: $(Build.SourcesDirectory)/.pipelines/faa-metrics/scripts
@@ -82,7 +83,8 @@ jobs:
             --out-issues-md "$(outDir)/faa-metrics-real-issues.md" \
             --from-date "${{ parameters.fromDate }}" \
             --to-date "${{ parameters.toDate }}" \
-            --enable-ai "${{ parameters.enableAI }}"
+            --enable-ai "${{ parameters.enableAI }}" \
+            --max-ai "${{ parameters.maxAiRows }}"
         displayName: "Enrich into workbook + docs"
         env:
           AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)

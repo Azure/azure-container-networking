@@ -66,6 +66,7 @@ its `System.AccessToken` — **no extra ADO wiring is required.**
 | `faaFromDate` | `2026-06-15` | Start date, inclusive (`YYYY-MM-DD`). |
 | `faaToDate` | `2026-08-04` | End date, inclusive (`YYYY-MM-DD`). |
 | `faaEnableAI` | `true` | When `false`, the AI columns are left blank. |
+| `faaMaxAiRows` | `80` | AI-enrich and highlight only the top-N most valuable finds (`0` = all). Keeps the run inside its timeout and the doc a focused highlights reel. |
 
 ## AI enrichment
 
@@ -78,6 +79,12 @@ combing each full `report.md`.
 If any are missing, or `faaEnableAI=false`, enrichment is skipped and the
 narrative columns are written blank — the stage still succeeds. You can fill or
 re-run them later.
+
+Because a multi-month range can yield hundreds of substantive finds, the AI
+runs only on the **top `faaMaxAiRows`** rows (ranked by impact), in parallel,
+with a wall-clock budget — so the step always finishes within the job timeout
+and writes whatever it completed. The full curated list is still in the
+workbook's *Real Issues* sheet; the highlights doc shows the top-N.
 
 ## Layout
 

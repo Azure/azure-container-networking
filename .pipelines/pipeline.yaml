@@ -74,6 +74,9 @@ parameters:
   - name: faaEnableAI
     type: boolean
     default: true
+  - name: faaMaxAiRows
+    type: number
+    default: 80
 
 stages:
   - stage: faa_metrics
@@ -87,6 +90,7 @@ stages:
           fromDate: ${{ parameters.faaFromDate }}
           toDate: ${{ parameters.faaToDate }}
           enableAI: ${{ parameters.faaEnableAI }}
+          maxAiRows: ${{ parameters.faaMaxAiRows }}
 
   - stage: setup
     displayName: ACN
