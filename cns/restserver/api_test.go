@@ -1900,9 +1900,7 @@ func cleanupJoinedSubnetState(t *testing.T, vnetID, subnetName string) {
 	t.Helper()
 
 	t.Cleanup(func() {
-		namedLock.LockAcquire(stateJoinedSubnets)
-		defer namedLock.LockRelease(stateJoinedSubnets)
-		delete(svc.state.joinedSubnets, vnetID+"_"+subnetName)
+		svc.clearSubnetStateJoined(vnetID, subnetName)
 	})
 }
 
