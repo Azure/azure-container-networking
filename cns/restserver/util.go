@@ -746,9 +746,12 @@ func (service *HTTPRestService) isNetworkJoined(networkID string) bool {
 func (service *HTTPRestService) isSubnetJoined(vnetID, subnetName string) bool {
 	namedLock.LockAcquire(stateJoinedSubnets)
 	defer namedLock.LockRelease(stateJoinedSubnets)
-	subnetKey := vnetID + "_" + subnetName
-	_, exists := service.state.joinedSubnets[subnetKey]
+	_, exists := service.state.joinedSubnets[subnetStateKey(vnetID, subnetName)]
 	return exists
+}
+
+func subnetStateKey(vnetID, subnetName string) string {
+	return vnetID + "_" + subnetName
 }
 
 // Set the network as joined
@@ -762,8 +765,13 @@ func (service *HTTPRestService) setNetworkStateJoined(networkID string) {
 func (service *HTTPRestService) setSubnetStateJoined(vnetID, subnetName string) {
 	namedLock.LockAcquire(stateJoinedSubnets)
 	defer namedLock.LockRelease(stateJoinedSubnets)
-	subnetKey := vnetID + "_" + subnetName
-	service.state.joinedSubnets[subnetKey] = struct{}{}
+	service.state.joinedSubnets[subnetStateKey(vnetID, subnetName)] = struct{}{}
+}
+
+func (service *HTTPRestService) clearSubnetStateJoined(vnetID, subnetName string) {
+	namedLock.LockAcquire(stateJoinedSubnets)
+	defer namedLock.LockRelease(stateJoinedSubnets)
+	delete(service.state.joinedSubnets, subnetStateKey(vnetID, subnetName))
 }
 
 func logNCSnapshot(createNetworkContainerRequest cns.CreateNetworkContainerRequest) {
