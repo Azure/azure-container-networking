@@ -160,6 +160,7 @@ func TestSystemPromptEncodesInvestigationPolicy(t *testing.T) {
 		"Falsification via cross-dimension correlation",
 		"FINAL VERDICT",
 		"finalVerdict",
+		"2000-character",
 		"DATAPATH / IP-PLANE EVIDENCE",
 		"live/nnc",
 		"failingUnit",
