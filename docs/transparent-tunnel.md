@@ -109,18 +109,17 @@ The release image must include the transparent-tunnel conflist payload. The CNI
 image build copies `cni/azure-linux-transparent-tunnel.conflist` into the
 `/dropgz` payload as `azure-transparent-tunnel.conflist`.
 
-To install on a self-managed cluster, deploy the transparent-tunnel installer
-DaemonSet:
+A self-managed installer DaemonSet is not included in this change. It pins a
+specific `azure-cni` image tag, and no released image contains this mode yet.
+An older image does not fail loudly: the unknown `transparent-tunnel` mode
+string falls through the endpoint-client dispatcher to the bridge client, so
+pods come up with no tunnel enforcement at all. The installer manifest will
+ship in a follow-up change once a CNI image containing this mode is released.
 
-```sh
-kubectl apply -f hack/manifests/cni-installer-transparent-tunnel.yaml
-kubectl rollout status ds/azure-cni-transparent-tunnel -n kube-system
-```
-
-The DaemonSet extracts the CNI binaries into `/opt/cni/bin` and writes
-`azure-transparent-tunnel.conflist` to `/etc/cni/net.d/10-azure.conflist`.
-New or recreated pods will then invoke `azure-vnet` with
-`"mode": "transparent-tunnel"`.
+Until then, use a locally built image. The installer is expected to extract the
+CNI binaries into `/opt/cni/bin` and write `azure-transparent-tunnel.conflist`
+to `/etc/cni/net.d/10-azure.conflist`. New or recreated pods then invoke
+`azure-vnet` with `"mode": "transparent-tunnel"`.
 
 ## Lifecycle
 
