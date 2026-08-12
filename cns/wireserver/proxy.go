@@ -12,7 +12,7 @@ import (
 
 const (
 	joinNetworkURLFmt = `http://%s/machine/plugins/?comp=nmagent&type=NetworkManagement/joinedVirtualNetworks/%s/api-version/1`
-	joinSubnetURLFmt  = `http://%s/machine/plugins/?comp=nmagent&type=NetworkManagement/joinedVirtualNetworks/%s/joinedSubnets/%s/authenticationToken/%s/api-version/1?useLegacyChannel=false`
+	joinSubnetURLFmt  = `http://%s/machine/plugins/?comp=nmagent&type=NetworkManagement/joinedVirtualNetworks/%s/joinedSubnets/%s/authenticationToken/%s/api-version/1&useLegacyChannel=false`
 	publishNCURLFmt   = `http://%s/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/%s/networkContainers/%s/authenticationToken/%s/api-version/1`
 	unpublishNCURLFmt = `http://%s/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/%s/networkContainers/%s/authenticationToken/%s/api-version/1/method/DELETE`
 )
@@ -25,7 +25,7 @@ type Proxy struct {
 func (p *Proxy) JoinNetwork(ctx context.Context, vnetID string, useRNCPublisher bool) (*http.Response, error) {
 	var joinNetworkURLFormat string
 	if useRNCPublisher {
-		joinNetworkURLFormat = joinNetworkURLFmt + "?useLegacyChannel=false"
+		joinNetworkURLFormat = joinNetworkURLFmt + "&useLegacyChannel=false"
 	} else {
 		joinNetworkURLFormat = joinNetworkURLFmt
 	}
@@ -67,7 +67,7 @@ func (p *Proxy) JoinSubnet(ctx context.Context, vnetID, subnetName string, ncPar
 func (p *Proxy) PublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte, useRNCPublisher bool) (*http.Response, error) {
 	var publishNCURLFormat string
 	if useRNCPublisher {
-		publishNCURLFormat = publishNCURLFmt + "?useLegacyChannel=false"
+		publishNCURLFormat = publishNCURLFmt + "&useLegacyChannel=false"
 	} else {
 		publishNCURLFormat = publishNCURLFmt
 	}
@@ -91,7 +91,7 @@ func (p *Proxy) PublishNC(ctx context.Context, ncParams cns.NetworkContainerPara
 func (p *Proxy) UnpublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte, useRNCPublisher bool) (*http.Response, error) {
 	var unpublishNCURLFormat string
 	if useRNCPublisher {
-		unpublishNCURLFormat = unpublishNCURLFmt + "?useLegacyChannel=false"
+		unpublishNCURLFormat = unpublishNCURLFmt + "&useLegacyChannel=false"
 	} else {
 		unpublishNCURLFormat = unpublishNCURLFmt
 	}
