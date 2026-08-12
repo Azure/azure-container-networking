@@ -25,5 +25,5 @@ spec:
               topologyKey: "kubernetes.io/hostname"
       containers:
         - name: anti-affinity
-          image: mcr.microsoft.com/oss/kubernetes/pause:3.6
+          image: mcr.microsoft.com/oss/kubernetes/pause:3.10
       hostNetwork: true
