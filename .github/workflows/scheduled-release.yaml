@@ -51,6 +51,11 @@ on:
         required: false
         default: false
         type: boolean
+      binary_tags_only:
+        description: "Only create binary tags (dropgz, azure-ipam, etc.) — skip main ACN tag creation"
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: scheduled-release-${{ inputs.release_branch || (github.event.schedule == '15 14 * * 5' && 'master') || 'release/v1.7' }}
@@ -692,7 +697,7 @@ jobs:
     name: "Step 3: Determine Version & Create Tag"
     runs-on: ubuntu-latest
     needs: [check_cadence, wait_dependabot, vuln_check]
-    if: always() && needs.check_cadence.outputs.notification_only != 'true' && needs.wait_dependabot.result == 'success' && (needs.vuln_check.result == 'success' || needs.vuln_check.result == 'skipped')
+    if: always() && !inputs.binary_tags_only && needs.check_cadence.outputs.notification_only != 'true' && needs.wait_dependabot.result == 'success' && (needs.vuln_check.result == 'success' || needs.vuln_check.result == 'skipped')
     permissions:
       contents: write
       actions: write
