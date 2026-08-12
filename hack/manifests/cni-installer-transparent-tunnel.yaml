@@ -55,12 +55,17 @@ spec:
           effect: NoSchedule
       initContainers:
         - name: azure-cni-transparent-tunnel
-          # NOTE: transparent-tunnel mode requires an azure-cni image built from a
-          # release that contains the mode. Older images do not recognize it and
-          # silently fall back to bridge mode with no tunnel enforcement, so this
-          # tag must be updated to the first release containing transparent-tunnel
-          # before this manifest is used.
-          image: mcr.microsoft.com/containernetworking/azure-cni:v1.5.16
+          # REQUIRED: replace <TRANSPARENT_TUNNEL_RELEASE> with the first azure-cni
+          # release that contains transparent-tunnel mode (added in PR #4319).
+          #
+          # The tag is deliberately left as an unresolvable placeholder rather than
+          # pinned to a current release: an older image does not recognize
+          # "mode": "transparent-tunnel" and silently falls back to bridge mode with
+          # no tunnel enforcement at all. A failed image pull is a loud, obvious
+          # error; a silent fallback to an unenforced datapath is not.
+          #
+          # Available tags: https://mcr.microsoft.com/v2/containernetworking/v2/azure-cni/tags/list
+          image: mcr.microsoft.com/containernetworking/v2/azure-cni:<TRANSPARENT_TUNNEL_RELEASE>
           imagePullPolicy: Always
           command: ["/dropgz"]
           args:

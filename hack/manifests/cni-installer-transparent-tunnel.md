@@ -9,7 +9,7 @@ datapath design.
 ## What gets installed
 
 On each node, the DaemonSet's init container extracts files out of the
-`mcr.microsoft.com/containernetworking/azure-cni` image and writes them to
+`mcr.microsoft.com/containernetworking/v2/azure-cni` image and writes them to
 the host:
 
 | Payload entry                       | Host path                                 |
@@ -28,8 +28,20 @@ unambiguously on the next pod sandbox creation.
 - **An `azure-cni` image containing transparent-tunnel mode.** The mode was added
   in PR #4319; images built before that release do not recognize
   `"mode": "transparent-tunnel"` and silently fall back to bridge mode, giving no
-  tunnel enforcement. Update the `image:` tag in the DaemonSet to the first release
-  containing the mode before installing.
+  tunnel enforcement. The manifest therefore ships with an unresolvable placeholder
+  tag that **must** be replaced before install:
+
+  ```sh
+  # pick the first release containing transparent-tunnel
+  curl -s https://mcr.microsoft.com/v2/containernetworking/v2/azure-cni/tags/list
+
+  sed -i 's|<TRANSPARENT_TUNNEL_RELEASE>|vX.Y.Z|' \
+    hack/manifests/cni-installer-transparent-tunnel.yaml
+  ```
+
+  Images are published under the dalec path
+  `mcr.microsoft.com/containernetworking/v2/azure-cni`; the older
+  `containernetworking/azure-cni` path is deprecated and will not receive the mode.
 - Linux nodes with `ipset` (userspace + `ip_set` / `xt_set` modules) and
   `iptables` installed. On Ubuntu / Debian: `sudo apt-get install -y ipset`.
 - Pod-pool secondary IPs must **not** be assigned to the host primary NIC
@@ -86,7 +98,12 @@ transparent-tunnel rules after all transparent-tunnel pods are gone.
 
 ## Image version
 
-The DaemonSet pins
-`mcr.microsoft.com/containernetworking/azure-cni:v1.5.16` only as a
-placeholder. Bump to whatever azure-cni release first includes the
-transparent-tunnel conflist payload (built from `cni/Dockerfile`).
+The DaemonSet ships with the unresolvable placeholder tag
+`mcr.microsoft.com/containernetworking/v2/azure-cni:<TRANSPARENT_TUNNEL_RELEASE>`.
+Replace it with whatever azure-cni release first includes the
+`azure-transparent-tunnel.conflist` payload (added to `cni/Dockerfile`,
+`cni/Dockerfile.tmpl` and `.pipelines/build/scripts/cni.sh` in PR #4319).
+
+The placeholder is intentional: pinning a currently-published tag would install
+an azure-vnet that does not know the mode, and it would fall back to bridge mode
+without enforcing anything. A pull failure is the safer default.
