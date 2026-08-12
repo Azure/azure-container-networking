@@ -78,13 +78,31 @@ for def_id in "${DEF_IDS[@]}"; do
   def_id="$(printf '%s' "$def_id" | tr -d '[:space:]')"
   [[ -n "$def_id" ]] || continue
 
-  builds_json="$(curl -sS -H "$AUTH_HEADER" \
-    "${API_BASE}/build/builds?definitions=${def_id}&minTime=${min_time}&statusFilter=completed&api-version=7.1" 2>/dev/null)" || {
-    echo "collect-week-artifacts: failed to list builds for definition $def_id" >&2
-    continue
-  }
+  # Enumerate every build in the window, following ADO's continuation-token
+  # header across pages. A single unpaginated request returns only the first
+  # page, silently dropping the overflow on a busy week and undercounting the
+  # trends — so page until the token is gone. $top widens each page to cut
+  # round-trips; queryOrder makes truncation (if any) deterministic.
+  build_ids=()
+  cont_token=""
+  builds_url="${API_BASE}/build/builds?definitions=${def_id}&minTime=${min_time}&statusFilter=completed&queryOrder=finishTimeDescending&\$top=1000&api-version=7.1"
+  while :; do
+    url="$builds_url"
+    [[ -n "$cont_token" ]] && url="${url}&continuationToken=${cont_token}"
 
-  mapfile -t build_ids < <(printf '%s' "$builds_json" | jq -r '.value[]?.id // empty')
+    hdr_file="$(mktemp)"
+    if ! builds_json="$(curl -sS -D "$hdr_file" -H "$AUTH_HEADER" "$url" 2>/dev/null)"; then
+      echo "collect-week-artifacts: failed to list builds for definition $def_id" >&2
+      rm -f "$hdr_file"
+      break
+    fi
+
+    mapfile -t -O "${#build_ids[@]}" build_ids < <(printf '%s' "$builds_json" | jq -r '.value[]?.id // empty')
+
+    cont_token="$(grep -i '^x-ms-continuationtoken:' "$hdr_file" | tail -n1 | sed 's/^[^:]*:[[:space:]]*//; s/[[:space:]]*$//' | tr -d '\r')"
+    rm -f "$hdr_file"
+    [[ -n "$cont_token" ]] || break
+  done
   echo "collect-week-artifacts: definition $def_id -> ${#build_ids[@]} build(s) in window"
 
   for build_id in "${build_ids[@]}"; do
