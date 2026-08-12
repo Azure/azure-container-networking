@@ -1,24 +1,6 @@
 # https://help.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
 version: 2
 updates:
-  - package-ecosystem: "docker"
-    directories:
-      - "**/*"
-    exclude-paths:
-      - "**/*.tmpl"
-    schedule:
-      interval: "daily"
-    commit-message:
-      prefix: "ci"
-    labels: ["ci", "dependencies"]
-    open-pull-requests-limit: 10
-    groups:
-      all-docker-dependencies:
-        applies-to: version-updates
-        patterns: ["*"]
-    cooldown:
-      default-days: 7
-
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -38,6 +20,26 @@ updates:
   # =========================
   # DEFAULT BRANCH (master/main) — STAGED ROLLOUT
   # =========================
+
+  - package-ecosystem: "docker"
+    directories:
+      - "**/*"
+    exclude-paths:
+      - "**/*.tmpl"
+      - "**/*.yaml"
+      - "**/*.yml"
+    schedule:
+      interval: "daily"
+    commit-message:
+      prefix: "ci"
+    labels: ["ci", "dependencies"]
+    open-pull-requests-limit: 10
+    groups:
+      all-docker-dependencies:
+        applies-to: version-updates
+        patterns: ["*"]
+    cooldown:
+      default-days: 7
 
   # Root go.mod (/): grouped minor+patch + allow majors concurrently
   - package-ecosystem: "gomod"
@@ -154,6 +156,27 @@ updates:
   # =========================
 
   # release/v1.7 constraints (daily);
+  - package-ecosystem: "docker"
+    directories:
+      - "**/*"
+    exclude-paths:
+      - "**/*.tmpl"
+      - "**/*.yaml"
+      - "**/*.yml"
+    schedule:
+      interval: "daily"
+    commit-message:
+      prefix: "ci"
+    labels: ["ci", "dependencies", "release/1.7"]
+    open-pull-requests-limit: 10
+    target-branch: "release/v1.7"
+    groups:
+      all-docker-dependencies:
+        applies-to: version-updates
+        patterns: ["*"]
+    cooldown:
+      default-days: 7
+
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
@@ -223,6 +246,27 @@ updates:
       default-days: 7
 
   # release/v1.6 constraints (daily);
+  - package-ecosystem: "docker"
+    directories:
+      - "**/*"
+    exclude-paths:
+      - "**/*.tmpl"
+      - "**/*.yaml"
+      - "**/*.yml"
+    schedule:
+      interval: "daily"
+    commit-message:
+      prefix: "ci"
+    labels: ["ci", "dependencies", "release/1.6"]
+    open-pull-requests-limit: 10
+    target-branch: "release/v1.6"
+    groups:
+      all-docker-dependencies:
+        applies-to: version-updates
+        patterns: ["*"]
+    cooldown:
+      default-days: 7
+
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
