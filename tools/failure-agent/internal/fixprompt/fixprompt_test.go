@@ -91,6 +91,7 @@ func TestRenderContainsSections(t *testing.T) {
 		"## Evidence snippets",
 		"cilium.log:42",
 		"## Instructions for the coding agent",
+		"agents.md",
 		"draft",
 	} {
 		if !strings.Contains(md, want) {

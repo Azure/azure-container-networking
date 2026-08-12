@@ -113,6 +113,7 @@ func Render(inc model.Incident) string {
 
 	b.WriteString("## Instructions for the coding agent\n\n")
 	b.WriteString("- Implement the smallest change that resolves the root cause above; do not refactor unrelated code.\n")
+	b.WriteString("- Follow the repository conventions in `agents.md` (root-to-leaf, closest wins) and apply any relevant skills under `.github/skills/`.\n")
 	b.WriteString("- Keep the pull request a **draft**. Do not mark it ready for review.\n")
 	fmt.Fprintf(&b, "- Reference fingerprint `%s` in the pull request description.\n", inc.Fingerprint)
 	b.WriteString("- If the proposed direction is wrong, say why in the PR and implement the correct fix instead.\n")
