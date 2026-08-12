@@ -16,6 +16,11 @@ CMD ["npm.exe", "start", "--kubeconfig=.\\kubeconfig"]
 FROM --platform=linux/${ARCH} mcr.microsoft.com/mirror/docker/library/ubuntu:24.04 as linux
 ARG ARTIFACT_DIR
 
+# The signed/release image also passes through the pipeline's automated
+# image-patching (Copacetic) stage, but that only remediates the packages its
+# scanner reports. Some of the fixed OS packages below are not flagged by that
+# scanner, so we pin them explicitly to guarantee the fixes are applied at build
+# time regardless of scanner coverage.
 # Manually patch Ubuntu CVEs:
 # gpgv:           CVE-2025-68973 (HIGH)
 # libc-bin:       CVE-2025-15281, CVE-2026-0861, CVE-2026-0915 (MEDIUM)
