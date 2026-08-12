@@ -502,6 +502,9 @@ func buildCompleter(opts options) (classify.ChatCompleter, error) {
 // falls back to a deterministic stats-only digest so the weekly card still
 // posts.
 func runWeekly(ctx context.Context, logger *zap.Logger, opts options) error {
+	if opts.weeklyWindow <= 0 {
+		return fmt.Errorf("weekly-window-days must be >= 1, got %d", opts.weeklyWindow)
+	}
 	incidents, err := weekly.LoadIncidents(opts.weeklyReport)
 	if err != nil {
 		return fmt.Errorf("loading weekly incidents: %w", err)

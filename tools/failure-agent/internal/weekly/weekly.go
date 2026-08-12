@@ -210,8 +210,8 @@ func RenderMarkdown(wi WeeklyIncident) string {
 	var b strings.Builder
 
 	b.WriteString("## ACN Failure Analysis — Weekly Trends\n\n")
-	fmt.Fprintf(&b, "**Window:** last %d days (since %s)  |  **Incidents analyzed:** %d\n\n",
-		wi.WindowDays, wi.WindowStart.Format("2006-01-02"), wi.TotalIncidents)
+	fmt.Fprintf(&b, "**Window:** last %d days (since %s)  |  **Incidents:** %d (analyzed: %d, analysis failed: %d)\n\n",
+		wi.WindowDays, wi.WindowStart.Format("2006-01-02"), wi.TotalIncidents, wi.Stats.AnalyzedCount, wi.Stats.FailedCount)
 
 	if strings.TrimSpace(wi.Headline) != "" {
 		fmt.Fprintf(&b, "**%s**\n\n", strings.TrimSpace(wi.Headline))

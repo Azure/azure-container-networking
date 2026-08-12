@@ -93,7 +93,7 @@ func weeklyUserPrompt(stats Stats, incidents []model.Incident) string {
 		b.WriteString("\n\n")
 	}
 
-	b.WriteString("Per-incident digests (most recent window; may be truncated):\n")
+	b.WriteString("Per-incident digests (sample; may be truncated):\n")
 	n := len(incidents)
 	if n > maxDigests {
 		n = maxDigests

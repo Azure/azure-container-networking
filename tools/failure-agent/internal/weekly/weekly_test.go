@@ -171,6 +171,7 @@ func TestRenderMarkdownAndWriteFiles(t *testing.T) {
 	for _, want := range []string{
 		"Weekly Trends", "infra week", "**pipeline_infra_config** dominated",
 		"Key trends", "Recommendations", "Top recurring signatures", "abc123def456",
+		"**Incidents:** 4 (analyzed: 3, analysis failed: 1)",
 	} {
 		if !strings.Contains(md, want) {
 			t.Errorf("markdown missing %q\n---\n%s", want, md)
