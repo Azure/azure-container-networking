@@ -261,44 +261,56 @@ func TestRuleExists(t *testing.T) {
 	assert.False(t, result)
 }
 
-func TestDeleteIptableRuleIfExists(t *testing.T) {
+func TestIsRuleNotFoundErr(t *testing.T) {
+	t.Run("nil is not a not-found error", func(t *testing.T) {
+		assert.False(t, IsRuleNotFoundErr(nil))
+	})
+
+	t.Run("iptables missing-rule stderr is detected", func(t *testing.T) {
+		// Real iptables stderr when -D targets an absent rule. ExecuteRawCommand
+		// formats it as "<err>:<stderr>", which is what this matches against.
+		assert.True(t, IsRuleNotFoundErr(errRuleNotFound))
+	})
+
+	t.Run("lock contention is NOT a not-found error", func(t *testing.T) {
+		assert.False(t, IsRuleNotFoundErr(errXtablesLock),
+			"lock contention must not be silently treated as a missing rule")
+	})
+}
+
+// TestDeleteIptableRuleErrorsArePropagated documents that DeleteIptableRule itself
+// stays dumb: it returns every error verbatim and leaves the missing-rule decision
+// to the caller, which filters with IsRuleNotFoundErr.
+func TestDeleteIptableRuleErrorsArePropagated(t *testing.T) {
 	const expectedCmd = "iptables -w 60 -t filter -D AZURECNIINPUT -p tcp --dport 80 -j ACCEPT"
 
-	t.Run("delete succeeds returns nil", func(t *testing.T) {
-		mockPL := platform.NewMockExecClient(false)
-		client := &Client{pl: mockPL}
-		mockPL.SetExecRawCommand(func(cmd string) (string, error) {
-			require.Equal(t, expectedCmd, cmd)
-			return "", nil
+	tests := []struct {
+		name       string
+		execErr    error
+		wantErr    bool
+		wantNotFnd bool
+	}{
+		{name: "delete succeeds returns nil", execErr: nil, wantErr: false},
+		{name: "rule not found is returned to caller", execErr: errRuleNotFound, wantErr: true, wantNotFnd: true},
+		{name: "lock contention is returned to caller", execErr: errXtablesLock, wantErr: true, wantNotFnd: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockPL := platform.NewMockExecClient(false)
+			client := &Client{pl: mockPL}
+			mockPL.SetExecRawCommand(func(cmd string) (string, error) {
+				require.Equal(t, expectedCmd, cmd)
+				return "", tt.execErr
+			})
+
+			err := client.DeleteIptableRule(V4, Filter, CNIInputChain, "-p tcp --dport 80", Accept)
+			if !tt.wantErr {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Equal(t, tt.wantNotFnd, IsRuleNotFoundErr(err))
 		})
-
-		require.NoError(t, client.DeleteIptableRuleIfExists(V4, Filter, CNIInputChain, "-p tcp --dport 80", Accept))
-	})
-
-	t.Run("rule not found error is swallowed", func(t *testing.T) {
-		mockPL := platform.NewMockExecClient(false)
-		client := &Client{pl: mockPL}
-		mockPL.SetExecRawCommand(func(cmd string) (string, error) {
-			require.Equal(t, expectedCmd, cmd)
-			// Real iptables stderr when the rule is absent. The wrapper
-			// in ExecuteRawCommand formats this as "<err>:<stderr>", which
-			// is what DeleteIptableRuleIfExists pattern-matches against.
-			return "", errRuleNotFound
-		})
-
-		require.NoError(t, client.DeleteIptableRuleIfExists(V4, Filter, CNIInputChain, "-p tcp --dport 80", Accept))
-	})
-
-	t.Run("lock contention error is propagated", func(t *testing.T) {
-		mockPL := platform.NewMockExecClient(false)
-		client := &Client{pl: mockPL}
-		mockPL.SetExecRawCommand(func(cmd string) (string, error) {
-			require.Equal(t, expectedCmd, cmd)
-			return "", errXtablesLock
-		})
-
-		err := client.DeleteIptableRuleIfExists(V4, Filter, CNIInputChain, "-p tcp --dport 80", Accept)
-		require.Error(t, err, "lock contention must NOT be silently treated as success")
-		assert.Contains(t, err.Error(), "xtables lock")
-	})
+	}
 }

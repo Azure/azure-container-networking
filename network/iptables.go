@@ -7,6 +7,4 @@ type ipTablesClient interface {
 	RuleExists(version, tableName, chainName, match, target string) bool
 	CreateChain(version, tableName, chainName string) error
 	RunCmd(version, params string) error
-	// See iptables.Client.DeleteIptableRuleIfExists.
-	DeleteIptableRuleIfExists(version, tableName, chainName, match, target string) error
 }

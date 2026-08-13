@@ -224,18 +224,13 @@ func (c *Client) DeleteIptableRule(version, tableName, chainName, match, target 
 	return c.RunCmd(version, params)
 }
 
-// DeleteIptableRuleIfExists deletes a rule and ignores only iptables'
-// missing-rule error. Other delete failures are returned.
-func (c *Client) DeleteIptableRuleIfExists(version, tableName, chainName, match, target string) error {
-	err := c.DeleteIptableRule(version, tableName, chainName, match, target)
+// IsRuleNotFoundErr reports whether err is iptables' "no matching rule exists"
+// failure from a delete, as opposed to a real failure such as a permission error
+// or xtables lock contention. Callers that treat a missing rule as success can
+// use this to filter, while still propagating every other error.
+func IsRuleNotFoundErr(err error) bool {
 	if err == nil {
-		return nil
+		return false
 	}
-	if strings.Contains(err.Error(), iptablesRuleNotFoundSubstr) {
-		logger.Info("iptables rule already absent, treating as success",
-			zap.String("table", tableName), zap.String("chain", chainName),
-			zap.String("match", match), zap.String("target", target))
-		return nil
-	}
-	return err
+	return strings.Contains(err.Error(), iptablesRuleNotFoundSubstr)
 }
