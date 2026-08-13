@@ -1,0 +1,145 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: uvmnetworkconfigs.multitenancy.acn.azure.com
+spec:
+  group: multitenancy.acn.azure.com
+  names:
+    kind: UVMNetworkConfig
+    listKind: UVMNetworkConfigList
+    plural: uvmnetworkconfigs
+    shortNames:
+    - uvmnc
+    singular: uvmnetworkconfig
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.backendNetwork.name
+      name: BackendNetwork
+      type: string
+    - jsonPath: .status.state
+      name: State
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          UVMNetworkConfig is the Schema for the UVMNetworkConfig API.
+
+          It represents tenant-level InfiniBand (IB) programming intent for a node/UVM,
+          decoupled from pod lifecycle. One UVMNetworkConfig exists per node/UVM and
+          covers all IB NICs on that node - see the design invariant:
+
+            one node -> one UVM -> one backend network -> all IB NICs on that node
+
+          The CRD is created by the tenant-aware scheduler when the first tenant
+          workload is placed onto a UVM, and deleted when the tenant/UVM lifecycle
+          ends. DNC-RC reconciles it using the existing NC create/delete plumbing;
+          pod create/delete events must never affect it.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              UVMNetworkConfigSpec defines the desired state of UVMNetworkConfig.
+
+              Note: partitionKey is deliberately not expressed here. PKey allocation is
+              owned by NSM and is an implementation detail of the fabric programming
+              layer, not a tenant-supplied input. It may be surfaced in status for
+              observability.
+            properties:
+              backendNetwork:
+                description: |-
+                  BackendNetwork is the single backend network associated with all IB
+                  NICs on this node.
+                properties:
+                  name:
+                    description: Name of the backend network.
+                    type: string
+                required:
+                - name
+                type: object
+            required:
+            - backendNetwork
+            type: object
+          status:
+            description: UVMNetworkConfigStatus defines the observed state of UVMNetworkConfig.
+            properties:
+              conditions:
+                description: |-
+                  Conditions represent the latest available observations of the
+                  UVMNetworkConfig's state.
+                items:
+                  description: Condition contains details for one aspect of the current state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      type: string
+                      format: date-time
+                    message:
+                      type: string
+                    observedGeneration:
+                      type: integer
+                    reason:
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              lastUpdated:
+                description: LastUpdated is the last time the status was updated.
+                type: string
+                format: date-time
+              state:
+                description: State is the overall IB programming state for this node/UVM.
+                enum:
+                - Pending
+                - Programming
+                - Programmed
+                - Deleting
+                - Failed
+                type: string
+              ufmPartition:
+                description: UFMPartition reports the UFM partition programming status.
+                properties:
+                  backendNetwork:
+                    description: BackendNetwork is the backend network this UFM partition status applies to.
+                    type: string
+                  state:
+                    description: State is the UFM partition state (e.g. Active).
+                    type: string
+                type: object
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
