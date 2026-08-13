@@ -956,7 +956,6 @@ func TestPublishNCRequestBodyParsingMatrix(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			var (
 				joinSubnetCalls    int
@@ -1419,7 +1418,6 @@ func TestUnpublishViaCNSRequestBody(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			errPublish := publishNCViaCNS(vnet, tt.ncID, createNetworkContainerURL)
 			require.NoError(t, errPublish)
