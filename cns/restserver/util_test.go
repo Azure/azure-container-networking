@@ -186,11 +186,16 @@ func TestRestoreState(t *testing.T) {
 }
 
 func TestRestoreStateIgnoresLegacyJoinedSubnetsField(t *testing.T) {
+	const (
+		underlayNetworkType = "Underlay"
+		vnetID              = "vnet1"
+	)
+
 	mainStore := store.NewMockStore("")
 	require.NoError(t, mainStore.Write(storeKey, map[string]any{
-		"NetworkType": "Underlay",
+		"NetworkType": underlayNetworkType,
 		"joinedNetworks": map[string]struct{}{
-			"vnet1": {},
+			vnetID: {},
 		},
 		"joinedSubnets": map[string]struct{}{
 			"vnet1_subnet1": {},
@@ -207,7 +212,7 @@ func TestRestoreStateIgnoresLegacyJoinedSubnetsField(t *testing.T) {
 
 	svc.restoreState()
 
-	require.Equal(t, "Underlay", svc.state.NetworkType)
+	require.Equal(t, underlayNetworkType, svc.state.NetworkType)
 	require.Nil(t, svc.state.joinedNetworks)
 }
 
