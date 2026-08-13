@@ -98,7 +98,11 @@ while IFS= read -r fix; do
   fp="$(meta "$fix" fingerprint)"
   title="$(meta "$fix" title)"
   owner="$(meta "$fix" owner)"
-  if [ -z "$fp" ]; then echo "skipping $fix: no fingerprint in header"; continue; fi
+  # Untrusted artifact: fp flows into a git ref and a file path, so require a
+  # lowercase-hex digest (blocks bad refs and ../ path traversal).
+  case "$fp" in
+    ''|*[!0-9a-f]*) echo "skipping $fix: invalid fingerprint '$fp'"; continue ;;
+  esac
   if [ -n "${seen[$fp]:-}" ]; then echo "skipping duplicate fingerprint $fp"; continue; fi
   seen[$fp]=1
   [ -n "$title" ] || title="[FAA] Draft fix for regression ${fp:0:12}"
