@@ -315,7 +315,6 @@ func TestSetOrchestratorType_NCsPresent(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			var resp cns.Response
 			// Since this is global, we have to replace the state
