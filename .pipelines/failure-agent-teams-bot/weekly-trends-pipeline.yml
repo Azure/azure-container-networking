@@ -119,14 +119,27 @@ stages:
 
           # Attach weekly-report.md to this run's Summary tab (Extensions/Summary)
           # via the task.uploadsummary logging command — this is the publish action.
+          # Also flag that a digest exists so the artifact-publish step below skips
+          # cleanly on an empty run.
           - script: |
               set -euo pipefail
               REPORT="$(weeklyOutput)/weekly-report.md"
               if [ -f "$REPORT" ]; then
                 echo "##vso[task.uploadsummary]$REPORT"
+                echo "##vso[task.setvariable variable=weeklyReportExists]true"
               fi
             displayName: "Upload weekly summary to run"
             condition: succeededOrFailed()
+
+          # Publish the full weekly output (weekly-report.md + weekly-incident.json)
+          # as a downloadable build artifact for traceability of what was
+          # synthesized and posted to Teams. Skipped cleanly when no digest exists.
+          - task: PublishPipelineArtifact@1
+            displayName: "Publish weekly trends artifact"
+            condition: and(succeededOrFailed(), eq(variables['weeklyReportExists'], 'true'))
+            inputs:
+              targetPath: $(weeklyOutput)
+              artifact: weekly-trends
 
           # --- Post the weekly card (mentions the FAA owners) -----------------
           - task: AzureCLI@2
