@@ -1,1 +1,6 @@
 *.go text eol=lf
+
+# FAA prompt playbooks are compiled into the binary via //go:embed; pin LF so the
+# embedded prompt bytes stay identical across platforms.
+tools/failure-agent/internal/classify/investigation-playbook.md text eol=lf
+tools/failure-agent/internal/weekly/weekly-trends-playbook.md text eol=lf
