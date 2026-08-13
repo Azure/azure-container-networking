@@ -41,11 +41,14 @@ parameters:
   - name: windowDays
     type: string
     default: "7"
+  # WIF/Azure service connection used to post the weekly card. Exposed as a
+  # parameter so it can be changed at queue time without editing this file.
+  - name: serviceConnection
+    type: string
+    default: acn-dalec-test
 
 variables:
   - template: pipeline-constants.yml
-  - name: serviceConnection
-    value: acn-dalec-test
 
 stages:
   - stage: weekly
@@ -60,13 +63,27 @@ stages:
             value: $(Agent.TempDirectory)/weekly-evidence
           - name: weeklyOutput
             value: $(Agent.TempDirectory)/weekly-out
+          # OAuth token needed by both the artifact-collection REST calls and the
+          # notifier reply; defined once at the job level rather than per step.
+          - name: SYSTEM_ACCESSTOKEN
+            value: $(System.AccessToken)
         steps:
-          - checkout: self
+          # Install the Go version declared by tools/failure-agent/go.mod instead
+          # of pinning it here, so this pipeline tracks the tool's own toolchain.
+          - script: |
+              set -euo pipefail
+              cd "$(Build.SourcesDirectory)/tools/failure-agent"
+              GO_VER=$(grep '^toolchain' go.mod | sed 's/toolchain go//' | cut -d. -f1,2)
+              if [ -z "$GO_VER" ]; then GO_VER=$(grep '^go ' go.mod | awk '{print $2}' | cut -d. -f1,2); fi
+              if [ -z "$GO_VER" ]; then echo "##[error]Failed to detect Go version from go.mod"; exit 1; fi
+              echo "##vso[task.setvariable variable=GO_TOOLCHAIN_VERSION]$GO_VER"
+              echo "Detected Go version: $GO_VER"
+            displayName: "Detect Go version from go.mod"
 
           - task: GoTool@0
             displayName: "Setup Go"
             inputs:
-              version: '1.25'
+              version: '$(GO_TOOLCHAIN_VERSION)'
 
           # --- Aggregate the week's failure-analysis artifacts ----------------
           - bash: |
@@ -80,7 +97,6 @@ stages:
             env:
               SYSTEM_COLLECTIONURI: $(System.CollectionUri)
               SYSTEM_TEAMPROJECT: $(System.TeamProject)
-              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
 
           # --- Synthesize the weekly trends digest ----------------------------
           - script: |
@@ -101,13 +117,15 @@ stages:
               AZURE_OPENAI_API_KEY: $(AZURE_OPENAI_API_KEY)
               AZURE_OPENAI_API_VERSION: $(AZURE_OPENAI_API_VERSION)
 
+          # Attach weekly-report.md to this run's Summary tab (Extensions/Summary)
+          # via the task.uploadsummary logging command — this is the publish action.
           - script: |
               set -euo pipefail
               REPORT="$(weeklyOutput)/weekly-report.md"
               if [ -f "$REPORT" ]; then
                 echo "##vso[task.uploadsummary]$REPORT"
               fi
-            displayName: "Publish weekly summary"
+            displayName: "Upload weekly summary to run"
             condition: succeededOrFailed()
 
           # --- Post the weekly card (mentions the FAA owners) -----------------
@@ -115,7 +133,7 @@ stages:
             displayName: "Notify Teams — weekly trends"
             condition: succeededOrFailed()
             inputs:
-              azureSubscription: $(serviceConnection)
+              azureSubscription: ${{ parameters.serviceConnection }}
               scriptType: bash
               scriptLocation: inlineScript
               addSpnToEnvironment: true
@@ -129,4 +147,3 @@ stages:
               NOTIFY_RUN_ID: $(Build.BuildId)
               NOTIFY_TEAM_ID: $(notifyTeamId)
               NOTIFY_CHANNEL_ID: $(notifyChannelId)
-              SYSTEM_ACCESSTOKEN: $(System.AccessToken)

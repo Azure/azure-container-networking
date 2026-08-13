@@ -334,8 +334,7 @@ notify_reply() {
      + (if $mentionChannel == "true" then {mentionChannel: true} else {} end)
      + (if ($mentionUpns | length) > 0 then {mentionUpns: $mentionUpns} else {} end)')"
 
-  local http_code attempt
-  local -a retry_delays=(2 5 10)
+  local http_code attempt delay
   for attempt in 1 2 3 4; do
     http_code="$(curl -sS -o /tmp/notify-bot.out -w '%{http_code}' \
       -X POST \
@@ -356,7 +355,9 @@ notify_reply() {
     case "$http_code" in
       000|404|409|425|429|5??)
         if (( attempt < 4 )); then
-          sleep "${retry_delays[$((attempt - 1))]}"
+          # Exponential backoff computed purely with bash arithmetic: 2s, 4s, 8s.
+          delay=$(( 2 ** attempt ))
+          sleep "$delay"
           continue
         fi
         ;;
