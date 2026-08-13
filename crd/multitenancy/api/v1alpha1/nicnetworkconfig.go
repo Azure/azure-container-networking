@@ -12,7 +12,7 @@ import (
 // +kubebuilder:object:root=true
 
 // NICNetworkConfig is the Schema for the nicnetworkconfigs API
-// +kubebuilder:resource:shortName=nicnc,scope=Namespaced
+// +kubebuilder:resource:shortName=nicnc,scope=Cluster,path=nicnetworkconfigs
 // +kubebuilder:subresource:status
 // +kubebuilder:metadata:labels=managed=
 // +kubebuilder:metadata:labels=owner=

@@ -17,7 +17,7 @@ spec:
     shortNames:
     - nicnc
     singular: nicnetworkconfig
-  scope: Namespaced
+  scope: Cluster
   versions:
   - additionalPrinterColumns:
     - jsonPath: .spec.nodeName
