@@ -19,17 +19,13 @@ const testHostVethName = "azv1234"
 
 // transparentTunnelMockIPTablesClient tracks all iptables calls for test verification.
 type transparentTunnelMockIPTablesClient struct {
-	insertCalls         []iptablesCall
-	appendCalls         []iptablesCall
-	deleteCalls         []iptablesCall
-	deleteIfExistsCalls []iptablesCall
+	insertCalls []iptablesCall
+	appendCalls []iptablesCall
+	deleteCalls []iptablesCall
 	// deleteErr, when non-nil, is returned from every DeleteIptableRule call.
+	// Tests drive the "rule already absent" vs "real failure surfaces" branches
+	// by returning either an iptables missing-rule error or another error.
 	deleteErr error
-	// deleteIfExistsErr, when non-nil, is returned from every
-	// DeleteIptableRuleIfExists call. Distinct from deleteErr so tests can
-	// drive the "real failure surfaces" vs "rule already absent" branches
-	// independently of the legacy DeleteIptableRule mock.
-	deleteIfExistsErr error
 	// appendErr, when non-nil, is returned from every AppendIptableRule call.
 	appendErr error
 	// ruleExistsFn, when non-nil, decides whether a given rule exists. Defaults
@@ -50,11 +46,6 @@ func (c *transparentTunnelMockIPTablesClient) AppendIptableRule(version, tableNa
 func (c *transparentTunnelMockIPTablesClient) DeleteIptableRule(version, tableName, chainName, match, target string) error {
 	c.deleteCalls = append(c.deleteCalls, iptablesCall{version, tableName, chainName, match, target})
 	return c.deleteErr
-}
-
-func (c *transparentTunnelMockIPTablesClient) DeleteIptableRuleIfExists(version, tableName, chainName, match, target string) error {
-	c.deleteIfExistsCalls = append(c.deleteIfExistsCalls, iptablesCall{version, tableName, chainName, match, target})
-	return c.deleteIfExistsErr
 }
 
 func (c *transparentTunnelMockIPTablesClient) RuleExists(version, tableName, chainName, match, target string) bool {
@@ -644,32 +635,33 @@ func TestTransparentTunnelDeleteEndpointRules(t *testing.T) {
 		assert.Equal(t, 1, ipsetMock.countOps("del"))
 		assert.Equal(t, "10.224.0.46", ipsetMock.calls[0].arg)
 
-		require.Len(t, iptMock.deleteIfExistsCalls, 1)
-		markCall := iptMock.deleteIfExistsCalls[0]
+		require.Len(t, iptMock.deleteCalls, 1)
+		markCall := iptMock.deleteCalls[0]
 		assert.Equal(t, iptables.Mangle, markCall.tableName)
 		assert.Equal(t, iptables.Prerouting, markCall.chainName)
 		assert.Contains(t, markCall.target, "MARK --set-mark 3")
-		assert.Empty(t, iptMock.deleteCalls, "TT cleanup must use DeleteIptableRuleIfExists, not DeleteIptableRule")
 		assert.Empty(t, nlMock.ruleAddCalls)
 		assert.Empty(t, nlMock.routeReplaceCalls)
 		assert.Equal(t, 0, ipsetMock.countOps("destroy"), "should not destroy shared ipset")
 	})
 
-	t.Run("iptables already-absent rules are silently tolerated by helper", func(t *testing.T) {
+	t.Run("iptables already-absent rule is treated as success at the call site", func(t *testing.T) {
 		nlMock := &transparentTunnelMockNlClient{}
-		iptMock := &transparentTunnelMockIPTablesClient{}
+		// The exact stderr iptables emits when -D is given a rule that is not present.
+		iptMock := &transparentTunnelMockIPTablesClient{
+			deleteErr: errors.New("iptables: Bad rule (does a matching rule exist in that chain?)"),
+		}
 		ipsetMock := &transparentTunnelMockIpsetClient{}
 		client := makeClient(nlMock, iptMock, ipsetMock)
 
 		require.NoError(t, client.DeleteTransparentTunnelRules(makeEndpoint()))
-		assert.Len(t, iptMock.deleteIfExistsCalls, 1)
-		assert.Empty(t, iptMock.deleteCalls)
+		assert.Len(t, iptMock.deleteCalls, 1)
 	})
 
 	t.Run("iptables real failure during cleanup is surfaced (xtables lock contention)", func(t *testing.T) {
 		nlMock := &transparentTunnelMockNlClient{}
 		iptMock := &transparentTunnelMockIPTablesClient{
-			deleteIfExistsErr: errors.New("exit status 4: another app is currently holding the xtables lock; waiting for it to exit"),
+			deleteErr: errors.New("exit status 4: another app is currently holding the xtables lock; waiting for it to exit"),
 		}
 		ipsetMock := &transparentTunnelMockIpsetClient{}
 		client := makeClient(nlMock, iptMock, ipsetMock)
@@ -677,7 +669,7 @@ func TestTransparentTunnelDeleteEndpointRules(t *testing.T) {
 		err := client.DeleteTransparentTunnelRules(makeEndpoint())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "MARK")
-		assert.Len(t, iptMock.deleteIfExistsCalls, 1)
+		assert.Len(t, iptMock.deleteCalls, 1)
 	})
 
 	t.Run("ipset del failure is surfaced", func(t *testing.T) {
@@ -689,13 +681,13 @@ func TestTransparentTunnelDeleteEndpointRules(t *testing.T) {
 		err := client.DeleteTransparentTunnelRules(makeEndpoint())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "10.224.0.46")
-		assert.Len(t, iptMock.deleteIfExistsCalls, 1)
+		assert.Len(t, iptMock.deleteCalls, 1)
 	})
 
 	t.Run("iptables delete failure is surfaced", func(t *testing.T) {
 		nlMock := &transparentTunnelMockNlClient{}
 		iptMock := &transparentTunnelMockIPTablesClient{
-			deleteIfExistsErr: assert.AnError,
+			deleteErr: assert.AnError,
 		}
 		ipsetMock := &transparentTunnelMockIpsetClient{}
 		client := makeClient(nlMock, iptMock, ipsetMock)
@@ -703,7 +695,7 @@ func TestTransparentTunnelDeleteEndpointRules(t *testing.T) {
 		err := client.DeleteTransparentTunnelRules(makeEndpoint())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "MARK")
-		assert.Len(t, iptMock.deleteIfExistsCalls, 1)
+		assert.Len(t, iptMock.deleteCalls, 1)
 	})
 
 	t.Run("DeleteEndpointRules (interface, void) does NOT touch tunnel state", func(t *testing.T) {
@@ -715,7 +707,6 @@ func TestTransparentTunnelDeleteEndpointRules(t *testing.T) {
 		client.DeleteEndpointRules(makeEndpoint())
 
 		assert.Empty(t, iptMock.deleteCalls, "void DeleteEndpointRules must not touch iptables")
-		assert.Empty(t, iptMock.deleteIfExistsCalls, "void DeleteEndpointRules must not touch iptables")
 		assert.Empty(t, nlMock.ruleAddCalls, "void DeleteEndpointRules must not touch netlink rules")
 		assert.Empty(t, nlMock.routeReplaceCalls, "void DeleteEndpointRules must not touch netlink routes")
 		assert.Empty(t, ipsetMock.calls, "void DeleteEndpointRules must not touch ipset")
@@ -799,7 +790,7 @@ func TestTransparentTunnelDeleteEndpointImplCleansUpOnTunnelFailure(t *testing.T
 	// A tunnel cleanup failure must not abort the rest of the DEL path, or the
 	// veth and base endpoint state leak on every retry.
 	iptMock := &transparentTunnelMockIPTablesClient{
-		deleteIfExistsErr: errors.New("xtables lock held"),
+		deleteErr: errors.New("xtables lock held"),
 	}
 
 	routesDeleted := 0
@@ -836,5 +827,5 @@ func TestTransparentTunnelDeleteEndpointImplCleansUpOnTunnelFailure(t *testing.T
 
 	// ...but the base cleanup ran anyway rather than being skipped.
 	assert.Positive(t, routesDeleted, "base endpoint routes must be deleted despite tunnel failure")
-	require.Len(t, iptMock.deleteIfExistsCalls, 1, "tunnel MARK rule delete must be attempted")
+	require.Len(t, iptMock.deleteCalls, 1, "tunnel MARK rule delete must be attempted")
 }

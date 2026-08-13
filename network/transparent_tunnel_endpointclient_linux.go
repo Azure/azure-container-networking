@@ -169,9 +169,16 @@ func (client *TransparentTunnelEndpointClient) addTransparentTunnelRules(epInfo 
 	}
 
 	notrackMatch := buildTransparentTunnelNotrackMatch(client.hostPrimaryIfName)
-	// The NOTRACK rule is node-scoped and identical for every pod, so append it
-	// only when absent. Without this check every CNI ADD would stack another
-	// duplicate in raw PREROUTING that nothing ever removes.
+	// iptables -t raw -A PREROUTING -i <hostPrimaryIf> \
+	//     -m set --match-set azure-tt-local-pods src \
+	//     -m set --match-set azure-tt-local-pods dst -j NOTRACK
+	//
+	// Node-scoped and identical for every pod: it matches on set membership, not
+	// on any per-pod interface, so it is appended once and then left alone. Both
+	// src and dst must be local pods, which is why per-pod ADD only has to insert
+	// the pod IP into the ipset for this rule to start covering that pod.
+	// Without the RuleExists check every CNI ADD would stack another duplicate in
+	// raw PREROUTING that nothing ever removes.
 	if client.iptablesClient.RuleExists(iptables.V4, iptables.Raw, iptables.Prerouting, notrackMatch, iptables.Notrack) {
 		logger.Info("transparent-tunnel: NOTRACK rule already present, skipping append",
 			zap.String("dev", client.hostPrimaryIfName))
@@ -212,6 +219,14 @@ func (client *TransparentTunnelEndpointClient) addTransparentTunnelRules(epInfo 
 
 	markMatch := "-i " + hostVeth
 	markTarget := "MARK --set-mark " + markStr
+	// iptables -t mangle -A PREROUTING -i <hostVeth> -j MARK --set-mark 3
+	//
+	// Per-pod, and matched on the host veth rather than on the ipset: the mark is
+	// what sends the packet to table 101 and out the physical NIC. Matching on
+	// "src is a local pod" instead would also match the tunnelled packet when it
+	// comes back in on the physical NIC (both ends are local pods), re-marking it
+	// and looping it back out. Ingress interface is what distinguishes the two.
+	//
 	// Host veth names are derived from the endpoint ID, so a retried ADD for the
 	// same pod reuses the same name and match string. Deleting the veth link does
 	// not remove iptables rules referencing it, so append only when absent to
@@ -230,6 +245,21 @@ func (client *TransparentTunnelEndpointClient) addTransparentTunnelRules(epInfo 
 	return nil
 }
 
+// resolveTunnelGateway computes the gateway used for the table-101 default
+// route, in strict preference order:
+//
+//  1. epInfo.Gateways    — the per-pod gateway handed down by IPAM/CNS. Preferred
+//     because it is always populated on ADD and is correct for the pod's subnet.
+//  2. client.gateway     — the external interface's persisted gateway. Used only
+//     as a fallback: it can be 0.0.0.0 after a CNI restart, which is why the
+//     unspecified check in getTunnelGateway exists.
+//  3. host default route — read live from netlink for linkIndex (the physical
+//     NIC), as a last resort when neither of the above yields a usable address.
+//
+// Steps 1 and 2 are the pure-selection half and live in getTunnelGateway so they
+// stay unit-testable without netlink. Only step 3 touches the host. Returns
+// errNoTunnelGateway if all three come up empty, since a tunnel route without a
+// gateway would silently blackhole pod traffic.
 func (client *TransparentTunnelEndpointClient) resolveTunnelGateway(epInfo *EndpointInfo, linkIndex int) (net.IP, error) {
 	if gw := getTunnelGateway(epInfo, client.gateway); gw != nil {
 		return gw, nil
@@ -309,8 +339,20 @@ func findFwmarkRule(rules []vishnetlink.Rule, fwmark uint32, table int) *vishnet
 	return nil
 }
 
-// deleteTransparentTunnelRules removes per-pod ipset and MARK state. Shared
-// node-scoped state is kept so concurrent ADDs do not lose shared setup.
+// deleteTransparentTunnelRules undoes, on pod DEL, exactly what addTransparentTunnelRules
+// created per pod:
+//
+//   - removes each of the pod's IPv4 addresses from the azure-tt-local-pods ipset
+//   - removes that pod's "-i <hostVeth> -j MARK --set-mark 3" rule from mangle PREROUTING
+//
+// It deliberately leaves all node-scoped state in place (the ipset itself, the raw
+// PREROUTING NOTRACK rule, the fwmark ip rule and the table-101 route). That state is
+// shared by every pod on the node, so tearing it down here would break pods that are
+// still running, and racing ADDs would lose shared setup. It is also inert once the set
+// is empty: NOTRACK only matches when src and dst are both in the set.
+//
+// Errors are collected rather than returned early so that a failure removing one pod IP
+// still lets the MARK rule be cleaned up; the joined error is returned to the caller.
 func (client *TransparentTunnelEndpointClient) deleteTransparentTunnelRules(ep *endpoint) error {
 	hostVeth := ep.HostIfName
 	markStr := strconv.Itoa(transparentTunnelFwmark)
@@ -334,9 +376,17 @@ func (client *TransparentTunnelEndpointClient) deleteTransparentTunnelRules(ep *
 
 	markMatch := "-i " + hostVeth
 	markTarget := "MARK --set-mark " + markStr
-	if err := client.iptablesClient.DeleteIptableRuleIfExists(iptables.V4, iptables.Mangle, iptables.Prerouting, markMatch, markTarget); err != nil {
-		logger.Error("transparent-tunnel: failed to delete fwmark MARK rule", zap.Error(err))
-		errs = append(errs, errors.Wrap(err, "delete fwmark MARK rule"))
+	// A missing rule is success here: DEL can run after a partial ADD, or be
+	// retried after a DEL that already removed it. Every other iptables failure
+	// (permissions, xtables lock contention) is collected and returned.
+	if err := client.iptablesClient.DeleteIptableRule(iptables.V4, iptables.Mangle, iptables.Prerouting, markMatch, markTarget); err != nil {
+		if iptables.IsRuleNotFoundErr(err) {
+			logger.Info("transparent-tunnel: fwmark MARK rule already absent, treating as success",
+				zap.String("veth", hostVeth))
+		} else {
+			logger.Error("transparent-tunnel: failed to delete fwmark MARK rule", zap.Error(err))
+			errs = append(errs, errors.Wrap(err, "delete fwmark MARK rule"))
+		}
 	}
 
 	return stderrors.Join(errs...)
