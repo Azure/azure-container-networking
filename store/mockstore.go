@@ -71,3 +71,7 @@ func (ms *mockStore) GetLockFileName() string {
 }
 
 func (ms *mockStore) Remove() {}
+
+func (ms *mockStore) Dump() (string, error) {
+	return fmt.Sprintf("%+v", ms.data), nil
+}
