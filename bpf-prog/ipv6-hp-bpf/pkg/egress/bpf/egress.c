@@ -4,11 +4,9 @@
 #include <linux/pkt_cls.h>
 #include <linux/if_ether.h>
 #include <linux/ipv6.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <linux/if_ether.h>
-#include <string.h>
-#include <stdint.h>
+#include <linux/in.h>
+#include <linux/in6.h>
+#include <linux/tcp.h>
 #include <stdbool.h>
 #include "../../../include/helper.h"
 
