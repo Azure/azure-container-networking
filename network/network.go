@@ -25,10 +25,6 @@ const (
 	opModeDefault           = opModeTunnel
 )
 
-// OpModeTransparentTunnel is the exported form of opModeTransparentTunnel so
-// callers outside this package (the CNI plugin) can detect the mode.
-const OpModeTransparentTunnel = opModeTransparentTunnel
-
 const (
 	// ipv6 modes
 	IPV6Nat = "ipv6nat"
