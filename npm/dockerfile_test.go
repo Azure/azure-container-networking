@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	expectedNPMGoImage      = "mcr.microsoft.com/oss/go/microsoft/golang:1.26.5@sha256:ea712a1aaf80306c19ff842ba0bfcb9ad360afd8143e70044e0d0bd6d6899887"
+	expectedNPMGoImage      = "mcr.microsoft.com/oss/go/microsoft/golang:1.26.6@sha256:8365869fedcec3bd332a8c5704ec55152fb397ded5cfc9e57ade54f998add366"
 	expectedServerCoreImage = "mcr.microsoft.com/windows/servercore:ltsc2022@sha256:6b43c814ed2a800563083ce3193e5f1951d4d6a18fd2879ff45173851db82bd5"
 )
 
