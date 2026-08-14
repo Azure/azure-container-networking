@@ -630,7 +630,7 @@ func TestTransparentTunnelDeleteEndpointRules(t *testing.T) {
 		ipsetMock := &transparentTunnelMockIpsetClient{}
 		client := makeClient(nlMock, iptMock, ipsetMock)
 
-		require.NoError(t, client.DeleteTransparentTunnelRules(makeEndpoint()))
+		require.NoError(t, client.DeleteEndpointRules(makeEndpoint()))
 
 		assert.Equal(t, 1, ipsetMock.countOps("del"))
 		assert.Equal(t, "10.224.0.46", ipsetMock.calls[0].arg)
@@ -654,7 +654,7 @@ func TestTransparentTunnelDeleteEndpointRules(t *testing.T) {
 		ipsetMock := &transparentTunnelMockIpsetClient{}
 		client := makeClient(nlMock, iptMock, ipsetMock)
 
-		require.NoError(t, client.DeleteTransparentTunnelRules(makeEndpoint()))
+		require.NoError(t, client.DeleteEndpointRules(makeEndpoint()))
 		assert.Len(t, iptMock.deleteCalls, 1)
 	})
 
@@ -666,7 +666,7 @@ func TestTransparentTunnelDeleteEndpointRules(t *testing.T) {
 		ipsetMock := &transparentTunnelMockIpsetClient{}
 		client := makeClient(nlMock, iptMock, ipsetMock)
 
-		err := client.DeleteTransparentTunnelRules(makeEndpoint())
+		err := client.DeleteEndpointRules(makeEndpoint())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "MARK")
 		assert.Len(t, iptMock.deleteCalls, 1)
@@ -678,7 +678,7 @@ func TestTransparentTunnelDeleteEndpointRules(t *testing.T) {
 		ipsetMock := &transparentTunnelMockIpsetClient{delErr: assert.AnError}
 		client := makeClient(nlMock, iptMock, ipsetMock)
 
-		err := client.DeleteTransparentTunnelRules(makeEndpoint())
+		err := client.DeleteEndpointRules(makeEndpoint())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "10.224.0.46")
 		assert.Len(t, iptMock.deleteCalls, 1)
@@ -692,24 +692,26 @@ func TestTransparentTunnelDeleteEndpointRules(t *testing.T) {
 		ipsetMock := &transparentTunnelMockIpsetClient{}
 		client := makeClient(nlMock, iptMock, ipsetMock)
 
-		err := client.DeleteTransparentTunnelRules(makeEndpoint())
+		err := client.DeleteEndpointRules(makeEndpoint())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "MARK")
 		assert.Len(t, iptMock.deleteCalls, 1)
 	})
 
-	t.Run("DeleteEndpointRules (interface, void) does NOT touch tunnel state", func(t *testing.T) {
+	t.Run("tunnel cleanup runs when invoked through the EndpointClient interface", func(t *testing.T) {
 		nlMock := &transparentTunnelMockNlClient{}
 		iptMock := &transparentTunnelMockIPTablesClient{}
 		ipsetMock := &transparentTunnelMockIpsetClient{}
 		client := makeClient(nlMock, iptMock, ipsetMock)
 
-		client.DeleteEndpointRules(makeEndpoint())
+		// Assign to the interface so this fails if tunnel cleanup ever again needs a
+		// concrete-type assertion at the call site to run.
+		var epClient EndpointClient = client
+		require.NoError(t, epClient.DeleteEndpointRules(makeEndpoint()))
 
-		assert.Empty(t, iptMock.deleteCalls, "void DeleteEndpointRules must not touch iptables")
-		assert.Empty(t, nlMock.ruleAddCalls, "void DeleteEndpointRules must not touch netlink rules")
-		assert.Empty(t, nlMock.routeReplaceCalls, "void DeleteEndpointRules must not touch netlink routes")
-		assert.Empty(t, ipsetMock.calls, "void DeleteEndpointRules must not touch ipset")
+		assert.Equal(t, 1, ipsetMock.countOps("del"), "tunnel ipset cleanup must run via the interface")
+		assert.Len(t, iptMock.deleteCalls, 1, "tunnel MARK rule cleanup must run via the interface")
+		assert.Equal(t, 0, ipsetMock.countOps("destroy"), "should not destroy shared ipset")
 	})
 }
 

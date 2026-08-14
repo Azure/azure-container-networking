@@ -49,7 +49,8 @@ func (client *MockEndpointClient) AddEndpointRules(_ *EndpointInfo) error {
 	return nil
 }
 
-func (client *MockEndpointClient) DeleteEndpointRules(_ *endpoint) {
+func (client *MockEndpointClient) DeleteEndpointRules(_ *endpoint) error {
+	return nil
 }
 
 func (client *MockEndpointClient) MoveEndpointsToContainerNS(_ *EndpointInfo, _ uintptr) error {

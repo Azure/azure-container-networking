@@ -124,16 +124,24 @@ func (client *TransparentTunnelEndpointClient) AddEndpointRules(epInfo *Endpoint
 	return nil
 }
 
-// DeleteEndpointRules only delegates to the base transparent client. Tunnel
-// cleanup is separate because it must return errors to the CNI runtime.
-func (client *TransparentTunnelEndpointClient) DeleteEndpointRules(ep *endpoint) {
-	client.TransparentEndpointClient.DeleteEndpointRules(ep)
-}
+// DeleteEndpointRules removes per-pod tunnel state, then the base transparent rules.
+// Shared node-scoped tunnel setup is left installed and is inert without per-pod state.
+// Tunnel errors are returned after the base cleanup runs so a tunnel failure does not
+// leak the base endpoint rules.
+func (client *TransparentTunnelEndpointClient) DeleteEndpointRules(ep *endpoint) error {
+	tunnelErr := client.deleteTransparentTunnelRules(ep)
+	if tunnelErr != nil {
+		logger.Error("Failed to delete transparent tunnel rules, continuing cleanup", zap.Error(tunnelErr))
+	}
 
-// DeleteTransparentTunnelRules removes only per-pod tunnel state. Shared
-// node-scoped tunnel setup is left installed and is inert without per-pod state.
-func (client *TransparentTunnelEndpointClient) DeleteTransparentTunnelRules(ep *endpoint) error {
-	return client.deleteTransparentTunnelRules(ep)
+	if err := client.TransparentEndpointClient.DeleteEndpointRules(ep); err != nil {
+		return err
+	}
+
+	if tunnelErr != nil {
+		return fmt.Errorf("failed to delete transparent tunnel rules: %w", tunnelErr)
+	}
+	return nil
 }
 
 // getTunnelGateway returns a non-zero IPv4 gateway for table 101. Prefer the

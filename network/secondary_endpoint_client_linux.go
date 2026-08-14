@@ -115,7 +115,8 @@ func (client *SecondaryEndpointClient) AddEndpointRules(_ *EndpointInfo) error {
 	return nil
 }
 
-func (client *SecondaryEndpointClient) DeleteEndpointRules(_ *endpoint) {
+func (client *SecondaryEndpointClient) DeleteEndpointRules(_ *endpoint) error {
+	return nil
 }
 
 func (client *SecondaryEndpointClient) MoveEndpointsToContainerNS(epInfo *EndpointInfo, nsID uintptr) error {

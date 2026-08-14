@@ -156,7 +156,7 @@ func (client *OVSEndpointClient) AddEndpointRules(epInfo *EndpointInfo) error {
 	return client.AddSnatEndpointRules()
 }
 
-func (client *OVSEndpointClient) DeleteEndpointRules(ep *endpoint) {
+func (client *OVSEndpointClient) DeleteEndpointRules(ep *endpoint) error {
 	logger.Info("[ovs] Get ovs port for interface", zap.String("HostIfName", ep.HostIfName))
 	containerPort, err := client.ovsctlClient.GetOVSPortNumber(client.hostVethName)
 	if err != nil {
@@ -192,6 +192,7 @@ func (client *OVSEndpointClient) DeleteEndpointRules(ep *endpoint) {
 
 	client.DeleteSnatEndpointRules()
 	DeleteInfraVnetEndpointRules(client, ep, hostPort)
+	return nil
 }
 
 func (client *OVSEndpointClient) MoveEndpointsToContainerNS(epInfo *EndpointInfo, nsID uintptr) error {

@@ -191,14 +191,8 @@ func (nw *network) newEndpointImpl(
 		if err != nil {
 			logger.Error("CNI error. Delete Endpoint and rules that are created", zap.Error(err), zap.String("contIfName", contIfName))
 
-			// Tunnel rollback is separate because it returns cleanup errors.
-			if ttClient, ok := client.(*TransparentTunnelEndpointClient); ok {
-				if delErr := ttClient.DeleteTransparentTunnelRules(ep); delErr != nil {
-					logger.Error("rollback: failed to delete transparent tunnel rules", zap.Error(delErr))
-				}
-			}
-
 			if containerIf != nil {
+				//nolint:errcheck // rollback is best effort; the original error is returned
 				client.DeleteEndpointRules(ep)
 			}
 			// set deleteHostVeth to true to cleanup host veth interface if created
@@ -309,6 +303,7 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 			// delete if secondary interfaces populated or endpoint of type delegated (new way)
 			if len(ep.SecondaryInterfaces) > 0 || ep.NICType == cns.NodeNetworkInterfaceFrontendNIC {
 				epClient = NewSecondaryEndpointClient(nl, nioc, plc, nsc, dhcpc, ep)
+				//nolint:errcheck // secondary client rules cleanup does not return errors
 				epClient.DeleteEndpointRules(ep)
 				//nolint:errcheck // ignore error
 				epClient.DeleteEndpoints(ep)
@@ -322,24 +317,13 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 		}
 	}
 
-	// Tunnel cleanup is separate because DeleteEndpointRules cannot return errors.
-	var tunnelErr error
-	if ttClient, ok := epClient.(*TransparentTunnelEndpointClient); ok {
-		if err := ttClient.DeleteTransparentTunnelRules(ep); err != nil {
-			// Continue with the remaining cleanup so a tunnel failure does not leak
-			// veth and base endpoint state, then surface the error to the runtime.
-			logger.Error("Failed to delete transparent tunnel rules, continuing cleanup", zap.Error(err))
-			tunnelErr = fmt.Errorf("failed to delete transparent tunnel rules: %w", err)
-		}
-	}
-
-	epClient.DeleteEndpointRules(ep)
+	rulesErr := epClient.DeleteEndpointRules(ep)
 	// deleteHostVeth set to false not to delete veth as CRI will remove network namespace and
 	// veth will get removed as part of that.
 	//nolint:errcheck // ignore error
 	epClient.DeleteEndpoints(ep)
 
-	return tunnelErr
+	return rulesErr
 }
 
 // getInfoImpl returns information about the endpoint.

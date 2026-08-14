@@ -67,7 +67,7 @@ type NetworkClient interface {
 type EndpointClient interface {
 	AddEndpoints(epInfo *EndpointInfo) error
 	AddEndpointRules(epInfo *EndpointInfo) error
-	DeleteEndpointRules(ep *endpoint)
+	DeleteEndpointRules(ep *endpoint) error
 	MoveEndpointsToContainerNS(epInfo *EndpointInfo, nsID uintptr) error
 	SetupContainerInterfaces(epInfo *EndpointInfo) error
 	ConfigureContainerInterfacesAndRoutes(epInfo *EndpointInfo) error
