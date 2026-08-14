@@ -11,7 +11,7 @@ from typing import Any
 
 
 DENIAL_REASON = (
-    "Repository public identity boundary: Copilot must not author comments, replies, "
+    "Public identity boundary: Copilot must not author comments, replies, "
     "reviews, reactions, thread resolutions, or PR/issue text as the user. "
     "Draft the exact text for the user to publish."
 )
@@ -105,9 +105,14 @@ BLOCKED_GH_ACTIONS = {
     },
 }
 PROTECTED_PATHS = (
-    ".github/copilot-instructions.md",
-    ".github/hooks/deny-public-github-mutations.py",
-    ".github/hooks/public-identity-guard.json",
+    # Matching is substring containment, so bare filenames cover every install
+    # location without hardcoding one: the repository copy under .github/hooks,
+    # a per-user copy under ~/.copilot/hooks, and a system copy under
+    # /usr/local/libexec. Keep these location-independent so the repository and
+    # per-user copies of this script cannot drift apart.
+    "deny-public-github-mutations.py",
+    "public-identity-guard.json",
+    "copilot-instructions.md",
     "agents.md",
 )
 FILE_MUTATION_PATTERN = re.compile(
@@ -263,6 +268,38 @@ def self_test() -> None:
             "toolName": "bash",
             "toolArgs": {
                 "command": "rm .github/hooks/public-identity-guard.json"
+            },
+        },
+        # The guard must protect itself wherever it is installed, not only in
+        # the repository copy.
+        {
+            "toolName": "bash",
+            "toolArgs": {
+                "command": "rm ~/.copilot/hooks/public-identity-guard.json"
+            },
+        },
+        {
+            "toolName": "bash",
+            "toolArgs": {
+                "command": "sudo rm /opt/hooks/deny-public-github-mutations.py"
+            },
+        },
+        {
+            "toolName": "edit",
+            "toolArgs": {
+                "path": "~/.copilot/hooks/deny-public-github-mutations.py",
+                "old_str": "deny()",
+                "new_str": "allow()",
+            },
+        },
+        {
+            "toolName": "bash",
+            "toolArgs": {"command": "sed -i 's/deny/allow/' agents.md"},
+        },
+        {
+            "toolName": "bash",
+            "toolArgs": {
+                "command": "echo x > ~/.copilot/copilot-instructions.md"
             },
         },
     ]
