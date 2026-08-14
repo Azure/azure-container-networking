@@ -1,6 +1,6 @@
 module github.com/Azure/azure-container-networking/azure-ipam
 
-go 1.26.1
+go 1.26.6
 
 require (
 	github.com/Azure/azure-container-networking v1.8.9

@@ -1,6 +1,6 @@
 module github.com/Azure/azure-container-networking
 
-go 1.26.1
+go 1.26.6
 
 require (
 	github.com/Azure/azure-container-networking/zapai v0.0.3

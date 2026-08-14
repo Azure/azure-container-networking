@@ -1,6 +1,6 @@
 module azure-npm-to-cilium-validator
 
-go 1.26.1
+go 1.26.6
 
 require (
 	github.com/Azure/azure-container-networking v1.6.21
