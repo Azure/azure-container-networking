@@ -263,7 +263,15 @@ build/images.mk (GO_IMG=golang:1.XX-azurelinux3.0)     ← primary image tag
    fi
    ```
    Also update the `skopeo inspect` comment above it to reference the new tag.
-8. **`bpf-prog/ipv6-hp-bpf/linux.Dockerfile`** — Update Go image SHA (use same digest from step 7)
+8. **`bpf-prog/ipv6-hp-bpf/linux.Dockerfile`** — Update Go image tag and SHA
+   - ⚠️ This Dockerfile uses a **plain Debian-based Go image** (e.g., `golang:1.26.4`), NOT the `-azurelinux3.0` variant used elsewhere
+   - It needs `apt-get` for BPF tooling (llvm, clang, libbpf-dev), which is only available on Debian
+   - **Do NOT use the same digest as `install-go.sh` or `build/images.mk`** — those use the Azure Linux image
+   - Resolve the correct digest separately:
+     ```bash
+     skopeo inspect "docker://mcr.microsoft.com/oss/go/microsoft/golang:1.XX.Y" --format "{{.Digest}}"
+     ```
+     (using the plain patch tag, e.g., `1.26.6`, without `-azurelinux3.0`)
 9. **`npm/linux.Dockerfile`** and **`npm/windows.Dockerfile`** — Update Go tag
    - ⚠️ npm Dockerfiles use **plain patch tag** (e.g., `golang:1.26.4`), NOT the `-azurelinux3.0` suffixed tag
    - The npm builder uses Ubuntu as runtime base, not Azure Linux
