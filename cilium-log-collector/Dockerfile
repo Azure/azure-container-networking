@@ -4,7 +4,7 @@ ARG ARCH
 ARG OS
 
 # mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0@sha256:8cd7a5d81a3b482076f133f13b96fc938d1609d20ec04570eed188f70a7efcbe AS go
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0@sha256:0d009d1cb486a1a23c35dcfee3fbd82e22adf9f7ef0cf6bb35020679621d378f AS go
 
 FROM go AS fluent-bit-plugin
 ARG VERSION
