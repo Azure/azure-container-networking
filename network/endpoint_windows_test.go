@@ -470,7 +470,7 @@ func TestGetPnPDeviceStateUnHappyPath(t *testing.T) {
 }
 
 // endpoint creation is not required for IB
-func TestNewEndpointImplHnsv2ForIBHappyPath(t *testing.T) {
+func TestNewEndpointImplHnsv2ForIBDefaultNoDismount(t *testing.T) {
 	nw := &network{
 		Endpoints: map[string]*endpoint{},
 	}
@@ -492,16 +492,34 @@ func TestNewEndpointImplHnsv2ForIBHappyPath(t *testing.T) {
 		PnPID:      pnpID,
 	}
 
-	// Happy Path
-	endpoint, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
-		netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), iptables.NewClient(), &mockDHCP{}, epInfo)
+	// By default (flag unset) CNI must NOT disable/dismount the VF device. Fail
+	// the test if any disable/dismount powershell command is executed.
+	mockExecClient := platform.NewMockExecClient(false)
+	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
+		if strings.Contains(cmd, "Disable-PnpDevice") || strings.Contains(cmd, "Dismount-VMHostAssignableDevice") {
+			t.Errorf("unexpected disable/dismount command executed by default: %s", cmd)
+		}
+		return "", nil
+	})
 
-	if endpoint != nil || err != nil {
-		t.Fatalf("Endpoint is created for IB due to %v", err)
+	endpoint, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), mockExecClient,
+		netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), iptables.NewClient(), &mockDHCP{}, epInfo)
+	if err != nil {
+		t.Fatalf("Unexpected error creating IB endpoint by default: %v", err)
+	}
+	if endpoint == nil {
+		t.Fatal("Expected a non-nil endpoint for IB backend NIC")
+	}
+	if endpoint.NICType != cns.BackendNIC {
+		t.Fatalf("Expected NICType %s, got %s", cns.BackendNIC, endpoint.NICType)
 	}
 }
 
-func TestNewEndpointImplHnsv2ForIBUnHappyPath(t *testing.T) {
+func TestNewEndpointImplHnsv2ForIBLegacyDismountError(t *testing.T) {
+	// Legacy behavior: when the dismount flag is enabled, errors from the
+	// disable/dismount state machine must propagate.
+	t.Setenv(enableIBVFDismountEnvVar, "true")
+
 	nw := &network{
 		Endpoints: map[string]*endpoint{},
 	}
@@ -522,14 +540,16 @@ func TestNewEndpointImplHnsv2ForIBUnHappyPath(t *testing.T) {
 		PnPID:      pnpID,
 	}
 
-	// Set UnHappy Path
-	_, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(true),
+	mockExecClient := platform.NewMockExecClient(false)
+	mockExecClient.SetPowershellCommandResponder(func(_ string) (string, error) {
+		return "", platform.ErrMockExec
+	})
+
+	_, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), mockExecClient,
 		netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), iptables.NewClient(), &mockDHCP{}, epInfo)
-
 	if err == nil {
-		t.Fatal("Failed to test Endpoint creation for IB with unhappy path")
+		t.Fatal("Expected error from legacy IB disable/dismount path")
 	}
-
 	if !errors.Is(err, platform.ErrMockExec) {
 		t.Fatalf("Unexpected Error:%v; Error should be %v", err, platform.ErrMockExec)
 	}

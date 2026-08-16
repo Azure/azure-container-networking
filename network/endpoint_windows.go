@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -44,7 +45,21 @@ const (
 	noError = "0"
 	// device disabled flag 22
 	deviceDisabled = "22"
+
+	// enableIBVFDismountEnvVar, when set to a truthy value (1/true), makes CNI
+	// perform the legacy disable/dismount of the IB backend VF device. It
+	// defaults to a no-op: the disable/dismount is instead handled by an
+	// external component (the CRI proxy service), which CNI signals once its
+	// own work is done.
+	enableIBVFDismountEnvVar = "ACN_ENABLE_IB_VF_DISMOUNT"
 )
+
+// ibVFDismountEnabled reports whether CNI should perform the legacy
+// disable/dismount of the IB backend VF device. It defaults to false (no-op).
+func ibVFDismountEnabled() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv(enableIBVFDismountEnvVar)))
+	return v == "1" || v == "true"
+}
 
 // ConstructEndpointID constructs endpoint name from netNsPath.
 func ConstructEndpointID(containerID string, netNsPath string, ifName string) (string, string) {
@@ -71,61 +86,15 @@ func ConstructEndpointID(containerID string, netNsPath string, ifName string) (s
 }
 
 func (nw *network) getEndpointWithVFDevice(plc platform.ExecClient, epInfo *EndpointInfo) (*endpoint, error) {
-	logger.Info("disable and dismount VF device")
-
-	// check device state before disabling and dismounting vf device
-	devicePresence, problemCode, err := getPnpDeviceState(epInfo.PnPID, plc)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get VF device state")
-	}
-
-	// state machine, use devicePresence and problemCode to determine actions
-	if devicePresence == "True" && problemCode == noError { //nolint
-		logger.Info("Device enabled and mounted")
-
-		if err := disableVFDevice(epInfo.PnPID, plc); err != nil { //nolint
-			return nil, errors.Wrap(err, "failed to disable VF device")
+	// By default CNI no longer disables/dismounts the IB VF device; that work is
+	// handled by an external component (the CRI proxy service). The legacy
+	// behavior can be re-enabled via the ACN_ENABLE_IB_VF_DISMOUNT flag.
+	if ibVFDismountEnabled() {
+		if err := nw.disableAndDismountVFDevice(plc, epInfo); err != nil {
+			return nil, err
 		}
-
-		if err := dismountVFDevice(epInfo.PnPID, plc); err != nil { //nolint
-			return nil, errors.Wrap(err, "failed to dismount VF device")
-		}
-
-		// get new pnp id after VF dismount
-		pnpDeviceID, err := getPnPDeviceID(epInfo.PnPID, plc) //nolint
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to get updated VF device ID")
-		}
-
-		// assign updated PciID back to containerd
-		epInfo.PnPID = pnpDeviceID
-	} else if devicePresence == "True" && problemCode == deviceDisabled {
-		logger.Info("Device disabled")
-		// device is disabled but not dismounted
-		if err := dismountVFDevice(epInfo.PnPID, plc); err != nil { //nolint
-			return nil, errors.Wrap(err, "failed to dismount VF device")
-		}
-
-		// get new pnp id after VF dismount
-		pnpDeviceID, err := getPnPDeviceID(epInfo.PnPID, plc) //nolint
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to get updated VF device ID")
-		}
-
-		// assign updated PciID back to containerd
-		epInfo.PnPID = pnpDeviceID
-	} else if devicePresence == "False" {
-		logger.Info("Device dismounted")
-		// device is disabled and dismounted, just get the new PciID and assign back to containerd
-		pnpDeviceID, err := getPnPDeviceID(epInfo.PnPID, plc) //nolint
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to get updated VF device ID")
-		}
-		// assign updated PciID back to containerd
-		epInfo.PnPID = pnpDeviceID
 	} else {
-		// return unexpected error and log devicePresence, problemCode
-		return nil, errors.Wrapf(err, "unexpected error with devicePresence %s and problemCode %s", devicePresence, problemCode)
+		logger.Info("Skipping IB VF disable/dismount; delegated to external component")
 	}
 
 	// Create the endpoint object.
@@ -137,8 +106,82 @@ func (nw *network) getEndpointWithVFDevice(plc platform.ExecClient, epInfo *Endp
 		NICType:     cns.BackendNIC,
 	}
 
+	// Signal external components (the CRI proxy service) that CNI's side of the
+	// IB backend NIC work is done. Only ever done on the IB (BackendNIC) path so
+	// the global named event is never created/set for non-IB endpoints.
+	// Best-effort: do not fail endpoint creation.
+	if epInfo.NICType == cns.BackendNIC {
+		if err := signalIBWorkDone(); err != nil {
+			logger.Error("Failed to signal IB work done", zap.Error(err))
+		}
+	}
+
 	// do not create endpoint for IB NIC interface
 	return ep, nil
+}
+
+// disableAndDismountVFDevice runs the legacy state machine that disables and
+// dismounts the IB backend VF device and reassigns the resulting PnP ID back to
+// containerd. Retained behind the ACN_ENABLE_IB_VF_DISMOUNT flag.
+func (nw *network) disableAndDismountVFDevice(plc platform.ExecClient, epInfo *EndpointInfo) error {
+	logger.Info("disable and dismount VF device")
+
+	// check device state before disabling and dismounting vf device
+	devicePresence, problemCode, err := getPnpDeviceState(epInfo.PnPID, plc)
+	if err != nil {
+		return errors.Wrap(err, "failed to get VF device state")
+	}
+
+	// state machine, use devicePresence and problemCode to determine actions
+	if devicePresence == "True" && problemCode == noError { //nolint
+		logger.Info("Device enabled and mounted")
+
+		if err := disableVFDevice(epInfo.PnPID, plc); err != nil { //nolint
+			return errors.Wrap(err, "failed to disable VF device")
+		}
+
+		if err := dismountVFDevice(epInfo.PnPID, plc); err != nil { //nolint
+			return errors.Wrap(err, "failed to dismount VF device")
+		}
+
+		// get new pnp id after VF dismount
+		pnpDeviceID, err := getPnPDeviceID(epInfo.PnPID, plc) //nolint
+		if err != nil {
+			return errors.Wrap(err, "failed to get updated VF device ID")
+		}
+
+		// assign updated PciID back to containerd
+		epInfo.PnPID = pnpDeviceID
+	} else if devicePresence == "True" && problemCode == deviceDisabled {
+		logger.Info("Device disabled")
+		// device is disabled but not dismounted
+		if err := dismountVFDevice(epInfo.PnPID, plc); err != nil { //nolint
+			return errors.Wrap(err, "failed to dismount VF device")
+		}
+
+		// get new pnp id after VF dismount
+		pnpDeviceID, err := getPnPDeviceID(epInfo.PnPID, plc) //nolint
+		if err != nil {
+			return errors.Wrap(err, "failed to get updated VF device ID")
+		}
+
+		// assign updated PciID back to containerd
+		epInfo.PnPID = pnpDeviceID
+	} else if devicePresence == "False" {
+		logger.Info("Device dismounted")
+		// device is disabled and dismounted, just get the new PciID and assign back to containerd
+		pnpDeviceID, err := getPnPDeviceID(epInfo.PnPID, plc) //nolint
+		if err != nil {
+			return errors.Wrap(err, "failed to get updated VF device ID")
+		}
+		// assign updated PciID back to containerd
+		epInfo.PnPID = pnpDeviceID
+	} else {
+		// return unexpected error and log devicePresence, problemCode
+		return fmt.Errorf("unexpected error with devicePresence %s and problemCode %s", devicePresence, problemCode)
+	}
+
+	return nil
 }
 
 // newEndpointImpl creates a new endpoint in the network.
