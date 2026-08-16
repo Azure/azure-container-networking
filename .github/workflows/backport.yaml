@@ -1,0 +1,145 @@
+name: Backport merged pull request
+
+on:
+  pull_request_target:
+    branches:
+      - master
+    types:
+      - closed
+      - labeled
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  backport:
+    name: Create backport pull requests
+    if: >-
+      github.event.pull_request.merged == true &&
+      contains(github.event.pull_request.labels.*.name, 'needs-backport') &&
+      (
+        github.event.action == 'closed' ||
+        github.event.label.name == 'needs-backport' ||
+        startsWith(github.event.label.name, 'release/')
+      )
+    runs-on: ubuntu-latest
+    concurrency:
+      group: backport-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: master
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Determine target branches
+        id: targets
+        env:
+          LABELS_JSON: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          set -euo pipefail
+
+          mapfile -t TARGET_BRANCHES < <(
+            jq -r '
+              .[]
+              | capture("^release/v?(?<version>[0-9]+\\.[0-9]+)$")
+              | "release/v\(.version)"
+            ' <<< "$LABELS_JSON" | sort -u
+          )
+
+          if [[ ${#TARGET_BRANCHES[@]} -eq 0 ]]; then
+            echo "::notice::No release/X.Y labels found; no backport pull request will be created."
+            echo "branches=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          for branch in "${TARGET_BRANCHES[@]}"; do
+            if ! git ls-remote --exit-code --heads origin "refs/heads/$branch" >/dev/null; then
+              echo "::error::Backport target branch '$branch' does not exist."
+              exit 1
+            fi
+          done
+
+          echo "branches=${TARGET_BRANCHES[*]}" >> "$GITHUB_OUTPUT"
+
+      - name: Create backport pull requests
+        id: backport
+        if: steps.targets.outputs.branches != ''
+        uses: korthout/backport-action@2e830a1d0b8269505846ddd407a70876913ad1f8 # v4
+        with:
+          github_token: ${{ github.token }}
+          label_pattern: ''
+          target_branches: ${{ steps.targets.outputs.branches }}
+          comment_style: summary
+          experimental: '{"conflict_resolution":"draft_commit_conflicts"}'
+
+      - name: Assign draft conflict resolution to Copilot
+        if: always() && steps.backport.outputs.created_pull_numbers != ''
+        env:
+          # Agent assignment requires a user-to-server token; GITHUB_TOKEN is not supported.
+          AGENT_TOKEN: ${{ secrets.COPILOT_AGENT_TOKEN }}
+          CREATED_PULL_NUMBERS: ${{ steps.backport.outputs.created_pull_numbers }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SOURCE_PULL_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          for pull_number in $CREATED_PULL_NUMBERS; do
+            pull=$(gh api "/repos/$REPO/pulls/$pull_number")
+            if [[ $(jq -r '.draft' <<< "$pull") != "true" ]]; then
+              continue
+            fi
+
+            if [[ -z "$AGENT_TOKEN" ]]; then
+              echo "::error::COPILOT_AGENT_TOKEN is required to assign conflict resolution to Copilot."
+              exit 1
+            fi
+
+            head_ref=$(jq -r '.head.ref' <<< "$pull")
+            base_ref=$(jq -r '.base.ref' <<< "$pull")
+            pull_title=$(jq -r '.title' <<< "$pull")
+            pull_url=$(jq -r '.html_url' <<< "$pull")
+
+            issue_body=$(cat <<EOF
+          Resolve the committed cherry-pick conflicts in draft backport PR #$pull_number:
+          $pull_url
+
+          Preserve the intent of source PR #$SOURCE_PULL_NUMBER while adapting it to
+          \`$base_ref\`. Remove all conflict markers, run relevant validation, and open
+          a pull request targeting \`$head_ref\`. Do not modify \`$base_ref\` directly.
+
+          <!-- backport-conflict-agent:$pull_number -->
+          EOF
+            )
+
+            payload=$(jq -n \
+              --arg title "Resolve conflicts for backport PR #$pull_number" \
+              --arg body "$issue_body" \
+              --arg repo "$REPO" \
+              --arg branch "$head_ref" \
+              --arg instructions "Resolve conflicts in backport PR #$pull_number ($pull_title). Open the resolution PR against $head_ref." \
+              '{
+                title: $title,
+                body: $body,
+                assignees: ["copilot-swe-agent[bot]"],
+                agent_assignment: {
+                  target_repo: $repo,
+                  base_branch: $branch,
+                  custom_instructions: $instructions,
+                  custom_agent: "",
+                  model: ""
+                }
+              }')
+
+            GH_TOKEN="$AGENT_TOKEN" gh api \
+              --method POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/repos/$REPO/issues" \
+              --input - <<< "$payload" \
+              --jq '"Assigned Copilot through issue #\(.number): \(.html_url)"'
+          done
