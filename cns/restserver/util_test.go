@@ -185,6 +185,37 @@ func TestRestoreState(t *testing.T) {
 	}
 }
 
+func TestRestoreStateIgnoresLegacyJoinedSubnetsField(t *testing.T) {
+	const (
+		underlayNetworkType = "Underlay"
+		vnetID              = "vnet1"
+	)
+
+	mainStore := store.NewMockStore("")
+	require.NoError(t, mainStore.Write(storeKey, map[string]any{
+		"NetworkType": underlayNetworkType,
+		"joinedNetworks": map[string]struct{}{
+			vnetID: {},
+		},
+		"joinedSubnets": map[string]struct{}{
+			"vnet1_subnet1": {},
+		},
+	}))
+
+	svc := HTTPRestService{
+		Service: &cns.Service{
+			Service: &common.Service{Options: map[string]any{}},
+		},
+		store: mainStore,
+		state: &httpRestServiceState{},
+	}
+
+	svc.restoreState()
+
+	require.Equal(t, underlayNetworkType, svc.state.NetworkType)
+	require.Nil(t, svc.state.joinedNetworks)
+}
+
 // test to check if nc can be deleted from ncList for Delete() method
 func TestDeleteNCs(t *testing.T) {
 	var ncs ncList
