@@ -2,8 +2,8 @@ cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMT
 code.cloudfoundry.org/clock v0.0.0-20180518195852-02e53af36e6c/go.mod h1:QD9Lzhd/ux6eNQVUDVRJX/RKTigpewimNYBi7ivZKY8=
 code.cloudfoundry.org/clock v1.41.0 h1:YiYQSEqcxswK+YtQ+NRIE31E1VNXkwb53Bb3zRmsoOM=
 code.cloudfoundry.org/clock v1.41.0/go.mod h1:ncX4UpMuVwZooK7Rw7P+fsE2brLasFbPlibOOrZq40w=
-github.com/Azure/azure-container-networking v1.8.9 h1:ypKRZAy/KffXqyMWkG9hsY3cJMIIHmGAE3vINdrng0Q=
-github.com/Azure/azure-container-networking v1.8.9/go.mod h1:A4bywkpz8Jh6S5EUjs1/DrcgTWcryAybPMcOLMMK4fc=
+github.com/Azure/azure-container-networking v1.8.11 h1:ueYSW/xJy9BhxxUtsyXzwXBRbVs1eAlHPwm9x8z4VZE=
+github.com/Azure/azure-container-networking v1.8.11/go.mod h1:A4bywkpz8Jh6S5EUjs1/DrcgTWcryAybPMcOLMMK4fc=
 github.com/Azure/azure-container-networking/zapai v0.0.3 h1:73druF1cnne5Ign/ztiXP99Ss5D+UJ80EL2mzPgNRhk=
 github.com/Azure/azure-container-networking/zapai v0.0.3/go.mod h1:XV/aKJQAV6KqV4HQtZlDyxg2z7LaY9rsX8dqwyWFmUI=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.19.1 h1:5YTBM8QDVIBN3sxBil89WfdAAqDZbyJTgh688DSxX5w=
