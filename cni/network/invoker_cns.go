@@ -59,6 +59,7 @@ type IPResultInfo struct {
 	hostGateway          string
 	nicType              cns.NICType
 	macAddress           string
+	sharedNIC            bool
 	skipDefaultRoutes    bool
 	routes               []cns.Route
 	pnpID                string
@@ -119,6 +120,7 @@ func (i IPResultInfo) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	encoder.AddString("hostGateway", i.hostGateway)
 	encoder.AddString("nicType", string(i.nicType))
 	encoder.AddString("macAddress", i.macAddress)
+	encoder.AddBool("sharedNIC", i.sharedNIC)
 	encoder.AddBool("skipDefaultRoutes", i.skipDefaultRoutes)
 	encoder.AddString("routes", fmt.Sprintf("%+v", i.routes))
 	return nil
@@ -196,6 +198,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 
 	addResult := IPAMAddResult{interfaceInfo: make(map[string]network.InterfaceInfo)}
 	numInterfacesWithDefaultRoutes := 0
+	sharedNICPresent := false
 
 	for i := 0; i < len(response.PodIPInfo); i++ {
 		info := IPResultInfo{
@@ -212,6 +215,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			hostGateway:          response.PodIPInfo[i].HostPrimaryIPInfo.Gateway,
 			nicType:              response.PodIPInfo[i].NICType,
 			macAddress:           response.PodIPInfo[i].MacAddress,
+			sharedNIC:            response.PodIPInfo[i].SharedNIC,
 			skipDefaultRoutes:    response.PodIPInfo[i].SkipDefaultRoutes,
 			routes:               response.PodIPInfo[i].Routes,
 			pnpID:                response.PodIPInfo[i].PnPID,
@@ -227,6 +231,13 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		key := invoker.getInterfaceInfoKey(info.nicType, info.macAddress)
 		switch info.nicType {
 		case cns.NodeNetworkInterfaceFrontendNIC:
+			if info.sharedNIC {
+				sharedNICPresent = true
+				logger.Info("Skipping shared frontend NIC returned by CNS",
+					zap.String("macAddress", info.macAddress),
+					zap.String("podIPAddress", info.podIPAddress))
+				continue
+			}
 			// only handling single v4 PodIPInfo for NodeNetworkInterfaceFrontendNIC and AccelnetNIC at the moment, will have to update once v6 gets added
 			if !info.skipDefaultRoutes {
 				numInterfacesWithDefaultRoutes++
@@ -274,11 +285,16 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 	}
 
 	// Make sure default routes exist for 1 interface
-	if numInterfacesWithDefaultRoutes != expectedNumInterfacesWithDefaultRoutes {
+	if !hasValidDefaultRouteInterfaceCount(numInterfacesWithDefaultRoutes, sharedNICPresent) {
 		return IPAMAddResult{}, errInvalidDefaultRouting
 	}
 
 	return addResult, nil
+}
+
+func hasValidDefaultRouteInterfaceCount(numInterfacesWithDefaultRoutes int, sharedNICPresent bool) bool {
+	return numInterfacesWithDefaultRoutes == expectedNumInterfacesWithDefaultRoutes ||
+		(sharedNICPresent && numInterfacesWithDefaultRoutes == 0)
 }
 
 func setHostOptions(ncSubnetPrefix *net.IPNet, options map[string]interface{}, info *IPResultInfo) error {
