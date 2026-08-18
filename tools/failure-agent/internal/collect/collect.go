@@ -70,6 +70,46 @@ func FromEnv(getenv func(string) string) model.RunContext {
 	return rc
 }
 
+// maxDiffChars bounds the change-under-test diff injected into the prompt so a
+// large pull request cannot crowd collected evidence out of the excerpt budget.
+const maxDiffChars = 60 << 10 // 60 KiB
+
+// diffPostImageRE matches the "+++ b/<path>" line of a unified diff, which names
+// the post-image path of each changed file.
+var diffPostImageRE = regexp.MustCompile(`(?m)^\+\+\+ b/(.+)$`)
+
+// LoadChangeContext reads a unified diff of the change under test and populates
+// rc.ChangedFiles and rc.Diff. An empty diff is not an error: the agent still
+// analyzes the run, just without change context.
+func LoadChangeContext(rc *model.RunContext, path string) error {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("reading diff %s: %w", path, err)
+	}
+
+	diff := string(b)
+	if strings.TrimSpace(diff) == "" {
+		return nil
+	}
+
+	seen := map[string]bool{}
+	for _, m := range diffPostImageRE.FindAllStringSubmatch(diff, -1) {
+		name := strings.TrimSpace(m[1])
+		if name == "" || name == "/dev/null" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		rc.ChangedFiles = append(rc.ChangedFiles, name)
+	}
+	sort.Strings(rc.ChangedFiles)
+
+	if len(diff) > maxDiffChars {
+		diff = diff[:maxDiffChars] + "\n... (diff truncated)\n"
+	}
+	rc.Diff = diff
+	return nil
+}
+
 // ParseEvidence walks root and extracts error lines, file excerpts, and the
 // file inventory. It is read-only and skips unreadable or non-text files.
 func ParseEvidence(root string) (model.Evidence, error) {

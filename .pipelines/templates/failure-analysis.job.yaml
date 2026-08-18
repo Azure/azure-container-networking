@@ -42,6 +42,10 @@ parameters:
   # MVP demo: flakiness analytics remains implemented but disabled until a
   # persistent knowledge store is enabled across multiple pipeline runs.
   flakinessOutput: ""
+  # Base branch used to compute the change under test. E2E is gated to non-PR
+  # builds, where System.PullRequest.TargetBranch is unset, so this is the value
+  # actually used in practice.
+  baseBranch: "master"
 
 jobs:
   - job: failureAnalysis_${{ parameters.os }}
@@ -100,6 +104,29 @@ jobs:
       - script: |
           set -euo pipefail
 
+          # Grounds the code-correlation half of the pr_regression check.
+          DIFF_FILE="$(Agent.TempDirectory)/change.diff"
+          : > "$DIFF_FILE"
+
+          # E2E, and therefore this job, is gated to non-PR builds where
+          # System.PullRequest.TargetBranch is unset, so fall back to the base
+          # branch for manual, merge-queue, and scheduled runs.
+          TARGET="${SYSTEM_PULLREQUEST_TARGETBRANCH:-${{ parameters.baseBranch }}}"
+          TARGET="${TARGET#refs/heads/}"
+
+          git -C "$(Build.SourcesDirectory)" fetch --no-tags --depth=200 origin "$TARGET" || true
+          # Diff against the merge base so only this change's own edits are captured.
+          git -C "$(Build.SourcesDirectory)" diff --unified=3 "origin/$TARGET...HEAD" > "$DIFF_FILE" || true
+
+          echo "Captured $(wc -c < "$DIFF_FILE") bytes of change context."
+        displayName: "Capture change under test"
+        continueOnError: true
+        env:
+          SYSTEM_PULLREQUEST_TARGETBRANCH: $(System.PullRequest.TargetBranch)
+
+      - script: |
+          set -euo pipefail
+
           INPUT_DIR="$(Agent.TempDirectory)/evidence"
           OUTPUT_DIR="$(Agent.TempDirectory)/analysis"
           mkdir -p "$INPUT_DIR" "$OUTPUT_DIR"
@@ -117,6 +144,10 @@ jobs:
 
           if [ "${{ parameters.live }}" = "True" ] || [ "${{ parameters.live }}" = "true" ]; then
             EXTRA_FLAGS="$EXTRA_FLAGS --live"
+          fi
+
+          if [ -s "$(Agent.TempDirectory)/change.diff" ]; then
+            EXTRA_FLAGS="$EXTRA_FLAGS --diff-file $(Agent.TempDirectory)/change.diff"
           fi
 
           # MVP demo: knowledge-store incident memory/dedupe/prior context is

@@ -235,13 +235,9 @@ func userPrompt(rc model.RunContext, ev model.Evidence, fp model.Fingerprint, ma
 	if rc.IsPR {
 		fmt.Fprintf(&b, "Pull request: #%s (source=%s target=%s)\n", rc.PullRequestNumber, rc.SourceBranch, rc.TargetBranch)
 	}
-	if len(rc.ChangedFiles) > 0 {
-		b.WriteString("Changed files:\n")
-		for _, f := range rc.ChangedFiles {
-			fmt.Fprintf(&b, "- %s\n", f)
-		}
-	}
 	fmt.Fprintf(&b, "Fingerprint: %s\n\n", fp.Hash)
+
+	writeChangeContext(&b, rc)
 
 	if len(ev.Files) > 0 {
 		b.WriteString("## Collected artifacts (inventory)\n")
@@ -277,6 +273,32 @@ func userPrompt(rc model.RunContext, ev model.Evidence, fp model.Fingerprint, ma
 	writeExcerpts(&b, ev.Excerpts)
 
 	return b.String()
+}
+
+// writeChangeContext emits the change under test: the changed-file list and the
+// unified diff. This is the primary evidence for the code-correlation half of the
+// pr_regression check. Without it the only available signal is how broadly the
+// failure reproduces, and a regression in a shared component — which fails every
+// stage that exercises it — reads as environmental uniformity.
+func writeChangeContext(b *strings.Builder, rc model.RunContext) {
+	if len(rc.ChangedFiles) == 0 && rc.Diff == "" {
+		return
+	}
+
+	b.WriteString("## Change under test\n")
+	b.WriteString("Check whether the failing mechanism is reachable from these lines before ruling on pr_regression.\n")
+	if len(rc.ChangedFiles) > 0 {
+		b.WriteString("Changed files:\n")
+		for _, f := range rc.ChangedFiles {
+			fmt.Fprintf(b, "- %s\n", f)
+		}
+	}
+	if rc.Diff != "" {
+		b.WriteString("\nUnified diff:\n```diff\n")
+		b.WriteString(rc.Diff)
+		b.WriteString("\n```\n")
+	}
+	b.WriteString("\n")
 }
 
 // nodeEvidenceKeys are excerpt names that describe node/nodepool health. They

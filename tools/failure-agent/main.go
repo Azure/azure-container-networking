@@ -67,6 +67,7 @@ type options struct {
 	live            bool
 	privileged      bool
 	flakinessOutput string
+	diffFile        string
 
 	weeklyReport string
 	weeklyWindow int
@@ -143,6 +144,7 @@ func parseFlags() options {
 	flag.BoolVar(&o.live, "live", true, "collect read-only kubectl diagnostics from the retained cluster (requires kubectl + KUBECONFIG)")
 	flag.BoolVar(&o.privileged, "privileged", true, "collect host-level logs via kubectl debug node (requires --live; creates ephemeral debug pods)")
 	flag.StringVar(&o.flakinessOutput, "flakiness-output", "", "write the knowledge-store flakiness report to this path")
+	flag.StringVar(&o.diffFile, "diff-file", "", "path to a unified diff of the change under test; grounds the code-correlation check for pr_regression")
 	flag.StringVar(&o.weeklyReport, "weekly-report", "", "weekly-trends mode: aggregate the incident.json artifacts under this directory and synthesize a trends digest (writes weekly-report.md + weekly-incident.json to --output)")
 	flag.IntVar(&o.weeklyWindow, "weekly-window-days", defaultWeeklyWindowDays, "weekly-trends mode: reporting window in days, surfaced on the digest")
 	flag.Parse()
@@ -159,6 +161,19 @@ func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, k
 
 	rc := collect.FromEnv(os.Getenv)
 	applyOverrides(&rc, opts)
+
+	// Change context is best-effort: a shallow checkout or a non-PR run leaves the
+	// agent without a diff, which lowers confidence but must not abort analysis.
+	if opts.diffFile != "" {
+		if err := collect.LoadChangeContext(&rc, opts.diffFile); err != nil {
+			logger.Warn("change context unavailable", zap.Error(err))
+		} else {
+			logger.Info("change context loaded",
+				zap.Int("changedFiles", len(rc.ChangedFiles)),
+				zap.Int("diffBytes", len(rc.Diff)),
+			)
+		}
+	}
 
 	ev, err := collect.ParseEvidence(opts.input)
 	if err != nil {
