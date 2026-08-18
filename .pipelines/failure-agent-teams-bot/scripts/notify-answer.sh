@@ -49,6 +49,16 @@ if [[ -z "${text//[[:space:]]/}" ]]; then
   exit 0
 fi
 
+# The bot API rejects `text`/`summary` over 2000 chars (HTTP 400). Truncate
+# with a visible marker and a pointer back to the run so nothing is silently
+# dropped without a trace.
+MAX_LEN=2000
+if (( ${#text} > MAX_LEN )); then
+  suffix=$'\n\n… (truncated; see pipeline run for full answer)'
+  keep=$(( MAX_LEN - ${#suffix} ))
+  text="${text:0:keep}${suffix}"
+fi
+
 # Build-ask threads the answer onto the target run's existing FAA card. History
 # mode (NOTIFY_ANSWER_STANDALONE set) has no such card, so it skips straight to
 # the standalone card below.
