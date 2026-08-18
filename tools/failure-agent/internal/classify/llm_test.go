@@ -197,6 +197,7 @@ func TestSystemPromptEncodesInvestigationPolicy(t *testing.T) {
 		"live/nnc",
 		"failingUnit",
 		"knownUnknowns",
+		"rootCauseSources",
 		"~1h TTL",
 		"cross-commit/cross-stage",
 		"ANTI-PATTERNS",
@@ -211,7 +212,7 @@ func TestClassificationSchemaIncludesContractFields(t *testing.T) {
 	def := string(classificationSchema().Definition)
 	for _, want := range []string{
 		"finalVerdict", "topAnomaly", "failingUnit", "causalChain", "symptomVsCause",
-		"falsification", "evidenceGaps", "knownUnknowns",
+		"falsification", "evidenceGaps", "knownUnknowns", "rootCauseSources",
 	} {
 		if !strings.Contains(def, want) {
 			t.Errorf("classification schema missing contract field %q", want)
@@ -250,6 +251,9 @@ func TestLLMClassifierParsesFullContract(t *testing.T) {
 			{"missing": "literal dpkg PackageInstallFailed message", "whereItLives": "expired k8s event and in-pod install log", "whyMissing": "events ~1h TTL; capture was 75m in", "howToCapture": "kubectl logs <pod> -c init-package-installer --previous"}
 		],
 		"knownUnknowns": ["exact failing .deb postinst step not captured this run"],
+		"rootCauseSources": [
+			{"file": "bad-pod-describe.txt", "line": 1048, "endLine": 1048, "snippet": "  1045 | echo \"ERROR: install-packages.sh failed with exit code $install_rc\"\n> 1048 | exit $install_rc", "explanation": "init script exits with the installer non-zero code"}
+		],
 		"recommendedOwner": "aks-node-image",
 		"proposedFix": "Route to node-image/AzSecPack; capture the installer log next run.",
 		"nodeAssessment": "Both nodes rebooted ~08:59 (durable Kubelet transition time); CNS/Defender restarts are side effects."
@@ -288,6 +292,10 @@ func TestLLMClassifierParsesFullContract(t *testing.T) {
 	}
 	if len(got.KnownUnknowns) != 1 {
 		t.Errorf("expected one known-unknown, got %+v", got.KnownUnknowns)
+	}
+	if len(got.RootCauseSources) != 1 || got.RootCauseSources[0].File != "bad-pod-describe.txt" ||
+		got.RootCauseSources[0].Line != 1048 || !strings.Contains(got.RootCauseSources[0].Snippet, "exit $install_rc") {
+		t.Errorf("expected one root-cause source with file/line/snippet, got %+v", got.RootCauseSources)
 	}
 }
 
