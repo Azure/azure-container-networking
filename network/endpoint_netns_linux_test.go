@@ -11,6 +11,12 @@ import (
 
 var errTestLinkNotFound = errors.New("link not found")
 
+const (
+	testNetnsPath  = "/var/run/netns/pod"
+	testHostIfName = "azv768e8de"
+	testPodIP      = "10.0.0.5"
+)
+
 // fakeNetnsLinkClient serves links by name for the in-namespace lookup and by
 // index for the host-side peer lookup.
 type fakeNetnsLinkClient struct {
@@ -50,10 +56,10 @@ func testAddr(t *testing.T, cidr string) vishnetlink.Addr {
 
 func TestGetEndpointInfoFromNetns(t *testing.T) {
 	containerLink := &vishnetlink.Veth{
-		LinkAttrs: vishnetlink.LinkAttrs{Name: "eth0", Index: 12, ParentIndex: 45},
+		LinkAttrs: vishnetlink.LinkAttrs{Name: InfraInterfaceName, Index: 12, ParentIndex: 45},
 	}
 	hostLink := &vishnetlink.Veth{
-		LinkAttrs: vishnetlink.LinkAttrs{Name: "azv768e8de", Index: 45},
+		LinkAttrs: vishnetlink.LinkAttrs{Name: testHostIfName, Index: 45},
 	}
 
 	tests := []struct {
@@ -67,49 +73,49 @@ func TestGetEndpointInfoFromNetns(t *testing.T) {
 	}{
 		{
 			name:      "resolves pod ip and host veth from peer index",
-			netnsPath: "/var/run/netns/pod",
-			ifName:    "eth0",
+			netnsPath: testNetnsPath,
+			ifName:    InfraInterfaceName,
 			client: &fakeNetnsLinkClient{
-				linksByName:  map[string]vishnetlink.Link{"eth0": containerLink},
+				linksByName:  map[string]vishnetlink.Link{InfraInterfaceName: containerLink},
 				linksByIndex: map[int]vishnetlink.Link{45: hostLink},
-				addrs:        []vishnetlink.Addr{testAddr(t, "10.0.0.5/24")},
+				addrs:        []vishnetlink.Addr{testAddr(t, testPodIP+"/24")},
 			},
-			wantHostIfName: "azv768e8de",
-			wantIPs:        []string{"10.0.0.5"},
+			wantHostIfName: testHostIfName,
+			wantIPs:        []string{testPodIP},
 		},
 		{
 			name:      "returns ip even when host veth cannot be resolved",
-			netnsPath: "/var/run/netns/pod",
-			ifName:    "eth0",
+			netnsPath: testNetnsPath,
+			ifName:    InfraInterfaceName,
 			client: &fakeNetnsLinkClient{
-				linksByName:  map[string]vishnetlink.Link{"eth0": containerLink},
+				linksByName:  map[string]vishnetlink.Link{InfraInterfaceName: containerLink},
 				linksByIndex: map[int]vishnetlink.Link{},
-				addrs:        []vishnetlink.Addr{testAddr(t, "10.0.0.5/24")},
+				addrs:        []vishnetlink.Addr{testAddr(t, testPodIP+"/24")},
 			},
 			wantHostIfName: "",
-			wantIPs:        []string{"10.0.0.5"},
+			wantIPs:        []string{testPodIP},
 		},
 		{
 			name:      "skips link local addresses",
-			netnsPath: "/var/run/netns/pod",
-			ifName:    "eth0",
+			netnsPath: testNetnsPath,
+			ifName:    InfraInterfaceName,
 			client: &fakeNetnsLinkClient{
-				linksByName:  map[string]vishnetlink.Link{"eth0": containerLink},
+				linksByName:  map[string]vishnetlink.Link{InfraInterfaceName: containerLink},
 				linksByIndex: map[int]vishnetlink.Link{45: hostLink},
 				addrs: []vishnetlink.Addr{
 					testAddr(t, "fe80::1/64"),
-					testAddr(t, "10.0.0.5/24"),
+					testAddr(t, testPodIP+"/24"),
 				},
 			},
-			wantHostIfName: "azv768e8de",
-			wantIPs:        []string{"10.0.0.5"},
+			wantHostIfName: testHostIfName,
+			wantIPs:        []string{testPodIP},
 		},
 		{
 			name:      "errors when the interface has no usable address",
-			netnsPath: "/var/run/netns/pod",
-			ifName:    "eth0",
+			netnsPath: testNetnsPath,
+			ifName:    InfraInterfaceName,
 			client: &fakeNetnsLinkClient{
-				linksByName:  map[string]vishnetlink.Link{"eth0": containerLink},
+				linksByName:  map[string]vishnetlink.Link{InfraInterfaceName: containerLink},
 				linksByIndex: map[int]vishnetlink.Link{45: hostLink},
 				addrs:        []vishnetlink.Addr{},
 			},
@@ -117,8 +123,8 @@ func TestGetEndpointInfoFromNetns(t *testing.T) {
 		},
 		{
 			name:      "errors when the interface is gone",
-			netnsPath: "/var/run/netns/pod",
-			ifName:    "eth0",
+			netnsPath: testNetnsPath,
+			ifName:    InfraInterfaceName,
 			client: &fakeNetnsLinkClient{
 				linksByName:  map[string]vishnetlink.Link{},
 				linksByIndex: map[int]vishnetlink.Link{},
@@ -128,7 +134,7 @@ func TestGetEndpointInfoFromNetns(t *testing.T) {
 		{
 			name:      "errors when no netns path is provided",
 			netnsPath: "",
-			ifName:    "eth0",
+			ifName:    InfraInterfaceName,
 			client:    &fakeNetnsLinkClient{},
 			wantErr:   true,
 		},
