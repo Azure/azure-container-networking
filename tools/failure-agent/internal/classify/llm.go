@@ -78,6 +78,7 @@ type llmResult struct {
 	Falsification    *model.Falsification `json:"falsification"`
 	EvidenceGaps     []model.EvidenceGap  `json:"evidenceGaps"`
 	KnownUnknowns    []string             `json:"knownUnknowns"`
+	RootCauseSources []model.RootCauseRef `json:"rootCauseSources"`
 	RecommendedOwner string               `json:"recommendedOwner"`
 	ProposedFix      string               `json:"proposedFix"`
 	NodeAssessment   string               `json:"nodeAssessment"`
@@ -107,6 +108,7 @@ func (r llmResult) toClassification() (model.Classification, error) {
 		Falsification:    nilIfEmpty(r.Falsification),
 		EvidenceGaps:     r.EvidenceGaps,
 		KnownUnknowns:    r.KnownUnknowns,
+		RootCauseSources: r.RootCauseSources,
 		RecommendedOwner: r.RecommendedOwner,
 		ProposedFix:      r.ProposedFix,
 		NodeAssessment:   r.NodeAssessment,
@@ -145,7 +147,7 @@ func classificationSchema() *Schema {
 	def := `{
   "type": "object",
   "additionalProperties": false,
-  "required": ["category", "confidence", "rootCauseSummary", "finalVerdict", "topAnomaly", "failingUnit", "topEvidence", "causalChain", "symptomVsCause", "falsification", "evidenceGaps", "knownUnknowns", "recommendedOwner", "proposedFix", "nodeAssessment"],
+  "required": ["category", "confidence", "rootCauseSummary", "finalVerdict", "topAnomaly", "failingUnit", "topEvidence", "causalChain", "symptomVsCause", "falsification", "evidenceGaps", "knownUnknowns", "rootCauseSources", "recommendedOwner", "proposedFix", "nodeAssessment"],
   "properties": {
     "category": {"type": "string", "enum": ["pr_regression", "cluster_bringup_failure", "pipeline_infra_config", "known_flake", "unknown_needs_human"]},
     "confidence": {"type": "number", "minimum": 0, "maximum": 1},
@@ -207,6 +209,21 @@ func classificationSchema() *Schema {
       }
     },
     "knownUnknowns": {"type": "array", "items": {"type": "string"}},
+    "rootCauseSources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file", "line", "endLine", "snippet", "explanation"],
+        "properties": {
+          "file": {"type": "string"},
+          "line": {"type": "integer"},
+          "endLine": {"type": "integer"},
+          "snippet": {"type": "string"},
+          "explanation": {"type": "string"}
+        }
+      }
+    },
     "recommendedOwner": {"type": "string"},
     "proposedFix": {"type": "string"},
     "nodeAssessment": {"type": "string"}

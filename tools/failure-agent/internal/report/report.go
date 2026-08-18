@@ -60,6 +60,7 @@ func Build(now time.Time, rc model.RunContext, fp model.Fingerprint, c model.Cla
 		Falsification:        c.Falsification,
 		EvidenceGaps:         c.EvidenceGaps,
 		KnownUnknowns:        c.KnownUnknowns,
+		RootCauseSources:     c.RootCauseSources,
 		TopEvidence:          c.TopEvidence,
 		SignatureMatches:     matches,
 		EvidenceFiles:        ev.Files,
@@ -120,6 +121,8 @@ func RenderMarkdown(inc model.Incident) string {
 	if strings.TrimSpace(inc.FailingUnit) != "" {
 		fmt.Fprintf(&b, "**Failing unit:** %s\n\n", inc.FailingUnit)
 	}
+
+	writeRootCauseSources(&b, inc.RootCauseSources)
 
 	writeCausalChain(&b, inc.CausalChain)
 	writeSymptomVsCause(&b, inc.SymptomVsCause)
@@ -236,6 +239,30 @@ func writeFinalVerdict(b *strings.Builder, verdict string) {
 }
 
 // writeCausalChain renders the ordered, timestamped, cited cause->effect chain.
+// writeRootCauseSources renders the curated, cause-specific source pointers: the
+// exact file, line(s), and full snippet the model concluded are the root cause.
+// Unlike "### Evidence snippets" (regex-driven), these point at the actual cause.
+// Omitted entirely when the model found no artifact-grounded source.
+func writeRootCauseSources(b *strings.Builder, refs []model.RootCauseRef) {
+	if len(refs) == 0 {
+		return
+	}
+	b.WriteString("### Root cause source\n\n")
+	for _, r := range refs {
+		if r.EndLine > r.Line {
+			fmt.Fprintf(b, "**%s:%d-%d**\n\n", r.File, r.Line, r.EndLine)
+		} else {
+			fmt.Fprintf(b, "**%s:%d**\n\n", r.File, r.Line)
+		}
+		if exp := strings.TrimSpace(r.Explanation); exp != "" {
+			fmt.Fprintf(b, "%s\n\n", exp)
+		}
+		b.WriteString("```text\n")
+		b.WriteString(r.Snippet)
+		b.WriteString("\n```\n\n")
+	}
+}
+
 func writeCausalChain(b *strings.Builder, hops []model.CausalHop) {
 	if len(hops) == 0 {
 		return
