@@ -162,6 +162,48 @@ func TestRenderMarkdownRendersContractSections(t *testing.T) {
 	}
 }
 
+// TestRenderMarkdownRendersBothRootCauseSourceClasses verifies the report cites
+// the observed symptom (a collected artifact) and the responsible code (a hunk
+// from the change under test) side by side, rather than one in place of the other.
+func TestRenderMarkdownRendersBothRootCauseSourceClasses(t *testing.T) {
+	inc := Build(time.Unix(0, 0), model.RunContext{}, model.Fingerprint{Hash: "x"},
+		model.Classification{
+			Category:         model.CategoryPRRegression,
+			Confidence:       0.85,
+			RootCauseSummary: "The pod-IP route to the host veth is no longer programmed.",
+			RootCauseSources: []model.RootCauseRef{
+				{
+					File:        "network/transparent_endpointclient_linux.go",
+					Line:        157,
+					EndLine:     165,
+					Snippet:     "@@ -157,9 +157,6 @@\n-\tif err := addRoutes(client.netlink, client.netioshim, client.hostVethName, routeInfoList); err != nil {\n-\t\treturn newErrorTransparentEndpointClient(err)\n-\t}",
+					Explanation: "deleted lines: the pod-IP route to hostVeth is never added, so inbound packets have no path",
+				},
+				{
+					File:        "aks-node-1/routes.txt",
+					Line:        37,
+					EndLine:     37,
+					Snippet:     "> 37 | 10.224.0.5 dev azv1a2b3c scope link",
+					Explanation: "no route exists for the failing pod IP on any host veth",
+				},
+			},
+			Source: "llm",
+		}, nil, model.Evidence{})
+
+	md := RenderMarkdown(inc)
+	for _, want := range []string{
+		"### Root cause source",
+		"**network/transparent_endpointclient_linux.go:157-165**",
+		"@@ -157,9 +157,6 @@",
+		"**aks-node-1/routes.txt:37**",
+		"10.224.0.5 dev azv1a2b3c scope link",
+	} {
+		if !strings.Contains(md, want) {
+			t.Errorf("expected %q in markdown, got:\n%s", want, md)
+		}
+	}
+}
+
 func TestRenderMarkdownOmitsContractSectionsWhenEmpty(t *testing.T) {
 	md := RenderMarkdown(Build(time.Unix(0, 0), model.RunContext{}, model.Fingerprint{Hash: "x"}, sampleClassification(), nil, model.Evidence{}))
 	for _, unwanted := range []string{"### Final verdict", "### Causal chain", "### Symptom vs cause", "### Falsification", "### Evidence gaps", "### Known-unknowns", "### Most severe anomaly", "### Root cause source"} {

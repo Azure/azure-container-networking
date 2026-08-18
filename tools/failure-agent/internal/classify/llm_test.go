@@ -198,6 +198,8 @@ func TestSystemPromptEncodesInvestigationPolicy(t *testing.T) {
 		"failingUnit",
 		"knownUnknowns",
 		"rootCauseSources",
+		"Change-under-test locations",
+		"at least one artifact entry AND at least one change-under-test entry",
 		"~1h TTL",
 		"cross-commit/cross-stage",
 		"ANTI-PATTERNS",
