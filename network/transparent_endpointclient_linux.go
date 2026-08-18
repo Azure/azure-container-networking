@@ -136,31 +136,7 @@ func (client *TransparentEndpointClient) AddEndpoints(epInfo *EndpointInfo) erro
 	return nil
 }
 
-func (client *TransparentEndpointClient) AddEndpointRules(epInfo *EndpointInfo) error {
-	var routeInfoList []RouteInfo
-
-	// ip route add <podip> dev <hostveth>
-	// This route is needed for incoming packets to pod to route via hostveth
-	for _, ipAddr := range epInfo.IPAddresses {
-		var (
-			routeInfo RouteInfo
-			ipNet     net.IPNet
-		)
-
-		if ipAddr.IP.To4() != nil {
-			ipNet = net.IPNet{IP: ipAddr.IP, Mask: net.CIDRMask(ipv4FullMask, ipv4Bits)}
-		} else {
-			ipNet = net.IPNet{IP: ipAddr.IP, Mask: net.CIDRMask(ipv6FullMask, ipv6Bits)}
-		}
-		logger.Info("Adding route for the", zap.String("ip", ipNet.String()))
-		routeInfo.Dst = ipNet
-		routeInfoList = append(routeInfoList, routeInfo)
-	}
-
-	if err := addRoutes(client.netlink, client.netioshim, client.hostVethName, routeInfoList); err != nil {
-		return newErrorTransparentEndpointClient(err)
-	}
-
+func (client *TransparentEndpointClient) AddEndpointRules(_ *EndpointInfo) error {
 	logger.Info("calling setArpProxy for", zap.String("hostVethName", client.hostVethName))
 	if err := client.setArpProxy(client.hostVethName); err != nil {
 		logger.Error("setArpProxy failed with", zap.Error(err))

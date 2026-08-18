@@ -192,28 +192,6 @@ func TestTransAddEndpointsRules(t *testing.T) {
 			},
 			wantErr: false,
 		},
-		{
-			name: "Add endpoint rules fail",
-			client: &TransparentEndpointClient{
-				hostPrimaryIfName: "eth0",
-				hostVethName:      "azvhost",
-				containerVethName: "azvcontainer",
-				netlink:           netlink.NewMockNetlink(true, "addroute fail"),
-				plClient:          platform.NewMockExecClient(false),
-				netUtilsClient:    networkutils.NewNetworkUtils(nl, plc),
-				netioshim:         netio.NewMockNetIO(false, 0),
-			},
-			epInfo: &EndpointInfo{
-				IPAddresses: []net.IPNet{
-					{
-						IP:   net.ParseIP("192.168.0.4"),
-						Mask: net.CIDRMask(subnetv4Mask, ipv4Bits),
-					},
-				},
-			},
-			wantErr:    true,
-			wantErrMsg: "addroute fail",
-		},
 	}
 
 	for _, tt := range tests {
