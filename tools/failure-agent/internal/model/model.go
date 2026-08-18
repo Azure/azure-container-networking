@@ -104,6 +104,20 @@ type ErrorSnippet struct {
 	Snippet string `json:"snippet"`
 }
 
+// RootCauseRef pins the confirmed root cause to an exact location in a collected
+// artifact: the file, the decisive line (and optional end line for a range), and
+// the full snippet copied verbatim from the line-numbered excerpt the model was
+// given. Explanation is an optional one-line note on why this location is causal.
+// Unlike ErrorSnippet (regex-driven noise), these are curated by the model to
+// point at the actual cause.
+type RootCauseRef struct {
+	File        string `json:"file"`
+	Line        int    `json:"line"`
+	EndLine     int    `json:"endLine,omitempty"`
+	Snippet     string `json:"snippet"`
+	Explanation string `json:"explanation,omitempty"`
+}
+
 // Fingerprint is a stable identifier for a class of failure, used for
 // recurrence detection and idempotent reporting.
 type Fingerprint struct {
@@ -163,6 +177,11 @@ type Classification struct {
 	// KnownUnknowns lists unexplained anomalies or disconfirming evidence that
 	// hold the confidence down.
 	KnownUnknowns []string `json:"knownUnknowns,omitempty"`
+
+	// RootCauseSources pins the confirmed cause to exact artifact file(s), line(s),
+	// and full snippet(s). Empty when the cause is not readable in any collected
+	// artifact.
+	RootCauseSources []RootCauseRef `json:"rootCauseSources,omitempty"`
 
 	Source string `json:"source"` // "llm" or "none" when analysis failed
 }
@@ -245,6 +264,11 @@ type Incident struct {
 	Falsification  *Falsification `json:"falsification,omitempty"`
 	EvidenceGaps   []EvidenceGap  `json:"evidenceGaps,omitempty"`
 	KnownUnknowns  []string       `json:"knownUnknowns,omitempty"`
+
+	// RootCauseSources pins the confirmed cause to exact artifact file(s), line(s),
+	// and full snippet(s). Empty when the cause is not readable in any collected
+	// artifact.
+	RootCauseSources []RootCauseRef `json:"rootCauseSources,omitempty"`
 
 	TopEvidence      []string         `json:"topEvidence"`
 	SignatureMatches []SignatureMatch `json:"signatureMatches"`

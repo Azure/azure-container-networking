@@ -118,7 +118,16 @@ func TestRenderMarkdownRendersContractSections(t *testing.T) {
 				{Missing: "literal dpkg error", WhereItLives: "expired k8s event", WhyMissing: "events ~1h TTL", HowToCapture: "kubectl logs <pod> -c init-package-installer --previous"},
 			},
 			KnownUnknowns: []string{"exact failing .deb postinst step not captured"},
-			Source:        "llm",
+			RootCauseSources: []model.RootCauseRef{
+				{
+					File:        "bad-pod-describe.txt",
+					Line:        1048,
+					EndLine:     1048,
+					Snippet:     "  1045 | echo \"ERROR: install-packages.sh failed with exit code $install_rc\"\n> 1048 | exit $install_rc",
+					Explanation: "the init script exits with the installer's non-zero code, crashlooping the pod",
+				},
+			},
+			Source: "llm",
 		}, nil, model.Evidence{})
 
 	md := RenderMarkdown(inc)
@@ -128,6 +137,9 @@ func TestRenderMarkdownRendersContractSections(t *testing.T) {
 		"```text",
 		"| Pod | Stage | Image |",
 		"### Most severe anomaly",
+		"### Root cause source",
+		"**bad-pod-describe.txt:1048**",
+		"exit $install_rc",
 		"### Causal chain",
 		"### Symptom vs cause",
 		"### Falsification",
@@ -152,7 +164,7 @@ func TestRenderMarkdownRendersContractSections(t *testing.T) {
 
 func TestRenderMarkdownOmitsContractSectionsWhenEmpty(t *testing.T) {
 	md := RenderMarkdown(Build(time.Unix(0, 0), model.RunContext{}, model.Fingerprint{Hash: "x"}, sampleClassification(), nil, model.Evidence{}))
-	for _, unwanted := range []string{"### Final verdict", "### Causal chain", "### Symptom vs cause", "### Falsification", "### Evidence gaps", "### Known-unknowns", "### Most severe anomaly"} {
+	for _, unwanted := range []string{"### Final verdict", "### Causal chain", "### Symptom vs cause", "### Falsification", "### Evidence gaps", "### Known-unknowns", "### Most severe anomaly", "### Root cause source"} {
 		if strings.Contains(md, unwanted) {
 			t.Errorf("did not expect %q when contract fields are empty", unwanted)
 		}
