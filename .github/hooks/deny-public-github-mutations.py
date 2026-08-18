@@ -69,7 +69,7 @@ MCP_AUTHORSHIP_PATTERN = re.compile(
     r"(?:add|create|delete|dismiss|edit|resolve|submit|unresolve|update)"
     r".*(?:comment|reaction|review|thread)"
     r"|(?:close|edit|lock|reopen|unlock|update)_(?:issue|pull_request)"
-    r"|create_issue"
+    r"|create_(?:issue|pull_request)"
     r")",
     re.IGNORECASE,
 )
@@ -96,6 +96,7 @@ BLOCKED_GH_ACTIONS = {
     "pr": {
         "close",
         "comment",
+        "create",
         "edit",
         "lock",
         "ready",
@@ -148,24 +149,27 @@ def allow() -> None:
     print("{}")
 
 
-def shell_tokens(command: str) -> list[str]:
+def shell_tokens(command: str) -> list[str] | None:
     try:
         lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()")
         lexer.whitespace_split = True
         lexer.commenters = ""
         return list(lexer)
     except ValueError:
-        return []
+        return None
 
 
 def gh_authorship_denied(command: str) -> bool:
     tokens = shell_tokens(command)
+    if tokens is None:
+        return True
+
     for index, token in enumerate(tokens):
         if token.rsplit("/", 1)[-1].lower() not in {"gh", "gh.exe", "hub", "hub.exe"}:
             continue
         segment: list[str] = []
         for candidate in tokens[index + 1 :]:
-            if candidate in {";", "&&", "||", "|", "(", ")"}:
+            if candidate in {";", "&&", "||", "|", "&", "(", ")"}:
                 break
             segment.append(candidate.lower())
 
@@ -230,7 +234,7 @@ def tool_denied(tool_name: str, tool_args: Any) -> bool:
 def evaluate(payload: dict[str, Any]) -> bool:
     tool_name = payload.get("toolName", payload.get("tool_name", ""))
     tool_args = payload.get("toolArgs", payload.get("tool_input"))
-    if not isinstance(tool_name, str):
+    if not isinstance(tool_name, str) or not tool_name.strip():
         return True
     return tool_denied(tool_name, tool_args)
 
@@ -238,7 +242,9 @@ def evaluate(payload: dict[str, Any]) -> bool:
 def self_test() -> None:
     denied = [
         {"toolName": "bash", "toolArgs": {"command": "gh pr comment 1 -b x"}},
+        {"toolName": "bash", "toolArgs": {"command": "gh pr create --fill"}},
         {"toolName": "bash", "toolArgs": {"command": "gh issue create -t x -b y"}},
+        {"toolName": "bash", "toolArgs": {"command": "gh pr view 'unterminated"}},
         {
             "toolName": "bash",
             "toolArgs": {"command": "gh pr review 1 --approve"},
@@ -257,7 +263,11 @@ def self_test() -> None:
             },
         },
         {"toolName": "github-mcp-server.add_issue_comment", "toolArgs": {}},
+        {"toolName": "github-mcp-server.create_pull_request", "toolArgs": {}},
         {"toolName": "github-mcp-server.create_pull_request_review", "toolArgs": {}},
+        {"toolArgs": {}},
+        {"toolName": "", "toolArgs": {}},
+        {"toolName": "  ", "toolArgs": {}},
         {
             "toolName": "apply_patch",
             "toolArgs": {
@@ -308,10 +318,12 @@ def self_test() -> None:
         {"toolName": "bash", "toolArgs": {"command": "git fetch origin main"}},
         {"toolName": "bash", "toolArgs": {"command": "git push origin HEAD"}},
         {"toolName": "bash", "toolArgs": {"command": "gh pr view 1"}},
-        {"toolName": "bash", "toolArgs": {"command": "gh pr create --fill"}},
+        {
+            "toolName": "bash",
+            "toolArgs": {"command": "gh pr view 1 & echo comment"},
+        },
         {"toolName": "bash", "toolArgs": {"command": "gh workflow run ci.yml"}},
         {"toolName": "github-mcp-server.get_pull_request", "toolArgs": {}},
-        {"toolName": "github-mcp-server.create_pull_request", "toolArgs": {}},
         {
             "toolName": "bash",
             "toolArgs": {"command": "curl https://api.github.com/repos/o/r"},
