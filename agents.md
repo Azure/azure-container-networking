@@ -102,10 +102,11 @@ or issue text/metadata. Draft the exact text for a human maintainer instead.
 Keep read-only GitHub capabilities available. Read-only `gh`, API, MCP, and web
 research is allowed.
 
-Code publishing actions (including `git push` and pull request creation) and
-workflow/release mutations are allowed only when the current user task
-explicitly requests that public action. Do not infer authorization from a
-general request to implement, fix, review, or validate code.
+Branch pushes are allowed and are not a public communication surface. Pull
+request creation and workflow/release mutations are allowed only when the
+current user task explicitly requests that public action. Do not infer
+authorization from a general request to implement, fix, review, or validate
+code.
 
 ## 6. PR Workflow
 
@@ -120,11 +121,12 @@ git worktree add -b "$BRANCH" "$WT" origin/master
 cd "$WT"                                # then run all subsequent commands here
 ```
 
-Run all edits, builds, tests, and local commits from inside `$WT`. Unless the
-current task explicitly requests publishing, stop before push, PR creation, or
-workflow/release mutation and provide the maintainer with the exact commands.
-Always stop before public comments, replies, reviews, thread resolution, or
-PR/issue text edits; those remain human-only even when publishing is requested.
+Run all edits, builds, tests, local commits, and branch pushes from inside `$WT`.
+Unless the current task explicitly requests publishing beyond a branch push,
+stop before PR creation or workflow/release mutation and provide the maintainer
+with the exact commands. Always stop before public comments, replies, reviews,
+thread resolution, or PR/issue text edits; those remain human-only even when
+publishing is requested.
 After the maintainer confirms that the work was merged or abandoned, prune with
 `git worktree remove "$WT"` and `git branch -D "$BRANCH"`. The shared root is
 read-only — only use it for inspection (e.g. `git worktree list`, `git fetch`),

@@ -3,8 +3,9 @@ Use all `agents.md` files found from the repository root to the current director
 Public authorship is human-owned. Copilot and all other AI agents must never
 comment, reply, review, react, resolve threads, or edit/close/reopen public
 PR/issue text or metadata. Draft text for a human maintainer instead. Read-only
-GitHub access remains allowed. Pushes, PR creation, and workflow/release actions
-are allowed only when the current user task explicitly requests that action.
+GitHub access remains allowed. Branch pushes are allowed. PR creation and
+workflow/release actions are allowed only when the current user task explicitly
+requests that action.
 
 # Copilot Instructions for Azure Container Networking
 
