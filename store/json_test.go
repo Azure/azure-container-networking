@@ -190,13 +190,12 @@ func TestFailedOverwriteRestoresPreviousValue(t *testing.T) {
 
 	require.NoError(t, kvs.Write(testKey1, &testType1{"original", 1}))
 
-	// Make the directory unwritable so the temp-file flush fails.
-	require.NoError(t, os.Chmod(storeDir, 0o500))
-	t.Cleanup(func() { _ = os.Chmod(storeDir, 0o700) })
+	// Remove the directory so the temp-file flush fails even when tests run as root.
+	require.NoError(t, os.RemoveAll(storeDir))
 
 	require.Error(t, kvs.Write(testKey1, &testType1{"rejected", 2}))
 
-	require.NoError(t, os.Chmod(storeDir, 0o700))
+	require.NoError(t, os.MkdirAll(storeDir, 0o700))
 	require.NoError(t, kvs.Write(testKey2, &testType1{"later", 3}))
 
 	reloaded, err := NewJsonFileStore(storePath, processlock.NewMockFileLock(false), nil)
