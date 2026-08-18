@@ -366,6 +366,13 @@ func (client *TransparentTunnelEndpointClient) deleteTransparentTunnelRules(ep *
 
 	markMatch := "-i " + hostVeth
 	markTarget := "MARK --set-mark " + markStr
+	// Without a veth name the match would be "-i " and iptables would reject it, so
+	// the rule is left in place rather than issuing a malformed delete.
+	if hostVeth == "" {
+		logger.Warn("transparent-tunnel: no host veth name, skipping fwmark MARK rule delete",
+			zap.String("endpointID", ep.Id))
+		return stderrors.Join(errs...)
+	}
 	// A missing rule is success here: DEL can run after a partial ADD, or be
 	// retried after a DEL that already removed it. Every other iptables failure
 	// (permissions, xtables lock contention) is collected and returned.

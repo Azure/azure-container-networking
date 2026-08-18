@@ -713,6 +713,24 @@ func TestTransparentTunnelDeleteEndpointRules(t *testing.T) {
 		assert.Len(t, iptMock.deleteCalls, 1, "tunnel MARK rule cleanup must run via the interface")
 		assert.Equal(t, 0, ipsetMock.countOps("destroy"), "should not destroy shared ipset")
 	})
+
+	// The host veth name is unavailable when the endpoint is rebuilt from a netns
+	// whose peer index could not be resolved. Deleting on "-i " would be rejected by
+	// iptables, so the ipset entry is still removed and the MARK rule is left alone.
+	t.Run("skips the MARK rule when the host veth name is unknown", func(t *testing.T) {
+		nlMock := &transparentTunnelMockNlClient{}
+		iptMock := &transparentTunnelMockIPTablesClient{}
+		ipsetMock := &transparentTunnelMockIpsetClient{}
+		client := makeClient(nlMock, iptMock, ipsetMock)
+
+		ep := makeEndpoint()
+		ep.HostIfName = ""
+
+		require.NoError(t, client.DeleteEndpointRules(ep))
+
+		assert.Equal(t, 1, ipsetMock.countOps("del"), "pod ip must still be removed from the ipset")
+		assert.Empty(t, iptMock.deleteCalls, "must not issue a delete with an empty interface match")
+	})
 }
 
 func TestGetTunnelGateway(t *testing.T) {
