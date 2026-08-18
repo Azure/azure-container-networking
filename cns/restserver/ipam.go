@@ -1057,6 +1057,41 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 		}
 	}
 
+	// Under sustained pod churn the pool can end up fully marked Assigned while some
+	// of those addresses belong to pods that have already gone away, so provisioning
+	// fails with "not enough IPs available" until the next NNC sync reclaims them.
+	// Fall back to reclaiming an Assigned address rather than blocking pod creation
+	// on that sync. PendingProgramming/PendingRelease are deliberately excluded:
+	// those are mid-transition in the dataplane and are not safe to hand out.
+	if len(ipsToAssign) != numberOfIPs {
+		for _, ipState := range service.PodIPConfigState {
+			var ipStateFamily cns.IPFamily = cns.IPv4
+
+			if ipAddr, err := netip.ParseAddr(ipState.IPAddress); err == nil && ipAddr.Is6() {
+				ipStateFamily = cns.IPv6
+			}
+
+			key := generateAssignedIPKey(ipState.NCID, ipStateFamily)
+
+			if _, ncIPFamilyAlreadyMarkedForAssignment := ipsToAssign[key]; ncIPFamilyAlreadyMarkedForAssignment {
+				continue
+			}
+			if ipState.GetState() != types.Assigned {
+				continue
+			}
+			priorOwner := "<unknown>"
+			if ipState.PodInfo != nil {
+				priorOwner = fmt.Sprintf("%s/%s", ipState.PodInfo.Namespace(), ipState.PodInfo.Name())
+			}
+			logger.Errorf("[AssignAvailableIPConfigs] Pool exhausted for %s: cannot find an Available IP config, reassigning IP %s from pod %s (still marked Assigned) to pod %s/%s",
+				key, ipState.IPAddress, priorOwner, podInfo.Namespace(), podInfo.Name())
+			ipsToAssign[key] = ipState
+			if len(ipsToAssign) == numberOfIPs {
+				break
+			}
+		}
+	}
+
 	// Checks to make sure we found one IP for each NCxIPFamily
 	if len(ipsToAssign) != numberOfIPs {
 		for ncID := range service.state.ContainerStatus {
