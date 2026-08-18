@@ -1,6 +1,7 @@
 package collect
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -169,6 +170,61 @@ func writeFile(t *testing.T, dir, name, content string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
 		t.Fatalf("writing %s: %v", name, err)
+	}
+}
+
+// TestParseEvidenceDrawsErrorLinesAcrossFiles pins the round-robin draw. The walk
+// is lexical, so a node's containerd journal (1000 lines) is read before the CNS
+// log and before the captured task logs; taken in walk order it fills the whole
+// budget and the decisive lines never appear.
+func TestParseEvidenceDrawsErrorLinesAcrossFiles(t *testing.T) {
+	dir := t.TempDir()
+
+	var noisy strings.Builder
+	for i := 0; i < 200; i++ {
+		fmt.Fprintf(&noisy, "containerd error %d: failed to handle event\n", i)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "aks-node_logs", "containerd-output"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "aks-node_logs", "log-output"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	writeFile(t, filepath.Join(dir, "aks-node_logs", "containerd-output"), "containerd.log", noisy.String())
+	writeFile(t, filepath.Join(dir, "aks-node_logs", "log-output"), "azure-cns.log",
+		"[releaseIPConfigs] Failed to release IP 10.244.1.9 for pod default/pod-z error: not found\n")
+
+	ev, err := ParseEvidence(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(strings.Join(ev.TopErrorLines, "\n"), "Failed to release IP") {
+		t.Errorf("CNS release failure was crowded out of the error-line budget: %v", ev.TopErrorLines)
+	}
+}
+
+// TestParseEvidenceKeepsAssertionExcerptPastCap pins that the captured task log,
+// which carries the only copy of the test's assertion text, is not dropped when
+// the lexically-earlier per-node files have already filled the excerpt cap.
+func TestParseEvidenceKeepsAssertionExcerptPastCap(t *testing.T) {
+	dir := t.TempDir()
+	for i := 0; i < maxExcerptFiles+5; i++ {
+		writeFile(t, dir, fmt.Sprintf("aaa-filler-%02d.log", i), "error: filler\n")
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "e2e-task-logs"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	writeFile(t, filepath.Join(dir, "e2e-task-logs"), "Validate_Node_Restart_1234.txt",
+		"State file validation failed: Remaining, potentially leaked, IP(s) on state file - map[10.244.1.9:pod-z]\n")
+
+	ev, err := ParseEvidence(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if _, ok := ev.Excerpts["e2e-task-logs/Validate_Node_Restart_1234.txt"]; !ok {
+		t.Error("assertion task log was dropped by the excerpt cap")
 	}
 }
 

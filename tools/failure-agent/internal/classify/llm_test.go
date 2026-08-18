@@ -93,6 +93,38 @@ func TestWriteExcerptsPrioritizesDatapathEvidence(t *testing.T) {
 	}
 }
 
+// TestWriteExcerptsReservesBudgetForAssertion pins the tier reservation. The
+// assertion text lives only in the captured task log, while node evidence is two
+// full `kubectl describe nodes` dumps plus every cluster event. Emitted in
+// priority order on a single shared budget, node evidence alone exceeds it and
+// the failure the run actually reported never reaches the model.
+func TestWriteExcerptsReservesBudgetForAssertion(t *testing.T) {
+	filler := strings.Repeat("x", maxExcerptChars)
+	excerpts := map[string]string{
+		"live/nodes":               filler,
+		"live/node-conditions":     filler,
+		"live/node-events":         filler,
+		"live/events":              filler,
+		"node-status.txt":          filler,
+		"node-network-configs.txt": filler,
+		"e2e-task-logs/Validate_Node_Restart_1234.txt":          "Remaining, potentially leaked, IP(s) on state file - map[10.244.1.9:pod-z]",
+		"aks-nodepool1-vmss000000_logs/CNS-output/cnsCache.txt": "10.244.1.9 Assigned",
+	}
+	var b strings.Builder
+	writeExcerpts(&b, excerpts)
+	out := b.String()
+
+	if !strings.Contains(out, "Remaining, potentially leaked") {
+		t.Error("expected the E2E assertion text to survive the excerpt budget")
+	}
+	if !strings.Contains(out, "CNS-output/cnsCache.txt") {
+		t.Error("expected CNS IPAM state to survive the excerpt budget")
+	}
+	if !strings.Contains(out, "live/nodes") {
+		t.Error("expected node evidence to still be represented")
+	}
+}
+
 func TestLLMClassifierValidResponse(t *testing.T) {
 	fc := &fakeCompleter{response: `{
 		"category": "pr_regression",
