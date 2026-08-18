@@ -16,6 +16,7 @@ import (
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/ovsctl"
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -323,7 +324,7 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 	//nolint:errcheck // ignore error
 	epClient.DeleteEndpoints(ep)
 
-	return rulesErr
+	return errors.Wrap(rulesErr, "failed to delete endpoint rules")
 }
 
 // getInfoImpl returns information about the endpoint.
