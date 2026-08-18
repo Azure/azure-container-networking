@@ -1,6 +1,7 @@
 package network
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -1912,6 +1913,80 @@ func TestWireServerAddressForEnv(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.expected, wireServerAddressForEnv(tt.env))
+		})
+	}
+}
+
+var errNetnsGone = errors.New("no such file or directory")
+
+// When CNS is unreachable, a stateless DEL gets no endpoint state back and would
+// otherwise return early without deleting anything, orphaning host state that is
+// keyed by pod IP or host veth name rather than by the departing interface.
+func TestPluginStatelessDeleteReconstructsFromNetns(t *testing.T) {
+	reconstructed := &acnnetwork.EndpointInfo{
+		EndpointID:  "test-container",
+		IfName:      eth0IfName,
+		HostIfName:  "azv768e8de",
+		IPAddresses: []net.IPNet{{IP: net.ParseIP("10.0.0.5"), Mask: net.CIDRMask(24, 32)}},
+	}
+
+	tests := []struct {
+		name                 string
+		getEndpointStateErr  error
+		netnsEndpointInfo    *acnnetwork.EndpointInfo
+		netnsEndpointInfoErr error
+		wantDeleted          bool
+	}{
+		{
+			name:                "cns unreachable falls back to the netns for endpoint state",
+			getEndpointStateErr: acnnetwork.ErrConnectionFailure,
+			netnsEndpointInfo:   reconstructed,
+			wantDeleted:         true,
+		},
+		{
+			name:                 "cns unreachable and netns gone still succeeds without deleting",
+			getEndpointStateErr:  acnnetwork.ErrConnectionFailure,
+			netnsEndpointInfoErr: errNetnsGone,
+			wantDeleted:          false,
+		},
+		{
+			name:                "endpoint genuinely absent does not consult the netns",
+			getEndpointStateErr: acnnetwork.ErrEndpointStateNotFound,
+			netnsEndpointInfo:   reconstructed,
+			wantDeleted:         false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			plugin := GetTestResources()
+			mockNM, ok := plugin.nm.(*acnnetwork.MockNetworkManager)
+			require.True(t, ok)
+			mockNM.StatelessCNIMode = true
+			mockNM.GetEndpointStateErr = tt.getEndpointStateErr
+			mockNM.NetnsEndpointInfo = tt.netnsEndpointInfo
+			mockNM.NetnsEndpointInfoErr = tt.netnsEndpointInfoErr
+
+			args := &cniSkel.CmdArgs{
+				StdinData:   nwCfg.Serialize(),
+				ContainerID: "test-container",
+				Netns:       "/var/run/netns/test-container",
+				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
+				IfName:      eth0IfName,
+			}
+
+			require.NoError(t, plugin.Delete(args))
+
+			if !tt.wantDeleted {
+				require.Empty(t, mockNM.DeletedEndpointInfos)
+				return
+			}
+
+			require.Len(t, mockNM.DeletedEndpointInfos, 1)
+			deleted := mockNM.DeletedEndpointInfos[0]
+			require.Equal(t, "azv768e8de", deleted.HostIfName)
+			require.Len(t, deleted.IPAddresses, 1)
+			require.Equal(t, "10.0.0.5", deleted.IPAddresses[0].IP.String())
 		})
 	}
 }

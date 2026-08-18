@@ -1155,6 +1155,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	logger.Info("Retrieved network info, populating endpoint infos with container id", zap.String("containerID", args.ContainerID))
 
 	var epInfos []*network.EndpointInfo
+	cnsUnreachable := false
 	if plugin.nm.IsStatelessCNIMode() {
 		// network ID is passed in and used only for migration
 		// otherwise, in stateless, we don't need the network id for deletion
@@ -1165,6 +1166,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 			logger.Error("Get Endpoint State API returned error", zap.String("containerID", args.ContainerID), zap.Error(err))
 			return plugin.RetriableError(fmt.Errorf("failed to delete endpoint: %w", err))
 		}
+		cnsUnreachable = errors.Is(err, network.ErrConnectionFailure)
 		// set the error to nil if endpoint state is not found or connection failure to CNS;
 		// the next if block (len(epInfos) == 0) will handle that ip release if necessary
 		err = nil
@@ -1177,6 +1179,13 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	// if there is a connection failure to CNS, IP release will be handled asynchronously by the CNS invoker (via ipamInvoker.Delete)
 	if len(epInfos) == 0 {
 		endpointID := plugin.nm.GetEndpointID(args.ContainerID, args.IfName)
+		// An unreachable CNS is not the same as an absent endpoint: host state may
+		// still be programmed for this pod, and retrying does not help because CNS
+		// drops endpoint state asynchronously once it recovers. Clean up from the
+		// pod netns instead, which needs no CNS round trip.
+		if cnsUnreachable {
+			plugin.deleteEndpointFromNetns(args, networkID, endpointID, nwCfg.Mode)
+		}
 		if !nwCfg.MultiTenancy {
 			logger.Warn("Could not query endpoint",
 				zap.String("endpoint", endpointID),
@@ -1248,6 +1257,35 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	}
 
 	return err
+}
+
+// deleteEndpointFromNetns removes host state for a pod whose endpoint could not be
+// read from CNS, reconstructing what deletion needs from the pod network namespace.
+//
+// Most per-pod host state is owned by the veth and disappears with the netns when
+// the runtime tears the sandbox down. State keyed by pod IP or host veth name does
+// not: nothing references the departing interface, so it is orphaned on the node.
+//
+// Failures are logged rather than returned. There is nothing left to retry against
+// once the sandbox is gone, and failing here would leave the pod in Terminating.
+func (plugin *NetPlugin) deleteEndpointFromNetns(args *cniSkel.CmdArgs, networkID, endpointID, mode string) {
+	epInfo, err := plugin.nm.GetEndpointInfoFromNetns(endpointID, args.Netns, args.IfName)
+	if err != nil {
+		logger.Warn("Could not reconstruct endpoint from netns, host state may be left behind",
+			zap.String("containerID", args.ContainerID),
+			zap.String("netns", args.Netns),
+			zap.Error(err))
+		return
+	}
+
+	logger.Info("Reconstructed endpoint from netns, deleting host state",
+		zap.String("endpointID", endpointID),
+		zap.String("hostIfName", epInfo.HostIfName))
+
+	if err := plugin.nm.DeleteEndpoint(networkID, endpointID, epInfo, mode); err != nil {
+		logger.Error("Failed to delete host state for reconstructed endpoint",
+			zap.String("endpointID", endpointID), zap.Error(err))
+	}
 }
 
 // Update handles CNI update commands.

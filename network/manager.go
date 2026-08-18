@@ -121,6 +121,9 @@ type NetworkManager interface {
 	DeleteState(epInfos []*EndpointInfo) error
 	GetEndpointInfosFromContainerID(containerID string) []*EndpointInfo
 	GetEndpointState(networkID, containerID, netns string) ([]*EndpointInfo, error)
+	// GetEndpointInfoFromNetns rebuilds a minimal EndpointInfo by reading the pod
+	// network namespace, for deletes that cannot consult CNS.
+	GetEndpointInfoFromNetns(endpointID, netnsPath, ifName string) (*EndpointInfo, error)
 	GetEndpointIDByNicType(containerID, ifName string, nicType cns.NICType) string
 }
 
