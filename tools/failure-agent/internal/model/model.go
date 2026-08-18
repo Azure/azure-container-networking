@@ -74,6 +74,11 @@ type RunContext struct {
 	SourceCommitID    string   `json:"sourceCommitId,omitempty"`
 	CommitID          string   `json:"commitId,omitempty"`
 	ChangedFiles      []string `json:"changedFiles,omitempty"`
+	// Diff is the unified diff of the change under test. It grounds the
+	// code-correlation half of the pr_regression check: without it, breadth of
+	// failure is the only available signal and a regression in a shared component
+	// (which fails every stage that exercises it) is easily misread as infra.
+	Diff string `json:"-"`
 
 	// Scenario identity.
 	ClusterName string `json:"clusterName,omitempty"`

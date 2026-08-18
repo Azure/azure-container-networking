@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/model"
 )
 
 func TestFromEnvMapsFields(t *testing.T) {
@@ -167,5 +169,73 @@ func writeFile(t *testing.T, dir, name, content string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
 		t.Fatalf("writing %s: %v", name, err)
+	}
+}
+
+func TestLoadChangeContextExtractsFilesAndBody(t *testing.T) {
+	diff := "diff --git a/cns/restserver/ipam.go b/cns/restserver/ipam.go\n" +
+		"index 1111111..2222222 100644\n" +
+		"--- a/cns/restserver/ipam.go\n" +
+		"+++ b/cns/restserver/ipam.go\n" +
+		"@@ -1047,7 +1047,7 @@\n" +
+		"-		if ipState.GetState() != types.Available {\n" +
+		"+		if ipState.GetState() != types.Available && !reuseExhausted {\n" +
+		"diff --git a/cns/restserver/ipam_test.go b/cns/restserver/ipam_test.go\n" +
+		"--- a/cns/restserver/ipam_test.go\n" +
+		"+++ b/cns/restserver/ipam_test.go\n" +
+		"@@ -1 +1 @@\n" +
+		"-old\n" +
+		"+new\n"
+
+	path := filepath.Join(t.TempDir(), "change.diff")
+	if err := os.WriteFile(path, []byte(diff), 0o600); err != nil {
+		t.Fatalf("writing diff: %v", err)
+	}
+
+	var rc model.RunContext
+	if err := LoadChangeContext(&rc, path); err != nil {
+		t.Fatalf("LoadChangeContext: %v", err)
+	}
+
+	want := []string{"cns/restserver/ipam.go", "cns/restserver/ipam_test.go"}
+	if strings.Join(rc.ChangedFiles, ",") != strings.Join(want, ",") {
+		t.Errorf("changed files = %v, want %v", rc.ChangedFiles, want)
+	}
+	if !strings.Contains(rc.Diff, "types.Available") {
+		t.Error("diff body was not retained")
+	}
+}
+
+func TestLoadChangeContextEmptyDiffIsNotAnError(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "change.diff")
+	if err := os.WriteFile(path, []byte("   \n"), 0o600); err != nil {
+		t.Fatalf("writing diff: %v", err)
+	}
+
+	var rc model.RunContext
+	if err := LoadChangeContext(&rc, path); err != nil {
+		t.Fatalf("LoadChangeContext on empty diff: %v", err)
+	}
+	if len(rc.ChangedFiles) != 0 || rc.Diff != "" {
+		t.Errorf("expected no change context, got files=%v diff=%q", rc.ChangedFiles, rc.Diff)
+	}
+}
+
+func TestLoadChangeContextTruncatesLargeDiff(t *testing.T) {
+	body := "+++ b/big.go\n" + strings.Repeat("+line of change\n", 20000)
+	path := filepath.Join(t.TempDir(), "change.diff")
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatalf("writing diff: %v", err)
+	}
+
+	var rc model.RunContext
+	if err := LoadChangeContext(&rc, path); err != nil {
+		t.Fatalf("LoadChangeContext: %v", err)
+	}
+	if len(rc.Diff) > maxDiffChars+64 {
+		t.Errorf("diff not truncated: %d bytes", len(rc.Diff))
+	}
+	if !strings.Contains(rc.Diff, "diff truncated") {
+		t.Error("expected a truncation marker")
 	}
 }
