@@ -970,12 +970,12 @@ test-k8se2e-only: ## Run k8s network conformance test, use TYPE=basic for only d
 ##@ Utilities
 
 dockerfiles: renderkit ## Render all Dockerfile templates with current state of world
-	@make -f build/images.mk render PATH=cns
-	@make -f build/images.mk render PATH=cni
-	@make -f build/images.mk render PATH=azure-ipam
-	@make -f build/images.mk render PATH=azure-ip-masq-merger
-	@make -f build/images.mk render PATH=azure-iptables-monitor
-	@make -f build/images.mk render PATH=cilium-log-collector
+	@make -f build/images.mk render IMAGE_PATH=cns
+	@make -f build/images.mk render IMAGE_PATH=cni
+	@make -f build/images.mk render IMAGE_PATH=azure-ipam
+	@make -f build/images.mk render IMAGE_PATH=azure-ip-masq-merger
+	@make -f build/images.mk render IMAGE_PATH=azure-iptables-monitor
+	@make -f build/images.mk render IMAGE_PATH=cilium-log-collector
 
 cilium-versions: ## Update cilium-family image tags in hack/aks/deploy.mk to newest MCR tags (override minor with MINOR=1.18)
 	@hack/scripts/update-cilium-versions.sh $(if $(MINOR),--minor $(MINOR))
