@@ -4,6 +4,20 @@ Transparent-tunnel is a Linux Azure CNI mode that keeps the existing transparent
 endpoint setup and adds a small set of kernel rules so same-node pod-to-pod
 traffic reaches Azure VFP for NSG / ASG enforcement.
 
+## Deployment model
+
+Transparent-tunnel runs as **stateful CNI** with **`azure-vnet-ipam`** as the IP
+provider, as declared in `cni/azure-linux-transparent-tunnel.conflist`. CNS is
+not in the path: addresses come from `azure-vnet-ipam` rather than
+`azure-cns`, and endpoint state is persisted by CNI itself rather than read
+back from CNS.
+
+This matters for deletion. Because the host veth name and pod IP are restored
+from CNI's own state store, DEL can always remove the ipset entry and the
+mangle MARK rule, and it does not depend on CNS being reachable. The stateless
+CNI path (the separate `azure-vnet-stateless` binary, which sources endpoint
+state from CNS) is not used by this mode.
+
 ## Problem
 
 In transparent mode, same-node pod-to-pod packets stay in the host Linux

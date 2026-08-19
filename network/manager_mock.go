@@ -11,11 +11,6 @@ type MockNetworkManager struct {
 	TestEndpointInfoMap map[string]*EndpointInfo
 	TestEndpointClient  *MockEndpointClient
 	SaveStateMap        map[string]*endpoint
-	// StatelessCNIMode drives IsStatelessCNIMode. Defaults to false so existing
-	// tests keep the previous hardcoded behavior.
-	StatelessCNIMode bool
-	// GetEndpointStateErr, when non-nil, is returned from GetEndpointState.
-	GetEndpointStateErr error
 }
 
 // NewMockNetworkmanager returns a new mock
@@ -84,7 +79,7 @@ func (nm *MockNetworkManager) SetStatelessCNIMode() error {
 
 // IsStatelessCNIMode checks if the Stateless CNI mode has been enabled or not
 func (nm *MockNetworkManager) IsStatelessCNIMode() bool {
-	return nm.StatelessCNIMode
+	return false
 }
 
 // GetEndpointID returns the ContainerID value
@@ -214,7 +209,7 @@ func (nm *MockNetworkManager) GetEndpointInfosFromContainerID(containerID string
 }
 
 func (nm *MockNetworkManager) GetEndpointState(_, _, _ string) ([]*EndpointInfo, error) {
-	return []*EndpointInfo{}, nm.GetEndpointStateErr
+	return []*EndpointInfo{}, nil
 }
 
 // GetEndpointIDByNicType returns a unique endpoint ID based on the CNI mode and NIC type.

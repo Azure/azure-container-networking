@@ -702,6 +702,7 @@ func sortInfraNICFirst(epInfos []*network.EndpointInfo) {
 	})
 }
 
+
 func (plugin *NetPlugin) findMasterInterface(opt *createEpInfoOpt) string {
 	switch opt.ifInfo.NICType {
 	case cns.InfraNIC:
