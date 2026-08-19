@@ -567,6 +567,12 @@ func main() {
 		}
 	}
 	configuration.SetCNSConfigDefaults(cnsconfig)
+	err = cnsconfig.ValidateStateStore()
+	if err != nil {
+		//nolint:staticcheck // SA1019 preserve logging before logger v2 configuration is available
+		logger.Errorf("fatal: invalid CNS state store configuration: %v", err)
+		os.Exit(1)
+	}
 
 	disableTelemetry := cnsconfig.TelemetrySettings.DisableAll
 	if !disableTelemetry {
