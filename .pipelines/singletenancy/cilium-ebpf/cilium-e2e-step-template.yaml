@@ -24,7 +24,10 @@ steps:
       IPAM=${AZURE_IPAM_VERSION:-$(make azure-ipam-version)}
       CNS=${CNS_VERSION:-$(make cns-version)}
       sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true INSTALL_AZILIUM=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CLEANUP=true
-    retryCountOnTaskFailure: 3
+    # No retry: an IP-assignment defect reproduces intermittently, and a passing
+    # retry marks the job Succeeded, which skips failedE2ELogs and therefore the
+    # failure analysis that depends on it.
+    retryCountOnTaskFailure: 0
     name: "aziliumTest"
     displayName: "Run Azilium E2E"
 
