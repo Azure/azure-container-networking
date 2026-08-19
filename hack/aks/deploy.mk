@@ -7,6 +7,7 @@ IPV6_IMAGE_REGISTRY						?= mcr.microsoft.com/containernetworking
 IPV6_HP_BPF_VERSION               		?= v0.0.1
 CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY 	?= mcr.microsoft.com/containernetworking
 CILIUM_LOG_COLLECTOR_VERSION_TAG 		?= v0.0.2-0
+CILIUM_LOG_COLLECTOR_IMAGE				?= $(CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY)/cilium-log-collector:$(CILIUM_LOG_COLLECTOR_VERSION_TAG)
 CILIUM_NIGHTLY_VERSION_TAG 				?= cilium-nightly-pipeline
 WAIT_FOR_CILIUM						?= true
 
@@ -19,8 +20,10 @@ IPV6_IMAGE_REGISTRY           			?= mcr.microsoft.com/containernetworking
 EBPF_CILIUM_VERSION_TAG               	?= v1.18.11-260622
 AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY	?= mcr.microsoft.com/containernetworking
 AZURE_IPTABLES_MONITOR_TAG          	?= v0.0.5-0
+AZURE_IPTABLES_MONITOR_IMAGE			?= $(AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY)/azure-iptables-monitor:$(AZURE_IPTABLES_MONITOR_TAG)
 AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY		?= mcr.microsoft.com/containernetworking
 AZURE_IP_MASQ_MERGER_TAG            	?= v0.0.1-0
+AZURE_IP_MASQ_MERGER_IMAGE				?= $(AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY)/azure-ip-masq-merger:$(AZURE_IP_MASQ_MERGER_TAG)
 
 # so we can use in envsubst
 export IPV6_IMAGE_REGISTRY
@@ -29,13 +32,16 @@ export CILIUM_VERSION_TAG
 export CILIUM_IMAGE_REGISTRY
 export CILIUM_LOG_COLLECTOR_VERSION_TAG
 export CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY
+export CILIUM_LOG_COLLECTOR_IMAGE
 export CILIUM_NIGHTLY_VERSION_TAG
 
 # ebpf
 export AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY
 export AZURE_IPTABLES_MONITOR_TAG
+export AZURE_IPTABLES_MONITOR_IMAGE
 export AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY
 export AZURE_IP_MASQ_MERGER_TAG
+export AZURE_IP_MASQ_MERGER_IMAGE
 
 # print variable targets
 print-cilium-vars:
@@ -55,6 +61,8 @@ print-ebpf-cilium-vars:
 	@echo "EBPF_CILIUM_DIR: $(EBPF_CILIUM_DIR)"
 	@echo "EBPF_CILIUM_IMAGE_REGISTRY: $(EBPF_CILIUM_IMAGE_REGISTRY)"
 	@echo "EBPF_CILIUM_VERSION_TAG: $(EBPF_CILIUM_VERSION_TAG)"
+	@echo "AZURE_IPTABLES_MONITOR_IMAGE: $(AZURE_IPTABLES_MONITOR_IMAGE)"
+	@echo "AZURE_IP_MASQ_MERGER_IMAGE: $(AZURE_IP_MASQ_MERGER_IMAGE)"
 
 wait-for-cilium:
 ifeq ($(WAIT_FOR_CILIUM),true)
@@ -73,10 +81,9 @@ deploy-cilium-agent:
 
 # patch cilium agent (assuming deployed) with server-side applied cilium log collector container
 add-cilium-log-collector:
-	@echo "CILIUM_LOG_COLLECTOR_VERSION_TAG: $(CILIUM_LOG_COLLECTOR_VERSION_TAG)"
-	@echo "CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY: $(CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY)"
+	@echo "CILIUM_LOG_COLLECTOR_IMAGE: $(CILIUM_LOG_COLLECTOR_IMAGE)"
 	kubectl apply --server-side -f ../../test/integration/manifests/cilium/v$(DIR)/cilium-log-collector/cilium-log-collector-configmap.yaml
-	envsubst '$${CILIUM_LOG_COLLECTOR_VERSION_TAG},$${CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY}' < ../../test/integration/manifests/cilium/v$(DIR)/cilium-log-collector/daemonset-patch.yaml | kubectl apply --server-side --field-manager=cilium-log-collector -f -
+	envsubst '$${CILIUM_LOG_COLLECTOR_IMAGE}' < ../../test/integration/manifests/cilium/v$(DIR)/cilium-log-collector/daemonset-patch.yaml | kubectl apply --server-side --field-manager=cilium-log-collector -f -
 	kubectl rollout restart ds cilium -n kube-system
 
 # deploy disable configmap to disable cilium log collector
@@ -150,7 +157,7 @@ deploy-common-ebpf-cilium:
 deploy-ebpf-dualstack-cilium: print-ebpf-cilium-vars deploy-common-ebpf-cilium
 	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/dualstack/static/
 	CILIUM_VERSION_TAG=$(EBPF_CILIUM_VERSION_TAG) CILIUM_IMAGE_REGISTRY=$(EBPF_CILIUM_IMAGE_REGISTRY) \
-                envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION},$${IPV6_IMAGE_REGISTRY},$${AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY},$${AZURE_IPTABLES_MONITOR_TAG},$${AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY},$${AZURE_IP_MASQ_MERGER_TAG}' < \
+                envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION},$${IPV6_IMAGE_REGISTRY},$${AZURE_IPTABLES_MONITOR_IMAGE},$${AZURE_IP_MASQ_MERGER_IMAGE}' < \
                 ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/dualstack/cilium.yaml \
                 | kubectl apply -f -
 	@$(MAKE) wait-for-cilium
@@ -158,7 +165,7 @@ deploy-ebpf-dualstack-cilium: print-ebpf-cilium-vars deploy-common-ebpf-cilium
 deploy-ebpf-overlay-cilium: print-ebpf-cilium-vars deploy-common-ebpf-cilium
 	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/overlay/static/
 	CILIUM_VERSION_TAG=$(EBPF_CILIUM_VERSION_TAG) CILIUM_IMAGE_REGISTRY=$(EBPF_CILIUM_IMAGE_REGISTRY) \
-		envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION},$${AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY},$${AZURE_IPTABLES_MONITOR_TAG},$${AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY},$${AZURE_IP_MASQ_MERGER_TAG}' < \
+		envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION},$${AZURE_IPTABLES_MONITOR_IMAGE},$${AZURE_IP_MASQ_MERGER_IMAGE}' < \
 		../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/overlay/cilium.yaml \
 		| kubectl apply -f -
 	@$(MAKE) wait-for-cilium
@@ -167,7 +174,7 @@ deploy-ebpf-podsubnet-cilium: print-ebpf-cilium-vars deploy-common-ebpf-cilium
 	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/podsubnet/static/
 # ebpf podsubnet does not have ip masq merger 
 	CILIUM_VERSION_TAG=$(EBPF_CILIUM_VERSION_TAG) CILIUM_IMAGE_REGISTRY=$(EBPF_CILIUM_IMAGE_REGISTRY) \
-		envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION},$${AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY},$${AZURE_IPTABLES_MONITOR_TAG}' < \
+		envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION},$${AZURE_IPTABLES_MONITOR_IMAGE}' < \
 		../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/podsubnet/cilium.yaml \
 		| kubectl apply -f -
 	@$(MAKE) wait-for-cilium
