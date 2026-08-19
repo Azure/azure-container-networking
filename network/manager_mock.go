@@ -16,12 +16,6 @@ type MockNetworkManager struct {
 	StatelessCNIMode bool
 	// GetEndpointStateErr, when non-nil, is returned from GetEndpointState.
 	GetEndpointStateErr error
-	// NetnsEndpointInfo, when non-nil, is returned from GetEndpointInfoFromNetns.
-	NetnsEndpointInfo *EndpointInfo
-	// NetnsEndpointInfoErr, when non-nil, is returned from GetEndpointInfoFromNetns.
-	NetnsEndpointInfoErr error
-	// DeletedEndpointInfos records the endpoint infos passed to DeleteEndpoint.
-	DeletedEndpointInfos []*EndpointInfo
 }
 
 // NewMockNetworkmanager returns a new mock
@@ -78,8 +72,7 @@ func (nm *MockNetworkManager) CreateEndpoint(_ apipaClient, _ string, epInfo *En
 }
 
 // DeleteEndpoint mock
-func (nm *MockNetworkManager) DeleteEndpoint(_, endpointID string, epInfo *EndpointInfo, _ string) error {
-	nm.DeletedEndpointInfos = append(nm.DeletedEndpointInfos, epInfo)
+func (nm *MockNetworkManager) DeleteEndpoint(_, endpointID string, _ *EndpointInfo, _ string) error {
 	delete(nm.TestEndpointInfoMap, endpointID)
 	return nil
 }
@@ -222,11 +215,6 @@ func (nm *MockNetworkManager) GetEndpointInfosFromContainerID(containerID string
 
 func (nm *MockNetworkManager) GetEndpointState(_, _, _ string) ([]*EndpointInfo, error) {
 	return []*EndpointInfo{}, nm.GetEndpointStateErr
-}
-
-// GetEndpointInfoFromNetns mock
-func (nm *MockNetworkManager) GetEndpointInfoFromNetns(_, _, _ string) (*EndpointInfo, error) {
-	return nm.NetnsEndpointInfo, nm.NetnsEndpointInfoErr
 }
 
 // GetEndpointIDByNicType returns a unique endpoint ID based on the CNI mode and NIC type.
