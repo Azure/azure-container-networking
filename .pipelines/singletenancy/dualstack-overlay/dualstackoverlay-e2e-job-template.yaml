@@ -136,12 +136,18 @@ stages:
               service: ${{ eq(parameters.os, 'linux') }} # RUN IN LINUX NOT WINDOWS Currently broken for scenario and blocking releases, HNS is investigating.
               hostport: true
               hybridWin: ${{ eq(parameters.os, 'windows') }}
+          # Auto-injected policy tasks can mark an otherwise healthy job as
+          # SucceededWithIssues. This output proves all product test steps ran.
+          - bash: echo "##vso[task.setvariable variable=completed;isOutput=true]true"
+            name: markE2ECompleted
+            displayName: Mark E2E completed
 
       # can only succeed with issues in windows
       - ${{ if eq(parameters.os, 'windows') }}:
         - template: ../../templates/warning-handler-job-template.yaml
           parameters:
             dependsOnToEmitWarning: ${{ parameters.name }}_${{ parameters.os }}
+            completionOutput: markE2ECompleted.completed
             clusterName: ${{ parameters.clusterName }}-$(commitID)
             fileSearchPattern: "azure-vnet*.log"
             # known windows issues that occur only in testing:
@@ -169,4 +175,3 @@ stages:
           os: ${{ parameters.os }}
           cni: cniv2
           dependsOnJob: failedE2ELogs_${{ parameters.os }}
-
