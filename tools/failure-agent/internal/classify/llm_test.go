@@ -199,7 +199,7 @@ func TestSystemPromptEncodesInvestigationPolicy(t *testing.T) {
 		"knownUnknowns",
 		"rootCauseSources",
 		"Change-under-test locations",
-		"at least one artifact entry AND at least one change-under-test entry",
+		"in EVERY category and not only pr_regression",
 		"~1h TTL",
 		"cross-commit/cross-stage",
 		"ANTI-PATTERNS",
