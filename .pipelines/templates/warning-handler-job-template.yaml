@@ -5,20 +5,12 @@ parameters:
   searchPattern: ""
   cni: ""
   os: ""
-  completionOutput: ""
 
 jobs:
   - job: warningHandler
     displayName: "Handle E2E Warning"
     dependsOn: ${{ parameters.dependsOnToEmitWarning }}
-    condition: |
-      and(
-        eq(dependencies.${{ parameters.dependsOnToEmitWarning }}.result, 'SucceededWithIssues'),
-        or(
-          eq('${{ parameters.completionOutput }}', ''),
-          ne(dependencies.${{ parameters.dependsOnToEmitWarning }}.outputs['${{ parameters.completionOutput }}'], 'true')
-        )
-      )
+    condition: eq(dependencies.${{ parameters.dependsOnToEmitWarning }}.result, 'SucceededWithIssues')
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
       demands:
