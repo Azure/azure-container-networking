@@ -111,11 +111,15 @@ The table-101 default route must use a real IPv4 next hop. A zero gateway
 (`0.0.0.0`) is treated by the kernel as a link-scoped default route, which only
 works for same-subnet destinations and can black-hole off-subnet pod egress.
 
-Transparent-tunnel prefers the per-pod IPAM gateway from `EndpointInfo.Gateways`,
-then the host external-interface gateway, and finally the live default route on
-the host primary interface. This keeps bridge-shape NodeSubnet hosts working
-when the default route lives on the bridge and the external-interface gateway is
-persisted as `0.0.0.0`.
+Transparent-tunnel reads the gateway from exactly one place: the host's IPv4
+default route on the host primary interface, queried live from netlink on every
+ADD. There is intentionally no fallback chain. The other candidates are not
+independent values — `externalInterface.IPv4Gateway` is cached from this same
+route by `saveIPConfig` at network-create time, and `EndpointInfo.Gateways` is in
+turn populated from `externalInterface`. Consulting them only introduces the risk
+of using a stale copy, which is how a persisted `0.0.0.0` gateway could reach the
+route table. If the host has no default route with a usable gateway, the ADD
+fails rather than installing a route that would black-hole pod traffic.
 
 ## Installation
 

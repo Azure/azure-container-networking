@@ -31,7 +31,7 @@ const (
 	transparentTunnelLocalPodsSetType = "hash:ip"
 )
 
-var errNoTunnelGateway = errors.New("cannot add tunnel rules: no usable IPv4 gateway from epInfo, extIf, or host default route")
+var errNoTunnelGateway = errors.New("cannot add tunnel rules: no usable IPv4 gateway on the host default route")
 
 // tunnelPolicyRouteClient abstracts vishvananda/netlink operations for policy
 // routing so unit tests avoid touching real netlink sockets.
@@ -82,7 +82,6 @@ type TransparentTunnelEndpointClient struct {
 	iptablesClient ipTablesClient
 	nlPolicyRoute  tunnelPolicyRouteClient
 	ipsetClient    transparentTunnelIpsetClient
-	gateway        net.IP // Host's IPv4 gateway (for custom route table)
 }
 
 func NewTransparentTunnelEndpointClient(
@@ -97,17 +96,11 @@ func NewTransparentTunnelEndpointClient(
 ) *TransparentTunnelEndpointClient {
 	base := NewTransparentEndpointClient(nw.extIf, hostVethName, containerVethName, epInfo.Mode, nl, nioc, plc)
 
-	var gw net.IP
-	if nw.extIf != nil {
-		gw = nw.extIf.IPv4Gateway
-	}
-
 	return &TransparentTunnelEndpointClient{
 		TransparentEndpointClient: base,
 		iptablesClient:            iptc,
 		nlPolicyRoute:             defaultTunnelPolicyRouteClient{},
 		ipsetClient:               newDefaultTransparentTunnelIpsetClient(plc),
-		gateway:                   gw,
 	}
 }
 
@@ -144,22 +137,6 @@ func (client *TransparentTunnelEndpointClient) DeleteEndpointRules(ep *endpoint)
 	return nil
 }
 
-// getTunnelGateway returns a non-zero IPv4 gateway for table 101. Prefer the
-// per-pod IPAM gateway because persisted extIf gateway can be 0.0.0.0.
-func getTunnelGateway(epInfo *EndpointInfo, extIfGateway net.IP) net.IP {
-	if epInfo != nil {
-		for _, g := range epInfo.Gateways {
-			if g4 := g.To4(); g4 != nil && !g4.IsUnspecified() {
-				return g4
-			}
-		}
-	}
-	if g4 := extIfGateway.To4(); g4 != nil && !g4.IsUnspecified() {
-		return g4
-	}
-	return nil
-}
-
 func (client *TransparentTunnelEndpointClient) addTransparentTunnelRules(epInfo *EndpointInfo) error {
 	hostVeth := client.hostVethName
 	markStr := strconv.Itoa(transparentTunnelFwmark)
@@ -167,7 +144,7 @@ func (client *TransparentTunnelEndpointClient) addTransparentTunnelRules(epInfo 
 	if err != nil {
 		return errors.Wrapf(err, "failed to look up interface %s for tunnel route", client.hostPrimaryIfName)
 	}
-	gw, err := client.resolveTunnelGateway(epInfo, iface.Index)
+	gw, err := client.resolveTunnelGateway(iface.Index)
 	if err != nil {
 		return err
 	}
@@ -248,16 +225,17 @@ func (client *TransparentTunnelEndpointClient) addTransparentTunnelRules(epInfo 
 	return nil
 }
 
-// resolveTunnelGateway picks the gateway for the table-101 default route, in order:
-// the pod's IPAM gateway from epInfo, then the external interface gateway (which can
-// be 0.0.0.0 after a CNI restart), then the host's live default route on linkIndex.
-// Returns errNoTunnelGateway if none yield a usable IPv4 address, rather than
-// installing a gateway-less route that would blackhole pod traffic.
-func (client *TransparentTunnelEndpointClient) resolveTunnelGateway(epInfo *EndpointInfo, linkIndex int) (net.IP, error) {
-	if gw := getTunnelGateway(epInfo, client.gateway); gw != nil {
-		return gw, nil
-	}
-
+// resolveTunnelGateway returns the next-hop for the table-101 default route: the
+// gateway of the host's IPv4 default route on linkIndex, read live from netlink.
+//
+// This is the single source of truth on purpose. The other candidates that were
+// once consulted here are not independent values, they are staler copies of this
+// same route: extIf.IPv4Gateway is cached from it by saveIPConfig at network
+// create time, and EndpointInfo.Gateways is in turn populated from extIf. A cached
+// copy can be 0.0.0.0 (for example after a CNI restart), which would install a
+// gateway-less route and blackhole pod traffic, so the live route is read instead.
+// Returns errNoTunnelGateway when the host has no usable default gateway.
+func (client *TransparentTunnelEndpointClient) resolveTunnelGateway(linkIndex int) (net.IP, error) {
 	gw, err := client.hostDefaultGateway(linkIndex)
 	if err != nil {
 		return nil, err
@@ -268,6 +246,8 @@ func (client *TransparentTunnelEndpointClient) resolveTunnelGateway(epInfo *Endp
 	return gw, nil
 }
 
+// hostDefaultGateway returns the gateway of the IPv4 default route on linkIndex,
+// or nil when the link has no default route with a usable (non-zero) gateway.
 func (client *TransparentTunnelEndpointClient) hostDefaultGateway(linkIndex int) (net.IP, error) {
 	routes, err := client.nlPolicyRoute.RouteListFiltered(unix.AF_INET, &vishnetlink.Route{LinkIndex: linkIndex}, vishnetlink.RT_FILTER_OIF)
 	if err != nil {

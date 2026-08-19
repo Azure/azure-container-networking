@@ -17,6 +17,17 @@ import (
 
 const testHostVethName = "azv1234"
 
+// testHostLinkIndex is the index MockNetIO returns for the primary interface.
+const testHostLinkIndex = 2
+
+// testHostDefaultRoutes is the happy-path netlink reply for the host's IPv4
+// default route on the primary interface: the single source resolveTunnelGateway
+// reads. Tests that only care about other behaviour use it so gateway
+// resolution succeeds and does not short-circuit the add path.
+func testHostDefaultRoutes() []vishnetlink.Route {
+	return []vishnetlink.Route{{LinkIndex: testHostLinkIndex, Gw: net.ParseIP("10.224.0.1")}}
+}
+
 // transparentTunnelMockIPTablesClient tracks all iptables calls for test verification.
 type transparentTunnelMockIPTablesClient struct {
 	insertCalls []iptablesCall
@@ -154,9 +165,7 @@ func TestTransparentTunnelAddEndpointRules(t *testing.T) {
 	tests := []struct {
 		name               string
 		ipAddresses        []net.IPNet
-		gateway            net.IP
-		epGateways         []net.IP // per-pod IPAM gateways (preferred over extIf gateway)
-		ruleAddErr         error    // injected RuleAdd error (nil = success, EEXIST = tolerated)
+		ruleAddErr         error // injected RuleAdd error (nil = success, EEXIST = tolerated)
 		existingRules      []vishnetlink.Rule
 		ruleListErr        error
 		routeListErr       error
@@ -167,14 +176,14 @@ func TestTransparentTunnelAddEndpointRules(t *testing.T) {
 		expectIpsetAdds    int  // number of ipset Add calls expected
 		expectNotrackRule  bool // NOTRACK rule expected in raw PREROUTING
 		expectRuleAddCalls int  // RuleAdd call count expected (0 if dedup skip)
-		expectRouteLists   int
 	}{
 		{
 			name: "single ipv4 pod IP",
 			ipAddresses: []net.IPNet{
 				{IP: net.ParseIP("10.224.0.46"), Mask: net.CIDRMask(32, 32)},
 			},
-			gateway:            net.ParseIP("10.224.0.1"),
+			defaultRoutes:      testHostDefaultRoutes(),
+			wantGateway:        net.ParseIP("10.224.0.1"),
 			expectIpsetAdds:    1,
 			expectNotrackRule:  true,
 			expectRuleAddCalls: 1,
@@ -185,7 +194,8 @@ func TestTransparentTunnelAddEndpointRules(t *testing.T) {
 				{IP: net.ParseIP("10.224.0.46"), Mask: net.CIDRMask(32, 32)},
 				{IP: net.ParseIP("fd00::1"), Mask: net.CIDRMask(128, 128)},
 			},
-			gateway:            net.ParseIP("10.224.0.1"),
+			defaultRoutes:      testHostDefaultRoutes(),
+			wantGateway:        net.ParseIP("10.224.0.1"),
 			expectIpsetAdds:    1, // only IPv4
 			expectNotrackRule:  true,
 			expectRuleAddCalls: 1,
@@ -193,7 +203,8 @@ func TestTransparentTunnelAddEndpointRules(t *testing.T) {
 		{
 			name:               "no pod IPs still installs shared rules",
 			ipAddresses:        nil,
-			gateway:            net.ParseIP("10.224.0.1"),
+			defaultRoutes:      testHostDefaultRoutes(),
+			wantGateway:        net.ParseIP("10.224.0.1"),
 			expectIpsetAdds:    0,
 			expectNotrackRule:  true,
 			expectRuleAddCalls: 1,
@@ -203,12 +214,13 @@ func TestTransparentTunnelAddEndpointRules(t *testing.T) {
 			ipAddresses: []net.IPNet{
 				{IP: net.ParseIP("10.224.0.46"), Mask: net.CIDRMask(32, 32)},
 			},
-			gateway: net.ParseIP("10.224.0.1"),
 			// Kernel already has a matching (Mark, Table) rule (e.g., from
 			// a previous pod on the same node) — RuleAdd must not run.
 			existingRules: []vishnetlink.Rule{
 				{Mark: uint32(transparentTunnelFwmark), Table: transparentTunnelRouteTable, Priority: 32765},
 			},
+			defaultRoutes:      testHostDefaultRoutes(),
+			wantGateway:        net.ParseIP("10.224.0.1"),
 			expectIpsetAdds:    1,
 			expectNotrackRule:  true,
 			expectRuleAddCalls: 0,
@@ -218,10 +230,11 @@ func TestTransparentTunnelAddEndpointRules(t *testing.T) {
 			ipAddresses: []net.IPNet{
 				{IP: net.ParseIP("10.224.0.46"), Mask: net.CIDRMask(32, 32)},
 			},
-			gateway: net.ParseIP("10.224.0.1"),
 			existingRules: []vishnetlink.Rule{
 				{Mark: uint32(transparentTunnelFwmark), Table: 254 /* main */, Priority: 32765},
 			},
+			defaultRoutes:      testHostDefaultRoutes(),
+			wantGateway:        net.ParseIP("10.224.0.1"),
 			expectIpsetAdds:    1,
 			expectNotrackRule:  true,
 			expectRuleAddCalls: 1,
@@ -231,8 +244,9 @@ func TestTransparentTunnelAddEndpointRules(t *testing.T) {
 			ipAddresses: []net.IPNet{
 				{IP: net.ParseIP("10.224.0.46"), Mask: net.CIDRMask(32, 32)},
 			},
-			gateway:            net.ParseIP("10.224.0.1"),
 			ruleAddErr:         syscall.EEXIST,
+			defaultRoutes:      testHostDefaultRoutes(),
+			wantGateway:        net.ParseIP("10.224.0.1"),
 			expectIpsetAdds:    1,
 			expectNotrackRule:  true,
 			expectRuleAddCalls: 1,
@@ -242,78 +256,61 @@ func TestTransparentTunnelAddEndpointRules(t *testing.T) {
 			ipAddresses: []net.IPNet{
 				{IP: net.ParseIP("10.224.0.46"), Mask: net.CIDRMask(32, 32)},
 			},
-			gateway:       net.ParseIP("10.224.0.1"),
+			defaultRoutes: testHostDefaultRoutes(),
 			ruleListErr:   assert.AnError,
 			expectError:   true,
 			errorContains: "list ip rules",
 		},
 		{
-			name: "nil gateway returns error before creating any rules",
+			// The gateway comes only from the live host route, so an empty
+			// route list must fail the ADD rather than install a gateway-less
+			// route that would blackhole pod traffic.
+			name: "no default route on the link returns error before creating any rules",
 			ipAddresses: []net.IPNet{
 				{IP: net.ParseIP("10.224.0.46"), Mask: net.CIDRMask(32, 32)},
 			},
-			gateway:          nil,
-			expectError:      true,
-			errorContains:    "no usable IPv4 gateway",
-			expectRouteLists: 1,
+			defaultRoutes: nil,
+			expectError:   true,
+			errorContains: "no usable IPv4 gateway",
 		},
 		{
-			name: "zero-IP extIf gateway with no pod gateway returns error",
+			// A default route whose gateway is 0.0.0.0 is the exact state seen
+			// on a node after a CNI restart. It must be rejected, not used.
+			name: "default route with unspecified gateway is rejected",
 			ipAddresses: []net.IPNet{
 				{IP: net.ParseIP("10.224.0.46"), Mask: net.CIDRMask(32, 32)},
 			},
-			gateway:          net.IPv4zero,
-			expectError:      true,
-			errorContains:    "no usable IPv4 gateway",
-			expectRouteLists: 1,
-		},
-		{
-			name: "zero-IP gateways use live host default route",
-			ipAddresses: []net.IPNet{
-				{IP: net.ParseIP("10.224.0.46"), Mask: net.CIDRMask(32, 32)},
-			},
-			gateway: net.IPv4zero,
 			defaultRoutes: []vishnetlink.Route{
-				{LinkIndex: 2, Gw: net.ParseIP("10.3.1.1")},
+				{LinkIndex: testHostLinkIndex, Gw: net.IPv4zero},
 			},
-			wantGateway:        net.ParseIP("10.3.1.1"),
+			expectError:   true,
+			errorContains: "no usable IPv4 gateway",
+		},
+		{
+			// RouteListFiltered is filtered by output interface, not by
+			// destination, so on-link and subnet routes come back too and must
+			// be skipped in favour of the 0.0.0.0/0 entry.
+			name: "non-default routes on the link are skipped",
+			ipAddresses: []net.IPNet{
+				{IP: net.ParseIP("10.224.0.46"), Mask: net.CIDRMask(32, 32)},
+			},
+			defaultRoutes: []vishnetlink.Route{
+				{LinkIndex: testHostLinkIndex, Dst: &net.IPNet{IP: net.ParseIP("10.224.0.0"), Mask: net.CIDRMask(16, 32)}, Gw: net.ParseIP("10.224.0.99")},
+				{LinkIndex: testHostLinkIndex, Dst: &net.IPNet{IP: net.IPv4zero, Mask: net.CIDRMask(0, 32)}, Gw: net.ParseIP("10.224.0.1")},
+			},
+			wantGateway:        net.ParseIP("10.224.0.1"),
 			expectIpsetAdds:    1,
 			expectNotrackRule:  true,
 			expectRuleAddCalls: 1,
-			expectRouteLists:   1,
 		},
 		{
 			name: "default route lookup failure surfaces",
 			ipAddresses: []net.IPNet{
 				{IP: net.ParseIP("10.224.0.46"), Mask: net.CIDRMask(32, 32)},
 			},
-			gateway:          net.IPv4zero,
-			routeListErr:     assert.AnError,
-			expectError:      true,
-			errorContains:    "host default routes",
-			expectRouteLists: 1,
-		},
-		{
-			name: "zero-IP extIf gateway with valid pod gateway succeeds via IPAM",
-			ipAddresses: []net.IPNet{
-				{IP: net.ParseIP("10.224.0.46"), Mask: net.CIDRMask(32, 32)},
-			},
-			gateway:            net.IPv4zero,
-			epGateways:         []net.IP{net.ParseIP("10.224.0.1")},
-			expectIpsetAdds:    1,
-			expectNotrackRule:  true,
-			expectRuleAddCalls: 1,
-		},
-		{
-			name: "pod gateway is preferred over extIf gateway",
-			ipAddresses: []net.IPNet{
-				{IP: net.ParseIP("10.224.0.46"), Mask: net.CIDRMask(32, 32)},
-			},
-			gateway:            net.ParseIP("10.224.0.250"),
-			epGateways:         []net.IP{net.ParseIP("10.224.0.1")},
-			expectIpsetAdds:    1,
-			expectNotrackRule:  true,
-			expectRuleAddCalls: 1,
+			routeListErr:  assert.AnError,
+			expectError:   true,
+			errorContains: "host default routes",
 		},
 	}
 
@@ -338,26 +335,25 @@ func TestTransparentTunnelAddEndpointRules(t *testing.T) {
 				iptablesClient: iptMock,
 				nlPolicyRoute:  nlMock,
 				ipsetClient:    ipsetMock,
-				gateway:        tt.gateway,
 			}
 
-			epInfo := &EndpointInfo{IPAddresses: tt.ipAddresses, Gateways: tt.epGateways}
+			epInfo := &EndpointInfo{IPAddresses: tt.ipAddresses}
 			err := client.addTransparentTunnelRules(epInfo)
+
+			// The gateway is resolved from the live host route on every ADD, so
+			// the lookup must happen exactly once whatever the outcome.
+			assert.Equal(t, 1, nlMock.routeListCalls, "host default route must be read exactly once")
+			require.NotNil(t, nlMock.routeListFilter)
+			assert.Equal(t, testHostLinkIndex, nlMock.routeListFilter.LinkIndex)
+			assert.Equal(t, vishnetlink.RT_FILTER_OIF, nlMock.routeListFilterMask)
 
 			if tt.expectError {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errorContains)
-				assert.Equal(t, tt.expectRouteLists, nlMock.routeListCalls)
 				return
 			}
 
 			require.NoError(t, err)
-			assert.Equal(t, tt.expectRouteLists, nlMock.routeListCalls)
-			if tt.expectRouteLists > 0 {
-				require.NotNil(t, nlMock.routeListFilter)
-				assert.Equal(t, 2, nlMock.routeListFilter.LinkIndex)
-				assert.Equal(t, vishnetlink.RT_FILTER_OIF, nlMock.routeListFilterMask)
-			}
 
 			// Always create the ipset exactly once.
 			assert.Equal(t, 1, ipsetMock.countOps("create"), "ipset create should run exactly once")
@@ -412,20 +408,16 @@ func TestTransparentTunnelAddEndpointRules(t *testing.T) {
 			// Verify netlink route replace.
 			require.Len(t, nlMock.routeReplaceCalls, 1)
 			assert.Equal(t, transparentTunnelRouteTable, nlMock.routeReplaceCalls[0].Table)
-			wantGw := tt.wantGateway
-			if wantGw == nil {
-				wantGw = getTunnelGateway(&EndpointInfo{Gateways: tt.epGateways}, tt.gateway)
-			}
-			require.NotNil(t, wantGw, "test setup error: expected non-nil gateway in success case")
-			assert.True(t, wantGw.Equal(nlMock.routeReplaceCalls[0].Gw),
-				"route Gw mismatch: got %v, want %v", nlMock.routeReplaceCalls[0].Gw, wantGw)
+			require.NotNil(t, tt.wantGateway, "test setup error: expected non-nil gateway in success case")
+			assert.True(t, tt.wantGateway.Equal(nlMock.routeReplaceCalls[0].Gw),
+				"route Gw mismatch: got %v, want %v", nlMock.routeReplaceCalls[0].Gw, tt.wantGateway)
 		})
 	}
 }
 
 func TestTransparentTunnelAddEndpointRules_IpsetCreateFails(t *testing.T) {
 	iptMock := &transparentTunnelMockIPTablesClient{}
-	nlMock := &transparentTunnelMockNlClient{}
+	nlMock := &transparentTunnelMockNlClient{defaultRoutes: testHostDefaultRoutes()}
 	ipsetMock := &transparentTunnelMockIpsetClient{createErr: assert.AnError}
 
 	client := &TransparentTunnelEndpointClient{
@@ -437,7 +429,6 @@ func TestTransparentTunnelAddEndpointRules_IpsetCreateFails(t *testing.T) {
 		iptablesClient: iptMock,
 		nlPolicyRoute:  nlMock,
 		ipsetClient:    ipsetMock,
-		gateway:        net.ParseIP("10.224.0.1"),
 	}
 
 	epInfo := &EndpointInfo{IPAddresses: []net.IPNet{
@@ -453,7 +444,7 @@ func TestTransparentTunnelAddEndpointRules_IpsetCreateFails(t *testing.T) {
 
 func TestTransparentTunnelAddEndpointRules_IpsetAddFails(t *testing.T) {
 	iptMock := &transparentTunnelMockIPTablesClient{}
-	nlMock := &transparentTunnelMockNlClient{}
+	nlMock := &transparentTunnelMockNlClient{defaultRoutes: testHostDefaultRoutes()}
 	ipsetMock := &transparentTunnelMockIpsetClient{addErr: assert.AnError}
 
 	client := &TransparentTunnelEndpointClient{
@@ -465,7 +456,6 @@ func TestTransparentTunnelAddEndpointRules_IpsetAddFails(t *testing.T) {
 		iptablesClient: iptMock,
 		nlPolicyRoute:  nlMock,
 		ipsetClient:    ipsetMock,
-		gateway:        net.ParseIP("10.224.0.1"),
 	}
 
 	epInfo := &EndpointInfo{IPAddresses: []net.IPNet{
@@ -502,9 +492,8 @@ func TestTransparentTunnelAddEndpointRules_NotrackRuleIsIdempotent(t *testing.T)
 				netioshim:         netio.NewMockNetIO(false, 0),
 			},
 			iptablesClient: iptMock,
-			nlPolicyRoute:  &transparentTunnelMockNlClient{},
+			nlPolicyRoute:  &transparentTunnelMockNlClient{defaultRoutes: testHostDefaultRoutes()},
 			ipsetClient:    &transparentTunnelMockIpsetClient{},
-			gateway:        net.ParseIP("10.224.0.1"),
 		}
 	}
 
@@ -571,9 +560,8 @@ func TestTransparentTunnelAddEndpointRules_MarkRuleIsIdempotent(t *testing.T) {
 				netioshim:         netio.NewMockNetIO(false, 0),
 			},
 			iptablesClient: iptMock,
-			nlPolicyRoute:  &transparentTunnelMockNlClient{},
+			nlPolicyRoute:  &transparentTunnelMockNlClient{defaultRoutes: testHostDefaultRoutes()},
 			ipsetClient:    &transparentTunnelMockIpsetClient{},
-			gateway:        net.ParseIP("10.224.0.1"),
 		}
 	}
 
@@ -611,7 +599,6 @@ func TestTransparentTunnelDeleteEndpointRules(t *testing.T) {
 			iptablesClient: iptMock,
 			nlPolicyRoute:  nlMock,
 			ipsetClient:    ipsetMock,
-			gateway:        net.ParseIP("10.224.0.1"),
 		}
 	}
 
@@ -733,77 +720,127 @@ func TestTransparentTunnelDeleteEndpointRules(t *testing.T) {
 	})
 }
 
-func TestGetTunnelGateway(t *testing.T) {
+// TestResolveTunnelGateway covers the single source of truth for the table-101
+// next-hop: the gateway of the host's IPv4 default route on the primary
+// interface. There is deliberately no fallback to extIf.IPv4Gateway or
+// EndpointInfo.Gateways, since both are cached copies of this same route and can
+// be stale or 0.0.0.0.
+func TestResolveTunnelGateway(t *testing.T) {
 	v4 := func(s string) net.IP { return net.ParseIP(s).To4() }
-	v6 := net.ParseIP
+
+	defaultRoute := func(gw net.IP) vishnetlink.Route {
+		return vishnetlink.Route{
+			LinkIndex: testHostLinkIndex,
+			Dst:       &net.IPNet{IP: net.IPv4zero, Mask: net.CIDRMask(0, 32)},
+			Gw:        gw,
+		}
+	}
 
 	tests := []struct {
-		name       string
-		epGateways []net.IP
-		extIfGw    net.IP
-		want       net.IP
+		name         string
+		routes       []vishnetlink.Route
+		routeListErr error
+		want         net.IP
+		wantErr      error
+		errContains  string
 	}{
 		{
-			name:       "both nil returns nil",
-			epGateways: nil,
-			extIfGw:    nil,
-			want:       nil,
+			name:   "default route with a usable gateway is used",
+			routes: []vishnetlink.Route{defaultRoute(v4("10.224.0.1"))},
+			want:   v4("10.224.0.1"),
 		},
 		{
-			name:       "zero extIf and no pod returns nil",
-			epGateways: nil,
-			extIfGw:    net.IPv4zero,
-			want:       nil,
+			name:   "nil Dst counts as the default route",
+			routes: []vishnetlink.Route{{LinkIndex: testHostLinkIndex, Gw: v4("10.3.1.1")}},
+			want:   v4("10.3.1.1"),
 		},
 		{
-			name:       "valid extIf only is used",
-			epGateways: nil,
-			extIfGw:    v4("10.224.0.1"),
-			want:       v4("10.224.0.1"),
+			name:    "no routes at all returns errNoTunnelGateway",
+			routes:  nil,
+			wantErr: errNoTunnelGateway,
 		},
 		{
-			name:       "valid pod gateway is preferred over valid extIf",
-			epGateways: []net.IP{v4("10.224.0.1")},
-			extIfGw:    v4("10.224.0.250"),
-			want:       v4("10.224.0.1"),
+			// This is the post-CNI-restart state that made the old cached
+			// gateway unusable. A zero next-hop must never reach RouteReplace.
+			name:    "default route with 0.0.0.0 gateway is rejected",
+			routes:  []vishnetlink.Route{defaultRoute(net.IPv4zero)},
+			wantErr: errNoTunnelGateway,
 		},
 		{
-			name:       "pod zero-IP falls back to extIf",
-			epGateways: []net.IP{net.IPv4zero},
-			extIfGw:    v4("10.224.0.1"),
-			want:       v4("10.224.0.1"),
+			name:    "default route with no gateway at all is rejected",
+			routes:  []vishnetlink.Route{defaultRoute(nil)},
+			wantErr: errNoTunnelGateway,
 		},
 		{
-			name:       "pod ipv6 only falls back to extIf",
-			epGateways: []net.IP{v6("fe80::1")},
-			extIfGw:    v4("10.224.0.1"),
-			want:       v4("10.224.0.1"),
+			name: "only non-default routes returns errNoTunnelGateway",
+			routes: []vishnetlink.Route{
+				{
+					LinkIndex: testHostLinkIndex,
+					Dst:       &net.IPNet{IP: v4("10.224.0.0"), Mask: net.CIDRMask(16, 32)},
+					Gw:        v4("10.224.0.99"),
+				},
+			},
+			wantErr: errNoTunnelGateway,
 		},
 		{
-			name:       "pod ipv6 then ipv4 picks the ipv4",
-			epGateways: []net.IP{v6("fe80::1"), v4("10.224.0.1")},
-			extIfGw:    nil,
-			want:       v4("10.224.0.1"),
+			name: "default route is picked out of a mixed route list",
+			routes: []vishnetlink.Route{
+				{
+					LinkIndex: testHostLinkIndex,
+					Dst:       &net.IPNet{IP: v4("10.224.0.0"), Mask: net.CIDRMask(16, 32)},
+					Gw:        v4("10.224.0.99"),
+				},
+				defaultRoute(v4("10.224.0.1")),
+			},
+			want: v4("10.224.0.1"),
+		},
+		{
+			// A zero-gateway default route must not mask a later usable one.
+			name: "first default route unusable falls through to the next",
+			routes: []vishnetlink.Route{
+				defaultRoute(net.IPv4zero),
+				defaultRoute(v4("10.224.0.1")),
+			},
+			want: v4("10.224.0.1"),
+		},
+		{
+			name:         "netlink failure is surfaced, not swallowed",
+			routeListErr: assert.AnError,
+			errContains:  "host default routes",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := getTunnelGateway(&EndpointInfo{Gateways: tt.epGateways}, tt.extIfGw)
-			if tt.want == nil {
-				assert.Nil(t, got)
-				return
+			nlMock := &transparentTunnelMockNlClient{
+				defaultRoutes: tt.routes,
+				routeListErr:  tt.routeListErr,
 			}
-			require.NotNil(t, got)
-			assert.True(t, got.Equal(tt.want), "got %v, want %v", got, tt.want)
+			client := &TransparentTunnelEndpointClient{nlPolicyRoute: nlMock}
+
+			got, err := client.resolveTunnelGateway(testHostLinkIndex)
+
+			// The lookup must be filtered by output interface so routes on other
+			// links can never supply the tunnel gateway.
+			require.NotNil(t, nlMock.routeListFilter)
+			assert.Equal(t, testHostLinkIndex, nlMock.routeListFilter.LinkIndex)
+			assert.Equal(t, vishnetlink.RT_FILTER_OIF, nlMock.routeListFilterMask)
+
+			switch {
+			case tt.wantErr != nil:
+				require.ErrorIs(t, err, tt.wantErr)
+				assert.Nil(t, got)
+			case tt.errContains != "":
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errContains)
+				assert.Nil(t, got)
+			default:
+				require.NoError(t, err)
+				require.NotNil(t, got)
+				assert.True(t, tt.want.Equal(got), "got %v, want %v", got, tt.want)
+			}
 		})
 	}
-
-	t.Run("nil epInfo falls back to extIf without panicking", func(t *testing.T) {
-		got := getTunnelGateway(nil, v4("10.224.0.1"))
-		require.NotNil(t, got)
-		assert.True(t, got.Equal(v4("10.224.0.1")))
-	})
 }
 
 func TestTransparentTunnelDeleteEndpointImplCleansUpOnTunnelFailure(t *testing.T) {
