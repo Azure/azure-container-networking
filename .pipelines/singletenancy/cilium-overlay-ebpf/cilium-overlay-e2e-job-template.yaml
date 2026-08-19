@@ -29,8 +29,9 @@ stages:
       CNS_IMAGE_NAME_OVERRIDE: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cnsImageNameOverride'] ]
       IPAM_IMAGE_NAME_OVERRIDE: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.ipamImageNameOverride'] ]
       CNI_IMAGE_NAME_OVERRIDE: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cniImageNameOverride'] ]
-      CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY_OVERRIDE: acnpublic.azurecr.io
-      CILIUM_LOG_COLLECTOR_VERSION_TAG_OVERRIDE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ciliumLogCollectorVersion'] ]
+      AZURE_IPTABLES_MONITOR_IMAGE_OVERRIDE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIptablesMonitorImage'] ]
+      AZURE_IP_MASQ_MERGER_IMAGE_OVERRIDE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpMasqMergerImage'] ]
+      CILIUM_LOG_COLLECTOR_IMAGE_OVERRIDE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ciliumLogCollectorImage'] ]
     jobs:
       - job: ${{ parameters.name }}
         displayName: Cluster - ${{ parameters.name }}
