@@ -119,11 +119,25 @@ jobs:
 
           # No --depth: the checkout is unshallowed above, and a depth-limited
           # fetch would re-shallow it and leave the merge base unreachable again.
-          git -C "$(Build.SourcesDirectory)" fetch --no-tags origin "$TARGET" || true
-          # Diff against the merge base so only this change's own edits are captured.
-          git -C "$(Build.SourcesDirectory)" diff --unified=3 "origin/$TARGET...HEAD" > "$DIFF_FILE" || true
+          if ! git -C "$(Build.SourcesDirectory)" fetch --no-tags origin "$TARGET"; then
+            echo "##vso[task.logissue type=warning]Could not fetch origin/$TARGET."
+          fi
 
-          echo "Captured $(wc -c < "$DIFF_FILE") bytes of change context."
+          # Diff against the merge base so only this change's own edits are captured.
+          if ! git -C "$(Build.SourcesDirectory)" diff --unified=3 "origin/$TARGET...HEAD" > "$DIFF_FILE"; then
+            echo "##vso[task.logissue type=warning]git diff origin/$TARGET...HEAD failed; no merge base is reachable."
+            : > "$DIFF_FILE"
+          fi
+
+          # An empty diff silently disables the code-correlation half of the
+          # pr_regression check, and the agent cannot then cite the responsible
+          # code. Surface it here rather than leaving it to be inferred from the
+          # report saying no change under test was provided.
+          BYTES="$(wc -c < "$DIFF_FILE")"
+          if [ "$BYTES" -eq 0 ]; then
+            echo "##vso[task.logissue type=warning]No change context captured: the analysis cannot cite the change under test."
+          fi
+          echo "Captured $BYTES bytes of change context."
         displayName: "Capture change under test"
         continueOnError: true
         env:
