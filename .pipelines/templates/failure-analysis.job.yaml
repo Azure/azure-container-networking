@@ -67,7 +67,10 @@ jobs:
       - name: ob_outputDirectory
         value: $(Build.ArtifactStagingDirectory)/out
     steps:
+      # Full history: the change-under-test diff is computed against the merge
+      # base with origin/<base>, which a shallow checkout cannot resolve.
       - checkout: self
+        fetchDepth: 0
 
       - task: GoTool@0
         inputs:
@@ -114,7 +117,9 @@ jobs:
           TARGET="${SYSTEM_PULLREQUEST_TARGETBRANCH:-${{ parameters.baseBranch }}}"
           TARGET="${TARGET#refs/heads/}"
 
-          git -C "$(Build.SourcesDirectory)" fetch --no-tags --depth=200 origin "$TARGET" || true
+          # No --depth: the checkout is unshallowed above, and a depth-limited
+          # fetch would re-shallow it and leave the merge base unreachable again.
+          git -C "$(Build.SourcesDirectory)" fetch --no-tags origin "$TARGET" || true
           # Diff against the merge base so only this change's own edits are captured.
           git -C "$(Build.SourcesDirectory)" diff --unified=3 "origin/$TARGET...HEAD" > "$DIFF_FILE" || true
 
