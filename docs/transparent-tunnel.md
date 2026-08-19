@@ -7,8 +7,8 @@ traffic reaches Azure VFP for NSG / ASG enforcement.
 ## Deployment model
 
 Transparent-tunnel runs as **stateful CNI** with **`azure-vnet-ipam`** as the IP
-provider, as declared in `cni/azure-linux-transparent-tunnel.conflist`. CNS is
-not in the path: addresses come from `azure-vnet-ipam` rather than
+provider, inherited from the golden Linux conflist (`cni/azure-linux.conflist`).
+CNS is not in the path: addresses come from `azure-vnet-ipam` rather than
 `azure-cns`, and endpoint state is persisted by CNI itself rather than read
 back from CNS.
 
@@ -123,9 +123,16 @@ fails rather than installing a route that would black-hole pod traffic.
 
 ## Installation
 
-The release image must include the transparent-tunnel conflist payload. The CNI
-image build copies `cni/azure-linux-transparent-tunnel.conflist` into the
-`/dropgz` payload as `azure-transparent-tunnel.conflist`.
+The release image must include the transparent-tunnel conflist payload. There is
+no checked-in transparent-tunnel conflist: the build derives it from the golden
+Linux conflist with `cni/scripts/gen-transparent-tunnel-conflist.sh`, which
+rewrites only the plugin `mode`, and drops the result into the `/dropgz` payload
+as `azure-transparent-tunnel.conflist`. Both the container build
+(`cni/Dockerfile`) and the dalec build (`.pipelines/build/scripts/cni.sh`) call
+the same script, so the tunnel conflist cannot drift from the golden one and
+picks up future changes to it automatically. The script fails the build if the
+golden conflist has no `transparent` mode to rewrite, rather than silently
+emitting a conflist that would select plain transparent mode.
 
 A self-managed installer DaemonSet is not included in this change. It pins a
 specific `azure-cni` image tag, and no released image contains this mode yet.
