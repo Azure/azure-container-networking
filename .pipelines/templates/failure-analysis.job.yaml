@@ -119,14 +119,42 @@ jobs:
 
           # No --depth: the checkout is unshallowed above, and a depth-limited
           # fetch would re-shallow it and leave the merge base unreachable again.
-          if ! git -C "$(Build.SourcesDirectory)" fetch --no-tags origin "$TARGET"; then
+          # The explicit refspec matters: the pipeline checkout configures
+          # remote.origin.fetch narrowly around the branch being built, so a bare
+          # `git fetch origin <branch>` updates FETCH_HEAD without ever creating
+          # refs/remotes/origin/<branch>, and origin/<branch> stays unresolvable.
+          if ! git -C "$(Build.SourcesDirectory)" fetch --no-tags origin "+refs/heads/$TARGET:refs/remotes/origin/$TARGET"; then
             echo "##vso[task.logissue type=warning]Could not fetch origin/$TARGET."
           fi
 
-          # Diff against the merge base so only this change's own edits are captured.
-          if ! git -C "$(Build.SourcesDirectory)" diff --unified=3 "origin/$TARGET...HEAD" > "$DIFF_FILE"; then
-            echo "##vso[task.logissue type=warning]git diff origin/$TARGET...HEAD failed; no merge base is reachable."
-            : > "$DIFF_FILE"
+          # Prefer the remote-tracking ref, but fall back to FETCH_HEAD so a
+          # narrow-refspec checkout still yields a usable base.
+          BASE=""
+          if git -C "$(Build.SourcesDirectory)" rev-parse --verify --quiet "refs/remotes/origin/$TARGET^{commit}" >/dev/null; then
+            BASE="refs/remotes/origin/$TARGET"
+          elif git -C "$(Build.SourcesDirectory)" rev-parse --verify --quiet "FETCH_HEAD^{commit}" >/dev/null; then
+            BASE="FETCH_HEAD"
+            echo "##vso[task.logissue type=warning]origin/$TARGET is not a ref; falling back to FETCH_HEAD."
+          fi
+
+          if [ -z "$BASE" ]; then
+            echo "##vso[task.logissue type=warning]No base ref for $TARGET is reachable; cannot compute the change under test."
+            echo "shallow=$(git -C "$(Build.SourcesDirectory)" rev-parse --is-shallow-repository)"
+            git -C "$(Build.SourcesDirectory)" remote -v || true
+            git -C "$(Build.SourcesDirectory)" config --get-all remote.origin.fetch || true
+            git -C "$(Build.SourcesDirectory)" for-each-ref --format='%(refname)' refs/remotes || true
+          else
+            # Diff against the merge base so only this change's own edits are captured.
+            MERGE_BASE="$(git -C "$(Build.SourcesDirectory)" merge-base "$BASE" HEAD || true)"
+            if [ -z "$MERGE_BASE" ]; then
+              echo "##vso[task.logissue type=warning]No merge base between $BASE and HEAD; the checkout is probably still shallow."
+              echo "shallow=$(git -C "$(Build.SourcesDirectory)" rev-parse --is-shallow-repository)"
+            elif ! git -C "$(Build.SourcesDirectory)" diff --unified=3 "$MERGE_BASE" HEAD > "$DIFF_FILE"; then
+              echo "##vso[task.logissue type=warning]git diff $MERGE_BASE HEAD failed."
+              : > "$DIFF_FILE"
+            else
+              echo "Diffed $BASE ($MERGE_BASE) against HEAD ($(git -C "$(Build.SourcesDirectory)" rev-parse HEAD))."
+            fi
           fi
 
           # An empty diff silently disables the code-correlation half of the
