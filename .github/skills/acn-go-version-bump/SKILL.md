@@ -195,15 +195,26 @@ ACN uses **floating minor version tags** for the Go build image (`build/images.m
 - `GO_IMG` uses a 2-part minor version tag (e.g., `golang:1.26-azurelinux3.0`)
 - The floating tag resolves to the latest patch via SHA digest at `make dockerfiles` time
 
-**go.mod version rule (minor upgrades only):** When performing a **minor** version upgrade (Tier 3), the `go` directive in `go.mod` files MUST use `1.XX.1` (the `.1` patch), NOT the latest patch (e.g., NOT `1.26.4`). This is because:
-- `.0` releases are pre-release/stabilization — avoid them
-- `.1` is the first stable patch — use this as the minimum
-- The actual Go binary version comes from the container image (floating tag), not go.mod
-- Using the latest patch in go.mod forces all developers to have that exact patch locally
+**Separate compatibility from the preferred toolchain:**
 
-**Note:** For **patch** bumps (Tier 2), the workflow correctly sets `go.mod` to the target patch version (e.g., `1.26.3` → `1.26.4`). This rule only applies to the initial minor upgrade.
+- The `go` directive is the module's minimum language/toolchain and dependency
+  compatibility floor. Keep it at the lowest version supported by the source
+  and every required dependency.
+- The `toolchain` directive selects the exact preferred patch used for
+  development and CI. Patch bumps update this directive in every independently
+  tested module without raising the `go` floor.
+- Use a full release version for the floor when dependencies require it. For
+  example, `go 1.25` sorts before `go 1.25.0` and cannot satisfy dependencies
+  that declare `go 1.25.0`.
 
-**Example:** If upgrading to Go 1.26, set `go 1.26.1` in all go.mod files, even if the latest available patch is `1.26.4`.
+**Example:** If the compatibility floor is Go 1.25 and the supported build
+toolchain is Go 1.26.7, use this in every module:
+
+```go
+go 1.25.0
+
+toolchain go1.26.7
+```
 
 ### Version Sources (ALL must be updated — do NOT skip any)
 
@@ -212,11 +223,11 @@ ACN uses **floating minor version tags** for the Go build image (`build/images.m
 ```
 build/images.mk (GO_IMG=golang:1.XX-azurelinux3.0)     ← primary image tag
     │
-    ├── ROOT MODULE (update FIRST):
-    │   └── → go.mod (go 1.XY.Z)                       ← must match (use .1+ not .0)
+    ├── ROOT MODULE:
+    │   └── → go.mod (go floor + exact toolchain)
     │
     ├── BUILD ENVIRONMENT:
-    │   ├── → tools-go/go.mod (go 1.XY.Z)              ← must match root
+    │   ├── → tools-go/go.mod (same floor + toolchain)
     │   ├── → .devcontainer/Dockerfile (VARIANT="1.XX") ← dev container version
     │   ├── → .pipelines/build/scripts/install-go.sh (DEFAULT_IMAGE SHA)
     │   ├── → bpf-prog/ipv6-hp-bpf/linux.Dockerfile (Go image SHA)
@@ -224,7 +235,7 @@ build/images.mk (GO_IMG=golang:1.XX-azurelinux3.0)     ← primary image tag
     │   ├── → npm/windows.Dockerfile (tag 1.XX.Y)
     │   └── → All .tmpl Dockerfiles (via `make dockerfiles`)
     │
-    └── INDEPENDENT MODULES (bump go directive in EACH):
+    └── INDEPENDENT MODULES (update toolchain in EACH; raise go floor only when required):
         ├── → azure-ipam/go.mod
         ├── → azure-ip-masq-merger/go.mod
         ├── → azure-iptables-monitor/go.mod
@@ -241,13 +252,13 @@ build/images.mk (GO_IMG=golang:1.XX-azurelinux3.0)     ← primary image tag
 
 ### Files to Update (in order)
 
-1. **`go.mod` (ROOT)** — Update `go` directive FIRST. **Use `1.XX.1` (NOT latest patch)**
-   - ⚠️ This is the most important file — ALL other modules inherit from this
-   - Example: for Go 1.26 upgrade → set `go 1.26.1` (NOT `go 1.26.4`)
+1. **`go.mod` (ROOT)** — Update the exact `toolchain` directive.
+   - Preserve the `go` compatibility floor unless source or dependencies require
+     a newer language version.
 2. **`build/images.mk`** — Update `GO_IMG` tag
    - ALWAYS use 2-part floating tag: `1.27-azurelinux3.0`, never `1.27.0-azurelinux3.0`
-3. **`tools-go/go.mod`** — Update `go` directive to match root
-4. **All sub-module `go.mod` files** — Update `go` directive to match (see full list above)
+3. **`tools-go/go.mod`** — Update `toolchain` to match root
+4. **All sub-module `go.mod` files** — Update `toolchain` to match (see full list above)
 5. **Do NOT run `go mod tidy`** — it times out in the agent environment
    - Existing `go.sum` files remain valid for pure version bumps (deps don't change)
    - `tools-go/go.sum` is handled by the migration step (copy from `tools.go.sum`)
@@ -412,9 +423,10 @@ Go 1.26's stricter `go mod tidy` rejects root-level modfiles (`tools.go.mod`) th
 
 After making all changes:
 
-1. **Root go.mod check** — Verify the root `go.mod` has the correct version:
+1. **Root go.mod check** — Verify the root `go.mod` preserves the compatibility
+   floor and selects the intended toolchain:
    ```bash
-   head -5 go.mod  # MUST show "go 1.XX.Y" — if still old version, the upgrade is INCOMPLETE
+   head -7 go.mod
    ```
 2. `go build ./...` — Verify compilation succeeds (all binaries)
 3. `go vet ./...` — Check for deprecated API usage
@@ -483,27 +495,28 @@ done
 
 8. **Completeness validation** — verify ALL version sources updated:
    ```bash
-   TARGET="1.XX"  # Replace with actual target minor version
+   TARGET_TOOLCHAIN="1.XX.Y"
+   TARGET_MINOR="1.XX"
    
-   # Root go.mod MUST be updated
-   grep "^go " go.mod | grep -q "$TARGET" || echo "FAIL: root go.mod not updated!"
+   # Root and every submodule must select the target toolchain.
+   grep "^toolchain go$TARGET_TOOLCHAIN" go.mod || echo "FAIL: root toolchain not updated!"
    
    # .devcontainer must reference new version
-   grep -q "VARIANT=\"$TARGET\"" .devcontainer/Dockerfile || echo "FAIL: .devcontainer not updated!"
+   grep -q "VARIANT=\"$TARGET_MINOR\"" .devcontainer/Dockerfile || echo "FAIL: .devcontainer not updated!"
    
    # All sub-module go.mod files
    for mod in azure-ipam cni crd dropgz npm zapai azure-ip-masq-merger azure-iptables-monitor \
               bpf-prog/ipv6-hp-bpf cilium-log-collector pkgerrlint tools/azure-npm-to-cilium-validator; do
      if [ -f "$mod/go.mod" ]; then
-       grep "^go " "$mod/go.mod" | grep -q "$TARGET" || echo "FAIL: $mod/go.mod not updated!"
+       grep "^toolchain go$TARGET_TOOLCHAIN" "$mod/go.mod" || echo "FAIL: $mod/go.mod toolchain not updated!"
      fi
    done
    
    # tools-go module
-   grep "^go " tools-go/go.mod | grep -q "$TARGET" || echo "FAIL: tools-go/go.mod not updated!"
+   grep "^toolchain go$TARGET_TOOLCHAIN" tools-go/go.mod || echo "FAIL: tools-go/go.mod toolchain not updated!"
    
    # build/images.mk
-   grep "GO_IMG" build/images.mk | grep -q "$TARGET" || echo "FAIL: build/images.mk not updated!"
+   grep "GO_IMG" build/images.mk | grep -q "$TARGET_MINOR" || echo "FAIL: build/images.mk not updated!"
    ```
 
 ---
