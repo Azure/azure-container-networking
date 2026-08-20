@@ -124,6 +124,26 @@ func TestCreateNetworkContainerRequestValidate(t *testing.T) {
 		{
 			name: "valid",
 			req: CreateNetworkContainerRequest{
+				NetworkContainerid: "f47ac10b-58cc-0372-8567-0e02b2c3d479",
+				IPConfiguration: IPConfiguration{
+					IPSubnet: IPSubnet{IPAddress: "10.0.0.4"},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid",
+			req: CreateNetworkContainerRequest{
+				NetworkContainerid: "f47ac10b-58cc-0372-8567-0e02b2c3d479",
+				IPConfiguration: IPConfiguration{
+					IPSubnet: IPSubnet{IPAddress: "2001:db8::4"},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid",
+			req: CreateNetworkContainerRequest{
 				NetworkContainerid: SwiftPrefix + "f47ac10b-58cc-0372-8567-0e02b2c3d479",
 			},
 			wantErr: false,
@@ -132,6 +152,26 @@ func TestCreateNetworkContainerRequestValidate(t *testing.T) {
 			name: "invalid",
 			req: CreateNetworkContainerRequest{
 				NetworkContainerid: "-f47ac10b-58cc-0372-8567-0e02b2c3d479",
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid",
+			req: CreateNetworkContainerRequest{
+				NetworkContainerid: "f47ac10b-58cc-0372-8567-0e02b2c3d479",
+				IPConfiguration: IPConfiguration{
+					IPSubnet: IPSubnet{IPAddress: "10.0.0"},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid",
+			req: CreateNetworkContainerRequest{
+				NetworkContainerid: "f47ac10b-58cc-0372-8567-0e02b2c3d479",
+				IPConfiguration: IPConfiguration{
+					IPSubnet: IPSubnet{IPAddress: "2001:db8:"},
+				},
 			},
 			wantErr: true,
 		},
