@@ -189,6 +189,10 @@ func (kvs *jsonFileStore) Lock(timeout time.Duration) error {
 	kvs.Mutex.Lock()
 	defer kvs.Mutex.Unlock()
 
+	if timeout <= 0 {
+		return ErrTimeoutLockingStore
+	}
+
 	afterTime := time.After(timeout)
 	status := make(chan error)
 

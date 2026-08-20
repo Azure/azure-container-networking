@@ -36,6 +36,7 @@ jobs:
       go_img: ${{ steps.check.outputs.go_img }}
       go_tag: ${{ steps.check.outputs.go_tag }}
       go_minor: ${{ steps.check.outputs.go_minor }}
+      go_floor: ${{ steps.check.outputs.go_floor }}
       gomod_version: ${{ steps.check.outputs.gomod_version }}
       current_digest: ${{ steps.check.outputs.current_digest }}
       latest_digest: ${{ steps.check.outputs.latest_digest }}
@@ -74,15 +75,19 @@ jobs:
           GO_IMG=$(make --no-print-directory -f build/images.mk print-GO_IMG)
           GO_TAG=$(echo "$GO_IMG" | grep -oP ':\K.*')
           GO_MINOR=$(echo "$GO_TAG" | grep -oP '^\d+\.\d+')
-          GOMOD_VERSION=$(go mod edit -json go.mod | python3 -c "import sys,json;print(json.load(sys.stdin)['Go'])")
+          GO_MOD_JSON=$(go mod edit -json go.mod)
+          GO_FLOOR=$(python3 -c "import json,sys; print(json.load(sys.stdin)['Go'])" <<< "$GO_MOD_JSON")
+          GOMOD_VERSION=$(python3 -c "import json,sys; d=json.load(sys.stdin); print((d.get('Toolchain') or ('go' + d['Go'])).removeprefix('go'))" <<< "$GO_MOD_JSON")
 
           echo "Current GO_IMG: $GO_IMG"
           echo "Current tag: $GO_TAG"
-          echo "Current go.mod: $GOMOD_VERSION"
+          echo "Current language/toolchain floor: $GO_FLOOR"
+          echo "Current preferred toolchain: $GOMOD_VERSION"
 
           echo "go_img=$GO_IMG" >> "$GITHUB_OUTPUT"
           echo "go_tag=$GO_TAG" >> "$GITHUB_OUTPUT"
           echo "go_minor=$GO_MINOR" >> "$GITHUB_OUTPUT"
+          echo "go_floor=$GO_FLOOR" >> "$GITHUB_OUTPUT"
           echo "gomod_version=$GOMOD_VERSION" >> "$GITHUB_OUTPUT"
 
           # ─── Get current pinned digests ───
@@ -231,6 +236,7 @@ jobs:
       - name: Summary
         env:
           CHECK_GO_IMG: ${{ steps.check.outputs.go_img }}
+          CHECK_GO_FLOOR: ${{ steps.check.outputs.go_floor }}
           CHECK_GOMOD_VERSION: ${{ steps.check.outputs.gomod_version }}
           CHECK_CURRENT_DIGEST: ${{ steps.check.outputs.current_digest }}
           CHECK_LATEST_DIGEST: ${{ steps.check.outputs.latest_digest }}
@@ -245,7 +251,8 @@ jobs:
           echo "| Check | Value |" >> "$GITHUB_STEP_SUMMARY"
           echo "|-------|-------|" >> "$GITHUB_STEP_SUMMARY"
           echo "| GO_IMG | \`$CHECK_GO_IMG\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| go.mod | \`$CHECK_GOMOD_VERSION\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Module compatibility floor | \`$CHECK_GO_FLOOR\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Preferred toolchain | \`$CHECK_GOMOD_VERSION\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Current pinned digest | \`$CHECK_CURRENT_DIGEST\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Latest MCR digest | \`$CHECK_LATEST_DIGEST\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Go version in image | \`$CHECK_LATEST_GO_VERSION\` |" >> "$GITHUB_STEP_SUMMARY"
@@ -360,16 +367,10 @@ jobs:
           # Regenerate template Dockerfiles (picks up new digest via skopeo)
           make dockerfiles
 
-          # If Go version changed in the image, also bump go.mod and tools module
+          # If Go changed in the image, update the preferred toolchain without
+          # raising the modules' compatibility floor.
           if [ "$GO_VERSION_CHANGED" = "true" ] && [ -n "$LATEST_GO_VERSION" ] && [ "$LATEST_GO_VERSION" != "UNKNOWN" ]; then
-            go mod edit -go="${LATEST_GO_VERSION}" go.mod
-            go mod tidy
-            if [ -f tools-go/go.mod ]; then
-              (cd tools-go && go mod edit -go="${LATEST_GO_VERSION}" && go mod tidy)
-            elif [ -f tools.go.mod ]; then
-              go mod edit -go="${LATEST_GO_VERSION}" -modfile=tools.go.mod
-              go mod tidy -modfile=tools.go.mod
-            fi
+            hack/scripts/update-go-toolchain.sh "$LATEST_GO_VERSION"
           fi
 
           # Commit
@@ -408,17 +409,10 @@ jobs:
           LATEST_PATCH_DIGEST=$(skopeo inspect "docker://${MCR_IMG}:${LATEST_PATCH_TAG}" --format "{{.Digest}}")
 
           # Note: GO_IMG stays as floating minor tag (e.g., 1.26-azurelinux3.0).
-          # Patch bumps update go.mod, digests, and re-resolve via make dockerfiles.
+          # Patch bumps update the preferred toolchain, digests, and rendered Dockerfiles.
 
-          # 1. Update go.mod and tools module
-          go mod edit -go="${LATEST_PATCH}" go.mod
-          go mod tidy
-          if [ -f tools-go/go.mod ]; then
-            (cd tools-go && go mod edit -go="${LATEST_PATCH}" && go mod tidy)
-          elif [ -f tools.go.mod ]; then
-            go mod edit -go="${LATEST_PATCH}" -modfile=tools.go.mod
-            go mod tidy -modfile=tools.go.mod
-          fi
+          # 1. Update every independently tested module's preferred toolchain.
+          hack/scripts/update-go-toolchain.sh "$LATEST_PATCH"
 
           # 3. Update install-go.sh digest (preserve image:tag@sha form)
           sed -i -E "s|(DEFAULT_IMAGE=\"${MCR_IMG}:[^\"@]+@)sha256:[a-f0-9]+|\1${LATEST_PATCH_DIGEST}|" \
@@ -488,13 +482,13 @@ jobs:
             TITLE="chore: bump Go ${PR_GO_MINOR} → ${PR_LATEST_PATCH}"
             BODY="## Automated Go Patch Bump
 
-          **From:** \`${PR_GO_MINOR}\` (go.mod: \`${PR_GOMOD_VERSION}\`)
+          **From:** \`${PR_GO_MINOR}\` (preferred toolchain: \`${PR_GOMOD_VERSION}\`)
           **To:** \`${PR_LATEST_PATCH}\`
           **Digest:** \`${PR_LATEST_PATCH_DIGEST}\`
 
           ### Changes Made
-          - \`go.mod\` and tools module version bumped
-          - \`go mod tidy\` executed
+          - Preferred \`toolchain\` updated in every module
+          - Module compatibility floors preserved
           - \`install-go.sh\` DEFAULT_IMAGE SHA updated
           - \`bpf-prog/ipv6-hp-bpf/linux.Dockerfile\` SHA updated
           - \`npm/\` Dockerfiles tag updated
@@ -822,14 +816,7 @@ jobs:
           make dockerfiles
 
           if [ "$GO_VERSION_CHANGED" = "true" ] && [ -n "$LATEST_GO_VERSION" ] && [ "$LATEST_GO_VERSION" != "UNKNOWN" ]; then
-            go mod edit -go="${LATEST_GO_VERSION}" go.mod
-            go mod tidy
-            if [ -f tools-go/go.mod ]; then
-              (cd tools-go && go mod edit -go="${LATEST_GO_VERSION}" && go mod tidy)
-            elif [ -f tools.go.mod ]; then
-              go mod edit -go="${LATEST_GO_VERSION}" -modfile=tools.go.mod
-              go mod tidy -modfile=tools.go.mod
-            fi
+            hack/scripts/update-go-toolchain.sh "$LATEST_GO_VERSION"
           fi
 
           git config user.name "github-actions[bot]"
@@ -868,16 +855,10 @@ jobs:
 
           # Only bump if release branch is on the same minor
           if [ "$BRANCH_GO_MINOR" = "$GO_MINOR" ]; then
-            # GO_IMG stays as floating minor tag; patch version goes in go.mod and digests
-            CURRENT_GOMOD=$(go mod edit -json go.mod | python3 -c "import sys,json;print(json.load(sys.stdin)['Go'])")
-            go mod edit -go="${LATEST_PATCH}" go.mod
-            go mod tidy
-            if [ -f tools-go/go.mod ]; then
-              (cd tools-go && go mod edit -go="${LATEST_PATCH}" && go mod tidy)
-            elif [ -f tools.go.mod ]; then
-              go mod edit -go="${LATEST_PATCH}" -modfile=tools.go.mod
-              go mod tidy -modfile=tools.go.mod
-            fi
+            # GO_IMG stays as a floating minor tag. Patch updates change the
+            # preferred toolchain while preserving the module compatibility floor.
+            CURRENT_GOMOD=$(go mod edit -json go.mod | python3 -c "import sys,json; d=json.load(sys.stdin); print((d.get('Toolchain') or ('go' + d['Go'])).removeprefix('go'))")
+            hack/scripts/update-go-toolchain.sh "$LATEST_PATCH"
 
             sed -i -E "s|(DEFAULT_IMAGE=\"${MCR_IMG}:[^\"@]+@)sha256:[a-f0-9]+|\1${LATEST_PATCH_DIGEST}|" \
               .pipelines/build/scripts/install-go.sh
@@ -958,8 +939,8 @@ jobs:
 
           ### Changes applied (same as master PR)
           - All SHA/version references updated
+          - Preferred \`toolchain\` updated without raising module compatibility floors
           - \`make dockerfiles\` regenerated
-          - \`go mod tidy\` executed (if patch bump)
 
           ### Verification
           - [ ] CI passes on \`${MATRIX_BRANCH}\`
