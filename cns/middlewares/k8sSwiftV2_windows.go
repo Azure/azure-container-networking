@@ -200,7 +200,7 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 		if err != nil {
 			return ipConfigsResp, err
 		}
-		SWIFTv2PodIPInfos, err := k.getIPConfig(ctx, podInfo)
+		SWIFTv2PodIPInfos, scheduledWithDRA, err := k.getIPConfig(ctx, podInfo)
 		if err != nil {
 			return &cns.IPConfigsResponse{
 				Response: cns.Response{
@@ -228,6 +228,7 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 				}
 			}
 		}
+		ipConfigsResp.SkipDefaultRouteProgramming = scheduledWithDRA
 		return ipConfigsResp, nil
 	}
 }

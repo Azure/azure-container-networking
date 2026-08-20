@@ -59,6 +59,39 @@ func TestUnmarshalPodInfo(t *testing.T) {
 	}
 }
 
+func TestIPConfigsResponseSkipDefaultRouteProgrammingJSON(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		response  IPConfigsResponse
+		wantField bool
+	}{
+		{
+			name:     "omitted when false",
+			response: IPConfigsResponse{},
+		},
+		{
+			name: "included when true",
+			response: IPConfigsResponse{
+				SkipDefaultRouteProgramming: true,
+			},
+			wantField: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.response)
+			assert.NoError(t, err)
+
+			var decoded map[string]any
+			assert.NoError(t, json.Unmarshal(data, &decoded))
+			value, exists := decoded["skipDefaultRouteProgramming"]
+			assert.Equal(t, tt.wantField, exists)
+			if tt.wantField {
+				assert.Equal(t, true, value)
+			}
+		})
+	}
+}
+
 func TestNewPodInfoFromIPConfigsRequest(t *testing.T) {
 	GlobalPodInfoScheme = InterfaceIDPodInfoScheme
 	tests := []struct {

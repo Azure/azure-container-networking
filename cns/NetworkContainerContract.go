@@ -582,6 +582,9 @@ type IPConfigResponse struct {
 type IPConfigsResponse struct {
 	PodIPInfo []PodIpInfo `json:"podIPInfo"`
 	Response  Response    `json:"response"`
+	// SkipDefaultRouteProgramming instructs CNI to skip default-route programming
+	// when no NIC requests default-route programming.
+	SkipDefaultRouteProgramming bool `json:"skipDefaultRouteProgramming,omitempty"`
 }
 
 // ClaimResourceInfoRequest is the request for the RequestClaimResourceInfo API. ClaimUID identifies
