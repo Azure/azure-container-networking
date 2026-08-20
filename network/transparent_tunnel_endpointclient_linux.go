@@ -272,6 +272,20 @@ func isDefaultIPv4Route(route vishnetlink.Route) bool {
 	return ones == 0 && bits == ipv4Bits && route.Dst.IP.To4() != nil && route.Dst.IP.IsUnspecified()
 }
 
+// ensureFwmarkRule installs the policy-routing rule that diverts marked packets
+// into the tunnel routing table, equivalent to:
+//
+//	ip rule add fwmark 3 lookup 101
+//
+// This is the second half of the fwmark mechanism: the mangle PREROUTING MARK
+// rule stamps mark 3 on packets arriving from a local pod's veth, and this rule
+// makes the kernel consult table 101 for them, whose default route sends them
+// out of the physical NIC to the gateway so VFP sees the traffic.
+//
+// The rule is node-scoped and identical for every pod, so it is added only when
+// an equivalent one is not already present. Without the dedup, each CNI ADD
+// would stack another copy that nothing removes. EEXIST is tolerated for the
+// race where a concurrent ADD installs the rule between the list and the add.
 func (client *TransparentTunnelEndpointClient) ensureFwmarkRule() error {
 	rule := vishnetlink.NewRule()
 	rule.Mark = transparentTunnelFwmark

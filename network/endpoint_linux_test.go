@@ -12,7 +12,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
-	"github.com/stretchr/testify/require"
 )
 
 func TestEndpointLinux(t *testing.T) {
@@ -196,56 +195,3 @@ var _ = Describe("Test TestEndpointLinux", func() {
 		})
 	})
 })
-
-// A failed ADD rolls back by re-entering delete with the same epInfo, and stateless
-// DEL builds its endpoint from it. If newEndpointImpl does not record the host veth
-// name it generated, that rollback deletes with an empty name and leaks per-endpoint
-// rules, so assert the name is written back for both derivation branches.
-func TestNewEndpointImplPopulatesHostIfName(t *testing.T) {
-	_, dummyIPNet, _ := net.ParseCIDR("10.0.0.0/24")
-
-	tests := []struct {
-		name     string
-		data     map[string]interface{}
-		expected string
-	}{
-		{
-			name:     "veth name derived from endpoint id",
-			data:     map[string]interface{}{},
-			expected: hostVEthInterfacePrefix + "768e8de",
-		},
-		{
-			name:     "veth name derived from vethname option",
-			data:     map[string]interface{}{OptVethName: "customkey"},
-			expected: hostVEthInterfacePrefix + generateVethName("customkey"),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			nw := &network{
-				Endpoints: map[string]*endpoint{},
-				Mode:      opModeBridge,
-				extIf:     &externalInterface{IPv4Gateway: net.ParseIP("192.168.0.1")},
-			}
-			epInfo := &EndpointInfo{
-				EndpointID:  "768e8deb-eth1",
-				Data:        tt.data,
-				IfName:      eth0IfName,
-				NICType:     cns.InfraNIC,
-				ContainerID: "0ea7476f26d192f067abdc8b3df43ce3cdbe324386e1c010cb48de87eefef480",
-				Mode:        opModeTransparent,
-				IPAddresses: []net.IPNet{*dummyIPNet},
-			}
-
-			ep, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
-				netio.NewMockNetIO(false, 0), nil, NewMockNamespaceClient(), iptables.NewClient(), &mockDHCP{}, epInfo)
-			require.NoError(t, err)
-			require.NotNil(t, ep)
-
-			require.Equal(t, tt.expected, ep.HostIfName)
-			require.Equal(t, ep.HostIfName, epInfo.HostIfName,
-				"epInfo must carry the generated host veth name so ADD rollback can clean up")
-		})
-	}
-}

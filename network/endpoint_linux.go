@@ -101,13 +101,6 @@ func (nw *network) newEndpointImpl(
 		contIfName = fmt.Sprintf("%s%s-2", hostVEthInterfacePrefix, epInfo.EndpointID[:7])
 	}
 
-	// Record the generated host veth name back on epInfo. If the ADD fails after this
-	// point (e.g. in SaveState), the CNI rollback re-enters delete with this same
-	// epInfo, and stateless DEL builds its endpoint from it. Without this, HostIfName
-	// is only ever populated from CNS state on the DEL path, so the rollback would
-	// delete with an empty veth name and leave per-endpoint rules behind.
-	epInfo.HostIfName = hostIfName
-
 	nicName := epInfo.IfName
 	// infra nic nicname will look like eth0, and delegated/secondary nics will be moved into the container namespace
 	if epInfo.NICType != cns.InfraNIC {
