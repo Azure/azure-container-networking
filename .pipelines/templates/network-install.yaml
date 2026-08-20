@@ -92,15 +92,24 @@ steps:
         set -e
         kubectl cluster-info
 
+        format_image() {
+          local registry="$1"
+          local name="$2"
+          local version="$3"
+          if [[ "$version" == @* ]]; then
+            echo "${registry}/${name}${version}"
+            return
+          fi
+          echo "${registry}/${name}:${version}"
+        }
+
         configure_ebpf() {
-          export AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY=acnpublic.azurecr.io
-          export AZURE_IPTABLES_MONITOR_TAG=$(make azure-iptables-monitor-version)
+          export AZURE_IPTABLES_MONITOR_IMAGE=${AZURE_IPTABLES_MONITOR_IMAGE_OVERRIDE:-$(format_image acnpublic.azurecr.io azure-iptables-monitor "$(make azure-iptables-monitor-version)")}
         }
 
         configure_ebpf_overlay() {
           configure_ebpf
-          export AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY=acnpublic.azurecr.io
-          export AZURE_IP_MASQ_MERGER_TAG=$(make azure-ip-masq-merger-version)
+          export AZURE_IP_MASQ_MERGER_IMAGE=${AZURE_IP_MASQ_MERGER_IMAGE_OVERRIDE:-$(format_image acnpublic.azurecr.io azure-ip-masq-merger "$(make azure-ip-masq-merger-version)")}
         }
 
         configure_dualstack() {
@@ -152,8 +161,9 @@ steps:
             ;;
         esac
 
-        export CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY=${CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY_OVERRIDE:-acnpublic.azurecr.io}
-        export CILIUM_LOG_COLLECTOR_VERSION_TAG=${CILIUM_LOG_COLLECTOR_VERSION_TAG_OVERRIDE:-$(make cilium-log-collector-version)}
+        collector_registry=${CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY_OVERRIDE:-acnpublic.azurecr.io}
+        collector_version=${CILIUM_LOG_COLLECTOR_VERSION_TAG_OVERRIDE:-$(make cilium-log-collector-version)}
+        export CILIUM_LOG_COLLECTOR_IMAGE=${CILIUM_LOG_COLLECTOR_IMAGE_OVERRIDE:-$(format_image "$collector_registry" cilium-log-collector "$collector_version")}
         make -C ./hack/aks add-cilium-log-collector
         kubectl get pods -A -o wide
       displayName: Install Cilium networking

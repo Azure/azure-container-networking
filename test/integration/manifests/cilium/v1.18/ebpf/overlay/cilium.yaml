@@ -185,7 +185,7 @@ spec:
                 fieldRef:
                   apiVersion: v1
                   fieldPath: spec.nodeName
-          image: $AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY/azure-iptables-monitor:$AZURE_IPTABLES_MONITOR_TAG
+          image: $AZURE_IPTABLES_MONITOR_IMAGE
           imagePullPolicy: IfNotPresent
           name: azure-iptables-monitor
           resources: {}
@@ -205,7 +205,7 @@ spec:
             - ./azure-ip-masq-merger
             - -v
             - "2"
-          image: $AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY/azure-ip-masq-merger:$AZURE_IP_MASQ_MERGER_TAG
+          image: $AZURE_IP_MASQ_MERGER_IMAGE
           imagePullPolicy: IfNotPresent
           name: azure-ip-masq-merger
           resources: {}
@@ -223,7 +223,7 @@ spec:
             - /azure-block-iptables
             - -mode=attach
             - -overwrite=true
-          image: $AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY/azure-iptables-monitor:$AZURE_IPTABLES_MONITOR_TAG
+          image: $AZURE_IPTABLES_MONITOR_IMAGE
           imagePullPolicy: IfNotPresent
           name: iptables-blocker-init
           resources: {}
@@ -248,7 +248,7 @@ spec:
                 fieldRef:
                   apiVersion: v1
                   fieldPath: spec.nodeName
-          image: $AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY/azure-iptables-monitor:$AZURE_IPTABLES_MONITOR_TAG
+          image: $AZURE_IPTABLES_MONITOR_IMAGE
           imagePullPolicy: IfNotPresent
           name: azure-iptables-monitor-init
           resources: {}
