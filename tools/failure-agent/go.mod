@@ -2,6 +2,8 @@ module github.com/Azure/azure-container-networking/tools/failure-agent
 
 go 1.25.0
 
+toolchain go1.26.7
+
 require (
 	github.com/google/uuid v1.6.0
 	github.com/openai/openai-go/v3 v3.40.0
