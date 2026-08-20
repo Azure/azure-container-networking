@@ -235,11 +235,19 @@ jobs:
           echo $FQDN
           chmod +x $(Pipeline.Workspace)/Test/e2e.test
           runConformance () {
-              KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig=./kubeconfig
+              local -a seedArgs=()
+              if [[ $# -gt 0 ]]; then
+                seedArgs=(--ginkgo.seed="$1")
+              fi
+              KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig=./kubeconfig "${seedArgs[@]}"
               # there can't be a command after e2e.test because the exit code is important
           }
 
           runConformanceWindows () {
+            local -a seedArgs=()
+            if [[ $# -gt 0 ]]; then
+              seedArgs=(--ginkgo.seed="$1")
+            fi
             git clone https://github.com/huntergregory/kubernetes.git
             cd kubernetes
             git checkout sleep-before-probing
@@ -256,13 +264,14 @@ jobs:
             namedPorts="named port"
             wrongK8sVersion="Netpol API"
             toSkip="\[LinuxOnly\]|$nomatch1|$nomatch2|$nomatch3|$nomatch4|$cidrExcept1|$cidrExcept2|$namedPorts|$wrongK8sVersion|SCTP"
-            KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 $(System.DefaultWorkingDirectory)/kubernetes/_output/local/bin/linux/amd64/e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="$toSkip"  --node-os-distro=windows --allowed-not-ready-nodes=1 --kubeconfig=./kubeconfig
+            KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 $(System.DefaultWorkingDirectory)/kubernetes/_output/local/bin/linux/amd64/e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="$toSkip"  --node-os-distro=windows --allowed-not-ready-nodes=1 --kubeconfig=./kubeconfig "${seedArgs[@]}"
           }
 
           exitCode=0
           if [ $(IS_STRESS_TEST) == "true" ]; then
               echo "Running $NUM_PARALLEL_JOBS_FOR_STRESS_TEST conformance tests at once and writing outputs to files"
               declare -a conformancePIDs
+              baseSeed=$(date +%s)
               for round in $(seq 1 $NUM_PARALLEL_JOBS_FOR_STRESS_TEST); do
                   # for each iteration, run the conformance test and echos in the background, and write the output of the conformance test to a file
 
@@ -270,13 +279,13 @@ jobs:
                   if [[ $(AZURE_CLUSTER) == *ws22 ]] # * is used for pattern matching
                   then
                     echo "starting conformance test #$round" && \
-                        runConformanceWindows | tee $npmLogsFolder/conformance-results-$round && \
+                        runConformanceWindows $((baseSeed + round)) | tee $npmLogsFolder/conformance-results-$round && \
                         echo "finished conformance test #$round" &
                     pidOfConformanceTest=$!
                     conformancePIDs+=($pidOfConformanceTest)
                   else
-                    echo "starting windows conformance test #$round" && \
-                        runConformance > $npmLogsFolder/conformance-results-$round && \
+                    echo "starting conformance test #$round" && \
+                        runConformance $((baseSeed + round)) > $npmLogsFolder/conformance-results-$round && \
                         echo "finished conformance test #$round" &
                     pidOfConformanceTest=$!
                     conformancePIDs+=($pidOfConformanceTest)
