@@ -121,7 +121,7 @@ func (client *LinuxBridgeEndpointClient) AddEndpointRules(epInfo *EndpointInfo) 
 	return nil
 }
 
-func (client *LinuxBridgeEndpointClient) DeleteEndpointRules(ep *endpoint) {
+func (client *LinuxBridgeEndpointClient) DeleteEndpointRules(ep *endpoint) error {
 	// Delete rules for IP addresses on the container interface.
 	for _, ipAddr := range ep.IPAddresses {
 		if ipAddr.IP.To4() != nil {
@@ -153,6 +153,7 @@ func (client *LinuxBridgeEndpointClient) DeleteEndpointRules(ep *endpoint) {
 			}
 		}
 	}
+	return nil
 }
 
 // getArpReplyAddress returns the MAC address to use in ARP replies.

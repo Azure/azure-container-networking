@@ -522,8 +522,9 @@ func (client *TransparentVlanEndpointClient) addVnetMangleAndTunnelingRules(vers
 	return nil
 }
 
-func (client *TransparentVlanEndpointClient) DeleteEndpointRules(ep *endpoint) {
+func (client *TransparentVlanEndpointClient) DeleteEndpointRules(_ *endpoint) error {
 	client.DeleteSnatEndpointRules()
+	return nil
 }
 
 func (client *TransparentVlanEndpointClient) MoveEndpointsToContainerNS(epInfo *EndpointInfo, nsID uintptr) error {

@@ -67,7 +67,14 @@ type NetworkClient interface {
 type EndpointClient interface {
 	AddEndpoints(epInfo *EndpointInfo) error
 	AddEndpointRules(epInfo *EndpointInfo) error
-	DeleteEndpointRules(ep *endpoint)
+	// DeleteEndpointRules removes the rules installed by AddEndpointRules.
+	// Every client except transparent-tunnel returns nil unconditionally: their
+	// cleanup is best-effort and its failures are logged, not surfaced. The
+	// transparent-tunnel client returns a real error so a failure to remove
+	// per-pod tunnel state fails CNI DEL and the runtime retries, rather than
+	// silently leaking ipset entries and iptables rules on the node.
+	// Callers must continue the rest of endpoint teardown even when this errors.
+	DeleteEndpointRules(ep *endpoint) error
 	MoveEndpointsToContainerNS(epInfo *EndpointInfo, nsID uintptr) error
 	SetupContainerInterfaces(epInfo *EndpointInfo) error
 	ConfigureContainerInterfacesAndRoutes(epInfo *EndpointInfo) error

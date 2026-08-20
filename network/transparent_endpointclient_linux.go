@@ -170,7 +170,7 @@ func (client *TransparentEndpointClient) AddEndpointRules(epInfo *EndpointInfo) 
 	return nil
 }
 
-func (client *TransparentEndpointClient) DeleteEndpointRules(ep *endpoint) {
+func (client *TransparentEndpointClient) DeleteEndpointRules(ep *endpoint) error {
 	// ip route del <podip> dev <hostveth>
 	// Deleting the route set up for routing the incoming packets to pod
 	for _, ipAddr := range ep.IPAddresses {
@@ -191,6 +191,7 @@ func (client *TransparentEndpointClient) DeleteEndpointRules(ep *endpoint) {
 			logger.Error("Failed to delete route on VM for the", zap.String("ip", ipNet.String()), zap.Error(err))
 		}
 	}
+	return nil
 }
 
 func (client *TransparentEndpointClient) MoveEndpointsToContainerNS(epInfo *EndpointInfo, nsID uintptr) error {

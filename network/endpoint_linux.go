@@ -16,6 +16,7 @@ import (
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/ovsctl"
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -163,6 +164,9 @@ func (nw *network) newEndpointImpl(
 					plc,
 					iptc)
 			}
+		} else if epInfo.Mode == opModeTransparentTunnel {
+			logger.Info("Transparent tunnel client")
+			epClient = NewTransparentTunnelEndpointClient(nw, epInfo, hostIfName, contIfName, nl, netioCli, plc, iptc)
 		} else if epInfo.Mode != opModeTransparent {
 			logger.Info("Bridge client")
 			epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, epInfo.Mode, nl, plc)
@@ -180,7 +184,9 @@ func (nw *network) newEndpointImpl(
 		// Cleanup on failure.
 		if err != nil {
 			logger.Error("CNI error. Delete Endpoint and rules that are created", zap.Error(err), zap.String("contIfName", contIfName))
+
 			if containerIf != nil {
+				//nolint:errcheck // rollback is best effort; the original error is returned
 				client.DeleteEndpointRules(ep)
 			}
 			// set deleteHostVeth to true to cleanup host veth interface if created
@@ -282,12 +288,16 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 			} else {
 				epClient = NewOVSEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, ovsctl.NewOvsctl(), plc, iptc)
 			}
+		} else if mode == opModeTransparentTunnel {
+			epInfo := ep.getInfo()
+			epClient = NewTransparentTunnelEndpointClient(nw, epInfo, ep.HostIfName, "", nl, nioc, plc, iptc)
 		} else if mode != opModeTransparent {
 			epClient = NewLinuxBridgeEndpointClient(nw.extIf, ep.HostIfName, "", mode, nl, plc)
 		} else {
 			// delete if secondary interfaces populated or endpoint of type delegated (new way)
 			if len(ep.SecondaryInterfaces) > 0 || ep.NICType == cns.NodeNetworkInterfaceFrontendNIC {
 				epClient = NewSecondaryEndpointClient(nl, nioc, plc, nsc, dhcpc, ep)
+				//nolint:errcheck // secondary client rules cleanup does not return errors
 				epClient.DeleteEndpointRules(ep)
 				//nolint:errcheck // ignore error
 				epClient.DeleteEndpoints(ep)
@@ -301,13 +311,13 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 		}
 	}
 
-	epClient.DeleteEndpointRules(ep)
+	rulesErr := epClient.DeleteEndpointRules(ep)
 	// deleteHostVeth set to false not to delete veth as CRI will remove network namespace and
 	// veth will get removed as part of that.
 	//nolint:errcheck // ignore error
 	epClient.DeleteEndpoints(ep)
 
-	return nil
+	return errors.Wrap(rulesErr, "failed to delete endpoint rules")
 }
 
 // getInfoImpl returns information about the endpoint.

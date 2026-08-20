@@ -91,6 +91,15 @@ func (nm *networkManager) newNetworkImpl(nwInfo *EndpointInfo, extIf *externalIn
 				return nil, fmt.Errorf("Ipv6 forwarding failed: %w", err)
 			}
 		}
+	case opModeTransparentTunnel:
+		logger.Info("Transparent tunnel mode")
+		ifName = extIf.Name
+		if nwInfo.IPV6Mode != "" {
+			nu := networkutils.NewNetworkUtils(nm.netlink, nm.plClient)
+			if err := nu.EnableIPV6Forwarding(); err != nil {
+				return nil, fmt.Errorf("Ipv6 forwarding failed: %w", err)
+			}
+		}
 	case opModeTransparentVlan:
 		logger.Info("Transparent vlan mode")
 		ifName = extIf.Name

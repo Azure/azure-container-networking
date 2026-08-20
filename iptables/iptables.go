@@ -5,11 +5,14 @@ package iptables
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/platform"
 	"go.uber.org/zap"
 )
+
+const iptablesRuleNotFoundSubstr = "matching rule exist"
 
 var (
 	logger                        = log.CNILogger.With(zap.String("component", "cni-iptables"))
@@ -39,6 +42,7 @@ const (
 	Filter = "filter"
 	Nat    = "nat"
 	Mangle = "mangle"
+	Raw    = "raw"
 )
 
 // target
@@ -46,6 +50,7 @@ const (
 	Accept     = "ACCEPT"
 	Drop       = "DROP"
 	Masquerade = "MASQUERADE"
+	Notrack    = "NOTRACK"
 )
 
 // actions
@@ -217,4 +222,15 @@ func (c *Client) AppendIptableRule(version, tableName, chainName, match, target 
 func (c *Client) DeleteIptableRule(version, tableName, chainName, match, target string) error {
 	params := fmt.Sprintf("-t %s -D %s %s -j %s", tableName, chainName, match, target)
 	return c.RunCmd(version, params)
+}
+
+// IsRuleNotFoundErr reports whether err is iptables' "no matching rule exists"
+// failure from a delete, as opposed to a real failure such as a permission error
+// or xtables lock contention. Callers that treat a missing rule as success can
+// use this to filter, while still propagating every other error.
+func IsRuleNotFoundErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), iptablesRuleNotFoundSubstr)
 }

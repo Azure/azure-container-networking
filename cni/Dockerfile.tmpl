@@ -27,6 +27,8 @@ RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-vnet-telemetry -trimpath
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-vnet-ipam -trimpath -ldflags "-s -w -X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" cni/ipam/plugin/main.go
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-vnet-stateless -trimpath -ldflags "-s -w -X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" cni/network/stateless/main.go
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-cni-telemetry-sidecar -trimpath -ldflags "-s -w -X main.version="$VERSION" -X "$CNI_AI_PATH"="$CNI_AI_ID"" -gcflags="-dwarflocationlists=true" ./cns/cni-telemetry-sidecar
+# Derived from the golden Linux conflist rather than checked in, so the two cannot drift.
+RUN cni/scripts/gen-transparent-tunnel-conflist.sh cni/azure-linux.conflist /generated/azure-transparent-tunnel.conflist
 
 FROM mariner-core AS payload
 ARG OS
@@ -35,6 +37,7 @@ COPY --from=azure-vnet /go/bin/* /payload/
 COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS.conflist /payload/azure.conflist
 COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift.conflist /payload/azure-swift.conflist
 COPY --from=azure-vnet /azure-container-networking/cni/azure-linux-multitenancy-transparent-vlan.conflist /payload/azure-multitenancy-transparent-vlan.conflist
+COPY --from=azure-vnet /generated/azure-transparent-tunnel.conflist /payload/azure-transparent-tunnel.conflist
 COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift-overlay.conflist /payload/azure-swift-overlay.conflist
 COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift-overlay-dualstack.conflist /payload/azure-swift-overlay-dualstack.conflist
 COPY --from=azure-vnet /azure-container-networking/cni/azure-windows-multitenancy.conflist /payload/azure-multitenancy.conflist

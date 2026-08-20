@@ -17,6 +17,8 @@ type validationCase struct {
 var (
 	errMockPlatform    = errors.New("mock pl error")
 	errExtraneousCalls = errors.New("function called too many times")
+	errRuleNotFound    = errors.New("exit status 1: iptables: bad rule does a matching rule exist in that chain")
+	errXtablesLock     = errors.New("exit status 4: another app is currently holding the xtables lock; waiting for it to exit")
 )
 
 // GenerateValidateFunc takes in a slice of expected calls and intended responses for each time the returned function is called
@@ -257,4 +259,58 @@ func TestRuleExists(t *testing.T) {
 
 	result := client.RuleExists(V4, Filter, CNIInputChain, "-p tcp --dport 80", Accept)
 	assert.False(t, result)
+}
+
+func TestIsRuleNotFoundErr(t *testing.T) {
+	t.Run("nil is not a not-found error", func(t *testing.T) {
+		assert.False(t, IsRuleNotFoundErr(nil))
+	})
+
+	t.Run("iptables missing-rule stderr is detected", func(t *testing.T) {
+		// Real iptables stderr when -D targets an absent rule. ExecuteRawCommand
+		// formats it as "<err>:<stderr>", which is what this matches against.
+		assert.True(t, IsRuleNotFoundErr(errRuleNotFound))
+	})
+
+	t.Run("lock contention is NOT a not-found error", func(t *testing.T) {
+		assert.False(t, IsRuleNotFoundErr(errXtablesLock),
+			"lock contention must not be silently treated as a missing rule")
+	})
+}
+
+// TestDeleteIptableRuleErrorsArePropagated documents that DeleteIptableRule itself
+// stays dumb: it returns every error verbatim and leaves the missing-rule decision
+// to the caller, which filters with IsRuleNotFoundErr.
+func TestDeleteIptableRuleErrorsArePropagated(t *testing.T) {
+	const expectedCmd = "iptables -w 60 -t filter -D AZURECNIINPUT -p tcp --dport 80 -j ACCEPT"
+
+	tests := []struct {
+		name       string
+		execErr    error
+		wantErr    bool
+		wantNotFnd bool
+	}{
+		{name: "delete succeeds returns nil", execErr: nil, wantErr: false},
+		{name: "rule not found is returned to caller", execErr: errRuleNotFound, wantErr: true, wantNotFnd: true},
+		{name: "lock contention is returned to caller", execErr: errXtablesLock, wantErr: true, wantNotFnd: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockPL := platform.NewMockExecClient(false)
+			client := &Client{pl: mockPL}
+			mockPL.SetExecRawCommand(func(cmd string) (string, error) {
+				require.Equal(t, expectedCmd, cmd)
+				return "", tt.execErr
+			})
+
+			err := client.DeleteIptableRule(V4, Filter, CNIInputChain, "-p tcp --dport 80", Accept)
+			if !tt.wantErr {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Equal(t, tt.wantNotFnd, IsRuleNotFoundErr(err))
+		})
+	}
 }
