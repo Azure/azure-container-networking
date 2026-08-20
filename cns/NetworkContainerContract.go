@@ -158,6 +158,9 @@ func (req *CreateNetworkContainerRequest) Validate() error {
 	if req.IPConfiguration.GatewayIPAddress != "" && !isValidIP(req.IPConfiguration.GatewayIPAddress) {
 		return errors.Wrapf(ErrInvalidIP, "GatewayIPAddress %s is not a valid ip address", req.IPConfiguration.GatewayIPAddress)
 	}
+	if req.IPConfiguration.IPSubnet.IPAddress != "" && !isValidIP(req.IPConfiguration.IPSubnet.IPAddress) {
+		return errors.Wrapf(ErrInvalidIP, "PrimaryIPAddress %s is not a valid ip address", req.IPConfiguration.IPSubnet.IPAddress)
+	}
 	return nil
 }
 
