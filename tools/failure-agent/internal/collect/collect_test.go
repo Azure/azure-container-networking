@@ -1,10 +1,13 @@
 package collect
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/model"
 )
 
 func TestFromEnvMapsFields(t *testing.T) {
@@ -167,5 +170,128 @@ func writeFile(t *testing.T, dir, name, content string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
 		t.Fatalf("writing %s: %v", name, err)
+	}
+}
+
+// TestParseEvidenceDrawsErrorLinesAcrossFiles pins the round-robin draw. The walk
+// is lexical, so a node's containerd journal (1000 lines) is read before the CNS
+// log and before the captured task logs; taken in walk order it fills the whole
+// budget and the decisive lines never appear.
+func TestParseEvidenceDrawsErrorLinesAcrossFiles(t *testing.T) {
+	dir := t.TempDir()
+
+	var noisy strings.Builder
+	for i := 0; i < 200; i++ {
+		fmt.Fprintf(&noisy, "containerd error %d: failed to handle event\n", i)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "aks-node_logs", "containerd-output"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "aks-node_logs", "log-output"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	writeFile(t, filepath.Join(dir, "aks-node_logs", "containerd-output"), "containerd.log", noisy.String())
+	writeFile(t, filepath.Join(dir, "aks-node_logs", "log-output"), "azure-cns.log",
+		"[releaseIPConfigs] Failed to release IP 10.244.1.9 for pod default/pod-z error: not found\n")
+
+	ev, err := ParseEvidence(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(strings.Join(ev.TopErrorLines, "\n"), "Failed to release IP") {
+		t.Errorf("CNS release failure was crowded out of the error-line budget: %v", ev.TopErrorLines)
+	}
+}
+
+// TestParseEvidenceKeepsAssertionExcerptPastCap pins that the captured task log,
+// which carries the only copy of the test's assertion text, is not dropped when
+// the lexically-earlier per-node files have already filled the excerpt cap.
+func TestParseEvidenceKeepsAssertionExcerptPastCap(t *testing.T) {
+	dir := t.TempDir()
+	for i := 0; i < maxExcerptFiles+5; i++ {
+		writeFile(t, dir, fmt.Sprintf("aaa-filler-%02d.log", i), "error: filler\n")
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "e2e-task-logs"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	writeFile(t, filepath.Join(dir, "e2e-task-logs"), "Validate_Node_Restart_1234.txt",
+		"State file validation failed: Remaining, potentially leaked, IP(s) on state file - map[10.244.1.9:pod-z]\n")
+
+	ev, err := ParseEvidence(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if _, ok := ev.Excerpts["e2e-task-logs/Validate_Node_Restart_1234.txt"]; !ok {
+		t.Error("assertion task log was dropped by the excerpt cap")
+	}
+}
+
+func TestLoadChangeContextExtractsFilesAndBody(t *testing.T) {
+	diff := "diff --git a/cns/restserver/ipam.go b/cns/restserver/ipam.go\n" +
+		"index 1111111..2222222 100644\n" +
+		"--- a/cns/restserver/ipam.go\n" +
+		"+++ b/cns/restserver/ipam.go\n" +
+		"@@ -1047,7 +1047,7 @@\n" +
+		"-		if ipState.GetState() != types.Available {\n" +
+		"+		if ipState.GetState() != types.Available && !reuseExhausted {\n" +
+		"diff --git a/cns/restserver/ipam_test.go b/cns/restserver/ipam_test.go\n" +
+		"--- a/cns/restserver/ipam_test.go\n" +
+		"+++ b/cns/restserver/ipam_test.go\n" +
+		"@@ -1 +1 @@\n" +
+		"-old\n" +
+		"+new\n"
+
+	path := filepath.Join(t.TempDir(), "change.diff")
+	if err := os.WriteFile(path, []byte(diff), 0o600); err != nil {
+		t.Fatalf("writing diff: %v", err)
+	}
+
+	var rc model.RunContext
+	if err := LoadChangeContext(&rc, path); err != nil {
+		t.Fatalf("LoadChangeContext: %v", err)
+	}
+
+	want := []string{"cns/restserver/ipam.go", "cns/restserver/ipam_test.go"}
+	if strings.Join(rc.ChangedFiles, ",") != strings.Join(want, ",") {
+		t.Errorf("changed files = %v, want %v", rc.ChangedFiles, want)
+	}
+	if !strings.Contains(rc.Diff, "types.Available") {
+		t.Error("diff body was not retained")
+	}
+}
+
+func TestLoadChangeContextEmptyDiffIsNotAnError(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "change.diff")
+	if err := os.WriteFile(path, []byte("   \n"), 0o600); err != nil {
+		t.Fatalf("writing diff: %v", err)
+	}
+
+	var rc model.RunContext
+	if err := LoadChangeContext(&rc, path); err != nil {
+		t.Fatalf("LoadChangeContext on empty diff: %v", err)
+	}
+	if len(rc.ChangedFiles) != 0 || rc.Diff != "" {
+		t.Errorf("expected no change context, got files=%v diff=%q", rc.ChangedFiles, rc.Diff)
+	}
+}
+
+func TestLoadChangeContextTruncatesLargeDiff(t *testing.T) {
+	body := "+++ b/big.go\n" + strings.Repeat("+line of change\n", 20000)
+	path := filepath.Join(t.TempDir(), "change.diff")
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatalf("writing diff: %v", err)
+	}
+
+	var rc model.RunContext
+	if err := LoadChangeContext(&rc, path); err != nil {
+		t.Fatalf("LoadChangeContext: %v", err)
+	}
+	if len(rc.Diff) > maxDiffChars+64 {
+		t.Errorf("diff not truncated: %d bytes", len(rc.Diff))
+	}
+	if !strings.Contains(rc.Diff, "diff truncated") {
+		t.Error("expected a truncation marker")
 	}
 }

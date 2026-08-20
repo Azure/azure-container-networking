@@ -23,6 +23,10 @@ const maxExcerptChars = 1500
 // maxTotalExcerptChars caps the combined excerpt payload across files.
 const maxTotalExcerptChars = 6000
 
+// excerptTierReserve caps how much of the total budget one evidence tier may
+// take before the others have been offered their share.
+const excerptTierReserve = maxTotalExcerptChars / 3
+
 // Schema describes the JSON shape the model must return.
 type Schema struct {
 	Name       string
@@ -74,6 +78,7 @@ type llmResult struct {
 	Falsification    *model.Falsification `json:"falsification"`
 	EvidenceGaps     []model.EvidenceGap  `json:"evidenceGaps"`
 	KnownUnknowns    []string             `json:"knownUnknowns"`
+	RootCauseSources []model.RootCauseRef `json:"rootCauseSources"`
 	RecommendedOwner string               `json:"recommendedOwner"`
 	ProposedFix      string               `json:"proposedFix"`
 	NodeAssessment   string               `json:"nodeAssessment"`
@@ -103,6 +108,7 @@ func (r llmResult) toClassification() (model.Classification, error) {
 		Falsification:    nilIfEmpty(r.Falsification),
 		EvidenceGaps:     r.EvidenceGaps,
 		KnownUnknowns:    r.KnownUnknowns,
+		RootCauseSources: r.RootCauseSources,
 		RecommendedOwner: r.RecommendedOwner,
 		ProposedFix:      r.ProposedFix,
 		NodeAssessment:   r.NodeAssessment,
@@ -141,7 +147,7 @@ func classificationSchema() *Schema {
 	def := `{
   "type": "object",
   "additionalProperties": false,
-  "required": ["category", "confidence", "rootCauseSummary", "finalVerdict", "topAnomaly", "failingUnit", "topEvidence", "causalChain", "symptomVsCause", "falsification", "evidenceGaps", "knownUnknowns", "recommendedOwner", "proposedFix", "nodeAssessment"],
+  "required": ["category", "confidence", "rootCauseSummary", "finalVerdict", "topAnomaly", "failingUnit", "topEvidence", "causalChain", "symptomVsCause", "falsification", "evidenceGaps", "knownUnknowns", "rootCauseSources", "recommendedOwner", "proposedFix", "nodeAssessment"],
   "properties": {
     "category": {"type": "string", "enum": ["pr_regression", "cluster_bringup_failure", "pipeline_infra_config", "known_flake", "unknown_needs_human"]},
     "confidence": {"type": "number", "minimum": 0, "maximum": 1},
@@ -203,6 +209,21 @@ func classificationSchema() *Schema {
       }
     },
     "knownUnknowns": {"type": "array", "items": {"type": "string"}},
+    "rootCauseSources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file", "line", "endLine", "snippet", "explanation"],
+        "properties": {
+          "file": {"type": "string"},
+          "line": {"type": "integer"},
+          "endLine": {"type": "integer"},
+          "snippet": {"type": "string"},
+          "explanation": {"type": "string"}
+        }
+      }
+    },
     "recommendedOwner": {"type": "string"},
     "proposedFix": {"type": "string"},
     "nodeAssessment": {"type": "string"}
@@ -235,13 +256,9 @@ func userPrompt(rc model.RunContext, ev model.Evidence, fp model.Fingerprint, ma
 	if rc.IsPR {
 		fmt.Fprintf(&b, "Pull request: #%s (source=%s target=%s)\n", rc.PullRequestNumber, rc.SourceBranch, rc.TargetBranch)
 	}
-	if len(rc.ChangedFiles) > 0 {
-		b.WriteString("Changed files:\n")
-		for _, f := range rc.ChangedFiles {
-			fmt.Fprintf(&b, "- %s\n", f)
-		}
-	}
 	fmt.Fprintf(&b, "Fingerprint: %s\n\n", fp.Hash)
+
+	writeChangeContext(&b, rc)
 
 	if len(ev.Files) > 0 {
 		b.WriteString("## Collected artifacts (inventory)\n")
@@ -279,6 +296,32 @@ func userPrompt(rc model.RunContext, ev model.Evidence, fp model.Fingerprint, ma
 	return b.String()
 }
 
+// writeChangeContext emits the change under test: the changed-file list and the
+// unified diff. This is the primary evidence for the code-correlation half of the
+// pr_regression check. Without it the only available signal is how broadly the
+// failure reproduces, and a regression in a shared component — which fails every
+// stage that exercises it — reads as environmental uniformity.
+func writeChangeContext(b *strings.Builder, rc model.RunContext) {
+	if len(rc.ChangedFiles) == 0 && rc.Diff == "" {
+		return
+	}
+
+	b.WriteString("## Change under test\n")
+	b.WriteString("Check whether the failing mechanism is reachable from these lines before ruling on pr_regression.\n")
+	if len(rc.ChangedFiles) > 0 {
+		b.WriteString("Changed files:\n")
+		for _, f := range rc.ChangedFiles {
+			fmt.Fprintf(b, "- %s\n", f)
+		}
+	}
+	if rc.Diff != "" {
+		b.WriteString("\nUnified diff:\n```diff\n")
+		b.WriteString(rc.Diff)
+		b.WriteString("\n```\n")
+	}
+	b.WriteString("\n")
+}
+
 // nodeEvidenceKeys are excerpt names that describe node/nodepool health. They
 // are emitted before the alphabetical remainder so the node-lifecycle signal is
 // never starved out of the prompt by the total excerpt budget.
@@ -304,7 +347,11 @@ var datapathEvidenceKeys = []string{
 // node-name-prefixed and therefore cannot be pinned by exact key. It mirrors the
 // collector allowlist so surfaced IP-state dumps (CNS/CNI IPAM view, endpoints,
 // routes, VFP) are prioritized into the prompt budget alongside node evidence.
-var datapathEvidenceRE = regexp.MustCompile(`(?i)(^|/)(azure-cns|azure-vnet|cnscache|azure-endpoints|hns-endpoint|hns-network|endpoint|routes|ports|vfpoutput|ip)(\.[a-z]+)?$`)
+var datapathEvidenceRE = regexp.MustCompile(`(?i)(^|/)(azure-cns|azure-vnet|cnscache|azure-endpoints|hns-endpoint|hns-network|endpoint|routes|ports|vfpoutput|ip|all-pods)(\.[a-z]+)?$`)
+
+// assertionEvidenceRE matches the captured E2E task logs, which carry the test's
+// own assertion text. It mirrors the collector allowlist.
+var assertionEvidenceRE = regexp.MustCompile(`(?i)(^|/)e2e-task-logs/`)
 
 func writeExcerpts(b *strings.Builder, excerpts map[string]string) {
 	names := make([]string, 0, len(excerpts))
@@ -312,54 +359,87 @@ func writeExcerpts(b *strings.Builder, excerpts map[string]string) {
 		names = append(names, name)
 	}
 	sort.Strings(names)
-	names = prioritizeEvidence(names)
 
+	tiers := tierEvidence(names)
+	written := make(map[string]bool, len(names))
 	total := 0
-	for _, name := range names {
-		if total >= maxTotalExcerptChars {
-			break
+
+	// Two passes. The first gives every tier its own reserve so a verbose tier
+	// cannot starve the others — node evidence alone is two full `kubectl
+	// describe nodes` dumps plus every cluster event, which exceeds the whole
+	// budget and would leave the assertion and IP-plane state unread. The second
+	// spends whatever is left in priority order.
+	for _, tier := range tiers {
+		spent := 0
+		for _, name := range tier {
+			if spent >= excerptTierReserve || total >= maxTotalExcerptChars {
+				break
+			}
+			n := writeExcerpt(b, name, excerpts[name])
+			written[name] = true
+			spent += n
+			total += n
 		}
-		chunk := excerpts[name]
-		if len(chunk) > maxExcerptChars {
-			chunk = chunk[:maxExcerptChars]
+	}
+	for _, tier := range tiers {
+		for _, name := range tier {
+			if total >= maxTotalExcerptChars {
+				return
+			}
+			if written[name] {
+				continue
+			}
+			total += writeExcerpt(b, name, excerpts[name])
+			written[name] = true
 		}
-		fmt.Fprintf(b, "### %s\n%s\n", name, chunk)
-		total += len(chunk)
 	}
 }
 
-// prioritizeEvidence moves node- and datapath-evidence names to the front of
-// names so infra and IP-plane state survive the excerpt budget, preserving the
-// relative order of everything else. Exact node/datapath live keys are pinned
-// first (in declared order), then bundle datapath paths matched by regex (in
-// sorted input order), then the remainder.
-func prioritizeEvidence(names []string) []string {
-	pinned := append(append([]string(nil), nodeEvidenceKeys...), datapathEvidenceKeys...)
-	priority := make(map[string]bool, len(pinned))
-	for _, k := range pinned {
-		priority[k] = true
+// writeExcerpt emits one excerpt, truncated to the per-file cap, and reports how
+// much of the budget it consumed.
+func writeExcerpt(b *strings.Builder, name, chunk string) int {
+	if len(chunk) > maxExcerptChars {
+		chunk = chunk[:maxExcerptChars]
 	}
-	ordered := make([]string, 0, len(names))
-	for _, k := range pinned {
-		if _, ok := indexOf(names, k); ok {
-			ordered = append(ordered, k)
+	fmt.Fprintf(b, "### %s\n%s\n", name, chunk)
+	return len(chunk)
+}
+
+// tierEvidence groups names into the assertion, node, datapath, and remaining
+// tiers. Assertion evidence leads because it is the failure itself rather than
+// state around it; node evidence follows so an infra cause is never missed.
+// Exact pinned keys keep their declared order, regex-matched bundle paths follow
+// in sorted order, and everything else keeps sorted order.
+func tierEvidence(names []string) [][]string {
+	claimed := make(map[string]bool, len(names))
+
+	take := func(pred func(string) bool) []string {
+		var out []string
+		for _, n := range names {
+			if !claimed[n] && pred(n) {
+				claimed[n] = true
+				out = append(out, n)
+			}
 		}
+		return out
 	}
-	for _, n := range names {
-		if priority[n] {
-			continue
+	takeKeys := func(keys []string) []string {
+		var out []string
+		for _, k := range keys {
+			if _, ok := indexOf(names, k); ok && !claimed[k] {
+				claimed[k] = true
+				out = append(out, k)
+			}
 		}
-		if datapathEvidenceRE.MatchString(n) {
-			ordered = append(ordered, n)
-			priority[n] = true
-		}
+		return out
 	}
-	for _, n := range names {
-		if !priority[n] {
-			ordered = append(ordered, n)
-		}
-	}
-	return ordered
+
+	assertion := take(assertionEvidenceRE.MatchString)
+	node := takeKeys(nodeEvidenceKeys)
+	datapath := append(takeKeys(datapathEvidenceKeys), take(datapathEvidenceRE.MatchString)...)
+	rest := take(func(string) bool { return true })
+
+	return [][]string{assertion, node, datapath, rest}
 }
 
 func indexOf(names []string, target string) (int, bool) {

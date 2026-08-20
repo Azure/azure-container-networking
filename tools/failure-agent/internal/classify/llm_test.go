@@ -93,6 +93,38 @@ func TestWriteExcerptsPrioritizesDatapathEvidence(t *testing.T) {
 	}
 }
 
+// TestWriteExcerptsReservesBudgetForAssertion pins the tier reservation. The
+// assertion text lives only in the captured task log, while node evidence is two
+// full `kubectl describe nodes` dumps plus every cluster event. Emitted in
+// priority order on a single shared budget, node evidence alone exceeds it and
+// the failure the run actually reported never reaches the model.
+func TestWriteExcerptsReservesBudgetForAssertion(t *testing.T) {
+	filler := strings.Repeat("x", maxExcerptChars)
+	excerpts := map[string]string{
+		"live/nodes":               filler,
+		"live/node-conditions":     filler,
+		"live/node-events":         filler,
+		"live/events":              filler,
+		"node-status.txt":          filler,
+		"node-network-configs.txt": filler,
+		"e2e-task-logs/Validate_Node_Restart_1234.txt":          "Remaining, potentially leaked, IP(s) on state file - map[10.244.1.9:pod-z]",
+		"aks-nodepool1-vmss000000_logs/CNS-output/cnsCache.txt": "10.244.1.9 Assigned",
+	}
+	var b strings.Builder
+	writeExcerpts(&b, excerpts)
+	out := b.String()
+
+	if !strings.Contains(out, "Remaining, potentially leaked") {
+		t.Error("expected the E2E assertion text to survive the excerpt budget")
+	}
+	if !strings.Contains(out, "CNS-output/cnsCache.txt") {
+		t.Error("expected CNS IPAM state to survive the excerpt budget")
+	}
+	if !strings.Contains(out, "live/nodes") {
+		t.Error("expected node evidence to still be represented")
+	}
+}
+
 func TestLLMClassifierValidResponse(t *testing.T) {
 	fc := &fakeCompleter{response: `{
 		"category": "pr_regression",
@@ -165,6 +197,9 @@ func TestSystemPromptEncodesInvestigationPolicy(t *testing.T) {
 		"live/nnc",
 		"failingUnit",
 		"knownUnknowns",
+		"rootCauseSources",
+		"Change-under-test locations",
+		"in EVERY category and not only pr_regression",
 		"~1h TTL",
 		"cross-commit/cross-stage",
 		"ANTI-PATTERNS",
@@ -179,7 +214,7 @@ func TestClassificationSchemaIncludesContractFields(t *testing.T) {
 	def := string(classificationSchema().Definition)
 	for _, want := range []string{
 		"finalVerdict", "topAnomaly", "failingUnit", "causalChain", "symptomVsCause",
-		"falsification", "evidenceGaps", "knownUnknowns",
+		"falsification", "evidenceGaps", "knownUnknowns", "rootCauseSources",
 	} {
 		if !strings.Contains(def, want) {
 			t.Errorf("classification schema missing contract field %q", want)
@@ -218,6 +253,9 @@ func TestLLMClassifierParsesFullContract(t *testing.T) {
 			{"missing": "literal dpkg PackageInstallFailed message", "whereItLives": "expired k8s event and in-pod install log", "whyMissing": "events ~1h TTL; capture was 75m in", "howToCapture": "kubectl logs <pod> -c init-package-installer --previous"}
 		],
 		"knownUnknowns": ["exact failing .deb postinst step not captured this run"],
+		"rootCauseSources": [
+			{"file": "bad-pod-describe.txt", "line": 1048, "endLine": 1048, "snippet": "  1045 | echo \"ERROR: install-packages.sh failed with exit code $install_rc\"\n> 1048 | exit $install_rc", "explanation": "init script exits with the installer non-zero code"}
+		],
 		"recommendedOwner": "aks-node-image",
 		"proposedFix": "Route to node-image/AzSecPack; capture the installer log next run.",
 		"nodeAssessment": "Both nodes rebooted ~08:59 (durable Kubelet transition time); CNS/Defender restarts are side effects."
@@ -256,6 +294,10 @@ func TestLLMClassifierParsesFullContract(t *testing.T) {
 	}
 	if len(got.KnownUnknowns) != 1 {
 		t.Errorf("expected one known-unknown, got %+v", got.KnownUnknowns)
+	}
+	if len(got.RootCauseSources) != 1 || got.RootCauseSources[0].File != "bad-pod-describe.txt" ||
+		got.RootCauseSources[0].Line != 1048 || !strings.Contains(got.RootCauseSources[0].Snippet, "exit $install_rc") {
+		t.Errorf("expected one root-cause source with file/line/snippet, got %+v", got.RootCauseSources)
 	}
 }
 
