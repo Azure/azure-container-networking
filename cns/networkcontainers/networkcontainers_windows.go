@@ -90,8 +90,8 @@ func setWeakHostOnInterface(ipAddress, ncID string) error {
 	}
 
 	if targetIface == nil {
-		errval := "[Azerrvalure CNS] Was not able to find the interface with ip " + ipAddress + " to enable weak host send/receive"
-		logger.Printf(errval)
+		errval := "[Azure CNS] Was not able to find the interface with ip " + ipAddress + " to enable weak host send/receive"
+		logger.Printf("%s", errval) //nolint:staticcheck // SA1019: file predates the cns/logger/v2 migration
 		return errors.New(errval)
 	}
 
