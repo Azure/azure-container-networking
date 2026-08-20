@@ -113,8 +113,15 @@ jobs:
 
           # E2E, and therefore this job, is gated to non-PR builds where
           # System.PullRequest.TargetBranch is unset, so fall back to the base
-          # branch for manual, merge-queue, and scheduled runs.
-          TARGET="${SYSTEM_PULLREQUEST_TARGETBRANCH:-${{ parameters.baseBranch }}}"
+          # branch for manual, merge-queue, and scheduled runs. An undefined ADO
+          # variable expands to its own literal macro text rather than to the
+          # empty string, so `:-` alone never fires and $TARGET would otherwise
+          # become the literal "$(System.PullRequest.TargetBranch)".
+          TARGET="${SYSTEM_PULLREQUEST_TARGETBRANCH:-}"
+          case "$TARGET" in
+            '$('*) TARGET="" ;;
+          esac
+          TARGET="${TARGET:-${{ parameters.baseBranch }}}"
           TARGET="${TARGET#refs/heads/}"
 
           # No --depth: the checkout is unshallowed above, and a depth-limited
