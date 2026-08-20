@@ -103,9 +103,6 @@ stages:
           STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS_ALT)"
-          # The pool serves two images and only v2.1 carries the 1ES PT
-          # prerequisites, so pin it rather than letting the pool choose.
-          image: acn-runner-vmss-image-windows-1es-v2.1
           os: windows
         templateContext:
           outputs:
