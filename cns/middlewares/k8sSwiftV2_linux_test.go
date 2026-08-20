@@ -96,6 +96,44 @@ func TestIPConfigsRequestHandlerWrapperSuccess(t *testing.T) {
 	assert.Equal(t, err, nil)
 	assert.Equal(t, resp.PodIPInfo[2].PodIPConfig.IPAddress, "192.168.0.1")
 	assert.Equal(t, resp.PodIPInfo[2].MacAddress, "00:00:00:00:00:00")
+	assert.Equal(t, resp.SkipDefaultRouteProgramming, false)
+}
+
+func TestIPConfigsRequestHandlerWrapperScheduledWithDRA(t *testing.T) {
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
+	t.Setenv(configuration.EnvPodCIDRs, "10.0.1.0/24")
+	t.Setenv(configuration.EnvServiceCIDRs, "10.0.0.0/16")
+	t.Setenv(configuration.EnvInfraVNETCIDRs, "10.240.0.0/16")
+
+	defaultHandler := func(context.Context, cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+		return &cns.IPConfigsResponse{
+			PodIPInfo: []cns.PodIpInfo{
+				{
+					PodIPConfig: cns.IPSubnet{
+						IPAddress:    "10.0.1.10",
+						PrefixLength: 32,
+					},
+					NICType: cns.InfraNIC,
+				},
+			},
+		}, nil
+	}
+	failureHandler := func(context.Context, cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+		return nil, nil
+	}
+	req := cns.IPConfigsRequest{
+		PodInterfaceID:   testPod12Info.InterfaceID(),
+		InfraContainerID: testPod12Info.InfraContainerID(),
+	}
+	req.OrchestratorContext, _ = testPod12Info.OrchestratorContext()
+
+	resp, err := middleware.IPConfigsRequestHandlerWrapper(defaultHandler, failureHandler)(context.TODO(), req)
+
+	assert.NilError(t, err)
+	assert.Equal(t, len(resp.PodIPInfo), 1)
+	assert.Equal(t, resp.PodIPInfo[0].NICType, cns.InfraNIC)
+	assert.Equal(t, resp.PodIPInfo[0].SkipDefaultRoutes, true)
+	assert.Equal(t, resp.SkipDefaultRouteProgramming, true)
 }
 
 func TestIPConfigsRequestHandlerWrapperFailure(t *testing.T) {
@@ -242,8 +280,9 @@ func TestGetSWIFTv2IPConfigSuccess(t *testing.T) {
 
 	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 
-	ipInfos, err := middleware.getIPConfig(context.TODO(), testPod1Info)
+	ipInfos, scheduledWithDRA, err := middleware.getIPConfig(context.TODO(), testPod1Info)
 	assert.Equal(t, err, nil)
+	assert.Equal(t, scheduledWithDRA, false)
 	// Ensure that the length of ipInfos matches the number of InterfaceInfos
 	// Adjust this according to the test setup
 	assert.Equal(t, len(ipInfos), 1)
@@ -254,8 +293,9 @@ func TestGetSWIFTv2IPConfigSuccess(t *testing.T) {
 func TestGetSWIFTv2IPConfigSharedNIC(t *testing.T) {
 	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 
-	ipInfos, err := middleware.getIPConfig(context.TODO(), testPod11Info)
+	ipInfos, scheduledWithDRA, err := middleware.getIPConfig(context.TODO(), testPod11Info)
 	assert.Equal(t, err, nil)
+	assert.Equal(t, scheduledWithDRA, false)
 	assert.Equal(t, len(ipInfos), 1)
 	assert.Equal(t, ipInfos[0].NICType, cns.DelegatedVMNIC)
 	assert.Equal(t, ipInfos[0].SharedNIC, true)
@@ -266,21 +306,22 @@ func TestGetSWIFTv2IPConfigScheduledWithDRA(t *testing.T) {
 
 	// When the pod is scheduled with DRA, dranet owns the delegated NIC, so CNS
 	// must not return its IP config to the CNI caller.
-	ipInfos, err := middleware.getIPConfig(context.TODO(), testPod12Info)
+	ipInfos, scheduledWithDRA, err := middleware.getIPConfig(context.TODO(), testPod12Info)
 	assert.Equal(t, err, nil)
 	assert.Equal(t, len(ipInfos), 0)
+	assert.Equal(t, scheduledWithDRA, true)
 }
 
 func TestGetSWIFTv2IPConfigFailure(t *testing.T) {
 	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 
 	// Pod's MTPNC doesn't exist in cache test
-	_, err := middleware.getIPConfig(context.TODO(), testPod3Info)
+	_, _, err := middleware.getIPConfig(context.TODO(), testPod3Info)
 	assert.Assert(t, strings.Contains(err.Error(), errGetMTPNC.Error()), "expected error to wrap errMTPNCNotFound, got: %v", err)
 	assert.ErrorContains(t, err, NetworkNotReadyErrorMsg)
 
 	// Pod's MTPNC is not ready test
-	_, err = middleware.getIPConfig(context.TODO(), testPod4Info)
+	_, _, err = middleware.getIPConfig(context.TODO(), testPod4Info)
 	assert.Assert(t, errors.Is(err, errMTPNCNotReady), "expected error to wrap errMTPNCNotReady, got: %v", err)
 	assert.ErrorContains(t, err, NetworkNotReadyErrorMsg)
 }
@@ -449,7 +490,7 @@ func TestNICTypeConfigSuccess(t *testing.T) {
 	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 
 	// Test Backend NIC type
-	ipInfos, err := middleware.getIPConfig(context.TODO(), testPod6Info)
+	ipInfos, _, err := middleware.getIPConfig(context.TODO(), testPod6Info)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -462,11 +503,11 @@ func TestGetSWIFTv2IPConfigMultiInterfaceFailure(t *testing.T) {
 	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 
 	// Pod's MTPNC doesn't exist in cache test
-	_, err := middleware.getIPConfig(context.TODO(), testPod3Info)
+	_, _, err := middleware.getIPConfig(context.TODO(), testPod3Info)
 	assert.ErrorContains(t, err, mock.ErrMTPNCNotFound.Error())
 
 	// Pod's MTPNC is not ready test
-	_, err = middleware.getIPConfig(context.TODO(), testPod4Info)
+	_, _, err = middleware.getIPConfig(context.TODO(), testPod4Info)
 	assert.Error(t, err, errMTPNCNotReady.Error())
 }
 
@@ -477,7 +518,7 @@ func TestGetSWIFTv2IPConfigMultiInterfaceSuccess(t *testing.T) {
 
 	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 
-	ipInfos, err := middleware.getIPConfig(context.TODO(), testPod7Info)
+	ipInfos, _, err := middleware.getIPConfig(context.TODO(), testPod7Info)
 	assert.Equal(t, err, nil)
 	// Ensure that the length of ipInfos matches the number of InterfaceInfos
 	// Adjust this according to the test setup in mock client
