@@ -78,9 +78,12 @@ func CreateValidator(ctx context.Context, clientset *kubernetes.Clientset, confi
 	switch os {
 	case "windows":
 		checks = windowsChecksMap[cni]
-		err := acnk8s.RestartKubeProxyService(ctx, clientset, privilegedNamespace, privilegedLabelSelector, config)
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to restart kubeproxy")
+		// A node-restart validation must not add a kube-proxy restart before checking recovered state.
+		if shouldRestartKubeProxy(restartCase) {
+			err := acnk8s.RestartKubeProxyService(ctx, clientset, privilegedNamespace, privilegedLabelSelector, config)
+			if err != nil {
+				return nil, errors.Wrapf(err, "failed to restart kubeproxy")
+			}
 		}
 	case "linux":
 		checks = linuxChecksMap[cni]
@@ -98,6 +101,14 @@ func CreateValidator(ctx context.Context, clientset *kubernetes.Clientset, confi
 		os:                os,
 		poolLabelSelector: poolLabelSelector,
 	}, nil
+}
+
+func shouldRestartKubeProxy(restartCase bool) bool {
+	return !restartCase
+}
+
+func canSkipEmptyRestartState(os string, restartCase bool) bool {
+	return restartCase && os != "windows"
 }
 
 // nodeSelector returns the label selector used to pick candidate nodes. It
@@ -168,11 +179,10 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 			if err != nil {
 				return false, errors.Wrapf(err, "failed to get pod ips from state file on node %v", node.Name)
 			}
-			if len(filePodIps) == 0 && v.restartCase {
+			if len(filePodIps) == 0 && canSkipEmptyRestartState(v.os, v.restartCase) {
 				log.Printf("No pods found on node %s", node.Name)
 				return true, nil
 			}
-
 			podIps := getPodIPsWithoutNodeIP(ctx, v.clientset, node)
 			if hasL7PolicyEnabled(ctx, v.clientset, node.Name) {
 				podIps = append(podIps, getCiliumInternalEndpointIPs(ctx, v.clientset, v.config, node.Name)...)
