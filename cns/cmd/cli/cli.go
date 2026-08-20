@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -90,12 +91,20 @@ func getPodCmd(ctx context.Context, client *client.Client) error {
 	return nil
 }
 
+// getInMemory prints CNS's in-memory HTTPRestServiceData as JSON, matching the
+// shape returned by the /debug/restdata HTTP endpoint. Callers (e.g. pipeline
+// health checks) that previously curled /debug/restdata can invoke this
+// command instead so they don't depend on curl/wget being present in the
+// container image.
 func getInMemory(ctx context.Context, client *client.Client) error {
 	data, err := client.GetHTTPServiceData(ctx)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("PodIPIDByOrchestratorContext: %v\nPodIPConfigState: %v\n",
-		data.HTTPRestServiceData.PodIPIDByPodInterfaceKey, data.HTTPRestServiceData.PodIPConfigState)
+	out, err := json.Marshal(data.HTTPRestServiceData)
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(out))
 	return nil
 }
