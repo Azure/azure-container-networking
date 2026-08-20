@@ -10,6 +10,13 @@ stages:
           STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
+          os: linux
+        templateContext:
+          outputs:
+            - output: pipelineArtifact
+              targetPath: '$(System.DefaultWorkingDirectory)/linux-coverage.out'
+              artifactName: 'linux-coverage'
+              sbomEnabled: false
         steps:
           - script: |
               GO_VER=$(grep '^toolchain' go.mod | sed 's/toolchain go//' | cut -d. -f1,2)
@@ -21,6 +28,21 @@ stages:
             inputs:
               version: '$(GO_TOOLCHAIN_VERSION)'
             displayName: "Install Go"
+          - script: |
+              set -e
+              # The NPM controller tests shell out to ipset and iptables. Ubuntu
+              # agent images ship them; Azure Linux images do not, so install the
+              # ones that are missing.
+              if [ -f /etc/debian_version ]; then
+                sudo apt-get update && sudo apt-get install -y ipset iptables
+              else
+                sudo tdnf install -y ipset iptables
+              fi
+              # Verify under sudo: ipset needs privileges to talk to the kernel,
+              # which is how the tests invoke it.
+              sudo ipset --version
+              sudo iptables --version
+            displayName: "Install netfilter test dependencies"
           - script: |
               set -e
               make bpf-lib
@@ -44,10 +66,6 @@ stages:
             retryCountOnTaskFailure: 3
             name: "Test"
             displayName: "Run Tests"
-          - task: PublishPipelineArtifact@1
-            inputs:
-              targetPath: 'linux-coverage.out'
-              artifactName: 'linux-coverage'
 
   - stage: test_windows
     displayName: Test ACN Windows
@@ -60,6 +78,13 @@ stages:
           STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS_ALT)"
+          os: windows
+        templateContext:
+          outputs:
+            - output: pipelineArtifact
+              targetPath: '$(System.DefaultWorkingDirectory)/windows-coverage.out'
+              artifactName: 'windows-coverage'
+              sbomEnabled: false
         steps:
           - powershell: |
               $gomod = $null
@@ -85,10 +110,6 @@ stages:
             retryCountOnTaskFailure: 3
             name: "TestWindows"
             displayName: "Run Windows Tests"
-          - task: PublishPipelineArtifact@1
-            inputs:
-              targetPath: 'windows-coverage.out'
-              artifactName: 'windows-coverage'
 
   - stage: code_coverage
     displayName: Code Coverage Check
@@ -100,6 +121,7 @@ stages:
         displayName: Check Coverage
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
+          os: linux
         steps:
           - script: |
               GO_VER=$(grep '^toolchain' go.mod | sed 's/toolchain go//' | cut -d. -f1,2)

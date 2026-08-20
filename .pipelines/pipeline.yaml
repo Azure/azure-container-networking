@@ -57,657 +57,725 @@ parameters:
     type: string
     default: "__use-default__"
 
-stages:
-  - stage: setup
-    displayName: ACN
-    jobs:
-      - job: env
-        displayName: Setup
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
-        variables:
-          prTargetBranch: $[ variables['System.PullRequest.TargetBranchName'] ]
-        steps:
-          - template: templates/git-diff-check.yaml
-          - script: |
-              # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
-              CUSTOM_RUN_NAME_PREFIX="${{ parameters.runNamePrefix }}"
-              if [ -n "$CUSTOM_RUN_NAME_PREFIX" ] && [[ "${CUSTOM_RUN_NAME_PREFIX,,}" == *dalec* ]]; then
-                BUILD_REV="$(Build.BuildNumber)"
-                BUILD_REV="${BUILD_REV##*.}"
-                RUN_DATE="$(date +%Y%m%d)"
-                echo "##vso[build.updatebuildnumber]${CUSTOM_RUN_NAME_PREFIX}-${RUN_DATE}.${BUILD_REV}"
-              fi
+resources:
+  repositories:
+    - repository: 1ESPipelineTemplates
+      type: git
+      name: 1ESPipelineTemplates/1ESPipelineTemplates
+      ref: refs/tags/release
 
-              BUILD_NUMBER=$(Build.BuildNumber)
-              echo "##vso[task.setvariable variable=StorageID;isOutput=true]$(echo ${BUILD_NUMBER//./-})"
-              echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(date "+%d%H%M"))"
-              echo "##vso[task.setvariable variable=Tag;isOutput=true]$(make version)"
-              echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
-              echo "##vso[task.setvariable variable=imageRepositoryPath;isOutput=true]acnpublic.azurecr.io"
-              echo "##vso[task.setvariable variable=cnsImagePrefix;isOutput=true]azure-"
+# Extend a governed 1ES Pipeline Template so the downstream release pipeline can
+# verify which template produced this build's artifacts. This pipeline is marked
+# Production in the 1ES Product Catalog because the release pipeline ships its
+# artifacts, so it must extend Official on every branch, not just release refs.
+extends:
+  template: v1/1ES.Official.PipelineTemplate.yml@1ESPipelineTemplates
+  parameters:
+    # Agent for the compliance jobs 1ES injects. `os` is explicit because the pool
+    # is a variable, so 1ES can't resolve the OS when it compiles the template.
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      os: linux
 
-              # Shared parser for cniImage/cnsImage/ipamImage override inputs.
-              . ./hack/scripts/parse_override_image.sh
+    # Guardian source analysis is Windows-only, and the pool above is Linux.
+    sdl:
+      sourceAnalysisPool:
+        name: $(BUILD_POOL_NAME_DEFAULT_WINDOWS_ALT)
+        os: windows
 
-              read -r USE_CNI CNI_REPO CNI_NAME CNI_VERSION <<< "$(parse_override_image '${{ parameters.cniImage }}' azure-cni $(make cni-version))"
-              read -r USE_CNS CNS_REPO CNS_NAME CNS_VERSION <<< "$(parse_override_image '${{ parameters.cnsImage }}' azure-cns $(make cns-version))"
-              read -r USE_IPAM IPAM_REPO IPAM_NAME IPAM_VERSION <<< "$(parse_override_image '${{ parameters.ipamImage }}' azure-ipam $(make azure-ipam-version))"
+    stages:
+      - stage: setup
+        displayName: ACN
+        jobs:
+          - job: env
+            displayName: Setup
+            pool:
+              name: "$(BUILD_POOL_NAME_DEFAULT)"
+              os: linux
+            variables:
+              prTargetBranch: $[ variables['System.PullRequest.TargetBranchName'] ]
+            steps:
+              - template: /.pipelines/templates/git-diff-check.yaml@self
+              - script: |
+                  # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
+                  CUSTOM_RUN_NAME_PREFIX="${{ parameters.runNamePrefix }}"
+                  if [ -n "$CUSTOM_RUN_NAME_PREFIX" ] && [[ "${CUSTOM_RUN_NAME_PREFIX,,}" == *dalec* ]]; then
+                    BUILD_REV="$(Build.BuildNumber)"
+                    BUILD_REV="${BUILD_REV##*.}"
+                    RUN_DATE="$(date +%Y%m%d)"
+                    echo "##vso[build.updatebuildnumber]${CUSTOM_RUN_NAME_PREFIX}-${RUN_DATE}.${BUILD_REV}"
+                  fi
 
-              echo "##vso[task.setvariable variable=useProvidedCniImage;isOutput=true]${USE_CNI}"
-              echo "##vso[task.setvariable variable=cniImageRepo;isOutput=true]${CNI_REPO}"
-              echo "##vso[task.setvariable variable=cniImageNameOverride;isOutput=true]${CNI_NAME}"
-              echo "##vso[task.setvariable variable=cniVersion;isOutput=true]${CNI_VERSION}"
+                  BUILD_NUMBER=$(Build.BuildNumber)
+                  echo "##vso[task.setvariable variable=StorageID;isOutput=true]$(echo ${BUILD_NUMBER//./-})"
+                  echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(date "+%d%H%M"))"
+                  echo "##vso[task.setvariable variable=Tag;isOutput=true]$(make version)"
+                  echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
+                  echo "##vso[task.setvariable variable=imageRepositoryPath;isOutput=true]acnpublic.azurecr.io"
+                  echo "##vso[task.setvariable variable=cnsImagePrefix;isOutput=true]azure-"
 
-              # Example (CNS):
-              # cnsImage="__use-default__" -> useProvidedCnsImage=false, cnsImageRepo=ACN,
-              # cnsImageNameOverride=azure-cns, cnsVersion=<make cns-version>
-              # cnsImage="mcr.microsoft.com/containernetworking/azure-cns:v1.2.3" ->
-              # useProvidedCnsImage=true, cnsImageRepo=MCR, cnsImageNameOverride=azure-cns, cnsVersion=v1.2.3
-              echo "##vso[task.setvariable variable=useProvidedCnsImage;isOutput=true]${USE_CNS}"
-              echo "##vso[task.setvariable variable=cnsImageRepo;isOutput=true]${CNS_REPO}"
-              echo "##vso[task.setvariable variable=cnsImageNameOverride;isOutput=true]${CNS_NAME}"
-              echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]${CNS_VERSION}"
+                  # Shared parser for cniImage/cnsImage/ipamImage override inputs.
+                  . ./hack/scripts/parse_override_image.sh
 
-              echo "##vso[task.setvariable variable=useProvidedIpamImage;isOutput=true]${USE_IPAM}"
-              echo "##vso[task.setvariable variable=ipamImageRepo;isOutput=true]${IPAM_REPO}"
-              echo "##vso[task.setvariable variable=ipamImageNameOverride;isOutput=true]${IPAM_NAME}"
-              echo "##vso[task.setvariable variable=ipamVersion;isOutput=true]${IPAM_VERSION}"
+                  read -r USE_CNI CNI_REPO CNI_NAME CNI_VERSION <<< "$(parse_override_image '${{ parameters.cniImage }}' azure-cni $(make cni-version))"
+                  read -r USE_CNS CNS_REPO CNS_NAME CNS_VERSION <<< "$(parse_override_image '${{ parameters.cnsImage }}' azure-cns $(make cns-version))"
+                  read -r USE_IPAM IPAM_REPO IPAM_NAME IPAM_VERSION <<< "$(parse_override_image '${{ parameters.ipamImage }}' azure-ipam $(make azure-ipam-version))"
 
-              cat /etc/os-release
-              uname -a
-              sudo chown -R $(whoami):$(whoami) .
-              go version
-              go env
-              which go
-              echo $PATH
-              echo "------"
-              echo "$(Build.QueuedBy)"
-              echo $(Build.Reason) # manual, PR, IndividualCI
-              echo $(Build.SourceBranch)
-              echo $(System.PullRequest.TargetBranch)
-              echo $(System.PullRequest.targetBranchName)
-            name: "EnvironmentalVariables"
-            displayName: "Set environmental variables"
-            condition: always()
+                  echo "##vso[task.setvariable variable=useProvidedCniImage;isOutput=true]${USE_CNI}"
+                  echo "##vso[task.setvariable variable=cniImageRepo;isOutput=true]${CNI_REPO}"
+                  echo "##vso[task.setvariable variable=cniImageNameOverride;isOutput=true]${CNI_NAME}"
+                  echo "##vso[task.setvariable variable=cniVersion;isOutput=true]${CNI_VERSION}"
 
-  - template: templates/run-unit-tests.yaml
+                  # Example (CNS):
+                  # cnsImage="__use-default__" -> useProvidedCnsImage=false, cnsImageRepo=ACN,
+                  # cnsImageNameOverride=azure-cns, cnsVersion=<make cns-version>
+                  # cnsImage="mcr.microsoft.com/containernetworking/azure-cns:v1.2.3" ->
+                  # useProvidedCnsImage=true, cnsImageRepo=MCR, cnsImageNameOverride=azure-cns, cnsVersion=v1.2.3
+                  echo "##vso[task.setvariable variable=useProvidedCnsImage;isOutput=true]${USE_CNS}"
+                  echo "##vso[task.setvariable variable=cnsImageRepo;isOutput=true]${CNS_REPO}"
+                  echo "##vso[task.setvariable variable=cnsImageNameOverride;isOutput=true]${CNS_NAME}"
+                  echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]${CNS_VERSION}"
 
-  - ${{ if not(contains(variables['Build.SourceBranch'], 'refs/pull')) }}:
-    - stage: binaries
-      displayName: Build Binaries
-      dependsOn:
-        - setup
-      jobs:
-        - job: build
+                  echo "##vso[task.setvariable variable=useProvidedIpamImage;isOutput=true]${USE_IPAM}"
+                  echo "##vso[task.setvariable variable=ipamImageRepo;isOutput=true]${IPAM_REPO}"
+                  echo "##vso[task.setvariable variable=ipamImageNameOverride;isOutput=true]${IPAM_NAME}"
+                  echo "##vso[task.setvariable variable=ipamVersion;isOutput=true]${IPAM_VERSION}"
+
+                  cat /etc/os-release
+                  uname -a
+                  sudo chown -R $(whoami):$(whoami) .
+                  go version
+                  go env
+                  which go
+                  echo $PATH
+                  echo "------"
+                  echo "$(Build.QueuedBy)"
+                  echo $(Build.Reason) # manual, PR, IndividualCI
+                  echo $(Build.SourceBranch)
+                  echo $(System.PullRequest.TargetBranch)
+                  echo $(System.PullRequest.targetBranchName)
+                name: "EnvironmentalVariables"
+                displayName: "Set environmental variables"
+                condition: always()
+
+      - template: /.pipelines/templates/run-unit-tests.yaml@self
+
+      - ${{ if not(contains(variables['Build.SourceBranch'], 'refs/pull')) }}:
+        - stage: binaries
           displayName: Build Binaries
+          dependsOn:
+            - setup
+          jobs:
+            - job: build
+              displayName: Build Binaries
+              variables:
+                STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
+              pool:
+                name: "$(BUILD_POOL_NAME_DEFAULT)"
+                os: linux
+              templateContext:
+                outputs:
+                  # 1ES owns artifact publishing. sbomEnabled is off on every leg that
+                  # writes to `output_staging` so the sbom stage stays the only SBOM
+                  # producer. Build legs accumulate into the `output_staging` build
+                  # artifact because build artifacts merge across jobs; the sbom stage
+                  # republishes the assembled drop as the single `output` pipeline
+                  # artifact that releases consume.
+                  - output: buildArtifacts
+                    PathtoPublish: "$(Build.ArtifactStagingDirectory)"
+                    ArtifactName: "output_staging"
+                    sbomEnabled: false
+                    condition: succeeded()
+              steps:
+                - template: /.pipelines/templates/disk-cleanup.steps.yaml@self
+                - script: |
+                    make bpf-lib
+                    make all-binaries-platforms
+                  name: "BuildAllPlatformBinaries"
+                  displayName: "Build all platform binaries"
+
+                - script: |
+                    mkdir -p ./output/bins
+                    cd ./output
+                    find . -name '*.tgz' -print -exec mv -t ./bins/ {} +
+                    find . -name '*.zip' -print -exec mv -t ./bins/ {} +
+                    shopt -s extglob
+                    rm -rf !("bins")
+                  name: "PrepareArtifacts"
+                  displayName: "Prepare Artifacts"
+
+                - task: CopyFiles@2
+                  inputs:
+                    sourceFolder: "output"
+                    targetFolder: $(Build.ArtifactStagingDirectory)
+                  condition: succeeded()
+
+        - stage: containerize
+          displayName: Build Images
+          dependsOn:
+            - setup
+          jobs:
+            - job: containerize_amd64
+              displayName: Build Images
+              pool:
+                name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
+                os: linux
+              strategy:
+                matrix:
+                  ${{ if eq(parameters.buildIpam, true) }}:
+                    azure_ipam_linux_amd64:
+                      arch: amd64
+                      name: azure-ipam
+                      os: linux
+                    azure_ipam_windows:
+                      arch: amd64
+                      name: azure-ipam
+                      os: windows
+                  azure_ip_masq_merger_linux_amd64:
+                    arch: amd64
+                    name: azure-ip-masq-merger
+                    os: linux
+                  azure_iptables_monitor_linux_amd64:
+                    arch: amd64
+                    name: azure-iptables-monitor
+                    os: linux
+                  ${{ if eq(parameters.buildCni, true) }}:
+                    cni_linux_amd64:
+                      arch: amd64
+                      name: cni
+                      os: linux
+                    cni_windows_amd64:
+                      arch: amd64
+                      name: cni
+                      os: windows
+                  ${{ if eq(parameters.buildCns, true) }}:
+                    cns_linux_amd64:
+                      arch: amd64
+                      name: cns
+                      os: linux
+                    cns_windows_amd64:
+                      arch: amd64
+                      name: cns
+                      os: windows
+                  ipv6_hp_bpf_linux_amd64:
+                    arch: amd64
+                    name: ipv6-hp-bpf
+                    os: linux
+                  cilium_log_collector_amd64:
+                    arch: amd64
+                    name: cilium-log-collector
+                    os: linux
+              steps:
+                - template: /.pipelines/containers/container-template.yaml@self
+                  parameters:
+                    arch: $(arch)
+                    name: $(name)
+                    os: $(os)
+                    os_version: $(os_version)
+            - job: containerize_linux_arm64
+              displayName: Build Images
+              pool:
+                name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
+                os: linux
+              strategy:
+                maxParallel: 2
+                matrix:
+                  ${{ if eq(parameters.buildIpam, true) }}:
+                    azure_ipam_linux_arm64:
+                      arch: arm64
+                      name: azure-ipam
+                      os: linux
+                  azure_ip_masq_merger_linux_arm64:
+                    arch: arm64
+                    name: azure-ip-masq-merger
+                    os: linux
+                  azure_iptables_monitor_linux_arm64:
+                    arch: arm64
+                    name: azure-iptables-monitor
+                    os: linux
+                  ${{ if eq(parameters.buildCni, true) }}:
+                    cni_linux_arm64:
+                      arch: arm64
+                      name: cni
+                      os: linux
+                  ${{ if eq(parameters.buildCns, true) }}:
+                    cns_linux_arm64:
+                      arch: arm64
+                      name: cns
+                      os: linux
+                  ipv6_hp_bpf_linux_arm64:
+                    arch: arm64
+                    name: ipv6-hp-bpf
+                    os: linux
+                  cilium_log_collector_arm64:
+                    arch: arm64
+                    name: cilium-log-collector
+                    os: linux
+              steps:
+                - template: /.pipelines/containers/container-template.yaml@self
+                  parameters:
+                    arch: $(arch)
+                    name: $(name)
+                    os: $(os)
+
+        - stage: containerize_npm
+          displayName: Build NPM Images
+          dependsOn:
+            - setup
+          jobs:
+            - job: containerize_npm_amd64
+              displayName: Build NPM Images
+              pool:
+                name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
+                os: linux
+              strategy:
+                matrix:
+                  npm_linux_amd64:
+                    arch: amd64
+                    name: npm
+                    os: linux
+                  npm_windows_amd64:
+                    arch: amd64
+                    name: npm
+                    os: windows
+              steps:
+                - template: /.pipelines/containers/container-template.yaml@self
+                  parameters:
+                    arch: $(arch)
+                    name: $(name)
+                    os: $(os)
+                    os_version: $(os_version)
+            - job: containerize_npm_linux_arm64
+              displayName: Build NPM Images
+              pool:
+                name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
+                os: linux
+              strategy:
+                matrix:
+                  npm_linux_arm64:
+                    arch: arm64
+                    name: npm
+                    os: linux
+              steps:
+                - template: /.pipelines/containers/container-template.yaml@self
+                  parameters:
+                    arch: $(arch)
+                    name: $(name)
+                    os: $(os)
+
+        - stage: build_failure_analysis
+          displayName: Build Failure Analysis
+          dependsOn:
+            - binaries
+            - containerize
+            - containerize_npm
+          condition: or(failed('binaries'), failed('containerize'), failed('containerize_npm'))
+          jobs:
+            - template: /.pipelines/templates/pipeline-failure-analysis.job.yaml@self
+              parameters:
+                scope: build
+
+        - stage: publish
+          displayName: Publish Multiarch Manifests
+          dependsOn:
+            - containerize
           variables:
-            STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
-          pool:
-            name: "$(BUILD_POOL_NAME_DEFAULT)"
-          steps:
-            - template: templates/disk-cleanup.steps.yaml
-            - script: |
-                make bpf-lib
-                make all-binaries-platforms
-              name: "BuildAllPlatformBinaries"
-              displayName: "Build all platform binaries"
+            Packaging.EnableSBOMSigning: true
+          jobs:
+            - job: manifest
+              displayName: Compile Manifests
+              pool:
+                name: "$(BUILD_POOL_NAME_DEFAULT)"
+                os: linux
+              templateContext:
+                outputs:
+                  - output: buildArtifacts
+                    PathtoPublish: "$(Build.ArtifactStagingDirectory)"
+                    ArtifactName: "output_staging"
+                    sbomEnabled: false
+                    condition: succeeded()
+              strategy:
+                matrix:
+                  ${{ if eq(parameters.buildIpam, true) }}:
+                    azure_ipam:
+                      name: azure-ipam
+                      platforms: linux/amd64 linux/arm64 windows/amd64
+                  ${{ if eq(parameters.buildCni, true) }}:
+                    cni:
+                      name: cni
+                      platforms: linux/amd64 linux/arm64 windows/amd64
+                  ${{ if eq(parameters.buildCns, true) }}:
+                    cns:
+                      name: cns
+                      platforms: linux/amd64 linux/arm64 windows/amd64
+                  ipv6_hp_bpf:
+                    name: ipv6-hp-bpf
+                    platforms: linux/amd64 linux/arm64
+                  azure_ip_masq_merger:
+                    name: azure-ip-masq-merger
+                    platforms: linux/amd64 linux/arm64
+                  azure_iptables_monitor:
+                    name: azure-iptables-monitor
+                    platforms: linux/amd64 linux/arm64
+                  cilium_log_collector:
+                    name: cilium-log-collector
+                    platforms: linux/amd64 linux/arm64
+              steps:
+                - template: /.pipelines/containers/manifest-template.yaml@self
+                  parameters:
+                    name: $(name)
+                    platforms: $(platforms)
+                    publishArtifact: false
+    
+        - stage: publish_npm
+          displayName: Publish NPM Multiarch Manifest
+          dependsOn:
+            - containerize_npm
+          jobs:
+            - job: npm_manifest
+              displayName: Compile NPM Manifest
+              pool:
+                name: "$(BUILD_POOL_NAME_DEFAULT)"
+                os: linux
+              templateContext:
+                outputs:
+                  - output: buildArtifacts
+                    PathtoPublish: "$(Build.ArtifactStagingDirectory)"
+                    ArtifactName: "output_staging"
+                    sbomEnabled: false
+                    condition: succeeded()
+              steps:
+                - template: /.pipelines/containers/manifest-template.yaml@self
+                  parameters:
+                    name: npm
+                    platforms: linux/amd64 linux/arm64 windows/amd64
+                    publishArtifact: false
 
-            - script: |
-                mkdir -p ./output/bins
-                cd ./output
-                find . -name '*.tgz' -print -exec mv -t ./bins/ {} +
-                find . -name '*.zip' -print -exec mv -t ./bins/ {} +
-                shopt -s extglob
-                rm -rf !("bins")
-              name: "PrepareArtifacts"
-              displayName: "Prepare Artifacts"
+        - stage: sbom
+          displayName: Generate SBOM
+          dependsOn:
+            - binaries
+            - publish
+            - publish_npm
+          variables:
+            Packaging.EnableSBOMSigning: true
+          jobs:
+            - job: sbom
+              displayName: Generate and Sign SBOM
+              pool:
+                name: "$(BUILD_POOL_NAME_DEFAULT)"
+                os: linux
+              templateContext:
+                outputs:
+                  # Releases consume `output` and 1ES source-build validation rejects
+                  # build artifacts ("Container") in release jobs, so the release drop
+                  # must be a pipeline artifact. Pipeline artifacts are immutable and
+                  # cannot be published by more than one job, so this job assembles the
+                  # staged drop plus the signed _manifest and publishes it exactly once.
+                  - output: pipelineArtifact
+                    displayName: Publish assembled output pipeline artifact
+                    targetPath: $(Pipeline.Workspace)/output_staging
+                    artifactName: output
+                    sbomEnabled: false
+                    condition: succeeded()
+              steps:
+                - task: DownloadBuildArtifacts@1
+                  displayName: Download full output artifact drop
+                  inputs:
+                    buildType: current
+                    artifactName: output_staging
+                    downloadPath: $(Pipeline.Workspace)
 
-            - task: CopyFiles@2
-              inputs:
-                sourceFolder: "output"
-                targetFolder: $(Build.ArtifactStagingDirectory)
-              condition: succeeded()
+                - script: mkdir -p "$(Build.ArtifactStagingDirectory)/sbom"
+                  displayName: Create SBOM staging directory
 
-            - task: PublishBuildArtifacts@1
-              inputs:
-                artifactName: "output"
-                pathtoPublish: "$(Build.ArtifactStagingDirectory)"
-              condition: succeeded()
+                - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+                  displayName: Generate SBOM over full output artifact drop and sign _manifest
+                  inputs:
+                    BuildDropPath: $(Pipeline.Workspace)/output_staging
+                    ManifestDirPath: $(Build.ArtifactStagingDirectory)/sbom
 
-    - stage: containerize
-      displayName: Build Images
-      dependsOn:
-        - setup
-      jobs:
-        - job: containerize_amd64
-          displayName: Build Images
-          pool:
-            name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
-          strategy:
-            matrix:
-              ${{ if eq(parameters.buildIpam, true) }}:
-                azure_ipam_linux_amd64:
-                  arch: amd64
-                  name: azure-ipam
-                  os: linux
-                azure_ipam_windows:
-                  arch: amd64
-                  name: azure-ipam
-                  os: windows
-              azure_ip_masq_merger_linux_amd64:
-                arch: amd64
-                name: azure-ip-masq-merger
-                os: linux
-              azure_iptables_monitor_linux_amd64:
-                arch: amd64
-                name: azure-iptables-monitor
-                os: linux
-              ${{ if eq(parameters.buildCni, true) }}:
-                cni_linux_amd64:
-                  arch: amd64
-                  name: cni
-                  os: linux
-                cni_windows_amd64:
-                  arch: amd64
-                  name: cni
-                  os: windows
-              ${{ if eq(parameters.buildCns, true) }}:
-                cns_linux_amd64:
-                  arch: amd64
-                  name: cns
-                  os: linux
-                cns_windows_amd64:
-                  arch: amd64
-                  name: cns
-                  os: windows
-              ipv6_hp_bpf_linux_amd64:
-                arch: amd64
-                name: ipv6-hp-bpf
-                os: linux
-              cilium_log_collector_amd64:
-                arch: amd64
-                name: cilium-log-collector
-                os: linux
-          steps:
-            - template: containers/container-template.yaml
-              parameters:
-                arch: $(arch)
-                name: $(name)
-                os: $(os)
-                os_version: $(os_version)
-        - job: containerize_linux_arm64
-          displayName: Build Images
-          pool:
-            name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
-          strategy:
-            maxParallel: 2
-            matrix:
-              ${{ if eq(parameters.buildIpam, true) }}:
-                azure_ipam_linux_arm64:
-                  arch: arm64
-                  name: azure-ipam
-                  os: linux
-              azure_ip_masq_merger_linux_arm64:
-                arch: arm64
-                name: azure-ip-masq-merger
-                os: linux
-              azure_iptables_monitor_linux_arm64:
-                arch: arm64
-                name: azure-iptables-monitor
-                os: linux
-              ${{ if eq(parameters.buildCni, true) }}:
-                cni_linux_arm64:
-                  arch: arm64
-                  name: cni
-                  os: linux
-              ${{ if eq(parameters.buildCns, true) }}:
-                cns_linux_arm64:
-                  arch: arm64
-                  name: cns
-                  os: linux
-              ipv6_hp_bpf_linux_arm64:
-                arch: arm64
-                name: ipv6-hp-bpf
-                os: linux
-              cilium_log_collector_arm64:
-                arch: arm64
-                name: cilium-log-collector
-                os: linux
-          steps:
-            - template: containers/container-template.yaml
-              parameters:
-                arch: $(arch)
-                name: $(name)
-                os: $(os)
+                - script: cp -r "$(Build.ArtifactStagingDirectory)/sbom/_manifest" "$(Pipeline.Workspace)/output_staging/_manifest"
+                  displayName: Assemble signed _manifest into the release drop
 
-    - stage: containerize_npm
-      displayName: Build NPM Images
-      dependsOn:
-        - setup
-      jobs:
-        - job: containerize_npm_amd64
-          displayName: Build NPM Images
-          pool:
-            name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
-          strategy:
-            matrix:
-              npm_linux_amd64:
-                arch: amd64
-                name: npm
-                os: linux
-              npm_windows_amd64:
-                arch: amd64
-                name: npm
-                os: windows
-          steps:
-            - template: containers/container-template.yaml
-              parameters:
-                arch: $(arch)
-                name: $(name)
-                os: $(os)
-                os_version: $(os_version)
-        - job: containerize_npm_linux_arm64
-          displayName: Build NPM Images
-          pool:
-            name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
-          strategy:
-            matrix:
-              npm_linux_arm64:
-                arch: arm64
-                name: npm
-                os: linux
-          steps:
-            - template: containers/container-template.yaml
-              parameters:
-                arch: $(arch)
-                name: $(name)
-                os: $(os)
-
-    - stage: build_failure_analysis
-      displayName: Build Failure Analysis
-      dependsOn:
-        - binaries
-        - containerize
-        - containerize_npm
-      condition: or(failed('binaries'), failed('containerize'), failed('containerize_npm'))
-      jobs:
-        - template: templates/pipeline-failure-analysis.job.yaml
+        # Cilium Podsubnet E2E tests
+        - template: /.pipelines/singletenancy/cilium/cilium-e2e-job-template.yaml@self
           parameters:
-            scope: build
+            name: "cilium_e2e"
+            displayName: Cil Podsubnet
+            clusterType: swift-byocni-nokubeproxy-up
+            clusterName: "ciliume2e"
+            vmSize: Standard_B2ms
+            k8sVersion: ""
+            dependsOn: ["test"]
 
-    - stage: publish
-      displayName: Publish Multiarch Manifests
-      dependsOn:
-        - containerize
-      variables:
-        Packaging.EnableSBOMSigning: true
-      jobs:
-        - job: manifest
-          displayName: Compile Manifests
-          pool:
-            name: "$(BUILD_POOL_NAME_DEFAULT)"
-          strategy:
-            matrix:
-              ${{ if eq(parameters.buildIpam, true) }}:
-                azure_ipam:
-                  name: azure-ipam
-                  platforms: linux/amd64 linux/arm64 windows/amd64
-              ${{ if eq(parameters.buildCni, true) }}:
-                cni:
-                  name: cni
-                  platforms: linux/amd64 linux/arm64 windows/amd64
-              ${{ if eq(parameters.buildCns, true) }}:
-                cns:
-                  name: cns
-                  platforms: linux/amd64 linux/arm64 windows/amd64
-              ipv6_hp_bpf:
-                name: ipv6-hp-bpf
-                platforms: linux/amd64 linux/arm64
-              azure_ip_masq_merger:
-                name: azure-ip-masq-merger
-                platforms: linux/amd64 linux/arm64
-              azure_iptables_monitor:
-                name: azure-iptables-monitor
-                platforms: linux/amd64 linux/arm64
-              cilium_log_collector:
-                name: cilium-log-collector
-                platforms: linux/amd64 linux/arm64
-          steps:
-            - template: containers/manifest-template.yaml
-              parameters:
-                name: $(name)
-                platforms: $(platforms)
+        # Cilium Podsubnet Vnet Scale E2E tests
+        - template: /.pipelines/singletenancy/cilium/cilium-e2e-job-template.yaml@self
+          parameters:
+            name: "cilium_vnetscale_e2e"
+            displayName: Cil Podsubnet Vnet Scale Ubuntu
+            os: linux
+            clusterType: vnetscale-swift-byocni-nokubeproxy-up
+            clusterName: "ciliumvscalee2e"
+            vmSize: Standard_B2ms
+            k8sVersion: ""
+            dependsOn: ["test"]
 
-    - stage: publish_npm
-      displayName: Publish NPM Multiarch Manifest
-      dependsOn:
-        - containerize_npm
-      jobs:
-        - job: npm_manifest
-          displayName: Compile NPM Manifest
-          pool:
-            name: "$(BUILD_POOL_NAME_DEFAULT)"
-          steps:
-            - template: containers/manifest-template.yaml
-              parameters:
-                name: npm
-                platforms: linux/amd64 linux/arm64 windows/amd64
+        # Cilium EBPF Podsubnet E2E tests
+        - template: /.pipelines/singletenancy/cilium-ebpf/cilium-e2e-job-template.yaml@self
+          parameters:
+            name: "cilium_ebpf_podsubnet_e2e"
+            displayName: Cil EBPF Podsubnet Ubuntu 24
+            clusterType: swift-byocni-nokubeproxy-up
+            clusterName: "cilbpfpode2e"
+            vmSize: Standard_B2ms
+            k8sVersion: ""
+            dependsOn: ["test"]
+  
+        # Cilium Nodesubnet E2E tests
+        - template: /.pipelines/singletenancy/cilium-nodesubnet/cilium-nodesubnet-e2e-job-template.yaml@self
+          parameters:
+            name: "cilium_nodesubnet_e2e"
+            displayName: Cil NodeSubnet
+            clusterType: nodesubnet-byocni-nokubeproxy-up
+            clusterName: "cilndsubnete2e"
+            vmSize: Standard_B2s
+            dependsOn: ["test"]
 
-    - stage: sbom
-      displayName: Generate SBOM
-      dependsOn:
-        - binaries
-        - publish
-        - publish_npm
-      variables:
-        Packaging.EnableSBOMSigning: true
-      jobs:
-        - job: sbom
-          displayName: Generate and Sign SBOM
-          pool:
-            name: "$(BUILD_POOL_NAME_DEFAULT)"
-          steps:
-            - task: DownloadBuildArtifacts@1
-              displayName: Download full output artifact drop
-              inputs:
-                buildType: current
-                artifactName: output
-                downloadPath: $(Pipeline.Workspace)
+        # Cilium Overlay E2E tests
+        - template: /.pipelines/singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml@self
+          parameters:
+            name: "cilium_overlay_e2e"
+            displayName: Cil on AKS Overlay
+            clusterType: overlay-byocni-nokubeproxy-up
+            clusterName: "cilovere2e"
+            vmSize: Standard_B2ms
+            k8sVersion: ""
+            dependsOn: ["test"]
 
-            - script: mkdir -p "$(Build.ArtifactStagingDirectory)/sbom"
-              displayName: Create SBOM staging directory
+        # Cilium Dualstack Overlay E2E tests
+        - template: /.pipelines/singletenancy/cilium-dualstack-overlay/cilium-dualstackoverlay-e2e-job-template.yaml@self
+          parameters:
+            name: "cilium_dualstackoverlay_e2e"
+            displayName: Cil on AKS DualStack Overlay
+            os: linux
+            clusterType: dualstack-byocni-nokubeproxy-up
+            clusterName: "cildsovere2e"
+            vmSize: Standard_B2ms
+            k8sVersion: ""
+            dependsOn: ["test"]
+    
+        # Cilium EBPF Overlay E2E tests
+        - template: /.pipelines/singletenancy/cilium-overlay-ebpf/cilium-overlay-e2e-job-template.yaml@self
+          parameters:
+            name: "cilium_ebpf_overlay_e2e"
+            displayName: Cil EBPF on AKS Overlay Azure Linux
+            clusterType: overlay-byocni-nokubeproxy-up
+            clusterName: "cilbpfovere2e"
+            vmSize: Standard_B2ms
+            k8sVersion: ""
+            dependsOn: ["test"]
 
-            - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
-              displayName: Generate SBOM over full output artifact drop and sign _manifest
-              inputs:
-                BuildDropPath: $(Pipeline.Workspace)/output
-                ManifestDirPath: $(Build.ArtifactStagingDirectory)/sbom
+        # Cilium EBPF Dualstack Overlay E2E tests
+        - template: /.pipelines/singletenancy/cilium-dualstack-ebpf/cilium-dualstack-e2e-job-template.yaml@self
+          parameters:
+            name: "cilium_ebpf_ds_e2e"
+            displayName: Cilium EBPF on AKS DualStack Overlay
+            os: linux
+            clusterType: dualstack-byocni-nokubeproxy-up
+            clusterName: "cilbpfdse2e"
+            vmSize: Standard_B2ms
+            k8sVersion: ""
+            dependsOn: ["test"]        
 
-            - task: PublishBuildArtifacts@1
-              displayName: Publish _manifest into output artifact
-              inputs:
-                artifactName: output
-                pathtoPublish: $(Build.ArtifactStagingDirectory)/sbom
-              condition: succeeded()
+        # Cilium Overlay with hubble E2E tests
+        - template: /.pipelines/singletenancy/cilium-overlay-withhubble/cilium-overlay-e2e-job-template.yaml@self
+          parameters:
+            name: "cilium_h_overlay_e2e"
+            displayName: Cil on AKS Overlay with Hubble
+            clusterType: overlay-byocni-nokubeproxy-up
+            clusterName: "cilwhleovere2e"
+            vmSize: Standard_B2ms
+            k8sVersion: ""
+            dependsOn: ["test"]
+            testHubble: true
 
-    # Cilium Podsubnet E2E tests
-    - template: singletenancy/cilium/cilium-e2e-job-template.yaml
-      parameters:
-        name: "cilium_e2e"
-        displayName: Cil Podsubnet
-        clusterType: swift-byocni-nokubeproxy-up
-        clusterName: "ciliume2e"
-        vmSize: Standard_B2ms
-        k8sVersion: ""
-        dependsOn: ["test"]
+        # Azure Overlay E2E tests
+        - template: /.pipelines/singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml@self
+          parameters:
+            name: "linux_azure_overlay_e2e"
+            displayName: Azure Overlay Linux
+            os: linux
+            clusterType: overlay-byocni-up
+            clusterName: "linuxazovere2e"
+            vmSize: Standard_B2ms
+            k8sVersion: ""
+            dependsOn: ["test"]
+            scaleup: 100
+    
+        # Windows Azure Overlay E2E tests
+        - template: /.pipelines/singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml@self
+          parameters:
+            name: "win_azure_overlay_e2e"
+            displayName: Azure Overlay Windows
+            os: windows
+            clusterType: overlay-byocni-up
+            clusterName: "winazovere2e"
+            vmSize: Standard_B2ms
+            k8sVersion: ""
+            dependsOn: ["test"]
+            scaleup: 50
 
-    # Cilium Podsubnet Vnet Scale E2E tests
-    - template: singletenancy/cilium/cilium-e2e-job-template.yaml
-      parameters:
-        name: "cilium_vnetscale_e2e"
-        displayName: Cil Podsubnet Vnet Scale Ubuntu
-        os: linux
-        clusterType: vnetscale-swift-byocni-nokubeproxy-up
-        clusterName: "ciliumvscalee2e"
-        vmSize: Standard_B2ms
-        k8sVersion: ""
-        dependsOn: ["test"]
+        # Azure Overlay E2E Stateless CNI tests
+        - template: /.pipelines/singletenancy/azure-cni-overlay-stateless/azure-cni-overlay-stateless-e2e-job-template.yaml@self
+          parameters:
+            name: "azure_overlay_stateless_e2e"
+            displayName: Azure Stateless CNI Overlay
+            clusterType: overlay-byocni-up
+            clusterName: "statelesswin"
+            vmSize: Standard_B2ms
+            dependsOn: ["test"]
 
-    # Cilium EBPF Podsubnet E2E tests
-    - template: singletenancy/cilium-ebpf/cilium-e2e-job-template.yaml
-      parameters:
-        name: "cilium_ebpf_podsubnet_e2e"
-        displayName: Cil EBPF Podsubnet Ubuntu 24
-        clusterType: swift-byocni-nokubeproxy-up
-        clusterName: "cilbpfpode2e"
-        vmSize: Standard_B2ms
-        k8sVersion: ""
-        dependsOn: ["test"]
+        # AKS Swift E2E tests
+        - template: /.pipelines/singletenancy/aks-swift/e2e-job-template.yaml@self
+          parameters:
+            name: "aks_swift_e2e"
+            displayName: AKS Swift Ubuntu
+            os: linux
+            clusterType: swift-byocni-up
+            clusterName: "swifte2e"
+            vmSize: Standard_B2ms
+            k8sVersion: ""
+            dependsOn: ["test"]
 
-    # Cilium Nodesubnet E2E tests
-    - template: singletenancy/cilium-nodesubnet/cilium-nodesubnet-e2e-job-template.yaml
-      parameters:
-        name: "cilium_nodesubnet_e2e"
-        displayName: Cil NodeSubnet
-        clusterType: nodesubnet-byocni-nokubeproxy-up
-        clusterName: "cilndsubnete2e"
-        vmSize: Standard_B2s
-        dependsOn: ["test"]
+        # AKS Swift Vnet Scale E2E tests
+        - template: /.pipelines/singletenancy/aks-swift/e2e-job-template.yaml@self
+          parameters:
+            name: "aks_swift_vnetscale_e2e"
+            displayName: AKS Swift Vnet Scale Ubuntu
+            os: linux
+            clusterType: vnetscale-swift-byocni-up
+            clusterName: "vscaleswifte2e"
+            vmSize: Standard_B2ms
+            dependsOn: ["test"]
 
-    # Cilium Overlay E2E tests
-    - template: singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml
-      parameters:
-        name: "cilium_overlay_e2e"
-        displayName: Cil on AKS Overlay
-        clusterType: overlay-byocni-nokubeproxy-up
-        clusterName: "cilovere2e"
-        vmSize: Standard_B2ms
-        k8sVersion: ""
-        dependsOn: ["test"]
+        # CNIv1 E2E tests
+        - template: /.pipelines/singletenancy/aks/e2e-job-template.yaml@self
+          parameters:
+            name: "aks_ubuntu_22_linux_e2e"
+            displayName: AKS Ubuntu 22
+            arch: "amd64"
+            os: "linux"
+            clusterType: cniv1-up
+            clusterName: "ubuntu22e2e"
+            vmSize: Standard_B2s
+            scaleup: 100
+            dependsOn: ["test"]
 
-    # Cilium Dualstack Overlay E2E tests
-    - template: singletenancy/cilium-dualstack-overlay/cilium-dualstackoverlay-e2e-job-template.yaml
-      parameters:
-        name: "cilium_dualstackoverlay_e2e"
-        displayName: Cil on AKS DualStack Overlay
-        os: linux
-        clusterType: dualstack-byocni-nokubeproxy-up
-        clusterName: "cildsovere2e"
-        vmSize: Standard_B2ms
-        k8sVersion: ""
-        dependsOn: ["test"]
+        # Windows AKS E2E tests
+        - template: /.pipelines/singletenancy/aks/e2e-job-template.yaml@self
+          parameters:
+            name: "aks_windows_22_e2e"
+            displayName: AKS Windows 2022
+            arch: amd64
+            os: "windows"
+            clusterType: cniv1-up
+            clusterName: "win22e2e"
+            vmSize: Standard_B2ms
+            os_version: "ltsc2022"
+            scaleup: 50
+            dependsOn: ["test"]
 
-    # Cilium EBPF Overlay E2E tests
-    - template: singletenancy/cilium-overlay-ebpf/cilium-overlay-e2e-job-template.yaml
-      parameters:
-        name: "cilium_ebpf_overlay_e2e"
-        displayName: Cil EBPF on AKS Overlay Azure Linux
-        clusterType: overlay-byocni-nokubeproxy-up
-        clusterName: "cilbpfovere2e"
-        vmSize: Standard_B2ms
-        k8sVersion: ""
-        dependsOn: ["test"]
+        # CNI dual stack overlay E2E tests
+        - template: /.pipelines/singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml@self
+          parameters:
+            name: "linux_dualstackoverlay_e2e"
+            displayName: AKS DualStack Overlay Linux
+            os: linux
+            clusterType: dualstack-overlay-byocni-up
+            clusterName: "linuxdsovere2e"
+            vmSize: Standard_B2ms
+            dependsOn: ["test"]
+            scaleup: 100
 
-    # Cilium EBPF Dualstack Overlay E2E tests
-    - template: singletenancy/cilium-dualstack-ebpf/cilium-dualstack-e2e-job-template.yaml
-      parameters:
-        name: "cilium_ebpf_ds_e2e"
-        displayName: Cilium EBPF on AKS DualStack Overlay
-        os: linux
-        clusterType: dualstack-byocni-nokubeproxy-up
-        clusterName: "cilbpfdse2e"
-        vmSize: Standard_B2ms
-        k8sVersion: ""
-        dependsOn: ["test"]
+        # Windows DualStack Overlay E2E tests
+        - template: /.pipelines/singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml@self
+          parameters:
+            name: "win_dualstackoverlay_e2e"
+            displayName: AKS DualStack Overlay Windows
+            os: windows
+            clusterType: dualstack-overlay-byocni-up
+            clusterName: "windsovere2e"
+            vmSize: Standard_B2ms
+            dependsOn: ["test"]
+            scaleup: 50
 
-    # Cilium Overlay with hubble E2E tests
-    - template: singletenancy/cilium-overlay-withhubble/cilium-overlay-e2e-job-template.yaml
-      parameters:
-        name: "cilium_h_overlay_e2e"
-        displayName: Cil on AKS Overlay with Hubble
-        clusterType: overlay-byocni-nokubeproxy-up
-        clusterName: "cilwhleovere2e"
-        vmSize: Standard_B2ms
-        k8sVersion: ""
-        dependsOn: ["test"]
-        testHubble: true
+        - ${{ if eq(variables['Build.CronSchedule.DisplayName'], 'Official Nightly Pipeline') }}:
+          # AKS Swiftv2 Manifold E2E tests
+          - template: /.pipelines/multitenancy/swiftv2-manifold-e2e.stages.yaml@self
+            parameters:
+              name: "swiftv2_manifold_e2e"
+              dependsOn: publish
 
-    # Azure Overlay E2E tests
-    - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
-      parameters:
-        name: "linux_azure_overlay_e2e"
-        displayName: Azure Overlay Linux
-        os: linux
-        clusterType: overlay-byocni-up
-        clusterName: "linuxazovere2e"
-        vmSize: Standard_B2ms
-        k8sVersion: ""
-        dependsOn: ["test"]
-        scaleup: 100
-
-    # Windows Azure Overlay E2E tests
-    - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
-      parameters:
-        name: "win_azure_overlay_e2e"
-        displayName: Azure Overlay Windows
-        os: windows
-        clusterType: overlay-byocni-up
-        clusterName: "winazovere2e"
-        vmSize: Standard_B2ms
-        k8sVersion: ""
-        dependsOn: ["test"]
-        scaleup: 50
-
-    # Azure Overlay E2E Stateless CNI tests
-    - template: singletenancy/azure-cni-overlay-stateless/azure-cni-overlay-stateless-e2e-job-template.yaml
-      parameters:
-        name: "azure_overlay_stateless_e2e"
-        displayName: Azure Stateless CNI Overlay
-        clusterType: overlay-byocni-up
-        clusterName: "statelesswin"
-        vmSize: Standard_B2ms
-        dependsOn: ["test"]
-
-    # AKS Swift E2E tests
-    - template: singletenancy/aks-swift/e2e-job-template.yaml
-      parameters:
-        name: "aks_swift_e2e"
-        displayName: AKS Swift Ubuntu
-        os: linux
-        clusterType: swift-byocni-up
-        clusterName: "swifte2e"
-        vmSize: Standard_B2ms
-        k8sVersion: ""
-        dependsOn: ["test"]
-
-    # AKS Swift Vnet Scale E2E tests
-    - template: singletenancy/aks-swift/e2e-job-template.yaml
-      parameters:
-        name: "aks_swift_vnetscale_e2e"
-        displayName: AKS Swift Vnet Scale Ubuntu
-        os: linux
-        clusterType: vnetscale-swift-byocni-up
-        clusterName: "vscaleswifte2e"
-        vmSize: Standard_B2ms
-        dependsOn: ["test"]
-
-    # CNIv1 E2E tests
-    - template: singletenancy/aks/e2e-job-template.yaml
-      parameters:
-        name: "aks_ubuntu_22_linux_e2e"
-        displayName: AKS Ubuntu 22
-        arch: "amd64"
-        os: "linux"
-        clusterType: cniv1-up
-        clusterName: "ubuntu22e2e"
-        vmSize: Standard_B2s
-        scaleup: 100
-        dependsOn: ["test"]
-
-    # Windows AKS E2E tests
-    - template: singletenancy/aks/e2e-job-template.yaml
-      parameters:
-        name: "aks_windows_22_e2e"
-        displayName: AKS Windows 2022
-        arch: amd64
-        os: "windows"
-        clusterType: cniv1-up
-        clusterName: "win22e2e"
-        vmSize: Standard_B2ms
-        os_version: "ltsc2022"
-        scaleup: 50
-        dependsOn: ["test"]
-
-    # CNI dual stack overlay E2E tests
-    - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml
-      parameters:
-        name: "linux_dualstackoverlay_e2e"
-        displayName: AKS DualStack Overlay Linux
-        os: linux
-        clusterType: dualstack-overlay-byocni-up
-        clusterName: "linuxdsovere2e"
-        vmSize: Standard_B2ms
-        dependsOn: ["test"]
-        scaleup: 100
-
-    # Windows DualStack Overlay E2E tests
-    - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml
-      parameters:
-        name: "win_dualstackoverlay_e2e"
-        displayName: AKS DualStack Overlay Windows
-        os: windows
-        clusterType: dualstack-overlay-byocni-up
-        clusterName: "windsovere2e"
-        vmSize: Standard_B2ms
-        dependsOn: ["test"]
-        scaleup: 50
-
-    - ${{ if eq(variables['Build.CronSchedule.DisplayName'], 'Official Nightly Pipeline') }}:
-      # AKS Swiftv2 Manifold E2E tests
-      - template: multitenancy/swiftv2-manifold-e2e.stages.yaml
-        parameters:
-          name: "swiftv2_manifold_e2e"
-          dependsOn: publish
-
-    # Delete All Clusters (cilium + windows + linux) — unified stage.
-    # Async delete with leak detection; safe to attempt against clusters that
-    # were never created (az group show returns empty → treated as "gone").
-    - stage: delete_clusters
-      displayName: Delete Clusters
-      condition: always()
-      dependsOn:
-        - setup
-        - cilium_e2e
-        - cilium_vnetscale_e2e
-        - cilium_ebpf_podsubnet_e2e
-        - cilium_nodesubnet_e2e
-        - cilium_overlay_e2e
-        - cilium_ebpf_overlay_e2e
-        - cilium_dualstackoverlay_e2e
-        - cilium_h_overlay_e2e
-        - cilium_ebpf_ds_e2e
-        - win_azure_overlay_e2e
-        - azure_overlay_stateless_e2e
-        - aks_windows_22_e2e
-        - win_dualstackoverlay_e2e
-        - linux_azure_overlay_e2e
-        - aks_swift_e2e
-        - aks_swift_vnetscale_e2e
-        - aks_ubuntu_22_linux_e2e
-        - linux_dualstackoverlay_e2e
-      variables:
-        commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
-      pool:
-        name: $(BUILD_POOL_NAME_DEFAULT)
-      jobs:
-        - job: delete
+        # Delete All Clusters (cilium + windows + linux) — unified stage.
+        # Async delete with leak detection; safe to attempt against clusters that
+        # were never created (az group show returns empty → treated as "gone").
+        - stage: delete_clusters
           displayName: Delete Clusters
-          steps:
-            - template: templates/delete-cluster.yaml
-              parameters:
-                sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
-                svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-                suffix: -$(commitID)
-                clusters:
-                  # Cilium clusters
-                  - cilbpfdse2e
-                  - ciliume2e
-                  - ciliumvscalee2e
-                  - cilbpfpode2e
-                  - cilndsubnete2e
-                  - cilovere2e
-                  - cilbpfovere2e
-                  - cildsovere2e
-                  - cilwhleovere2e
-                  # Windows clusters
-                  - winazovere2e
-                  - statelesswin
-                  - win22e2e
-                  - windsovere2e
-                  # Linux clusters
-                  - linuxazovere2e
-                  - swifte2e
-                  - vscaleswifte2e
-                  - ubuntu22e2e
-                  - linuxdsovere2e
+          condition: always()
+          dependsOn:
+            - setup
+            - cilium_e2e
+            - cilium_vnetscale_e2e
+            - cilium_ebpf_podsubnet_e2e
+            - cilium_nodesubnet_e2e
+            - cilium_overlay_e2e
+            - cilium_ebpf_overlay_e2e
+            - cilium_dualstackoverlay_e2e
+            - cilium_h_overlay_e2e
+            - cilium_ebpf_ds_e2e
+            - win_azure_overlay_e2e
+            - azure_overlay_stateless_e2e
+            - aks_windows_22_e2e
+            - win_dualstackoverlay_e2e
+            - linux_azure_overlay_e2e
+            - aks_swift_e2e
+            - aks_swift_vnetscale_e2e
+            - aks_ubuntu_22_linux_e2e
+            - linux_dualstackoverlay_e2e
+          variables:
+            commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+          pool:
+            name: $(BUILD_POOL_NAME_DEFAULT)
+            os: linux
+          jobs:
+            - job: delete
+              displayName: Delete Clusters
+              steps:
+                - template: /.pipelines/templates/delete-cluster.yaml@self
+                  parameters:
+                    sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
+                    svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+                    suffix: -$(commitID)
+                    clusters:
+                      # Cilium clusters
+                      - cilbpfdse2e
+                      - ciliume2e
+                      - ciliumvscalee2e
+                      - cilbpfpode2e
+                      - cilndsubnete2e
+                      - cilovere2e
+                      - cilbpfovere2e
+                      - cildsovere2e
+                      - cilwhleovere2e
+                      # Windows clusters
+                      - winazovere2e
+                      - statelesswin
+                      - win22e2e
+                      - windsovere2e
+                      # Linux clusters
+                      - linuxazovere2e
+                      - swifte2e
+                      - vscaleswifte2e
+                      - ubuntu22e2e
+                      - linuxdsovere2e
