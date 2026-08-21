@@ -311,7 +311,7 @@ func (client *TransparentEndpointClient) setIPV6NeighEntry() error {
 	linkInfo := netlink.LinkInfo{
 		Name:       client.containerVethName,
 		IPAddr:     hostGwIP,
-		MacAddress: client.hostVethMac,
+		MacAddress: client.containerMac,
 	}
 
 	if err := client.netlink.SetOrRemoveLinkAddress(linkInfo, netlink.ADD, netlink.NUD_PERMANENT); err != nil {
