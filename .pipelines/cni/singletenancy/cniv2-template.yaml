@@ -216,9 +216,9 @@ stages:
                     fi
                   fi
                   if [ "${{parameters.os}}" == "windows" ]; then
-                    sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true CNS_VERSION=${CNS} CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_VNET=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+                    sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true CNS_VERSION=${CNS} CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_VNET_STATELESS_SWIFT=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                   else
-                    sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_VNET=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+                    sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_VNET_STATELESS_SWIFT=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                   fi
               name: "swifte2e"
               displayName: "Swift Integration"
@@ -276,7 +276,10 @@ stages:
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
-              cni: cniv2
+              ${{ if contains(parameters.clusterType, 'swift') }}:
+                cni: stateless
+              ${{ else }}:
+                cni: cniv2
       - job: restart_nodes
         condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'restartNode') , contains(variables.CONTROL_SCENARIO, 'all') ) )
         displayName: "Restart Test"
@@ -287,7 +290,10 @@ stages:
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
-              cni: cniv2
+              ${{ if contains(parameters.clusterType, 'swift') }}:
+                cni: stateless
+              ${{ else }}:
+                cni: cniv2
               region: $(location)
               ${{ if eq(parameters.upgradeScenario, 'true') }}:
                 logType: upgradeRestartNode
@@ -295,7 +301,10 @@ stages:
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
-              cni: cniv2
+              ${{ if contains(parameters.clusterType, 'swift') }}:
+                cni: stateless
+              ${{ else }}:
+                cni: cniv2
               restartCase: "true"
       - job: restart_cns
         condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'restartCNS') , contains(variables.CONTROL_SCENARIO, 'all') ) )
@@ -306,7 +315,10 @@ stages:
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
-              cni: cniv2
+              ${{ if contains(parameters.clusterType, 'swift') }}:
+                cni: stateless
+              ${{ else }}:
+                cni: cniv2
               scaleup: ${{ parameters.scaleup }}
               nodeCount: ${{ parameters.nodeCount }}
               ${{ if eq(parameters.upgradeScenario, 'true') }}:
@@ -395,7 +407,10 @@ stages:
             - template: ../load-test-templates/restart-hns-template.yaml
               parameters:
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
-                cni: cniv2
+                ${{ if contains(parameters.clusterType, 'swift') }}:
+                  cni: stateless
+                ${{ else }}:
+                  cni: cniv2
         - job: deploy_pods
           displayName: "Scale Test"
           dependsOn: restart_hns
@@ -412,7 +427,10 @@ stages:
               parameters:
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
                 os: ${{ parameters.os }}
-                cni: cniv2
+                ${{ if contains(parameters.clusterType, 'swift') }}:
+                  cni: stateless
+                ${{ else }}:
+                  cni: cniv2
         - job: restart_nodes
           displayName: "Restart Test"
           dependsOn: deploy_pods
@@ -429,7 +447,10 @@ stages:
               parameters:
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
                 os: ${{ parameters.os }}
-                cni: cniv2
+                ${{ if contains(parameters.clusterType, 'swift') }}:
+                  cni: stateless
+                ${{ else }}:
+                  cni: cniv2
                 restartCase: "true"
         - job: restart_cns
           displayName: "Restart and Validate CNS"
@@ -439,7 +460,10 @@ stages:
               parameters:
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
                 os: ${{ parameters.os }}
-                cni: cniv2
+                ${{ if contains(parameters.clusterType, 'swift') }}:
+                  cni: stateless
+                ${{ else }}:
+                  cni: cniv2
                 scaleup: ${{ parameters.scaleup }}
                 nodeCount: ${{ parameters.nodeCountWin }}
                 jobName: "HNS_restart_cns"
