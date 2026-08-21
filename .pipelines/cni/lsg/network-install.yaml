@@ -70,9 +70,6 @@ steps:
           make -C ./hack/aks deploy-cilium "${CILIUM_ARGS[@]}"
         fi
 
-        export CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY=${CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY_OVERRIDE:-acnpublic.azurecr.io}
-        export CILIUM_LOG_COLLECTOR_VERSION_TAG=${CILIUM_LOG_COLLECTOR_VERSION_TAG_OVERRIDE:-$(make cilium-log-collector-version)}
-        make -C ./hack/aks add-cilium-log-collector "${CILIUM_ARGS[@]}"
         kubectl get pods -A -o wide
       displayName: Install distroless Cilium
 
