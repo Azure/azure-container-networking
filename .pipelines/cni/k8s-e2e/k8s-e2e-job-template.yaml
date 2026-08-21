@@ -89,7 +89,7 @@ jobs:
             parameters:
               testName: Service Conformance
               name: service
-              ginkgoFocus: 'Services.*\[Conformance\].*'
+              ginkgoFocus: 'Services.*(\[Conformance\]|internalTrafficPolicy|externalTrafficPolicy).*'
               ginkgoSkip: ""
               os: ${{ parameters.os }}
               processes: 8
@@ -99,7 +99,7 @@ jobs:
             parameters:
               testName: Service Conformance|Cilium
               name: service
-              ginkgoFocus: 'Services.*\[Conformance\].*'
+              ginkgoFocus: 'Services.*(\[Conformance\]|internalTrafficPolicy|externalTrafficPolicy).*'
               ginkgoSkip: "should serve endpoints on same port and different protocols" # Cilium does not support this feature. For more info on test: https://github.com/kubernetes/kubernetes/blame/e602e9e03cd744c23dde9fee09396812dd7bdd93/test/conformance/testdata/conformance.yaml#L1780-L1788
               os: ${{ parameters.os }}
               processes: 8
