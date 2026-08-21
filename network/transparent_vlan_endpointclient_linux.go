@@ -596,7 +596,7 @@ func (client *TransparentVlanEndpointClient) ConfigureContainerInterfacesAndRout
 
 	logger.Info("Adding default routes and neighbor entries in container ns")
 
-	if err := client.addDefaultRoutesHelper(client.containerVethName, 0, virtualGwIPString, defaultGwCidr); err != nil {
+	if err := client.addDefaultRoutesHelper(client.containerVethName, 0, virtualGwIPVlanString, defaultGwCidr); err != nil {
 		return errors.Wrap(err, "failed container ns add default routes")
 	}
 
