@@ -578,10 +578,18 @@ type IPConfigResponse struct {
 	Response  Response
 }
 
+// PodConfigurations defines pod-level networking behavior for CNI.
+type PodConfigurations struct {
+	// SkipDefaultRouteProgramming instructs CNI to skip default-route programming
+	// when no NIC requests default-route programming.
+	SkipDefaultRouteProgramming bool `json:"skipDefaultRouteProgramming,omitempty"`
+}
+
 // IPConfigsResponse is used in CNS IPAM mode to return a slice of IP configs as a response to CNI ADD
 type IPConfigsResponse struct {
-	PodIPInfo []PodIpInfo `json:"podIPInfo"`
-	Response  Response    `json:"response"`
+	PodIPInfo         []PodIpInfo       `json:"podIPInfo"`
+	Response          Response          `json:"response"`
+	PodConfigurations PodConfigurations `json:"podConfigurations"`
 }
 
 // ClaimResourceInfoRequest is the request for the RequestClaimResourceInfo API. ClaimUID identifies

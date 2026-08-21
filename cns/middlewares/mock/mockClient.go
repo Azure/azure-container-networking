@@ -67,6 +67,10 @@ func NewClient() *Client {
 	testPod10.Labels = make(map[string]string)
 	testPod10.Labels[configuration.LabelPodNetworkInstanceSwiftV2] = podNetwork
 
+	testPod12 := v1.Pod{}
+	testPod12.Labels = make(map[string]string)
+	testPod12.Labels[configuration.LabelPodSwiftV2] = podNetwork
+
 	testPodMtpncTerminating := v1.Pod{}
 	testPodMtpncTerminating.Labels = make(map[string]string)
 	testPodMtpncTerminating.Labels[configuration.LabelPodSwiftV2] = podNetwork
@@ -225,6 +229,7 @@ func NewClient() *Client {
 			"testpod8namespace/testpod8":                               &testPod8,
 			"testpod9namespace/testpod9":                               &testPod9,
 			"testpod10namespace/testpod10":                             &testPod10,
+			"testpod12namespace/testpod12":                             &testPod12,
 			"testpodMtpncTerminatingnamespace/testpodMtpncTerminating": &testPodMtpncTerminating,
 		},
 		mtpncCache: map[string]*v1alpha1.MultitenantPodNetworkConfig{
