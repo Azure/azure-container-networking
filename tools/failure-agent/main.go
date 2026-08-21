@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/collect"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/command"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/fingerprint"
+	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/fixprompt"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/live"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/model"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/publish"
@@ -263,12 +264,36 @@ func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, k
 		zap.String("report", filepath.Join(opts.output, report.MarkdownFile)),
 	)
 
+	// fix.md is an artifact, not a PR write-back, so it is emitted regardless of
+	// --dry-run. It only crosses to GitHub when the independent draft-PR workflow
+	// is run manually and pulls this build's artifacts.
+	writeFixPrompt(logger, opts.output, rc, inc)
+
 	if !opts.dryRun {
 		if err := publishToPR(ctx, logger, rc, fp, inc); err != nil {
 			logger.Warn("failed to publish analysis to pull request", zap.Error(err))
 		}
 	}
 	return nil
+}
+
+// writeFixPrompt emits fix.md when the incident is a high-confidence regression
+// on a non-PR build. A failure to write it is logged but never fails the run:
+// the report and incident artifacts are already on disk.
+func writeFixPrompt(logger *zap.Logger, outputDir string, rc model.RunContext, inc model.Incident) {
+	if !fixprompt.ShouldEmit(rc, inc) {
+		return
+	}
+	path, err := fixprompt.WriteFile(outputDir, inc)
+	if err != nil {
+		logger.Warn("failed to write fix prompt", zap.Error(err))
+		return
+	}
+	logger.Info("fix prompt written",
+		zap.String("event", "fix_prompt_written"),
+		zap.String("fingerprint", inc.Fingerprint),
+		zap.String("path", path),
+	)
 }
 
 // handleDuplicate is taken when an unresolved incident with the same fingerprint
