@@ -59,22 +59,24 @@ func TestUnmarshalPodInfo(t *testing.T) {
 	}
 }
 
-func TestIPConfigsResponseSkipDefaultRouteProgrammingJSON(t *testing.T) {
+func TestIPConfigsResponsePodConfigurationsJSON(t *testing.T) {
 	for _, tt := range []struct {
-		name      string
-		response  IPConfigsResponse
-		wantField bool
+		name          string
+		response      IPConfigsResponse
+		wantSkipField bool
 	}{
 		{
-			name:     "omitted when false",
+			name:     "empty when false",
 			response: IPConfigsResponse{},
 		},
 		{
 			name: "included when true",
 			response: IPConfigsResponse{
-				SkipDefaultRouteProgramming: true,
+				PodConfigurations: PodConfigurations{
+					SkipDefaultRouteProgramming: true,
+				},
 			},
-			wantField: true,
+			wantSkipField: true,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -83,10 +85,13 @@ func TestIPConfigsResponseSkipDefaultRouteProgrammingJSON(t *testing.T) {
 
 			var decoded map[string]any
 			assert.NoError(t, json.Unmarshal(data, &decoded))
-			value, exists := decoded["skipDefaultRouteProgramming"]
-			assert.Equal(t, tt.wantField, exists)
-			if tt.wantField {
-				assert.Equal(t, true, value)
+			value, exists := decoded["podConfigurations"]
+			assert.True(t, exists)
+			configurations := value.(map[string]any)
+			skipValue, skipExists := configurations["skipDefaultRouteProgramming"]
+			assert.Equal(t, tt.wantSkipField, skipExists)
+			if tt.wantSkipField {
+				assert.Equal(t, true, skipValue)
 			}
 		})
 	}

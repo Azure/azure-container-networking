@@ -66,7 +66,23 @@ func TestIPConfigsRequestHandlerWrapperScheduledWithDRA(t *testing.T) {
 	require.Len(t, resp.PodIPInfo, 1)
 	require.Equal(t, cns.InfraNIC, resp.PodIPInfo[0].NICType)
 	require.True(t, resp.PodIPInfo[0].SkipDefaultRoutes)
-	require.True(t, resp.SkipDefaultRouteProgramming)
+	require.True(t, resp.PodConfigurations.SkipDefaultRouteProgramming)
+}
+
+func TestGetSwiftV2IPConfigForDRANET(t *testing.T) {
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
+	podInfo := cns.NewPodInfo(
+		"5006cad4-eth0",
+		"5006cad4-e54d-472e-863d-c4bac66200a7",
+		"testpod12",
+		"testpod12namespace",
+	)
+
+	result, err := middleware.getSwiftV2IpConfigHelper(context.TODO(), podInfo, true)
+
+	require.NoError(t, err)
+	require.Len(t, result.podIPInfos, 1)
+	require.False(t, result.podConfigurations.SkipDefaultRouteProgramming)
 }
 
 func TestSetRoutesSuccess(t *testing.T) {
