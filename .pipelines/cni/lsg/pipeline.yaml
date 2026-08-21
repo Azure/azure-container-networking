@@ -25,10 +25,10 @@ stages:
               echo "Setting up environment"
               go version
               echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(Build.BuildId))"
-              echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]v1.8.12"
+              echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]$(CNS_VERSION)"
               echo "##vso[task.setvariable variable=cniVersion;isOutput=true]$(CNI_VERSION)"
-              echo "##vso[task.setvariable variable=ipamVersion;isOutput=true]v0.4.0-0"
-              echo "##vso[task.setvariable variable=ciliumVersion;isOutput=true]v1.18.12-260811"
+              echo "##vso[task.setvariable variable=ipamVersion;isOutput=true]$(IPAM_VERSION)"
+              echo "##vso[task.setvariable variable=ciliumVersion;isOutput=true]$(CILIUM_VERSION_TAG)"
 
               echo "------"
               echo Queued by $(Build.QueuedBy)
@@ -37,6 +37,9 @@ stages:
               echo "KernelType : $(KernelType)"
               echo "KernelVersion : $(KernelVersion)"
               echo "ProposedRepoVersion : $(ProposedRepoVersion)"
+              echo "CNS_VERSION : $(CNS_VERSION)"
+              echo "IPAM_VERSION : $(IPAM_VERSION)"
+              echo "CILIUM_VERSION_TAG : $(CILIUM_VERSION_TAG)"
               echo "------"
 
               DISTRO=$(echo "$(DistroVersion)" | tr '[:upper:]' '[:lower:]')
