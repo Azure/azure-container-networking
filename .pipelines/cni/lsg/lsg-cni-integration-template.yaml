@@ -111,7 +111,7 @@ stages:
             name: "CreateAksCluster"
             displayName: "Create and verify AKS cluster"
 
-          - template: ../../templates/network-install.yaml
+          - template: network-install.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               networkType: ${{ parameters.networkType }}

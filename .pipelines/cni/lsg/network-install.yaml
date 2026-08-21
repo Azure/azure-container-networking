@@ -1,0 +1,117 @@
+parameters:
+  clusterName: ""
+  networkType: ""
+  azureIpamVersion: ""
+  cnsVersion: ""
+  cniVersion: ""
+  installFlag: ""
+  ciliumVersionTag: ""
+  ciliumImageRegistry: ""
+
+steps:
+  - task: KubectlInstaller@0
+    inputs:
+      kubectlVersion: latest
+
+  - ${{ if startsWith(parameters.networkType, 'cilium') }}:
+    - template: ../../templates/cilium-cli.yaml
+
+  - task: AzureCLI@2
+    displayName: Install ACN Networking
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -e
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+        kubectl cluster-info
+
+        CNI_TYPE=cniv2
+        WAIT_FOR_CNS=true
+        if [[ "${{ parameters.networkType }}" == cilium-* ]]; then
+          CNI_TYPE=cilium
+          WAIT_FOR_CNS=false
+        fi
+        if [ "${{ parameters.networkType }}" = "cilium-dualstack" ]; then
+          CNI_TYPE=cilium_dualstack
+        fi
+
+        sudo -E env "PATH=$PATH" make test-load \
+          CNS_ONLY=true \
+          CNI_TYPE="$CNI_TYPE" \
+          WAIT_FOR_CNS="$WAIT_FOR_CNS" \
+          INSTALL_CNS=true \
+          ${{ parameters.installFlag }}=true \
+          AZURE_IPAM_VERSION=${{ parameters.azureIpamVersion }} \
+          CNS_VERSION=${{ parameters.cnsVersion }} \
+          CNI_VERSION=${{ parameters.cniVersion }} \
+          IPAM_IMAGE_NAME_OVERRIDE=$(IPAM_IMAGE_NAME_OVERRIDE) \
+          CNS_IMAGE_NAME_OVERRIDE=$(CNS_IMAGE_NAME_OVERRIDE) \
+          CNI_IMAGE_NAME_OVERRIDE=$(CNI_IMAGE_NAME_OVERRIDE)
+
+  - ${{ if startsWith(parameters.networkType, 'cilium') }}:
+    - bash: |
+        set -e
+        CILIUM_DIR=$(echo "${{ parameters.ciliumVersionTag }}" | sed 's/^v//' | cut -d. -f1,2)
+        CILIUM_ARGS=(
+          "DIR=${CILIUM_DIR}"
+          "CILIUM_VERSION_TAG=${{ parameters.ciliumVersionTag }}"
+          "CILIUM_IMAGE_REGISTRY=${{ parameters.ciliumImageRegistry }}"
+          "WAIT_FOR_CILIUM=false"
+        )
+
+        if [ "${{ parameters.networkType }}" = "cilium-dualstack" ]; then
+          export IPV6_HP_BPF_VERSION=${IPV6_HP_BPF_VERSION:-$(make ipv6-hp-bpf-version)}
+          export IPV6_IMAGE_REGISTRY=${IPV6_IMAGE_REGISTRY:-acnpublic.azurecr.io}
+          make -C ./hack/aks deploy-cilium-dualstack "${CILIUM_ARGS[@]}"
+        else
+          make -C ./hack/aks deploy-cilium "${CILIUM_ARGS[@]}"
+        fi
+
+        export CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY=${CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY_OVERRIDE:-acnpublic.azurecr.io}
+        export CILIUM_LOG_COLLECTOR_VERSION_TAG=${CILIUM_LOG_COLLECTOR_VERSION_TAG_OVERRIDE:-$(make cilium-log-collector-version)}
+        make -C ./hack/aks add-cilium-log-collector "${CILIUM_ARGS[@]}"
+        kubectl get pods -A -o wide
+      displayName: Install distroless Cilium
+
+    - bash: |
+        set -e
+        EXPECTED_AGENT="${{ parameters.ciliumImageRegistry }}/cilium/cilium-distroless:${{ parameters.ciliumVersionTag }}"
+        EXPECTED_INIT="${{ parameters.ciliumImageRegistry }}/cilium/cilium-distroless-init:${{ parameters.ciliumVersionTag }}"
+        EXPECTED_OPERATOR="${{ parameters.ciliumImageRegistry }}/cilium/operator-generic:${{ parameters.ciliumVersionTag }}"
+
+        ACTUAL_AGENT=$(kubectl get daemonset cilium -n kube-system -o jsonpath='{.spec.template.spec.containers[?(@.name=="cilium-agent")].image}')
+        ACTUAL_OPERATOR=$(kubectl get deployment cilium-operator -n kube-system -o jsonpath='{.spec.template.spec.containers[0].image}')
+        mapfile -t INIT_IMAGES < <(kubectl get daemonset cilium -n kube-system -o jsonpath='{range .spec.template.spec.initContainers[*]}{.image}{"\n"}{end}')
+
+        [ "$ACTUAL_AGENT" = "$EXPECTED_AGENT" ] || {
+          echo "Expected Cilium agent image $EXPECTED_AGENT, got $ACTUAL_AGENT"
+          exit 1
+        }
+        [ "$ACTUAL_OPERATOR" = "$EXPECTED_OPERATOR" ] || {
+          echo "Expected Cilium operator image $EXPECTED_OPERATOR, got $ACTUAL_OPERATOR"
+          exit 1
+        }
+        CILIUM_INIT_COUNT=0
+        for image in "${INIT_IMAGES[@]}"; do
+          if [[ "$image" == */cilium/cilium-distroless-init:* ]]; then
+            CILIUM_INIT_COUNT=$((CILIUM_INIT_COUNT + 1))
+            [ "$image" = "$EXPECTED_INIT" ] || {
+              echo "Expected Cilium init image $EXPECTED_INIT, got $image"
+              exit 1
+            }
+          fi
+        done
+        [ "$CILIUM_INIT_COUNT" -gt 0 ] || {
+          echo "No distroless Cilium init containers were found"
+          exit 1
+        }
+      displayName: Verify distroless Cilium images
+
+    - bash: |
+        set -e
+        kubectl rollout status daemonset/azure-cns -n kube-system --timeout=20m
+        cilium status --wait --wait-duration 20m
+      displayName: Wait for ACN and Cilium networking
