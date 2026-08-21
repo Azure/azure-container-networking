@@ -115,7 +115,7 @@ stages:
 
         - template: ../templates/cilium-connectivity-tests.yaml
           parameters:
-            skipTests: '!pod-to-pod-encryption,!node-to-node-encryption,!check-log-errors,!to-fqdns'
+            skipTests: '!node-to-node-encryption,!check-log-errors,!no-unexpected-packet-drops'
 
         - script: |
             export DIR=${CILIUM_VERSION_TAG%.*}
