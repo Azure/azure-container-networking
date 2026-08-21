@@ -70,6 +70,7 @@ steps:
           make -C ./hack/aks deploy-cilium "${CILIUM_ARGS[@]}"
         fi
 
+        make -C ./hack/aks add-cilium-log-collector "DIR=${CILIUM_DIR}"
         kubectl get pods -A -o wide
       displayName: Install distroless Cilium
 
