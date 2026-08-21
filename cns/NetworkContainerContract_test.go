@@ -80,7 +80,7 @@ func TestIPConfigsResponsePodConfigurationsJSON(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			data, err := json.Marshal(tt.response)
+			data, err := json.Marshal(tt.response) //nolint:musttag // response embeds pre-existing contract types
 			assert.NoError(t, err)
 
 			var decoded map[string]any

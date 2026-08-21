@@ -1806,6 +1806,13 @@ func Test_getInterfaceInfoKey(t *testing.T) {
 }
 
 func TestCNSIPAMInvokerAddDefaultRouteProgramming(t *testing.T) {
+	const (
+		frontendGatewayIP = "20.0.0.1"
+		frontendPrimaryIP = "20.0.0.2"
+		podInterfaceID    = "testcont-testifname1"
+		containerID       = "testcontainerid1"
+	)
+
 	infraNIC := func(skipDefaultRoutes bool) cns.PodIpInfo {
 		return cns.PodIpInfo{
 			PodIPConfig: cns.IPSubnet{
@@ -1835,8 +1842,8 @@ func TestCNSIPAMInvokerAddDefaultRouteProgramming(t *testing.T) {
 				PrefixLength: 24,
 			},
 			HostPrimaryIPInfo: cns.HostIPInfo{
-				Gateway:   "20.0.0.1",
-				PrimaryIP: "20.0.0.2",
+				Gateway:   frontendGatewayIP,
+				PrimaryIP: frontendPrimaryIP,
 				Subnet:    "20.0.0.0/24",
 			},
 			NICType:    cns.NodeNetworkInterfaceFrontendNIC,
@@ -1887,8 +1894,8 @@ func TestCNSIPAMInvokerAddDefaultRouteProgramming(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			testRequire := require.New(t)
 			request := cns.IPConfigsRequest{
-				PodInterfaceID:      "testcont-testifname1",
-				InfraContainerID:    "testcontainerid1",
+				PodInterfaceID:      podInterfaceID,
+				InfraContainerID:    containerID,
 				OrchestratorContext: marshallPodInfo(testPodInfo),
 			}
 			invoker := &CNSIPAMInvoker{
@@ -1911,7 +1918,7 @@ func TestCNSIPAMInvokerAddDefaultRouteProgramming(t *testing.T) {
 			_, err := invoker.Add(IPAMAddConfig{
 				nwCfg: &cni.NetworkConfig{},
 				args: &cniSkel.CmdArgs{
-					ContainerID: "testcontainerid1",
+					ContainerID: containerID,
 					Netns:       "testnetns1",
 					IfName:      "testifname1",
 				},
