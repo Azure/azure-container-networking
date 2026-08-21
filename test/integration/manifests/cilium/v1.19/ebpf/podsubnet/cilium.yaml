@@ -246,119 +246,41 @@ spec:
           volumeMounts:
             - mountPath: /etc/config
               name: iptables-config
-        - command:
-            - sh
-          args:
-            - "/install-plugin.sh"
+        # Merged init container: shares a single image pull and container start
+        # across the steps that previously ran in install-cni-binaries,
+        # mount-cgroup, apply-sysctl-overwrites, mount-bpf-fs and
+        # clean-cilium-state. Runs privileged because mount-bpf-fs needs
+        # Bidirectional mount propagation.
+        - name: cilium-init-all
           image: $CILIUM_IMAGE_REGISTRY/cilium/cilium-distroless-init:$CILIUM_VERSION_TAG
           imagePullPolicy: IfNotPresent
-          name: install-cni-binaries
-          resources: {}
-          securityContext:
-            capabilities:
-              drop:
-                - ALL
-            seLinuxOptions:
-              level: s0
-              type: spc_t
-          terminationMessagePath: /dev/termination-log
-          terminationMessagePolicy: FallbackToLogsOnError
-          volumeMounts:
-            - mountPath: /host/opt/cni/bin
-              name: cni-path
-        - command:
-            - sh
+          command:
+            - /bin/sh
             - -ec
             - |
-              cp /usr/bin/cilium-mount /hostbin/cilium-mount;
-              nsenter --cgroup=/hostproc/1/ns/cgroup --mount=/hostproc/1/ns/mnt "${BIN_PATH}/cilium-mount" $CGROUP_ROOT;
+              # 1. Install Cilium CNI plugin binaries on the host (was install-cni-binaries).
+              sh /install-plugin.sh
+
+              # 2. Mount host cgroup2 via nsenter (was mount-cgroup).
+              cp /usr/bin/cilium-mount /hostbin/cilium-mount
+              nsenter --cgroup=/hostproc/1/ns/cgroup --mount=/hostproc/1/ns/mnt "${BIN_PATH}/cilium-mount" "$CGROUP_ROOT"
               rm /hostbin/cilium-mount
+
+              # 3. Apply sysctl overwrites on the host (was apply-sysctl-overwrites).
+              cp /usr/bin/cilium-sysctlfix /hostbin/cilium-sysctlfix
+              nsenter --mount=/hostproc/1/ns/mnt "${BIN_PATH}/cilium-sysctlfix"
+              rm /hostbin/cilium-sysctlfix
+
+              # 4. Mount bpf fs if not already mounted (was mount-bpf-fs).
+              mount | grep "/sys/fs/bpf type bpf" || mount -t bpf bpf /sys/fs/bpf
+
+              # 5. Clean cilium state if requested (was clean-cilium-state).
+              sh /init-container.sh
           env:
             - name: CGROUP_ROOT
               value: /run/cilium/cgroupv2
             - name: BIN_PATH
               value: /opt/cni/bin
-          image: $CILIUM_IMAGE_REGISTRY/cilium/cilium-distroless-init:$CILIUM_VERSION_TAG
-          imagePullPolicy: IfNotPresent
-          name: mount-cgroup
-          resources: {}
-          securityContext:
-            appArmorProfile:
-              type: Unconfined
-            capabilities:
-              add:
-                - SYS_ADMIN
-                - SYS_CHROOT
-                - SYS_PTRACE
-              drop:
-                - ALL
-            seLinuxOptions:
-              level: s0
-              type: spc_t
-          terminationMessagePath: /dev/termination-log
-          terminationMessagePolicy: FallbackToLogsOnError
-          volumeMounts:
-            - mountPath: /hostproc
-              name: hostproc
-            - mountPath: /hostbin
-              name: cni-path
-        - command:
-            - sh
-            - -ec
-            - |
-              cp /usr/bin/cilium-sysctlfix /hostbin/cilium-sysctlfix;
-              nsenter --mount=/hostproc/1/ns/mnt "${BIN_PATH}/cilium-sysctlfix";
-              rm /hostbin/cilium-sysctlfix
-          env:
-            - name: BIN_PATH
-              value: /opt/cni/bin
-          image: $CILIUM_IMAGE_REGISTRY/cilium/cilium-distroless-init:$CILIUM_VERSION_TAG
-          imagePullPolicy: IfNotPresent
-          name: apply-sysctl-overwrites
-          resources: {}
-          securityContext:
-            appArmorProfile:
-              type: Unconfined
-            capabilities:
-              add:
-                - SYS_ADMIN
-                - SYS_CHROOT
-                - SYS_PTRACE
-              drop:
-                - ALL
-            seLinuxOptions:
-              level: s0
-              type: spc_t
-          terminationMessagePath: /dev/termination-log
-          terminationMessagePolicy: FallbackToLogsOnError
-          volumeMounts:
-            - mountPath: /hostproc
-              name: hostproc
-            - mountPath: /hostbin
-              name: cni-path
-        - args:
-            - mount | grep "/sys/fs/bpf type bpf" || mount -t bpf bpf /sys/fs/bpf
-          command:
-            - sh
-            - -c
-            - --
-          image: $CILIUM_IMAGE_REGISTRY/cilium/cilium-distroless-init:$CILIUM_VERSION_TAG
-          imagePullPolicy: IfNotPresent
-          name: mount-bpf-fs
-          resources: {}
-          securityContext:
-            privileged: true
-          terminationMessagePath: /dev/termination-log
-          terminationMessagePolicy: FallbackToLogsOnError
-          volumeMounts:
-            - mountPath: /sys/fs/bpf
-              mountPropagation: Bidirectional
-              name: bpf-maps
-        - command:
-            - sh
-          args:
-            - "/init-container.sh"
-          env:
             - name: CILIUM_ALL_STATE
               valueFrom:
                 configMapKeyRef:
@@ -371,37 +293,36 @@ spec:
                   key: clean-cilium-bpf-state
                   name: cilium-config
                   optional: true
-          image: $CILIUM_IMAGE_REGISTRY/cilium/cilium-distroless-init:$CILIUM_VERSION_TAG
-          imagePullPolicy: IfNotPresent
-          name: clean-cilium-state
-          resources:
-            requests:
-              cpu: 100m
-              memory: 100Mi
+          terminationMessagePolicy: FallbackToLogsOnError
           securityContext:
-            appArmorProfile:
-              type: Unconfined
-            capabilities:
-              add:
-                - NET_ADMIN
-                - SYS_MODULE
-                - SYS_ADMIN
-                - SYS_RESOURCE
-              drop:
-                - ALL
-            seLinuxOptions:
-              level: s0
-              type: spc_t
-          terminationMessagePath: /dev/termination-log
-          terminationMessagePolicy: File
+            privileged: true
           volumeMounts:
+            - mountPath: /host/opt/cni/bin
+              name: cni-path
+            - mountPath: /hostbin
+              name: cni-path
+            - mountPath: /hostproc
+              name: hostproc
             - mountPath: /sys/fs/bpf
+              mountPropagation: Bidirectional
               name: bpf-maps
             - mountPath: /run/cilium/cgroupv2
               mountPropagation: HostToContainer
               name: cilium-cgroup
             - mountPath: /var/run/cilium
               name: cilium-run
+            - mountPath: /host/etc/systemd
+              name: host-etc-systemd
+            - mountPath: /host/lib/systemd
+              name: host-lib-systemd
+              readOnly: true
+            - mountPath: /host/usr/lib
+              name: host-usr-lib
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 100Mi
       priorityClassName: system-node-critical
       restartPolicy: Always
       schedulerName: default-scheduler
