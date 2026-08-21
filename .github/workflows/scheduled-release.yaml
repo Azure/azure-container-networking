@@ -85,7 +85,13 @@ jobs:
     outputs:
       should_run: ${{ steps.check.outputs.should_run }}
       notification_only: ${{ steps.check.outputs.notification_only }}
+      release_branch: ${{ steps.branch.outputs.release_branch }}
     steps:
+      - name: Resolve release branch
+        id: branch
+        run: |
+          BRANCH="${RELEASE_BRANCH}"
+          echo "release_branch=$BRANCH" >> "$GITHUB_OUTPUT"
       - name: Determine if this is a release week
         id: check
         run: |
@@ -511,7 +517,8 @@ jobs:
     name: "Step 2b: Detect Binary Changes"
     runs-on: ubuntu-latest
     needs: [check_cadence, wait_dependabot, vuln_check]
-    if: always() && needs.check_cadence.outputs.notification_only != 'true' && needs.wait_dependabot.result == 'success' && (needs.vuln_check.result == 'success' || needs.vuln_check.result == 'skipped')
+    # Binary tags are global — only detect/create from master, not release branches
+    if: always() && needs.check_cadence.outputs.release_branch == 'master' && needs.check_cadence.outputs.notification_only != 'true' && needs.wait_dependabot.result == 'success' && (needs.vuln_check.result == 'success' || needs.vuln_check.result == 'skipped')
     outputs:
       matrix: ${{ steps.detect.outputs.matrix }}
       has_changes: ${{ steps.detect.outputs.has_changes }}
@@ -543,66 +550,67 @@ jobs:
 
   # ─────────────────────────────────────────────────────────────────────────────
   # STEP 2c: Tag Binaries That Have Changes
-  # NOTE: Binary tags (dropgz, azure-ipam, etc.) are pushed directly without the
-  # tag-approval environment gate. This is intentional — these are smaller utility
-  # binaries that don't go through managed DALEC, and the release workflow itself
-  # already provides the gating (vuln check + dependabot gate + manual dispatch).
+  # NOTE: Binary tags (dropgz, azure-ipam, etc.) are created by dispatching
+  # create-release-tag.yml, which enforces the tag-approval environment gate.
+  # Each binary tag requires manual approval before being pushed to the repo.
   # ─────────────────────────────────────────────────────────────────────────────
   tag_binaries:
-    name: "Tag ${{ matrix.binary }}"
+    name: "Step 2c: Tag Binaries"
     runs-on: ubuntu-latest
     needs: detect_binary_changes
-    if: needs.detect_binary_changes.outputs.has_changes == 'true'
+    if: always() && needs.detect_binary_changes.result == 'success' && needs.detect_binary_changes.outputs.has_changes == 'true'
     permissions:
-      contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJSON(needs.detect_binary_changes.outputs.matrix) }}
+      contents: read
+      actions: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ env.RELEASE_BRANCH }}
           fetch-depth: 0
+          fetch-tags: true
           persist-credentials: false
 
-      - name: Create tag ${{ matrix.new_tag }}
-        id: create
+      - name: Dispatch tag creation for each binary
         env:
           GH_TOKEN: ${{ github.token }}
-          NEW_TAG: ${{ matrix.new_tag }}
-          PREV_TAG: ${{ matrix.previous_tag }}
-          BINARY: ${{ matrix.binary }}
+          MATRIX: ${{ needs.detect_binary_changes.outputs.matrix }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
-
-          # Verify tag doesn't already exist (race guard)
-          if git ls-remote --exit-code --tags origin "refs/tags/$NEW_TAG" >/dev/null 2>&1; then
-            echo "::warning::Tag $NEW_TAG already exists — skipping"
-            echo "created=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          TARGET_SHA=$(git rev-parse HEAD)
-
-          # Show changelog summary
-          echo "Changes since $PREV_TAG:"
-          git log --oneline "${PREV_TAG}..HEAD" -- "${BINARY}/" | head -20
-
-          # Create and push tag
-          if [[ "$DRY_RUN" == "true" ]]; then
-            echo "🏜️ DRY RUN: Would create and push tag $NEW_TAG at $TARGET_SHA"
-            echo "created=dry_run" >> "$GITHUB_OUTPUT"
-          else
+          COUNT=$(echo "$MATRIX" | jq length)
+          for i in $(seq 0 $((COUNT - 1))); do
+            BINARY=$(echo "$MATRIX" | jq -r ".[$i].binary")
+            NEW_TAG=$(echo "$MATRIX" | jq -r ".[$i].new_tag")
+            PREV_TAG=$(echo "$MATRIX" | jq -r ".[$i].previous_tag")
+            TAG_PREFIX="$BINARY"
+            TAG_VERSION=$(echo "$NEW_TAG" | sed "s|^${BINARY}/||")
             TARGET_SHA=$(git rev-parse HEAD)
-            gh api "repos/${GITHUB_REPOSITORY}/git/refs" \
-              -f ref="refs/tags/$NEW_TAG" \
-              -f sha="$TARGET_SHA" --silent
-            echo "✅ Created and pushed tag: $NEW_TAG"
-            echo "created=true" >> "$GITHUB_OUTPUT"
-          fi
+
+            # Verify tag doesn't already exist
+            if git ls-remote --exit-code --tags origin "refs/tags/$NEW_TAG" >/dev/null 2>&1; then
+              echo "::warning::Tag $NEW_TAG already exists — skipping"
+              continue
+            fi
+
+            echo "--- $NEW_TAG ---"
+            echo "Changes since $PREV_TAG:"
+            git log --oneline "${PREV_TAG}..HEAD" -- "${BINARY}/" | head -10 || true
+
+            if [[ "$DRY_RUN" == "true" ]]; then
+              echo "🏜️ DRY RUN: Would dispatch create-release-tag for $NEW_TAG at $TARGET_SHA"
+            else
+              echo "Dispatching create-release-tag for $NEW_TAG on $TARGET_SHA"
+              gh workflow run create-release-tag.yml \
+                --repo "${GITHUB_REPOSITORY}" \
+                -f tag_prefix="$TAG_PREFIX" \
+                -f tag_name="$TAG_VERSION" \
+                -f target_sha="$TARGET_SHA" \
+                -f reason="Monthly binary release. Changes detected since $PREV_TAG."
+              echo "✅ Tag creation dispatched for $NEW_TAG. Requires tag-approval environment approval."
+            fi
+            echo ""
+          done
 
   # ─────────────────────────────────────────────────────────────────────────────
   # STEP 2d: Post Binary Release Summary
@@ -829,7 +837,7 @@ jobs:
   release_channel_post:
     name: "Step 4: Release Channel + R2D Draft"
     runs-on: ubuntu-latest
-    needs: [create_tag]
+    needs: [create_tag, detect_binary_changes]
     if: always() && needs.create_tag.result == 'success'
     permissions:
       contents: read
@@ -862,6 +870,7 @@ jobs:
           NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
           TARGET_SHA: ${{ needs.create_tag.outputs.target_sha }}
           PREVIOUS_TAG: ${{ needs.create_tag.outputs.previous_tag }}
+          BINARY_MATRIX: ${{ needs.detect_binary_changes.outputs.matrix }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
@@ -874,46 +883,45 @@ jobs:
           COMMIT_LINK="https://github.com/${REPO}/commit/${TARGET_SHA}"
           CHANGELOG_LINK="https://github.com/${REPO}/compare/${PREVIOUS_TAG}...${NEW_TAG}"
 
-          RELEASE_MSG="${DRY_PREFIX}@Release I will start the release process for the acn repo (cni/cns/npm) ${NEW_TAG} based on this commit: ${COMMIT_LINK} from the ${BRANCH} branch. I intend for this release to make it to AKS.
+          # Build per-binary DALEC lines (CNI/CNS always included)
+          BINARY_LINES="- **azure-cni** (${NEW_TAG}): _(pending)_
+          - **azure-cns** (${NEW_TAG}): _(pending)_"
+
+          if [[ -n "${BINARY_MATRIX:-}" && "$BINARY_MATRIX" != "null" ]]; then
+            COUNT=$(echo "$BINARY_MATRIX" | jq 'length')
+            for (( i=0; i<COUNT; i++ )); do
+              NAME=$(echo "$BINARY_MATRIX" | jq -r ".[$i].binary")
+              TAG=$(echo "$BINARY_MATRIX" | jq -r ".[$i].new_tag")
+              VER="${TAG#*/}"
+              BINARY_LINES="${BINARY_LINES}
+          - **${NAME}** (${VER}): _(pending)_"
+            done
+          fi
+
+          RELEASE_MSG="${DRY_PREFIX}@Release The release process starts for the following ACN binaries from the ${BRANCH} branch. Target commit: ${COMMIT_LINK}
 
           ---
-          **SIGNED PATH (CNI/CNS) — Managed DALEC:**
-          - Changelog Link: ${CHANGELOG_LINK}
-          - CNI Release Test Pipeline Run Link: _(in progress)_
-          - ACN PR Pipeline Run Link: _(in progress)_
-          - Managed DALEC Build: _(automatic — triggered by tag)_
-          - Managed DALEC Lead Approval: _(pending — 18hr timeout)_
-          - Managed DALEC MCR Publish: _(automatic after approval)_
-          - AgentBaker PR Link: _(pending BumpBump)_
-          - AKS PR/ENO Link: _(pending)_
-          - ENO Release Networking Sig Link: _(pending)_
+          **Changelog:** ${CHANGELOG_LINK}
+
+          **Managed DALEC Builds (per binary):**
+          ${BINARY_LINES}
 
           ---
-          **SIGNED PATH (Other binaries) — Manual pipelines:**
-          - ACN Official Build Pipeline Run Link: _(pending — human to trigger)_
-          - ACN Official Image Release Pipeline Run Link: _(pending — human to trigger)_
-          - Safefly/R2D Link: _(human to fill after filing)_
-
-          ---
-          **UNSIGNED PATH CHECKLIST:**
-          - Changelog Link: ${CHANGELOG_LINK}
-          - CNI Release Test Pipeline Run Link: _(in progress)_
-          - ACN PR Pipeline Run Link: _(in progress)_
-          - GitHub Release Pipeline Run Link: _(pending)_
-          - Safefly/R2D Link: _(human to fill after filing)_
-          - GitHub Release Link: _(pending)_
-          - NA Build Pipeline Run Link: _(pending)_
-          - OBP Signed Binaries Pipeline Run Link: _(pending)_"
+          - AgentBaker PR: _(pending BumpBump)_
+          - AKS-RP PR: _(pending)_
+          - R2D: _(pending)_"
 
           echo "Release channel message:"
           echo "$RELEASE_MSG"
 
           RESPONSE=$(/tmp/release-cli notify \
             --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
-            --title "Release ${NEW_TAG}" \
+            --run-id "release-channel-${GITHUB_RUN_ID}" \
+            --title "New ACN Release: ${NEW_TAG}" \
             --status running \
             --summary "$RELEASE_MSG" \
-            --stage release-thread)
+            --stage release-thread) || true
+          echo "Notify response: $RESPONSE"
           MESSAGE_ID=$(echo "$RESPONSE" | jq -r '.messageId // empty' 2>/dev/null || true)
           echo "message_id=$MESSAGE_ID" >> "$GITHUB_OUTPUT"
 
