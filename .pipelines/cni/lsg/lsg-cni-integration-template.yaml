@@ -7,54 +7,133 @@ parameters:
   vmSize: ""
   os: linux
   arch: ""
-  osSKU: Ubuntu
+  region: ""
+  networkType: ""
+  installFlag: ""
 
 stages:
   - stage: create_${{ parameters.name }}
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
+      cnsVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.cnsVersion'] ]
+      cniVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.cniVersion'] ]
+      ipamVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.ipamVersion'] ]
+      ciliumVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.ciliumVersion'] ]
+      resolvedDistro: $[ stagedependencies.setup.env.outputs['SetEnvVars.resolvedDistro'] ]
+      osSKU: $[ stagedependencies.setup.env.outputs['SetEnvVars.osSKU'] ]
+      CNS_IMAGE_REPO: MCR
+      IPAM_IMAGE_REPO: MCR
+      CNI_IMAGE_REPO: MCR
+      CNS_IMAGE_NAME_OVERRIDE: azure-cns
+      IPAM_IMAGE_NAME_OVERRIDE: azure-ipam
+      CNI_IMAGE_NAME_OVERRIDE: azure-cni
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     dependsOn:
       - setup
-    displayName: "Create Cluster - ${{ parameters.clusterName }}"
+    displayName: "Create and Configure Cluster - ${{ parameters.clusterName }}"
     jobs:
-      - ${{ if not(contains(parameters.name, 'ds')) }}:
-        - job: create_aks_cluster_with_${{ parameters.name }}
-          steps:
-            - task: AzureCLI@2
-              inputs:
-                azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-                scriptLocation: "inlineScript"
-                scriptType: "bash"
-                addSpnToEnvironment: true
-                inlineScript: |
-                  make -C ./hack/aks azcfg AZCLI=az REGION=$(LOCATION)
-                  make -C ./hack/aks ${{ parameters.clusterType }} \
-                  AZCLI=az REGION=$(LOCATION) SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \
-                  CLUSTER=${{ parameters.clusterName }}-$(commitID) \
-                  VM_SIZE=${{ parameters.vmSize }} \
-                  AUTOUPGRADE=none
-              name: "CreateAksCluster"
-              displayName: "Create AKS Cluster"
-      - ${{ else }}:
-        - job: create_aks_cluster_with_${{ parameters.name }}
-          steps:
-            - task: AzureCLI@2
-              inputs:
-                azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-                scriptLocation: "inlineScript"
-                scriptType: "bash"
-                addSpnToEnvironment: true
-                inlineScript: |
-                  make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
-                  make -C ./hack/aks ${{ parameters.clusterType }} \
-                  AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \
-                  CLUSTER=${{ parameters.clusterName }}-$(commitID) \
-                  VM_SIZE=${{ parameters.vmSize }} \
-                  AUTOUPGRADE=none
-              name: "CreateAksDSCluster"
-              displayName: "Create AKS Dualstack Cluster"
+      - job: create_aks_cluster_with_${{ parameters.name }}
+        steps:
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -euo pipefail
+
+                REGION="${{ parameters.region }}"
+                CLUSTER="${{ parameters.clusterName }}-$(commitID)"
+                K8S_VERSION=$(az aks get-versions --location "$REGION" --output json |
+                  jq -r '[
+                    .values[]
+                    | select(.isPreview != true)
+                    | select((.capabilities.supportPlan // []) | index("KubernetesOfficial"))
+                    | .patchVersions
+                    | keys[]
+                  ] | sort_by(split(".") | map(tonumber)) | last')
+                if [ -z "$K8S_VERSION" ] || [ "$K8S_VERSION" = "null" ]; then
+                  echo "No GA KubernetesOfficial version is available in $REGION"
+                  exit 1
+                fi
+
+                echo "Creating $CLUSTER with Kubernetes $K8S_VERSION and OS SKU $(osSKU)"
+                make -C ./hack/aks azcfg AZCLI=az REGION="$REGION"
+                make -C ./hack/aks ${{ parameters.clusterType }} \
+                  AZCLI=az REGION="$REGION" SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \
+                  CLUSTER="$CLUSTER" NODE_COUNT=${{ parameters.nodeCount }} \
+                  VM_SIZE=${{ parameters.vmSize }} AUTOUPGRADE=none LTS=false \
+                  K8S_VER="$K8S_VERSION" OS_SKU=$(osSKU)
+                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER="$CLUSTER"
+
+                POOL_NAME=$(az aks nodepool list --resource-group "$CLUSTER" --cluster-name "$CLUSTER" --query '[0].name' -o tsv)
+                SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+                POOL_URL="https://management.azure.com/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${CLUSTER}/providers/Microsoft.ContainerService/managedClusters/${CLUSTER}/agentPools/${POOL_NAME}?api-version=2025-08-01"
+                POOL_JSON=$(az rest --method get --url "$POOL_URL")
+                ACTUAL_OS_SKU=$(jq -r '.properties.osSKU' <<< "$POOL_JSON")
+                ACTUAL_K8S_VERSION=$(jq -r '.properties.orchestratorVersion' <<< "$POOL_JSON")
+                NODE_IMAGE_VERSION=$(jq -r '.properties.nodeImageVersion' <<< "$POOL_JSON")
+                NODE_OS_IMAGES=$(kubectl get nodes -o jsonpath='{range .items[*]}{.status.nodeInfo.osImage}{"\n"}{end}')
+
+                echo "Requested distro: $(resolvedDistro)"
+                echo "Actual OS SKU: $ACTUAL_OS_SKU"
+                echo "Actual Kubernetes version: $ACTUAL_K8S_VERSION"
+                echo "Node image version: $NODE_IMAGE_VERSION"
+                echo "Node OS images:"
+                echo "$NODE_OS_IMAGES"
+
+                [ "$ACTUAL_OS_SKU" = "$(osSKU)" ] || {
+                  echo "Expected OS SKU $(osSKU), got $ACTUAL_OS_SKU"
+                  exit 1
+                }
+                [ "$ACTUAL_K8S_VERSION" = "$K8S_VERSION" ] || {
+                  echo "Expected Kubernetes $K8S_VERSION, got $ACTUAL_K8S_VERSION"
+                  exit 1
+                }
+                [ -n "$NODE_OS_IMAGES" ] || {
+                  echo "AKS returned no nodes to validate"
+                  exit 1
+                }
+                case "$(resolvedDistro)" in
+                  jammy)
+                    EXPECTED_OS_IMAGE="Ubuntu 22.04"
+                    ;;
+                  noble)
+                    EXPECTED_OS_IMAGE="Ubuntu 24.04"
+                    ;;
+                esac
+                if grep -Fqv "$EXPECTED_OS_IMAGE" <<< "$NODE_OS_IMAGES"; then
+                  echo "Expected every node to use $EXPECTED_OS_IMAGE"
+                  exit 1
+                fi
+            name: "CreateAksCluster"
+            displayName: "Create and verify AKS cluster"
+
+          - template: ../../templates/network-install.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              networkType: ${{ parameters.networkType }}
+              azureIpamVersion: $(ipamVersion)
+              cnsVersion: $(cnsVersion)
+              cniVersion: $(cniVersion)
+              installFlag: ${{ parameters.installFlag }}
+              ciliumVersionTag: $(ciliumVersion)
+              ciliumImageRegistry: mcr.microsoft.com/containernetworking
+
+          - bash: |
+              set -e
+              mapfile -t NETWORK_IMAGES < <(kubectl get daemonset azure-cns -n kube-system \
+                -o jsonpath='{range .spec.template.spec.initContainers[*]}{.image}{"\n"}{end}{range .spec.template.spec.containers[*]}{.image}{"\n"}{end}')
+              printf 'Installed CNS/IPAM images:\n%s\n' "${NETWORK_IMAGES[*]}"
+              printf '%s\n' "${NETWORK_IMAGES[@]}" | grep -Fx 'mcr.microsoft.com/containernetworking/azure-cns:$(cnsVersion)'
+              if [[ "${{ parameters.networkType }}" == cilium-* ]]; then
+                printf '%s\n' "${NETWORK_IMAGES[@]}" | grep -Fx 'mcr.microsoft.com/containernetworking/azure-ipam:$(ipamVersion)'
+              else
+                printf '%s\n' "${NETWORK_IMAGES[@]}" | grep -Fx 'mcr.microsoft.com/containernetworking/azure-cni:$(cniVersion)'
+              fi
+            displayName: "Verify CNS and IPAM images"
 
   - stage: ${{ parameters.name }}
     variables:
@@ -70,82 +149,8 @@ stages:
       - setup
     displayName: "CNIv2 Test - ${{ parameters.name }}"
     jobs:
-      - ${{ if contains(parameters.name, 'linux') }}:
-        - job: integration
-          displayName: "Integration Test - ${{ parameters.name }}"
-          steps:
-            - task: AzureCLI@2
-              inputs:
-                azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-                scriptLocation: "inlineScript"
-                scriptType: "bash"
-                addSpnToEnvironment: true
-                inlineScript: |
-                  echo cns version - $(cnsVersion)
-                  echo cni version - $(cniVersion)
-
-                  echo "Start Integration Tests on Overlay Cluster"
-                  make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
-                  kubectl cluster-info
-                  kubectl get po -owide -A
-                  if [[ ${{ parameters.clusterType }} =~ "dualstack-overlay-byocni-up" ]]; then
-                    echo "Installing Azure CNI Dualstack Overlay"
-                    sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true INSTALL_CNS=true INSTALL_DUALSTACK_OVERLAY=true CNS_VERSION=$(cnsVersion) CNI_VERSION=$(cniVersion) CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) CNI_IMAGE_REPO=$(CNI_IMAGE_REPO)
-                  else
-                    echo "Installing Azure CNI Overlay"
-                    sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_VERSION=$(cnsVersion) CNI_VERSION=$(cniVersion) CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) CNI_IMAGE_REPO=$(CNI_IMAGE_REPO)
-                  fi
-
-              name: "overlaye2e"
-              displayName: "Overlay Integration"
-              retryCountOnTaskFailure: 2
-      - ${{ if contains(parameters.name, 'cilium') }}:
-        - job: integration
-          displayName: "Deploy Cilium Components"
-          steps:
-            - task: AzureCLI@2
-              displayName: "Install Cilium, CNS, and ip-masq-agent"
-              retryCountOnTaskFailure: 2
-              inputs:
-                azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-                scriptLocation: "inlineScript"
-                scriptType: "bash"
-                addSpnToEnvironment: true
-                inlineScript: |
-                  set -ex
-                  # aks-preview pinned: Azure/azure-cli-extensions#10101 (b9 checksum mismatch)
-                  make -C ./hack/aks azcfg AZCLI=az
-                  make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
-                  ls -lah
-                  pwd
-                  kubectl cluster-info
-                  kubectl get po -owide -A
-
-                  echo "install Cilium ${CILIUM_VERSION_TAG}"
-                  export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
-                  echo "installing files from ${DIR}"
-
-                  if [[ ${{ parameters.clusterType }} =~ "dualstack-byocni" ]]; then
-                    export DUALSTACK_PATH="-dualstack"
-                    echo "Installing Cilium Dualstack"
-                  fi
-
-                  echo "deploy Cilium ConfigMap"
-                  kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config${DUALSTACK_PATH}.yaml
-
-                  # Passes Cilium image to daemonset and deployment
-                  kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
-                  kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
-
-                  envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY},${IPV6_IMAGE_REGISTRY},${IPV6_HP_BPF_VERSION}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset${DUALSTACK_PATH}.yaml | kubectl apply -f -
-                  envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
-                  kubectl get po -owide -A
-                  echo "Deploy Azure-CNS"
-                  sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true AZURE_IPAM_VERSION=$(ipamVersion) CNS_VERSION=$(cnsVersion) INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) IPAM_IMAGE_REPO=$(IPAM_IMAGE_REPO)
-                  kubectl get po -owide -A
       - job: kernel_upgrade
         displayName: "Kernel Node Upgrade"
-        dependsOn: integration
         steps:
           - template: kernel-upgrade-template.yaml
             parameters:
@@ -176,7 +181,7 @@ stages:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: ${{ parameters.cni }}
-              region: $(LOCATION)
+              region: ${{ parameters.region }}
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -267,7 +272,6 @@ stages:
       - job: failedE2ELogs
         displayName: "Failure Logs"
         dependsOn:
-          - integration
           - kernel_upgrade
           - deploy_pods
           - restart_nodes

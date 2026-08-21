@@ -20,27 +20,55 @@ stages:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - script: |
+              set -euo pipefail
+
               echo "Setting up environment"
               go version
               echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(Build.BuildId))"
-              echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]$(CNS_VERSION)"
+              echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]v1.8.12"
               echo "##vso[task.setvariable variable=cniVersion;isOutput=true]$(CNI_VERSION)"
-              echo "##vso[task.setvariable variable=ipamVersion;isOutput=true]$(IPAM_VERSION)"
+              echo "##vso[task.setvariable variable=ipamVersion;isOutput=true]v0.4.0-0"
+              echo "##vso[task.setvariable variable=ciliumVersion;isOutput=true]v1.18.12-260811"
 
               echo "------"
               echo Queued by $(Build.QueuedBy)
               echo "Runtime Variables passed"
+              echo "DistroVersion : $(DistroVersion)"
               echo "KernelType : $(KernelType)"
               echo "KernelVersion : $(KernelVersion)"
               echo "ProposedRepoVersion : $(ProposedRepoVersion)"
               echo "------"
+
+              DISTRO=$(echo "$(DistroVersion)" | tr '[:upper:]' '[:lower:]')
+              case "$DISTRO" in
+                jammy)
+                  OS_SKU=Ubuntu2204
+                  if [[ "$(KernelType)" == *"lts-24.04"* ]]; then
+                    echo "##vso[task.logissue type=warning]KernelType $(KernelType) is unusual for Jammy; trusting the LSG-provided tuple"
+                  fi
+                  ;;
+                noble)
+                  OS_SKU=Ubuntu2404
+                  if [[ "$(KernelVersion)" == *"~22.04"* ]]; then
+                    echo "##vso[task.logissue type=warning]KernelVersion $(KernelVersion) is unusual for Noble; trusting the LSG-provided tuple"
+                  fi
+                  ;;
+                *)
+                  echo "DistroVersion must be either jammy or noble, got: $(DistroVersion)"
+                  exit 1
+                  ;;
+              esac
+              echo "Resolved OS SKU : $OS_SKU"
+              echo "##vso[task.setvariable variable=resolvedDistro;isOutput=true]$DISTRO"
+              echo "##vso[task.setvariable variable=osSKU;isOutput=true]$OS_SKU"
+
               echo "KernelType Check"
               Kernel=$(KernelType)
-              if [ $Kernel = 'proposed-azure' ]; then
+              if [ "$Kernel" = 'proposed-azure' ]; then
                 echo "KernelType is $Kernel , change to linux-azure"
                 Kernel=linux-azure
               fi
-              if [ $Kernel = 'proposed-edge' ]; then
+              if [ "$Kernel" = 'proposed-edge' ]; then
                 echo "KernelType is $Kernel , change to linux-azure-edge"
                 Kernel=linux-azure-edge
               fi
@@ -59,6 +87,9 @@ stages:
       vmSize: Standard_B2ms
       arch: amd64
       cni: cniv2
+      region: $(LOCATION)
+      networkType: azure-cni-overlay
+      installFlag: INSTALL_AZURE_CNI_OVERLAY
 
   - template: lsg-cni-integration-template.yaml
     parameters:
@@ -69,6 +100,9 @@ stages:
       vmSize: Standard_B2ms
       arch: amd64
       cni: cilium
+      region: $(LOCATION)
+      networkType: cilium-overlay
+      installFlag: INSTALL_OVERLAY
 
   # Dualstack
   - template: lsg-cni-integration-template.yaml
@@ -80,6 +114,9 @@ stages:
       vmSize: Standard_B2ms
       arch: amd64
       cni: dualstack
+      region: $(REGION_AKS_CLUSTER_TEST)
+      networkType: azure-cni-dualstack-overlay
+      installFlag: INSTALL_DUALSTACK_OVERLAY
 
   - template: lsg-cni-integration-template.yaml
     parameters:
@@ -90,6 +127,9 @@ stages:
       vmSize: Standard_B2ms
       arch: amd64
       cni: cilium_dualstack
+      region: $(REGION_AKS_CLUSTER_TEST)
+      networkType: cilium-dualstack
+      installFlag: INSTALL_OVERLAY
 
   - stage: delete_resources
     displayName: "Delete Resources"
