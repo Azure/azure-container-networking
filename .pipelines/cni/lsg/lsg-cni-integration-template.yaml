@@ -21,9 +21,6 @@ stages:
       ciliumVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.ciliumVersion'] ]
       resolvedDistro: $[ stagedependencies.setup.env.outputs['SetEnvVars.resolvedDistro'] ]
       osSKU: $[ stagedependencies.setup.env.outputs['SetEnvVars.osSKU'] ]
-      CNS_IMAGE_REPO: MCR
-      IPAM_IMAGE_REPO: MCR
-      CNI_IMAGE_REPO: MCR
       CNS_IMAGE_NAME_OVERRIDE: azure-cns
       IPAM_IMAGE_NAME_OVERRIDE: azure-ipam
       CNI_IMAGE_NAME_OVERRIDE: azure-cni
@@ -120,18 +117,36 @@ stages:
               cniVersion: $(cniVersion)
               installFlag: ${{ parameters.installFlag }}
               ciliumVersionTag: $(ciliumVersion)
-              ciliumImageRegistry: mcr.microsoft.com/containernetworking
+              ciliumImageRegistry: $(CILIUM_IMAGE_REGISTRY)
 
           - bash: |
               set -e
+              resolve_registry() {
+                case "$1" in
+                  ACN)
+                    echo acnpublic.azurecr.io
+                    ;;
+                  MCR)
+                    echo mcr.microsoft.com/containernetworking
+                    ;;
+                  *)
+                    echo "Unsupported image repository selector: $1" >&2
+                    return 1
+                    ;;
+                esac
+              }
+
+              CNS_REGISTRY=$(resolve_registry "$(CNS_IMAGE_REPO)")
               mapfile -t NETWORK_IMAGES < <(kubectl get daemonset azure-cns -n kube-system \
                 -o jsonpath='{range .spec.template.spec.initContainers[*]}{.image}{"\n"}{end}{range .spec.template.spec.containers[*]}{.image}{"\n"}{end}')
               printf 'Installed CNS/IPAM images:\n%s\n' "${NETWORK_IMAGES[*]}"
-              printf '%s\n' "${NETWORK_IMAGES[@]}" | grep -Fx 'mcr.microsoft.com/containernetworking/azure-cns:$(cnsVersion)'
+              printf '%s\n' "${NETWORK_IMAGES[@]}" | grep -Fx "${CNS_REGISTRY}/azure-cns:$(cnsVersion)"
               if [[ "${{ parameters.networkType }}" == cilium-* ]]; then
-                printf '%s\n' "${NETWORK_IMAGES[@]}" | grep -Fx 'mcr.microsoft.com/containernetworking/azure-ipam:$(ipamVersion)'
+                IPAM_REGISTRY=$(resolve_registry "$(IPAM_IMAGE_REPO)")
+                printf '%s\n' "${NETWORK_IMAGES[@]}" | grep -Fx "${IPAM_REGISTRY}/azure-ipam:$(ipamVersion)"
               else
-                printf '%s\n' "${NETWORK_IMAGES[@]}" | grep -Fx 'mcr.microsoft.com/containernetworking/azure-cni:$(cniVersion)'
+                CNI_REGISTRY=$(resolve_registry "$(CNI_IMAGE_REPO)")
+                printf '%s\n' "${NETWORK_IMAGES[@]}" | grep -Fx "${CNI_REGISTRY}/azure-cni:$(cniVersion)"
               fi
             displayName: "Verify CNS and IPAM images"
 
