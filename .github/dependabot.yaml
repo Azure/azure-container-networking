@@ -155,11 +155,14 @@ updates:
   # not have its own dedicated entry above.
   - package-ecosystem: "gomod"
     directories:
-      - "**/*"
-    exclude-paths:
-      - "azure-ipam/**"
-      - "dropgz/**"
-      - "zapai/**"
+      - "/azure-ip-masq-merger"
+      - "/azure-iptables-monitor"
+      - "/bpf-prog/ipv6-hp-bpf"
+      - "/cilium-log-collector"
+      - "/pkgerrlint"
+      - "/tools/azure-npm-to-cilium-validator"
+      - "/tools/failure-agent"
+      - "/tools/release"
     schedule:
       interval: "weekly"
       day: "sunday"
