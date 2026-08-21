@@ -1899,8 +1899,10 @@ func TestCNSIPAMInvokerAddDefaultRouteProgramming(t *testing.T) {
 					requestIPs: requestIPsHandler{
 						ipconfigArgument: request,
 						result: &cns.IPConfigsResponse{
-							PodIPInfo:                   tt.podIPInfo,
-							SkipDefaultRouteProgramming: tt.skipDefaultRouteProgramming,
+							PodIPInfo: tt.podIPInfo,
+							PodConfigurations: cns.PodConfigurations{
+								SkipDefaultRouteProgramming: tt.skipDefaultRouteProgramming,
+							},
 						},
 					},
 				},

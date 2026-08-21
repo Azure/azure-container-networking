@@ -276,11 +276,12 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		}
 	}
 
+	skipDefaultRouteProgramming := response.PodConfigurations.SkipDefaultRouteProgramming
 	// Make sure default routes exist for 1 interface unless SkipDefaultRouteProgramming is set.
-	if response.SkipDefaultRouteProgramming && numInterfacesWithDefaultRoutes != 0 {
+	if skipDefaultRouteProgramming && numInterfacesWithDefaultRoutes != 0 {
 		return IPAMAddResult{}, errInvalidSkipDefaultRouteProgramming
 	}
-	if !response.SkipDefaultRouteProgramming && numInterfacesWithDefaultRoutes != expectedNumInterfacesWithDefaultRoutes {
+	if !skipDefaultRouteProgramming && numInterfacesWithDefaultRoutes != expectedNumInterfacesWithDefaultRoutes {
 		return IPAMAddResult{}, errInvalidDefaultRouting
 	}
 
