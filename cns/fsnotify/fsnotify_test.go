@@ -1,102 +1,155 @@
 package fsnotify
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
-func TestAddFile(t *testing.T) {
-	type args struct {
-		podInterfaceID string
-		containerID    string
-		path           string
-	}
+type mockReleaseIPsClient struct {
+	requests []cns.IPConfigsRequest
+}
+
+func (m *mockReleaseIPsClient) ReleaseIPs(_ context.Context, request cns.IPConfigsRequest) error {
+	m.requests = append(m.requests, request)
+	return nil
+}
+
+func TestWatcherReleaseAll(t *testing.T) {
 	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
+		name        string
+		setup       func(*testing.T, string, string)
+		wantRelease bool
 	}{
 		{
-			name: "no such directory, add fail",
-			args: args{
-				podInterfaceID: "123",
-				containerID:    "67890",
-				path:           "bad/path",
+			name: "releases readable file",
+			setup: func(t *testing.T, path, containerID string) {
+				require.NoError(t, AddFile("pod-interface-id", containerID, path))
 			},
-			wantErr: true,
+			wantRelease: true,
 		},
 		{
-			name: "added file to directory",
-			args: args{
-				podInterfaceID: "345",
-				containerID:    "12345",
-				path:           "path/we/want",
+			name:  "retains missing file",
+			setup: func(*testing.T, string, string) {},
+		},
+		{
+			name: "retains unreadable directory",
+			setup: func(t *testing.T, path, containerID string) {
+				require.NoError(t, os.Mkdir(filepath.Join(path, containerID), 0o755))
 			},
-			wantErr: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			baseDir := t.TempDir()
+			path := t.TempDir()
+			containerID := "container-id"
+			tt.setup(t, path, containerID)
 
-			dirToCreate := filepath.Join(baseDir, "path", "we", "want")
-			err := os.MkdirAll(dirToCreate, 0o777)
-			require.NoError(t, err)
-
-			fullPath := filepath.Join(baseDir, tt.args.path)
-
-			if err := AddFile(tt.args.podInterfaceID, tt.args.containerID, fullPath); (err != nil) != tt.wantErr {
-				t.Errorf("WatcherAddFile() error = %v, wantErr %v", err, tt.wantErr)
+			client := &mockReleaseIPsClient{}
+			w := &watcher{
+				cli:           client,
+				path:          path,
+				log:           zap.NewNop(),
+				pendingDelete: map[string]struct{}{containerID: {}},
 			}
+
+			w.releaseAll(context.Background())
+
+			if tt.wantRelease {
+				require.Equal(t, []cns.IPConfigsRequest{{
+					PodInterfaceID:   "pod-interface-id",
+					InfraContainerID: containerID,
+				}}, client.requests)
+				_, err := os.Stat(filepath.Join(path, containerID))
+				require.ErrorIs(t, err, os.ErrNotExist)
+			} else {
+				require.Empty(t, client.requests)
+			}
+
+			_, pending := w.pendingDelete[containerID]
+			require.Equal(t, !tt.wantRelease, pending)
+		})
+	}
+}
+
+func TestAddFile(t *testing.T) {
+	tests := []struct {
+		name          string
+		createDir     bool
+		wantErr       bool
+		wantFileValue string
+	}{
+		{
+			name:    "fails when parent directory is missing",
+			wantErr: true,
+		},
+		{
+			name:          "writes pod interface ID",
+			createDir:     true,
+			wantFileValue: "pod-interface-id",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "state")
+			if tt.createDir {
+				require.NoError(t, os.Mkdir(path, 0o755))
+			}
+
+			err := AddFile("pod-interface-id", "container-id", path)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			data, err := os.ReadFile(filepath.Join(path, "container-id"))
+			require.NoError(t, err)
+			require.Equal(t, tt.wantFileValue, string(data))
 		})
 	}
 }
 
 func TestWatcherRemoveFile(t *testing.T) {
-	type args struct {
-		containerID string
-		path        string
-	}
 	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
+		name       string
+		createFile bool
+		wantErr    bool
 	}{
 		{
-			name: "remove file fail",
-			args: args{
-				containerID: "12345",
-				path:        "bad/path",
-			},
+			name:    "fails when file is missing",
 			wantErr: true,
 		},
 		{
-			name: "no such directory, add fail",
-			args: args{
-				containerID: "67890",
-				path:        "path/we/want",
-			},
-			wantErr: false,
+			name:       "removes existing file",
+			createFile: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			baseDir := t.TempDir()
-
-			dirToCreate := filepath.Join(baseDir, "path", "we", "want", "67890")
-			err := os.MkdirAll(dirToCreate, 0o777)
-			require.NoError(t, err)
-
-			fullPath := filepath.Join(baseDir, tt.args.path)
-
-			if err := removeFile(tt.args.containerID, fullPath); (err != nil) != tt.wantErr {
-				t.Errorf("WatcherRemoveFile() error = %v, wantErr %v", err, tt.wantErr)
+			path := t.TempDir()
+			filePath := filepath.Join(path, "container-id")
+			if tt.createFile {
+				require.NoError(t, os.WriteFile(filePath, []byte("pod-interface-id"), 0o600))
 			}
+
+			err := removeFile("container-id", path)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			_, err = os.Stat(filePath)
+			require.ErrorIs(t, err, os.ErrNotExist)
 		})
 	}
 }
