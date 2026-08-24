@@ -738,6 +738,12 @@ stages:
                 "2026-06-15T00:00:00Z" \
                 "2026-08-23T23:59:59Z" \
                 "95007"
+              count=$(find "$(reportsDir)" -type f -name '*_report.md' | wc -l | tr -d ' ')
+              echo "Collected $count report.md file(s)"
+              if [ "$count" -eq 0 ]; then
+                echo "##[error]No report.md artifacts collected. Check: (1) 'Allow scripts to access the OAuth token' is enabled so SYSTEM_ACCESSTOKEN is set; (2) the definition id(s) publish failureAnalysis_* artifacts and live in this project ($(System.TeamProject)); (3) builds finished within the date range; (4) curl/jq/unzip are on the agent."
+                exit 1
+              fi
             displayName: "Collect report.md in date range"
             env:
               SYSTEM_COLLECTIONURI: $(System.CollectionUri)
