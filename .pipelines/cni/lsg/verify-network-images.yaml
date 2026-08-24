@@ -1,0 +1,74 @@
+parameters:
+  networkType: ""
+  cnsVersion: ""
+  cniVersion: ""
+  azureIpamVersion: ""
+  ciliumVersionTag: ""
+  ciliumImageRegistry: ""
+
+steps:
+  - bash: |
+      set -e
+      resolve_registry() {
+        case "$1" in
+          ACN)
+            echo acnpublic.azurecr.io
+            ;;
+          MCR)
+            echo mcr.microsoft.com/containernetworking
+            ;;
+          *)
+            echo "Unsupported image repository selector: $1" >&2
+            return 1
+            ;;
+        esac
+      }
+
+      CNS_REGISTRY=$(resolve_registry "$(CNS_IMAGE_REPO)")
+      mapfile -t NETWORK_IMAGES < <(kubectl get daemonset azure-cns -n kube-system \
+        -o jsonpath='{range .spec.template.spec.initContainers[*]}{.image}{"\n"}{end}{range .spec.template.spec.containers[*]}{.image}{"\n"}{end}')
+      printf 'Installed CNS/IPAM images:\n%s\n' "${NETWORK_IMAGES[*]}"
+      printf '%s\n' "${NETWORK_IMAGES[@]}" | grep -Fx "${CNS_REGISTRY}/azure-cns:${{ parameters.cnsVersion }}"
+      if [[ "${{ parameters.networkType }}" == cilium-* ]]; then
+        IPAM_REGISTRY=$(resolve_registry "$(IPAM_IMAGE_REPO)")
+        printf '%s\n' "${NETWORK_IMAGES[@]}" | grep -Fx "${IPAM_REGISTRY}/azure-ipam:${{ parameters.azureIpamVersion }}"
+      else
+        CNI_REGISTRY=$(resolve_registry "$(CNI_IMAGE_REPO)")
+        printf '%s\n' "${NETWORK_IMAGES[@]}" | grep -Fx "${CNI_REGISTRY}/azure-cni:${{ parameters.cniVersion }}"
+      fi
+    displayName: "Verify CNS and IPAM images"
+
+  - ${{ if startsWith(parameters.networkType, 'cilium') }}:
+    - bash: |
+        set -e
+        EXPECTED_AGENT="${{ parameters.ciliumImageRegistry }}/cilium/cilium-distroless:${{ parameters.ciliumVersionTag }}"
+        EXPECTED_INIT="${{ parameters.ciliumImageRegistry }}/cilium/cilium-distroless-init:${{ parameters.ciliumVersionTag }}"
+        EXPECTED_OPERATOR="${{ parameters.ciliumImageRegistry }}/cilium/operator-generic:${{ parameters.ciliumVersionTag }}"
+
+        ACTUAL_AGENT=$(kubectl get daemonset cilium -n kube-system -o jsonpath='{.spec.template.spec.containers[?(@.name=="cilium-agent")].image}')
+        ACTUAL_OPERATOR=$(kubectl get deployment cilium-operator -n kube-system -o jsonpath='{.spec.template.spec.containers[0].image}')
+        mapfile -t INIT_IMAGES < <(kubectl get daemonset cilium -n kube-system -o jsonpath='{range .spec.template.spec.initContainers[*]}{.image}{"\n"}{end}')
+
+        [ "$ACTUAL_AGENT" = "$EXPECTED_AGENT" ] || {
+          echo "Expected Cilium agent image $EXPECTED_AGENT, got $ACTUAL_AGENT"
+          exit 1
+        }
+        [ "$ACTUAL_OPERATOR" = "$EXPECTED_OPERATOR" ] || {
+          echo "Expected Cilium operator image $EXPECTED_OPERATOR, got $ACTUAL_OPERATOR"
+          exit 1
+        }
+        CILIUM_INIT_COUNT=0
+        for image in "${INIT_IMAGES[@]}"; do
+          if [[ "$image" == */cilium/cilium-distroless-init:* ]]; then
+            CILIUM_INIT_COUNT=$((CILIUM_INIT_COUNT + 1))
+            [ "$image" = "$EXPECTED_INIT" ] || {
+              echo "Expected Cilium init image $EXPECTED_INIT, got $image"
+              exit 1
+            }
+          fi
+        done
+        [ "$CILIUM_INIT_COUNT" -gt 0 ] || {
+          echo "No distroless Cilium init containers were found"
+          exit 1
+        }
+      displayName: "Verify distroless Cilium images"

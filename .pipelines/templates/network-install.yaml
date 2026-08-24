@@ -23,6 +23,15 @@ parameters:
   - name: nightly
     type: boolean
     default: false
+  - name: ciliumVersionTag
+    type: string
+    default: ""
+  - name: ciliumImageRegistry
+    type: string
+    default: ""
+  - name: useMakefileLogCollectorDefaults
+    type: boolean
+    default: false
 
 steps:
   - task: KubectlInstaller@0
@@ -92,6 +101,19 @@ steps:
         set -e
         kubectl cluster-info
 
+        CILIUM_DIR=""
+        CILIUM_ARGS=()
+        if [ -n "${{ parameters.ciliumVersionTag }}" ]; then
+          CILIUM_DIR=$(echo "${{ parameters.ciliumVersionTag }}" | sed 's/^v//' | cut -d. -f1,2)
+          CILIUM_ARGS+=(
+            "DIR=${CILIUM_DIR}"
+            "CILIUM_VERSION_TAG=${{ parameters.ciliumVersionTag }}"
+          )
+        fi
+        if [ -n "${{ parameters.ciliumImageRegistry }}" ]; then
+          CILIUM_ARGS+=("CILIUM_IMAGE_REGISTRY=${{ parameters.ciliumImageRegistry }}")
+        fi
+
         configure_ebpf() {
           export AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY=acnpublic.azurecr.io
           export AZURE_IPTABLES_MONITOR_TAG=$(make azure-iptables-monitor-version)
@@ -111,27 +133,27 @@ steps:
         case "${{ parameters.networkType }}" in
           cilium-podsubnet)
             unset DIR CILIUM_VERSION_TAG
-            make -C ./hack/aks deploy-cilium WAIT_FOR_CILIUM=false
+            make -C ./hack/aks deploy-cilium WAIT_FOR_CILIUM=false "${CILIUM_ARGS[@]}"
             ;;
           cilium-nodesubnet)
             unset DIR CILIUM_VERSION_TAG
-            make -C ./hack/aks deploy-cilium WAIT_FOR_CILIUM=false
+            make -C ./hack/aks deploy-cilium WAIT_FOR_CILIUM=false "${CILIUM_ARGS[@]}"
             ;;
           cilium-overlay)
             NIGHTLY_TAG="$CILIUM_VERSION_TAG"
             unset DIR CILIUM_VERSION_TAG
             if [ "${{ parameters.testHubble }}" = "True" ]; then
-              make -C ./hack/aks deploy-cilium-hubble WAIT_FOR_CILIUM=false
+              make -C ./hack/aks deploy-cilium-hubble WAIT_FOR_CILIUM=false "${CILIUM_ARGS[@]}"
             elif [ "$NIGHTLY_TAG" = "cilium-nightly-pipeline" ] || [ "${{ parameters.nightly }}" = "True" ]; then
               make -C ./hack/aks deploy-cilium-nightly WAIT_FOR_CILIUM=false
             else
-              make -C ./hack/aks deploy-cilium WAIT_FOR_CILIUM=false
+              make -C ./hack/aks deploy-cilium WAIT_FOR_CILIUM=false "${CILIUM_ARGS[@]}"
             fi
             ;;
           cilium-dualstack)
             configure_dualstack
             unset DIR CILIUM_VERSION_TAG
-            make -C ./hack/aks deploy-cilium-dualstack WAIT_FOR_CILIUM=false
+            make -C ./hack/aks deploy-cilium-dualstack WAIT_FOR_CILIUM=false "${CILIUM_ARGS[@]}"
             ;;
           cilium-ebpf-podsubnet)
             configure_ebpf
@@ -152,9 +174,15 @@ steps:
             ;;
         esac
 
-        export CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY=${CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY_OVERRIDE:-acnpublic.azurecr.io}
-        export CILIUM_LOG_COLLECTOR_VERSION_TAG=${CILIUM_LOG_COLLECTOR_VERSION_TAG_OVERRIDE:-$(make cilium-log-collector-version)}
-        make -C ./hack/aks add-cilium-log-collector
+        LOG_COLLECTOR_ARGS=()
+        if [ -n "$CILIUM_DIR" ]; then
+          LOG_COLLECTOR_ARGS+=("DIR=${CILIUM_DIR}")
+        fi
+        if [ "${{ parameters.useMakefileLogCollectorDefaults }}" != "True" ]; then
+          export CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY=${CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY_OVERRIDE:-acnpublic.azurecr.io}
+          export CILIUM_LOG_COLLECTOR_VERSION_TAG=${CILIUM_LOG_COLLECTOR_VERSION_TAG_OVERRIDE:-$(make cilium-log-collector-version)}
+        fi
+        make -C ./hack/aks add-cilium-log-collector "${LOG_COLLECTOR_ARGS[@]}"
         kubectl get pods -A -o wide
       displayName: Install Cilium networking
 
