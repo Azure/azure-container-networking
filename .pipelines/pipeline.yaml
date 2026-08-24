@@ -727,8 +727,6 @@ stages:
         variables:
           - name: reportsDir
             value: $(Agent.TempDirectory)/faa-reports
-          - name: SYSTEM_ACCESSTOKEN
-            value: $(System.AccessToken)
         steps:
           - bash: |
               set -euo pipefail
@@ -748,6 +746,8 @@ stages:
             env:
               SYSTEM_COLLECTIONURI: $(System.CollectionUri)
               SYSTEM_TEAMPROJECT: $(System.TeamProject)
+              # System.AccessToken is a secret; secrets are not auto-mapped to env.
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
 
           - task: ArchiveFiles@2
             displayName: "Zip the collected reports"
