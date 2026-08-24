@@ -711,3 +711,49 @@ stages:
                   - vscaleswifte2e
                   - ubuntu22e2e
                   - linuxdsovere2e
+
+  # Independent, on-demand stage: bundle every failureAnalysis_* report.md whose
+  # build finished in [reportsMinTime, reportsMaxTime] into one downloadable zip.
+  # Depends on nothing so it runs standalone. Requires "Allow scripts to access
+  # the OAuth token" and curl/jq/unzip on the agent.
+  - stage: collect_faa_reports
+    displayName: Collect FAA report.md
+    dependsOn: []
+    jobs:
+      - job: zip_reports
+        displayName: Download report.md artifacts + zip
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        variables:
+          - name: reportsDir
+            value: $(Agent.TempDirectory)/faa-reports
+          - name: SYSTEM_ACCESSTOKEN
+            value: $(System.AccessToken)
+        steps:
+          - bash: |
+              set -euo pipefail
+              mkdir -p "$(reportsDir)"
+              bash "$(Build.SourcesDirectory)/.pipelines/failure-agent-teams-bot/scripts/collect-reports-range.sh" \
+                "$(reportsDir)" \
+                "2026-06-15T00:00:00Z" \
+                "2026-08-23T23:59:59Z" \
+                "95007"
+            displayName: "Collect report.md in date range"
+            env:
+              SYSTEM_COLLECTIONURI: $(System.CollectionUri)
+              SYSTEM_TEAMPROJECT: $(System.TeamProject)
+
+          - task: ArchiveFiles@2
+            displayName: "Zip the collected reports"
+            inputs:
+              rootFolderOrFile: $(reportsDir)
+              includeRootFolder: false
+              archiveType: zip
+              archiveFile: $(Build.ArtifactStagingDirectory)/faa-reports.zip
+              replaceExistingArchive: true
+
+          - task: PublishPipelineArtifact@1
+            displayName: "Publish reports zip"
+            inputs:
+              targetPath: $(Build.ArtifactStagingDirectory)/faa-reports.zip
+              artifact: faa-reports
