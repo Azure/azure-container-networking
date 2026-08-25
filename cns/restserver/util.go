@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/netip"
 	"slices"
 	"strconv"
 	"strings"
@@ -185,6 +186,18 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(
 		hostVersion = "-1"
 	}
 
+	if service.state.OrchestratorType == cns.KubernetesCRD {
+		toBeDeletedIPConfigs := getToBeDeletedIPConfigs(existingSecondaryIPConfigs, req.SecondaryIPConfigs)
+		if returnCode, message := validateUniqueIPAddresses(
+			service.PodIPConfigState,
+			toBeDeletedIPConfigs,
+			req.SecondaryIPConfigs,
+			req.NetworkContainerid,
+		); returnCode != types.Success {
+			return returnCode, message
+		}
+	}
+
 	// Remove the auth token before saving the containerStatus to cns json file
 	createNetworkContainerRequest := req
 	createNetworkContainerRequest.AuthorizationToken = ""
@@ -336,24 +349,116 @@ func equalIPConfiguration(existing, incoming cns.IPConfiguration) bool {
 		existing.GatewayIPv6Address == incoming.GatewayIPv6Address
 }
 
+func getToBeDeletedIPConfigs(
+	existingIPConfigs,
+	incomingIPConfigs map[string]cns.SecondaryIPConfig,
+) map[string]cns.SecondaryIPConfig {
+	toBeDeletedIPConfigs := make(map[string]cns.SecondaryIPConfig)
+	for ipID, existingIPConfig := range existingIPConfigs {
+		if _, exists := incomingIPConfigs[ipID]; !exists {
+			toBeDeletedIPConfigs[ipID] = existingIPConfig
+		}
+	}
+	return toBeDeletedIPConfigs
+}
+
+type ipConfigIdentity struct {
+	ipID string
+	ncID string
+}
+
+func validateUniqueIPAddresses(
+	currentIPConfigs map[string]cns.IPConfigurationStatus,
+	toBeDeletedIPConfigs map[string]cns.SecondaryIPConfig,
+	incomingIPConfigs map[string]cns.SecondaryIPConfig,
+	incomingNCID string,
+) (types.ResponseCode, string) {
+	identitiesByAddress := make(map[netip.Addr]ipConfigIdentity, len(currentIPConfigs)+len(incomingIPConfigs))
+	currentAddressesByID := make(map[string]netip.Addr, len(currentIPConfigs))
+
+	for ipID, currentIPConfig := range currentIPConfigs {
+		if _, deleting := toBeDeletedIPConfigs[ipID]; deleting {
+			continue
+		}
+
+		address, err := netip.ParseAddr(currentIPConfig.IPAddress)
+		if err != nil {
+			return types.InvalidSecondaryIPConfig, fmt.Sprintf(
+				"invalid IP address %q for IP ID %s in nc %s: %v",
+				currentIPConfig.IPAddress,
+				ipID,
+				currentIPConfig.NCID,
+				err,
+			)
+		}
+		address = address.Unmap()
+		if existing, duplicate := identitiesByAddress[address]; duplicate && existing.ipID != ipID {
+			return duplicateIPAddressError(address, existing, ipConfigIdentity{ipID: ipID, ncID: currentIPConfig.NCID})
+		}
+
+		currentIdentity := ipConfigIdentity{ipID: ipID, ncID: currentIPConfig.NCID}
+		identitiesByAddress[address] = currentIdentity
+		currentAddressesByID[ipID] = address
+	}
+
+	for ipID, incomingIPConfig := range incomingIPConfigs {
+		address, err := netip.ParseAddr(incomingIPConfig.IPAddress)
+		if err != nil {
+			return types.InvalidSecondaryIPConfig, fmt.Sprintf(
+				"invalid IP address %q for IP ID %s in nc %s: %v",
+				incomingIPConfig.IPAddress,
+				ipID,
+				incomingNCID,
+				err,
+			)
+		}
+		address = address.Unmap()
+
+		if currentAddress, exists := currentAddressesByID[ipID]; exists {
+			if currentAddress != address {
+				return types.InconsistentIPConfigState, fmt.Sprintf(
+					"ip ID %s in nc %s changed address from %s to %s",
+					ipID,
+					incomingNCID,
+					currentAddress,
+					address,
+				)
+			}
+			continue
+		}
+
+		incomingIdentity := ipConfigIdentity{ipID: ipID, ncID: incomingNCID}
+		if existing, duplicate := identitiesByAddress[address]; duplicate {
+			return duplicateIPAddressError(address, existing, incomingIdentity)
+		}
+		identitiesByAddress[address] = incomingIdentity
+	}
+
+	return types.Success, ""
+}
+
+func duplicateIPAddressError(
+	address netip.Addr,
+	existing,
+	incoming ipConfigIdentity,
+) (types.ResponseCode, string) {
+	return types.InconsistentIPConfigState, fmt.Sprintf(
+		"duplicate IP %s for IP IDs %s in nc %s and %s in nc %s",
+		address,
+		existing.ipID,
+		existing.ncID,
+		incoming.ipID,
+		incoming.ncID,
+	)
+}
+
 // This func will compute the deltaIpConfigState which needs to be updated (Added or Deleted) from the inmemory map
 // Note: Also this func is an untransacted API as the caller will take a Service lock
 func (service *HTTPRestService) updateIPConfigsStateUntransacted(
 	req cns.CreateNetworkContainerRequest, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig, hostVersion string,
 ) (types.ResponseCode, string) {
 	// parse the existingSecondaryIpConfigState to find the deleted Ips
-	newIPConfigs := req.SecondaryIPConfigs
-	tobeDeletedIPConfigs := make(map[string]cns.SecondaryIPConfig)
-
-	// Populate the ToBeDeleted list, Secondary IPs which doesnt exist in New request anymore.
-	// We will later remove them from the in-memory cache
-	for secondaryIpId, existingIPConfig := range existingSecondaryIPConfigs {
-		_, exists := newIPConfigs[secondaryIpId]
-		if !exists {
-			// IP got removed in the updated request, add it in tobeDeletedIps
-			tobeDeletedIPConfigs[secondaryIpId] = existingIPConfig
-		}
-	}
+	tobeDeletedIPConfigs := getToBeDeletedIPConfigs(existingSecondaryIPConfigs, req.SecondaryIPConfigs)
 
 	// Validate TobeDeletedIps are ready to be deleted.
 	for ipID := range tobeDeletedIPConfigs {
