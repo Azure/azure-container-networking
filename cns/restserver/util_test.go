@@ -1,6 +1,8 @@
 package restserver
 
 import (
+	"errors"
+	"fmt"
 	"strconv"
 	"testing"
 
@@ -24,8 +26,10 @@ const (
 	versionValidationInitialVersion     = 2
 )
 
+var errFailWrite = errors.New("write failed")
+
 func TestSaveNetworkContainerGoalStateRejectsVersionRegression(t *testing.T) {
-	svc, committed := newVersionValidationService(t)
+	svc, committed := newVersionValidationService(t, versionValidationInitialVersion)
 	incoming := cloneCreateNetworkContainerRequest(committed)
 	incoming.Version = "1"
 	for ipID, config := range incoming.SecondaryIPConfigs {
@@ -41,7 +45,7 @@ func TestSaveNetworkContainerGoalStateRejectsVersionRegression(t *testing.T) {
 }
 
 func TestSaveNetworkContainerGoalStateAcceptsVersionAdvance(t *testing.T) {
-	svc, committed := newVersionValidationService(t)
+	svc, committed := newVersionValidationService(t, versionValidationInitialVersion)
 	incoming := cloneCreateNetworkContainerRequest(committed)
 	incoming.Version = "3"
 	for ipID, config := range incoming.SecondaryIPConfigs {
@@ -57,7 +61,7 @@ func TestSaveNetworkContainerGoalStateAcceptsVersionAdvance(t *testing.T) {
 }
 
 func TestSaveNetworkContainerGoalStateAcceptsIdenticalVersionReplay(t *testing.T) {
-	svc, committed := newVersionValidationService(t)
+	svc, committed := newVersionValidationService(t, versionValidationInitialVersion)
 
 	returnCode, message := svc.saveNetworkContainerGoalState(cloneCreateNetworkContainerRequest(committed), true)
 
@@ -145,7 +149,7 @@ func TestSaveNetworkContainerGoalStateRejectsEqualVersionGoalDrift(t *testing.T)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc, committed := newVersionValidationService(t)
+			svc, committed := newVersionValidationService(t, versionValidationInitialVersion)
 			incoming := cloneCreateNetworkContainerRequest(committed)
 			tt.mutate(&incoming)
 			before := cloneCreateNetworkContainerRequest(svc.state.ContainerStatus[versionValidationNCID].CreateNetworkContainerRequest)
@@ -163,7 +167,7 @@ func TestSaveNetworkContainerGoalStateRejectsEqualVersionGoalDrift(t *testing.T)
 }
 
 func TestSaveNetworkContainerGoalStateRejectsDuplicateIncomingAddresses(t *testing.T) {
-	svc, committed := newVersionValidationService(t)
+	svc, committed := newVersionValidationService(t, versionValidationInitialVersion)
 	incoming := cloneCreateNetworkContainerRequest(committed)
 	incoming.Version = "3"
 	incoming.SecondaryIPConfigs = map[string]cns.SecondaryIPConfig{
@@ -179,7 +183,7 @@ func TestSaveNetworkContainerGoalStateRejectsDuplicateIncomingAddresses(t *testi
 }
 
 func TestSaveNetworkContainerGoalStateRejectsDuplicateAddressFromAnotherNC(t *testing.T) {
-	svc, committed := newVersionValidationService(t)
+	svc, committed := newVersionValidationService(t, versionValidationInitialVersion)
 	addIPConfigStatus(svc, "other-ip-id", "other-nc", versionValidationChangedSecondaryIP, types.Available)
 	incoming := cloneCreateNetworkContainerRequest(committed)
 	incoming.Version = "3"
@@ -195,7 +199,7 @@ func TestSaveNetworkContainerGoalStateRejectsDuplicateAddressFromAnotherNC(t *te
 }
 
 func TestSaveNetworkContainerGoalStateCanonicalizesAddressesForUniqueness(t *testing.T) {
-	svc, committed := newVersionValidationService(t)
+	svc, committed := newVersionValidationService(t, versionValidationInitialVersion)
 	addIPConfigStatus(svc, "other-ip-id", "other-nc", "2001:db8::1", types.Available)
 	incoming := cloneCreateNetworkContainerRequest(committed)
 	incoming.Version = "3"
@@ -211,7 +215,7 @@ func TestSaveNetworkContainerGoalStateCanonicalizesAddressesForUniqueness(t *tes
 }
 
 func TestSaveNetworkContainerGoalStateAllowsSafeIPIDReplacement(t *testing.T) {
-	svc, committed := newVersionValidationService(t)
+	svc, committed := newVersionValidationService(t, versionValidationInitialVersion)
 	incoming := cloneCreateNetworkContainerRequest(committed)
 	incoming.Version = "3"
 	incoming.SecondaryIPConfigs = map[string]cns.SecondaryIPConfig{
@@ -228,7 +232,7 @@ func TestSaveNetworkContainerGoalStateAllowsSafeIPIDReplacement(t *testing.T) {
 }
 
 func TestSaveNetworkContainerGoalStateRejectsIPIDAddressChange(t *testing.T) {
-	svc, committed := newVersionValidationService(t)
+	svc, committed := newVersionValidationService(t, versionValidationInitialVersion)
 	incoming := cloneCreateNetworkContainerRequest(committed)
 	incoming.Version = "3"
 	config := incoming.SecondaryIPConfigs["ip-id-1"]
@@ -244,7 +248,7 @@ func TestSaveNetworkContainerGoalStateRejectsIPIDAddressChange(t *testing.T) {
 }
 
 func TestSaveNetworkContainerGoalStateRejectsMalformedSecondaryAddress(t *testing.T) {
-	svc, committed := newVersionValidationService(t)
+	svc, committed := newVersionValidationService(t, versionValidationInitialVersion)
 	incoming := cloneCreateNetworkContainerRequest(committed)
 	incoming.Version = "3"
 	incoming.SecondaryIPConfigs = map[string]cns.SecondaryIPConfig{
@@ -258,7 +262,139 @@ func TestSaveNetworkContainerGoalStateRejectsMalformedSecondaryAddress(t *testin
 	assertCommittedGoalVersion(t, svc, "2")
 }
 
-func newVersionValidationService(t *testing.T) (*HTTPRestService, cns.CreateNetworkContainerRequest) {
+func TestSaveNetworkContainerGoalStateAssignedDeletionDoesNotCorruptBaseline(t *testing.T) {
+	svc, committed := newVersionValidationService(t, 6382)
+	assigned := svc.PodIPConfigState["ip-id-1"]
+	assigned.SetState(types.Assigned)
+	svc.PodIPConfigState["ip-id-1"] = assigned
+
+	stale := cloneCreateNetworkContainerRequest(committed)
+	stale.Version = "6376"
+	stale.SecondaryIPConfigs = map[string]cns.SecondaryIPConfig{
+		"stale-ip-id": {IPAddress: "10.0.0.6", NCVersion: 6376},
+	}
+
+	for range 2 {
+		returnCode, message := svc.saveNetworkContainerGoalState(stale, false)
+		assert.Equal(t, types.InconsistentIPConfigState, returnCode)
+		assert.Contains(t, message, "cannot delete assigned IP")
+		assertCommittedGoalVersion(t, svc, "6382")
+		assert.Len(t, svc.PodIPConfigState, 1)
+		assert.Contains(t, svc.PodIPConfigState, "ip-id-1")
+		assert.NotContains(t, svc.PodIPConfigState, "stale-ip-id")
+		current := svc.PodIPConfigState["ip-id-1"]
+		assert.Equal(t, types.Assigned, current.GetState())
+	}
+}
+
+func TestSaveNetworkContainerGoalStateInvalidHostVersionDoesNotPartiallyDelete(t *testing.T) {
+	svc, committed := newVersionValidationService(t, versionValidationInitialVersion)
+	containerStatus := svc.state.ContainerStatus[versionValidationNCID]
+	containerStatus.HostVersion = "invalid"
+	svc.state.ContainerStatus[versionValidationNCID] = containerStatus
+
+	incoming := cloneCreateNetworkContainerRequest(committed)
+	incoming.Version = "3"
+	incoming.SecondaryIPConfigs = map[string]cns.SecondaryIPConfig{
+		"replacement-id": {IPAddress: "10.0.0.7", NCVersion: 3},
+	}
+
+	returnCode, message := svc.saveNetworkContainerGoalState(incoming, true)
+
+	assert.Equal(t, types.UnsupportedNCVersion, returnCode)
+	assert.Contains(t, message, `invalid host version "invalid"`)
+	assert.Equal(t, "2", svc.state.ContainerStatus[versionValidationNCID].CreateNetworkContainerRequest.Version)
+	assert.Contains(t, svc.PodIPConfigState, "ip-id-1")
+	assert.NotContains(t, svc.PodIPConfigState, "replacement-id")
+}
+
+func TestSaveNetworkContainerGoalStateStoreFailureDoesNotCommit(t *testing.T) {
+	svc, committed := newVersionValidationService(t, versionValidationInitialVersion)
+	failingStore := &failWriteStore{
+		KeyValueStore: svc.store,
+		fail:          true,
+	}
+	svc.store = failingStore
+	originalTransition := svc.PodIPConfigState["ip-id-1"].LastStateTransition
+
+	incoming := cloneCreateNetworkContainerRequest(committed)
+	incoming.Version = "3"
+	incoming.SecondaryIPConfigs["new-ip-id"] = cns.SecondaryIPConfig{
+		IPAddress: "10.0.0.7",
+		NCVersion: 3,
+	}
+
+	returnCode, message := svc.saveNetworkContainerGoalState(incoming, true)
+
+	assert.Equal(t, types.UnexpectedError, returnCode)
+	assert.Contains(t, message, "persisting goal state")
+	assertCommittedGoalVersion(t, svc, "2")
+	assert.Len(t, svc.PodIPConfigState, 1)
+	assert.NotContains(t, svc.PodIPConfigState, "new-ip-id")
+	assert.Equal(t, originalTransition, svc.PodIPConfigState["ip-id-1"].LastStateTransition)
+
+	failingStore.fail = false
+	returnCode, message = svc.saveNetworkContainerGoalState(incoming, true)
+	assert.Equal(t, types.Success, returnCode)
+	assert.Empty(t, message)
+	assertCommittedGoalVersion(t, svc, "3")
+	assert.Contains(t, svc.PodIPConfigState, "new-ip-id")
+}
+
+func TestSaveNetworkContainerGoalStateInvalidOrchestratorContextDoesNotCommit(t *testing.T) {
+	persistedStore := store.NewMockStore("")
+	svc := &HTTPRestService{
+		store: persistedStore,
+		state: &httpRestServiceState{
+			OrchestratorType: cns.Kubernetes,
+			ContainerStatus: map[string]containerstatus{
+				versionValidationNCID: {
+					ID:        versionValidationNCID,
+					VMVersion: "1",
+					CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
+						NetworkContainerid: versionValidationNCID,
+						Version:            "1",
+					},
+				},
+			},
+		},
+	}
+	require.NoError(t, persistedStore.Write(storeKey, svc.state))
+	incoming := cns.CreateNetworkContainerRequest{
+		NetworkContainerid:   versionValidationNCID,
+		NetworkContainerType: cns.Kubernetes,
+		Version:              "2",
+		OrchestratorContext:  []byte("{"),
+	}
+
+	returnCode, message := svc.saveNetworkContainerGoalState(incoming, false)
+
+	assert.Equal(t, types.UnexpectedError, returnCode)
+	assert.Contains(t, message, "unmarshalling Kubernetes orchestrator context")
+	assert.Equal(t, "1", svc.state.ContainerStatus[versionValidationNCID].CreateNetworkContainerRequest.Version)
+	assert.Empty(t, svc.state.ContainerIDByOrchestratorContext)
+
+	var persisted httpRestServiceState
+	require.NoError(t, persistedStore.Read(storeKey, &persisted))
+	assert.Equal(t, "1", persisted.ContainerStatus[versionValidationNCID].CreateNetworkContainerRequest.Version)
+}
+
+type failWriteStore struct {
+	store.KeyValueStore
+	fail bool
+}
+
+func (s *failWriteStore) Write(key string, value interface{}) error {
+	if s.fail {
+		return errFailWrite
+	}
+	if err := s.KeyValueStore.Write(key, value); err != nil {
+		return fmt.Errorf("writing value: %w", err)
+	}
+	return nil
+}
+
+func newVersionValidationService(t *testing.T, version int) (*HTTPRestService, cns.CreateNetworkContainerRequest) {
 	t.Helper()
 
 	svc := &HTTPRestService{
@@ -290,7 +426,7 @@ func newVersionValidationService(t *testing.T) (*HTTPRestService, cns.CreateNetw
 		SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
 			"ip-id-1": {
 				IPAddress: versionValidationSecondaryIP,
-				NCVersion: versionValidationInitialVersion,
+				NCVersion: version,
 			},
 		},
 		NCStatus: v1alpha.NCStatus("ready"),
@@ -298,7 +434,7 @@ func newVersionValidationService(t *testing.T) (*HTTPRestService, cns.CreateNetw
 			MACAddress: versionValidationMACAddress,
 		},
 	}
-	req.Version = strconv.Itoa(versionValidationInitialVersion)
+	req.Version = strconv.Itoa(version)
 
 	returnCode, message := svc.saveNetworkContainerGoalState(req, true)
 	require.Equal(t, types.Success, returnCode)
