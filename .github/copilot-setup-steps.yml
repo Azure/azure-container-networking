@@ -1,0 +1,82 @@
+# Copilot Coding Agent — environment setup
+# Runs BEFORE the network firewall activates, so external fetches work here.
+# After this completes, Copilot can only access github.com and the repo.
+#
+# Docs: https://docs.github.com/en/copilot/customizing-copilot/customizing-the-development-environment-for-copilot-coding-agent
+
+setup:
+  - name: Install Go (MS Go from go.mod)
+    uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+    with:
+      go-version-file: go.mod
+
+  - name: Install system tools
+    run: |
+      sudo apt-get update -qq
+      sudo apt-get install -y -qq skopeo jq > /dev/null
+
+  - name: Install repo build tools
+    run: |
+      # renderkit is needed for `make dockerfiles`
+      make renderkit
+      GOPATH=$(go env GOPATH 2>/dev/null || echo "$HOME/go")
+      echo "${GOPATH}/bin" >> "$GITHUB_PATH"
+
+  - name: Pre-cache MS Go documentation
+    run: |
+      # Fetch MS Go FIPS/crypto docs before firewall blocks external access.
+      # These are referenced by the acn-go-version-bump skill for minor upgrades.
+      DOCS_DIR=".github/ms-go-docs"
+      mkdir -p "$DOCS_DIR"
+
+      for doc in \
+        "eng/doc/fips/README.md:README.md" \
+        "eng/doc/NocgoOpenSSL.md:NocgoOpenSSL.md" \
+        "eng/doc/fips/UserGuide.md:UserGuide.md" \
+        "eng/doc/AdditionalFeatures.md:AdditionalFeatures.md"; do
+        SRC="${doc%%:*}"
+        DST="${doc##*:}"
+        gh api "repos/microsoft/go/contents/${SRC}?ref=microsoft/main" \
+          --jq '.content' | base64 -d > "${DOCS_DIR}/${DST}" 2>/dev/null || \
+          echo "WARNING: Failed to fetch ${SRC}" >&2
+      done
+
+      # Fetch migration guide for whatever Go minor is current
+      GO_MINOR=$(grep -oP '^\d+\.(\d+)' go.mod | head -1 | cut -d. -f2)
+      for v in "$GO_MINOR" "$((GO_MINOR + 1))"; do
+        gh api "repos/microsoft/go/contents/docs/go1.${v}.md?ref=microsoft/main" \
+          --jq '.content' 2>/dev/null | base64 -d > "${DOCS_DIR}/MigrationGuide-1.${v}.md" 2>/dev/null || true
+      done
+
+      echo "Cached docs:"
+      ls -la "$DOCS_DIR"
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+  - name: Pre-cache image digests
+    run: |
+      # Cache current MCR image digests so Copilot doesn't need registry access.
+      DIGESTS_DIR=".github/image-digests"
+      mkdir -p "$DIGESTS_DIR"
+
+      # Azure Linux Go image (used by template Dockerfiles)
+      GO_IMG=$(grep -oP 'golang:\S+' build/images.mk | head -1)
+      MCR="mcr.microsoft.com/oss/go/microsoft"
+      AZL_DIGEST=$(skopeo inspect "docker://${MCR}/${GO_IMG}" --format "{{.Digest}}" 2>/dev/null || echo "FAILED")
+      echo "${MCR}/${GO_IMG}@${AZL_DIGEST}" > "${DIGESTS_DIR}/go-azurelinux.txt"
+
+      # Plain Debian Go image (used by bpf-prog)
+      BPF_TAG=$(grep -oP 'golang:\K[^@\s]+' bpf-prog/ipv6-hp-bpf/linux.Dockerfile | head -1)
+      if [ -n "$BPF_TAG" ]; then
+        DEB_DIGEST=$(skopeo inspect "docker://${MCR}/golang:${BPF_TAG}" --format "{{.Digest}}" 2>/dev/null || echo "FAILED")
+        echo "${MCR}/golang:${BPF_TAG}@${DEB_DIGEST}" > "${DIGESTS_DIR}/go-debian.txt"
+      fi
+
+      # List all available Go tags for version detection
+      skopeo list-tags "docker://${MCR}/golang" 2>/dev/null | \
+        python3 -c "import sys,json; tags=json.load(sys.stdin).get('Tags',[]); [print(t) for t in sorted(tags) if 'azurelinux' in t or t.replace('.','').replace('-','').isalnum()]" \
+        > "${DIGESTS_DIR}/available-tags.txt" 2>/dev/null || true
+
+      echo "Cached digests:"
+      cat "${DIGESTS_DIR}/go-azurelinux.txt"
+      cat "${DIGESTS_DIR}/go-debian.txt" 2>/dev/null || true
