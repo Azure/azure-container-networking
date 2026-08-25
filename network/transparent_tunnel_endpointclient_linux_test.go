@@ -141,7 +141,7 @@ func (c *transparentTunnelMockIpsetClient) Add(setName, entry string) error {
 }
 
 func (c *transparentTunnelMockIpsetClient) Del(setName, entry string) error {
-	c.calls = append(c.calls, ipsetCall{op: "del", set: setName, arg: entry})
+	c.calls = append(c.calls, ipsetCall{op: ipsetOpDel, set: setName, arg: entry})
 	return c.delErr
 }
 
@@ -619,7 +619,7 @@ func TestTransparentTunnelDeleteEndpointRules(t *testing.T) {
 
 		require.NoError(t, client.DeleteEndpointRules(makeEndpoint()))
 
-		assert.Equal(t, 1, ipsetMock.countOps("del"))
+		assert.Equal(t, 1, ipsetMock.countOps(ipsetOpDel))
 		assert.Equal(t, "10.224.0.46", ipsetMock.calls[0].arg)
 
 		require.Len(t, iptMock.deleteCalls, 1)
@@ -696,7 +696,7 @@ func TestTransparentTunnelDeleteEndpointRules(t *testing.T) {
 		var epClient EndpointClient = client
 		require.NoError(t, epClient.DeleteEndpointRules(makeEndpoint()))
 
-		assert.Equal(t, 1, ipsetMock.countOps("del"), "tunnel ipset cleanup must run via the interface")
+		assert.Equal(t, 1, ipsetMock.countOps(ipsetOpDel), "tunnel ipset cleanup must run via the interface")
 		assert.Len(t, iptMock.deleteCalls, 1, "tunnel MARK rule cleanup must run via the interface")
 		assert.Equal(t, 0, ipsetMock.countOps("destroy"), "should not destroy shared ipset")
 	})
@@ -715,7 +715,7 @@ func TestTransparentTunnelDeleteEndpointRules(t *testing.T) {
 
 		require.NoError(t, client.DeleteEndpointRules(ep))
 
-		assert.Equal(t, 1, ipsetMock.countOps("del"), "pod ip must still be removed from the ipset")
+		assert.Equal(t, 1, ipsetMock.countOps(ipsetOpDel), "pod ip must still be removed from the ipset")
 		assert.Empty(t, iptMock.deleteCalls, "must not issue a delete with an empty interface match")
 	})
 }

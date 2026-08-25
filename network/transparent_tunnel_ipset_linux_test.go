@@ -99,7 +99,7 @@ func TestDefaultIpsetClientDel(t *testing.T) {
 			}
 
 			assert.Equal(t,
-				[]string{"del", "azure-tt-local-pods", "10.224.0.46", "-exist"},
+				[]string{ipsetOpDel, "azure-tt-local-pods", "10.224.0.46", "-exist"},
 				gotArgs,
 				"delete should pass -exist so a missing entry is also a no-op")
 		})
@@ -111,7 +111,7 @@ func TestDefaultIpsetClientDel(t *testing.T) {
 func TestDeleteTransparentTunnelRulesToleratesMissingIpset(t *testing.T) {
 	exec := platform.NewMockExecClient(false)
 	exec.SetExecCommand(func(_ string, args ...string) (string, error) {
-		if len(args) > 0 && args[0] == "del" {
+		if len(args) > 0 && args[0] == ipsetOpDel {
 			return "", errors.New(ipsetSetNotFoundStderr)
 		}
 		return "", nil

@@ -15,6 +15,9 @@ import (
 // entry succeed. A missing set fails earlier with ENOENT regardless.
 const ipsetSetNotFoundSubstr = "The set with the given name does not exist"
 
+// ipsetOpDel is the `ipset` subcommand used to remove an entry from a set.
+const ipsetOpDel = "del"
+
 // isSetNotFoundErr reports whether err is ipset's "set does not exist" error.
 // platform.ExecClient folds the command's stderr into the returned error, so
 // the message is matched there rather than on stdout.
@@ -85,7 +88,7 @@ func (c *defaultTransparentTunnelIpsetClient) Add(setName, entry string) error {
 // on every retry until some pod ADD happened to recreate the set, leaving pods
 // stuck terminating. There is nothing to remove in that case, so it is success.
 func (c *defaultTransparentTunnelIpsetClient) Del(setName, entry string) error {
-	out, err := c.plc.ExecuteCommand(context.TODO(), "ipset", "del", setName, entry, "-exist")
+	out, err := c.plc.ExecuteCommand(context.TODO(), "ipset", ipsetOpDel, setName, entry, "-exist")
 	if err != nil {
 		if isSetNotFoundErr(err) {
 			logger.Info("transparent-tunnel: ipset absent on delete, nothing to remove",
