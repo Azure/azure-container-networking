@@ -8,13 +8,11 @@ on:
       - closed
       - labeled
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
 
 jobs:
   backport:
-    name: Create backport pull requests
+    name: Create backport issues
     if: >-
       github.event.pull_request.merged == true &&
       contains(github.event.pull_request.labels.*.name, 'needs-backport') &&
@@ -23,22 +21,24 @@ jobs:
         github.event.label.name == 'needs-backport' ||
         startsWith(github.event.label.name, 'release/')
       )
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
     runs-on: ubuntu-latest
     concurrency:
       group: backport-${{ github.event.pull_request.number }}
       cancel-in-progress: false
     steps:
-      - name: Checkout default branch
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          ref: master
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Determine target branches
-        id: targets
+      - name: Create backport issues
         env:
+          GH_TOKEN: ${{ github.token }}
           LABELS_JSON: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          REPO: ${{ github.repository }}
+          SOURCE_MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          SOURCE_PULL_NUMBER: ${{ github.event.pull_request.number }}
+          SOURCE_PULL_TITLE: ${{ github.event.pull_request.title }}
+          SOURCE_PULL_URL: ${{ github.event.pull_request.html_url }}
         run: |
           set -euo pipefail
 
@@ -51,95 +51,105 @@ jobs:
           )
 
           if [[ ${#TARGET_BRANCHES[@]} -eq 0 ]]; then
-            echo "::notice::No release/X.Y labels found; no backport pull request will be created."
-            echo "branches=" >> "$GITHUB_OUTPUT"
+            echo "::notice::No release/X.Y labels found; no backport issue will be created."
             exit 0
           fi
 
-          for branch in "${TARGET_BRANCHES[@]}"; do
-            if ! git ls-remote --exit-code --heads origin "refs/heads/$branch" >/dev/null; then
-              echo "::error::Backport target branch '$branch' does not exist."
+          for target_branch in "${TARGET_BRANCHES[@]}"; do
+            if ! gh api --silent "/repos/$REPO/git/ref/heads/$target_branch"; then
+              echo "::error::Backport target branch '$target_branch' does not exist."
               exit 1
             fi
-          done
 
-          echo "branches=${TARGET_BRANCHES[*]}" >> "$GITHUB_OUTPUT"
+            marker="backport-agent:${SOURCE_PULL_NUMBER}:${target_branch}"
 
-      - name: Create backport pull requests
-        id: backport
-        if: steps.targets.outputs.branches != ''
-        uses: korthout/backport-action@2e830a1d0b8269505846ddd407a70876913ad1f8 # v4
-        with:
-          github_token: ${{ github.token }}
-          label_pattern: ''
-          target_branches: ${{ steps.targets.outputs.branches }}
-          comment_style: summary
-          experimental: '{"conflict_resolution":"draft_commit_conflicts"}'
-
-      - name: Assign draft conflict resolution to Copilot
-        if: always() && steps.backport.outputs.created_pull_numbers != ''
-        env:
-          # Agent assignment requires a user-to-server token; GITHUB_TOKEN is not supported.
-          AGENT_TOKEN: ${{ secrets.COPILOT_AGENT_TOKEN }}
-          CREATED_PULL_NUMBERS: ${{ steps.backport.outputs.created_pull_numbers }}
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          SOURCE_PULL_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          set -euo pipefail
-
-          for pull_number in $CREATED_PULL_NUMBERS; do
-            pull=$(gh api "/repos/$REPO/pulls/$pull_number")
-            if [[ $(jq -r '.draft' <<< "$pull") != "true" ]]; then
+            existing_pull=$(gh pr list \
+              --repo "$REPO" \
+              --state all \
+              --base "$target_branch" \
+              --search "\"Backport of #${SOURCE_PULL_NUMBER}\" in:body" \
+              --json number \
+              --jq '.[0].number // empty')
+            if [[ -n "$existing_pull" ]]; then
+              echo "::notice::Backport PR #$existing_pull already targets $target_branch; skipping."
               continue
             fi
 
-            if [[ -z "$AGENT_TOKEN" ]]; then
-              echo "::error::COPILOT_AGENT_TOKEN is required to assign conflict resolution to Copilot."
-              exit 1
+            existing_issue=$(gh api \
+              "/repos/$REPO/issues?state=all&per_page=100&sort=created&direction=desc" \
+              --jq '
+                .[]
+                | select(
+                    .pull_request == null and
+                    ((.body // "") | contains("<!-- '"$marker"' -->"))
+                  )
+                | {number, state: (.state | ascii_upcase), url: .html_url}
+              ' | head -1)
+
+            if [[ -z "$existing_issue" ]]; then
+              existing_issue=$(gh issue list \
+                --repo "$REPO" \
+                --state all \
+                --search "\"$marker\" in:body" \
+                --json number,state,url \
+                --jq '.[0] // empty')
             fi
 
-            head_ref=$(jq -r '.head.ref' <<< "$pull")
-            base_ref=$(jq -r '.base.ref' <<< "$pull")
-            pull_title=$(jq -r '.title' <<< "$pull")
-            pull_url=$(jq -r '.html_url' <<< "$pull")
+            if [[ -n "$existing_issue" ]]; then
+              issue_number=$(jq -r '.number' <<< "$existing_issue")
+              issue_state=$(jq -r '.state' <<< "$existing_issue")
+              if [[ "$issue_state" == "CLOSED" ]]; then
+                echo "::notice::Backport issue #$issue_number is closed; skipping."
+              else
+                echo "::notice::Backport issue #$issue_number is already open; skipping."
+              fi
+              continue
+            else
+              issue_body=$(cat <<EOF
+          ## Automated backport request
 
-            issue_body=$(cat <<EOF
-          Resolve the committed cherry-pick conflicts in draft backport PR #$pull_number:
-          $pull_url
+          | Input | Value |
+          | --- | --- |
+          | Source PR | $SOURCE_PULL_URL |
+          | Source PR number | \`#$SOURCE_PULL_NUMBER\` |
+          | Source merge commit | \`$SOURCE_MERGE_SHA\` |
+          | Source branch | \`master\` |
+          | Target branch | \`$target_branch\` |
 
-          Preserve the intent of source PR #$SOURCE_PULL_NUMBER while adapting it to
-          \`$base_ref\`. Remove all conflict markers, run relevant validation, and open
-          a pull request targeting \`$head_ref\`. Do not modify \`$base_ref\` directly.
+          ### Instructions for Copilot
 
-          <!-- backport-conflict-agent:$pull_number -->
+          Use the \`acn-backport\` skill in \`.github/skills/acn-backport/SKILL.md\`.
+          Backport source PR #$SOURCE_PULL_NUMBER to \`$target_branch\`. Preserve the
+          source change exactly when it applies cleanly. If conflicts occur, adapt only
+          what is required by the target branch and follow the skill's validation and
+          stop conditions.
+
+          The pull request must target \`$target_branch\`, be titled
+          \`[Backport $target_branch] $SOURCE_PULL_TITLE\`, and include
+          \`Backport of #$SOURCE_PULL_NUMBER\` in its body.
+
+          ### Maintainer action required
+
+          Assign this issue to Copilot and select \`$target_branch\` as the base branch.
+          Do not use the repository default branch.
+
+          ---
+          <!-- $marker -->
           EOF
-            )
+              )
 
-            payload=$(jq -n \
-              --arg title "Resolve conflicts for backport PR #$pull_number" \
-              --arg body "$issue_body" \
-              --arg repo "$REPO" \
-              --arg branch "$head_ref" \
-              --arg instructions "Resolve conflicts in backport PR #$pull_number ($pull_title). Open the resolution PR against $head_ref." \
-              '{
-                title: $title,
-                body: $body,
-                assignees: ["copilot-swe-agent[bot]"],
-                agent_assignment: {
-                  target_repo: $repo,
-                  base_branch: $branch,
-                  custom_instructions: $instructions,
-                  custom_agent: "",
-                  model: ""
-                }
-              }')
+              gh label create "Agent-Generated" \
+                --repo "$REPO" \
+                --description "Created by automation" \
+                --color "ededed" 2>/dev/null || true
 
-            GH_TOKEN="$AGENT_TOKEN" gh api \
-              --method POST \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "/repos/$REPO/issues" \
-              --input - <<< "$payload" \
-              --jq '"Assigned Copilot through issue #\(.number): \(.html_url)"'
+              issue_url=$(gh issue create \
+                --repo "$REPO" \
+                --title "[Backport $target_branch] $SOURCE_PULL_TITLE" \
+                --body "$issue_body" \
+                --label "Agent-Generated")
+              issue_number=${issue_url##*/}
+            fi
+
+            echo "::notice::Created $issue_url for manual Copilot assignment to $target_branch."
           done
