@@ -1,111 +1,124 @@
 name: Backport merged pull request
 
 on:
-  pull_request_target:
+  push:
     branches:
       - master
-    types:
-      - closed
-      - labeled
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
 
 permissions: {}
 
 jobs:
   backport:
     name: Create backport issues
-    if: >-
-      github.event.pull_request.merged == true &&
-      contains(github.event.pull_request.labels.*.name, 'needs-backport') &&
-      (
-        github.event.action == 'closed' ||
-        github.event.label.name == 'needs-backport' ||
-        startsWith(github.event.label.name, 'release/')
-      )
     permissions:
       contents: read
       issues: write
       pull-requests: read
     runs-on: ubuntu-latest
     concurrency:
-      group: backport-${{ github.event.pull_request.number }}
+      group: backport-issue-scan
       cancel-in-progress: false
     steps:
       - name: Create backport issues
         env:
           GH_TOKEN: ${{ github.token }}
-          LABELS_JSON: ${{ toJSON(github.event.pull_request.labels.*.name) }}
           REPO: ${{ github.repository }}
-          SOURCE_MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
-          SOURCE_PULL_NUMBER: ${{ github.event.pull_request.number }}
-          SOURCE_PULL_TITLE: ${{ github.event.pull_request.title }}
-          SOURCE_PULL_URL: ${{ github.event.pull_request.html_url }}
         run: |
           set -euo pipefail
 
-          mapfile -t TARGET_BRANCHES < <(
-            jq -r '
-              .[]
-              | capture("^release/v?(?<version>[0-9]+\\.[0-9]+)$")
-              | "release/v\(.version)"
-            ' <<< "$LABELS_JSON" | sort -u
+          UPDATED_SINCE=$(date -u --date="2 hours ago" +"%Y-%m-%dT%H:%M:%SZ")
+          mapfile -t SOURCE_PULLS < <(
+            gh pr list \
+              --repo "$REPO" \
+              --state merged \
+              --base master \
+              --label needs-backport \
+              --search "updated:>=$UPDATED_SINCE sort:updated-desc" \
+              --limit 100 \
+              --json number,title,url,mergeCommit,labels \
+              --jq '.[] | @base64'
           )
 
-          if [[ ${#TARGET_BRANCHES[@]} -eq 0 ]]; then
-            echo "::notice::No release/X.Y labels found; no backport issue will be created."
+          if [[ ${#SOURCE_PULLS[@]} -eq 0 ]]; then
+            echo "::notice::No merged pull requests need backport issues."
             exit 0
           fi
 
-          for target_branch in "${TARGET_BRANCHES[@]}"; do
-            if ! gh api --silent "/repos/$REPO/git/ref/heads/$target_branch"; then
-              echo "::error::Backport target branch '$target_branch' does not exist."
-              exit 1
-            fi
+          for encoded_pull in "${SOURCE_PULLS[@]}"; do
+            source_pull=$(base64 --decode <<< "$encoded_pull")
+            SOURCE_MERGE_SHA=$(jq -r '.mergeCommit.oid' <<< "$source_pull")
+            SOURCE_PULL_NUMBER=$(jq -r '.number' <<< "$source_pull")
+            SOURCE_PULL_TITLE=$(jq -r '.title' <<< "$source_pull")
+            SOURCE_PULL_URL=$(jq -r '.url' <<< "$source_pull")
+            LABELS_JSON=$(jq -c '[.labels[].name]' <<< "$source_pull")
 
-            marker="backport-agent:${SOURCE_PULL_NUMBER}:${target_branch}"
+            mapfile -t TARGET_BRANCHES < <(
+              jq -r '
+                .[]
+                | capture("^release/v?(?<version>[0-9]+\\.[0-9]+)$")
+                | "release/v\(.version)"
+              ' <<< "$LABELS_JSON" | sort -u
+            )
 
-            existing_pull=$(gh pr list \
-              --repo "$REPO" \
-              --state all \
-              --base "$target_branch" \
-              --search "\"Backport of #${SOURCE_PULL_NUMBER}\" in:body" \
-              --json number \
-              --jq '.[0].number // empty')
-            if [[ -n "$existing_pull" ]]; then
-              echo "::notice::Backport PR #$existing_pull already targets $target_branch; skipping."
+            if [[ ${#TARGET_BRANCHES[@]} -eq 0 ]]; then
+              echo "::notice::PR #$SOURCE_PULL_NUMBER has no release/X.Y labels; skipping."
               continue
             fi
 
-            existing_issue=$(gh api \
-              "/repos/$REPO/issues?state=all&per_page=100&sort=created&direction=desc" \
-              --jq '
-                .[]
-                | select(
-                    .pull_request == null and
-                    ((.body // "") | contains("<!-- '"$marker"' -->"))
-                  )
-                | {number, state: (.state | ascii_upcase), url: .html_url}
-              ' | head -1)
+            for target_branch in "${TARGET_BRANCHES[@]}"; do
+              if ! gh api --silent "/repos/$REPO/git/ref/heads/$target_branch"; then
+                echo "::error::Backport target branch '$target_branch' does not exist."
+                exit 1
+              fi
 
-            if [[ -z "$existing_issue" ]]; then
-              existing_issue=$(gh issue list \
+              marker="backport-agent:${SOURCE_PULL_NUMBER}:${target_branch}"
+
+              existing_pull=$(gh pr list \
                 --repo "$REPO" \
                 --state all \
-                --search "\"$marker\" in:body" \
-                --json number,state,url \
-                --jq '.[0] // empty')
-            fi
-
-            if [[ -n "$existing_issue" ]]; then
-              issue_number=$(jq -r '.number' <<< "$existing_issue")
-              issue_state=$(jq -r '.state' <<< "$existing_issue")
-              if [[ "$issue_state" == "CLOSED" ]]; then
-                echo "::notice::Backport issue #$issue_number is closed; skipping."
-              else
-                echo "::notice::Backport issue #$issue_number is already open; skipping."
+                --base "$target_branch" \
+                --search "\"Backport of #${SOURCE_PULL_NUMBER}\" in:body" \
+                --json number \
+                --jq '.[0].number // empty')
+              if [[ -n "$existing_pull" ]]; then
+                echo "::notice::Backport PR #$existing_pull already targets $target_branch; skipping."
+                continue
               fi
-              continue
-            else
-              issue_body=$(cat <<EOF
+
+              existing_issue=$(gh api \
+                "/repos/$REPO/issues?state=all&per_page=100&sort=created&direction=desc" \
+                --jq '
+                  .[]
+                  | select(
+                      .pull_request == null and
+                      ((.body // "") | contains("<!-- '"$marker"' -->"))
+                    )
+                  | {number, state: (.state | ascii_upcase), url: .html_url}
+                ' | head -1)
+
+              if [[ -z "$existing_issue" ]]; then
+                existing_issue=$(gh issue list \
+                  --repo "$REPO" \
+                  --state all \
+                  --search "\"$marker\" in:body" \
+                  --json number,state,url \
+                  --jq '.[0] // empty')
+              fi
+
+              if [[ -n "$existing_issue" ]]; then
+                issue_number=$(jq -r '.number' <<< "$existing_issue")
+                issue_state=$(jq -r '.state' <<< "$existing_issue")
+                if [[ "$issue_state" == "CLOSED" ]]; then
+                  echo "::notice::Backport issue #$issue_number is closed; skipping."
+                else
+                  echo "::notice::Backport issue #$issue_number is already open; skipping."
+                fi
+                continue
+              else
+                issue_body=$(cat <<EOF
           ## Automated backport request
 
           | Input | Value |
@@ -136,20 +149,20 @@ jobs:
           ---
           <!-- $marker -->
           EOF
-              )
+                )
 
-              gh label create "Agent-Generated" \
-                --repo "$REPO" \
-                --description "Created by automation" \
-                --color "ededed" 2>/dev/null || true
+                gh label create "Agent-Generated" \
+                  --repo "$REPO" \
+                  --description "Created by automation" \
+                  --color "ededed" 2>/dev/null || true
 
-              issue_url=$(gh issue create \
-                --repo "$REPO" \
-                --title "[Backport $target_branch] $SOURCE_PULL_TITLE" \
-                --body "$issue_body" \
-                --label "Agent-Generated")
-              issue_number=${issue_url##*/}
-            fi
+                issue_url=$(gh issue create \
+                  --repo "$REPO" \
+                  --title "[Backport $target_branch] $SOURCE_PULL_TITLE" \
+                  --body "$issue_body" \
+                  --label "Agent-Generated")
+              fi
 
-            echo "::notice::Created $issue_url for manual Copilot assignment to $target_branch."
+              echo "::notice::Created $issue_url for manual Copilot assignment to $target_branch."
+            done
           done
