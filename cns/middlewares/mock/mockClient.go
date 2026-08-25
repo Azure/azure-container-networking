@@ -200,11 +200,12 @@ func NewClient() *Client {
 		Status: v1alpha1.MultitenantPodNetworkConfigStatus{
 			InterfaceInfos: []v1alpha1.InterfaceInfo{
 				{
-					PrimaryIP:  "192.168.12.1/32",
-					MacAddress: "00:00:00:00:00:12",
-					GatewayIP:  "10.0.0.1",
-					NCID:       "testncid12",
-					DeviceType: v1alpha1.DeviceTypeVnetNIC,
+					PrimaryIP:          "192.168.12.1/32",
+					MacAddress:         "00:00:00:00:00:12",
+					GatewayIP:          "10.0.0.1",
+					NCID:               "testncid12",
+					DeviceType:         v1alpha1.DeviceTypeVnetNIC,
+					SubnetAddressSpace: "192.168.12.0/24",
 				},
 			},
 		},
