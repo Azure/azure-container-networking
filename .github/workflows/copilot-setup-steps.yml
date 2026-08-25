@@ -40,12 +40,12 @@ jobs:
           FAILED=0
           while IFS= read -r -d '' modfile; do
             moddir=$(dirname "$modfile")
-            echo "  go mod download: $moddir"
-            if ! (cd "$moddir" && go mod download 2>&1); then
-              echo "::error::go mod download failed for $moddir"
+            echo "  go mod download: $moddir (-modfile $(basename "$modfile"))"
+            if ! (cd "$moddir" && go mod download -modfile "$(basename "$modfile")" 2>&1); then
+              echo "::error::go mod download failed for $moddir/$(basename "$modfile")"
               FAILED=1
             fi
-          done < <(find . -name go.mod -not -path '*/vendor/*' -print0)
+          done < <(find . \( -name 'go.mod' -o -name '*.go.mod' \) -not -path '*/vendor/*' -print0)
           echo "Module cache size: $(du -sh "$(go env GOMODCACHE)" 2>/dev/null | cut -f1)"
           if [ "$FAILED" -ne 0 ]; then
             echo "::error::Some module downloads failed"
@@ -286,11 +286,12 @@ jobs:
           MOD_ERRORS=0
           while IFS= read -r -d '' modfile; do
             moddir=$(dirname "$modfile")
-            if ! (cd "$moddir" && GOPROXY=off GONOSUMDB='*' GOFLAGS=-mod=readonly go build -n ./... 2>/dev/null); then
-              echo "::warning::Offline build check failed for $moddir"
+            modbase=$(basename "$modfile")
+            if ! (cd "$moddir" && GOPROXY=off GONOSUMDB='*' GOFLAGS="-mod=readonly -modfile=${modbase}" go build -n ./... 2>/dev/null); then
+              echo "::warning::Offline build check failed for $moddir/$modbase"
               MOD_ERRORS=$((MOD_ERRORS + 1))
             fi
-          done < <(find . -name go.mod -not -path '*/vendor/*' -print0)
+          done < <(find . \( -name 'go.mod' -o -name '*.go.mod' \) -not -path '*/vendor/*' -print0)
           if [ "$MOD_ERRORS" -eq 0 ]; then
             echo "✓ All modules can build offline"
           else

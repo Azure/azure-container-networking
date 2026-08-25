@@ -574,3 +574,28 @@ When upgrading Go, verify compatibility with AKS supported Kubernetes versions:
 - ALWAYS use 2-part floating tags in `build/images.mk`
 - **Windows builds**: CNG backend typically works without CGO or GOEXPERIMENT — verify per version
 - **Do NOT assume "no GOEXPERIMENT" is safe** — always verify the default backend's CGO requirements
+
+### Pre-Submit Cleanup (MANDATORY)
+
+**Before committing or updating a PR, you MUST audit your working tree for build artifacts and binaries.** Go builds can produce binaries in module directories that must NOT be committed.
+
+```bash
+# Check for untracked or modified binary files
+git status --short | grep -E '^\?\?' | while read -r _ path; do
+  if file "$path" | grep -qE 'ELF|executable|shared object'; then
+    echo "ERROR: Build artifact detected: $path"
+    rm -f "$path"
+  fi
+done
+
+# Verify no binaries are staged
+git diff --cached --name-only --diff-filter=A | while read -r path; do
+  if [ -f "$path" ] && file "$path" | grep -qE 'ELF|executable|shared object'; then
+    echo "ERROR: Binary staged for commit: $path — unstage it"
+    git reset HEAD "$path"
+    rm -f "$path"
+  fi
+done
+```
+
+**Known binary locations to NEVER commit:** `azure-ip-masq-merger/azure-ip-masq-merger`, `azure-iptables-monitor/azure-iptables-monitor`, `cilium-log-collector/cilium-log-collector`, `tools/azure-npm-to-cilium-validator/azure-npm-to-cilium-validator`, and any other ELF binary produced by `go build`.
