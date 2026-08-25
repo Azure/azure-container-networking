@@ -11,7 +11,7 @@
 /.github/                   @azure/acn-admins
 /cns/                       @azure/acn-cns-reviewers
 /cni/                       @azure/acn-cni-reviewers
-/dropgz/                    @rbtr @camrynl @paulyufan2 @ashvindeodhar @thatmattlong
+/dropgz/                    @rbtr @camrynl @ashvindeodhar @thatmattlong
 /npm/                       @azure/acn-npm-reviewers
 /zapai/                     @rbtr @ZetaoZhuang
 /bpf-prog/                  @camrynl @QxBytes @santhoshmprabhu
