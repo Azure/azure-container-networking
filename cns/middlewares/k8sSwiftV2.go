@@ -98,11 +98,7 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 // getSwiftV2IpConfigHelper builds the pod's SWIFT V2 delegated IP configs from its MTPNC.
 // When includeDRAAllocations is false, pods scheduled with DRA are skipped.
 // when true, DRA-delegated NICs are included.
-func (k *K8sSWIFTv2Middleware) getSwiftV2IpConfigHelper(
-	ctx context.Context,
-	podInfo cns.PodInfo,
-	includeDRAAllocations bool,
-) (ipConfigResult, error) {
+func (k *K8sSWIFTv2Middleware) getSwiftV2IpConfigHelper(ctx context.Context, podInfo cns.PodInfo, includeDRAAllocations bool) (ipConfigResult, error) {
 	// Check if the MTPNC CRD exists for the pod, if not, return error
 	mtpnc := v1alpha1.MultitenantPodNetworkConfig{}
 	mtpncNamespacedName := k8stypes.NamespacedName{Namespace: podInfo.Namespace(), Name: podInfo.Name()}
