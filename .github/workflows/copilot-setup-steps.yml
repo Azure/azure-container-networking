@@ -1,5 +1,9 @@
 name: "Copilot Setup Steps"
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
 
 jobs:
   copilot-setup-steps:
@@ -11,26 +15,131 @@ jobs:
         with:
           persist-credentials: false
 
+      # Install the CURRENT Go version from go.mod (needed for make renderkit, go mod download)
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
 
-      - name: Install tools
+      - name: Install system tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq skopeo > /dev/null
+          sudo apt-get install -y -qq skopeo jq > /dev/null
+
+      - name: Install repo build tools
+        run: |
           make renderkit
           GOPATH=$(go env GOPATH)
           echo "${GOPATH}/bin" >> "$GITHUB_PATH"
           echo "GOPATH=${GOPATH}" >> "$GITHUB_ENV"
+
+      - name: Pre-download module dependencies (before firewall activates)
+        run: |
+          set -euo pipefail
+          # Download all module dependencies so go build/vet works offline.
+          echo "Downloading module dependencies for all modules..."
+          FAILED=0
+          while IFS= read -r -d '' modfile; do
+            moddir=$(dirname "$modfile")
+            echo "  go mod download: $moddir"
+            if ! (cd "$moddir" && go mod download 2>&1); then
+              echo "::error::go mod download failed for $moddir"
+              FAILED=1
+            fi
+          done < <(find . -name go.mod -not -path '*/vendor/*' -print0)
+          echo "Module cache size: $(du -sh "$(go env GOMODCACHE)" 2>/dev/null | cut -f1)"
+          if [ "$FAILED" -ne 0 ]; then
+            echo "::error::Some module downloads failed"
+            exit 1
+          fi
+
+      - name: Detect and install target Go version for upgrades
+        run: |
+          set -euo pipefail
+          # Parse the go directive from go.mod correctly
+          CURRENT_VERSION=$(awk '$1 == "go" { print $2; exit }' go.mod)
+          CURRENT_MINOR=${CURRENT_VERSION%.*}
+          CURRENT_MIN_NUM=${CURRENT_MINOR#*.}
+          NEXT_MIN_NUM=$((CURRENT_MIN_NUM + 1))
+          echo "Current Go: ${CURRENT_VERSION} (minor: ${CURRENT_MINOR})"
+          echo "CURRENT_MIN_NUM=${CURRENT_MIN_NUM}" >> "$GITHUB_ENV"
+          echo "NEXT_MIN_NUM=${NEXT_MIN_NUM}" >> "$GITHUB_ENV"
+
+          MCR_REPO="mcr.microsoft.com/oss/go/microsoft/golang"
+
+          # Check if the next minor exists on MCR as an MS Go image
+          NEXT_AZL_TAG="1.${NEXT_MIN_NUM}-azurelinux3.0"
+          if ! skopeo inspect "docker://${MCR_REPO}:${NEXT_AZL_TAG}" > /dev/null 2>&1; then
+            echo "::notice::Next minor Go 1.${NEXT_MIN_NUM} not yet available on MCR — skipping target install"
+            echo "TARGET_GO_AVAILABLE=false" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          # Find the latest MS Go patch for the next minor
+          NEXT_PATCH=$(skopeo list-tags "docker://${MCR_REPO}" | \
+            python3 -c "
+          import sys, json, re
+          tags = json.load(sys.stdin).get('Tags', [])
+          patches = []
+          for t in tags:
+              m = re.match(r'^1\.${NEXT_MIN_NUM}\.(\d+)-azurelinux3\.0$', t)
+              if m:
+                  patches.append((int(m.group(1)), t))
+          if patches:
+              patches.sort(reverse=True)
+              print(patches[0][1].replace('-azurelinux3.0', ''))
+          ")
+
+          if [ -z "$NEXT_PATCH" ]; then
+            echo "::error::Found 1.${NEXT_MIN_NUM}-azurelinux3.0 but no patch tags"
+            exit 1
+          fi
+          echo "Target Go version: $NEXT_PATCH"
+
+          # Install target via actions/setup-go style (MS Go from go-versions).
+          # golang.org/dl installs upstream Go which may lack MS Go's systemcrypto.
+          # Instead, use setup-go's cached toolchain path if available, or download
+          # the MS Go binary directly from MCR.
+          #
+          # Strategy: extract the Go binary from the MS Go container image.
+          # This ensures we get the exact MS Go build with FIPS/systemcrypto support.
+          TARGET_DIR="/opt/hostedtoolcache/go/${NEXT_PATCH}/x64"
+          if [ ! -d "$TARGET_DIR" ]; then
+            echo "Extracting MS Go ${NEXT_PATCH} from MCR image..."
+            CONTAINER_ID=$(podman create "${MCR_REPO}:${NEXT_PATCH}-azurelinux3.0" /bin/true 2>/dev/null || \
+                           docker create "${MCR_REPO}:${NEXT_PATCH}-azurelinux3.0" /bin/true 2>/dev/null || echo "")
+            if [ -n "$CONTAINER_ID" ]; then
+              sudo mkdir -p "$TARGET_DIR"
+              # MS Go images have Go installed at /usr/local/go
+              podman cp "${CONTAINER_ID}:/usr/local/go/." "$TARGET_DIR" 2>/dev/null || \
+                docker cp "${CONTAINER_ID}:/usr/local/go/." "$TARGET_DIR" 2>/dev/null
+              podman rm "$CONTAINER_ID" 2>/dev/null || docker rm "$CONTAINER_ID" 2>/dev/null
+            fi
+          fi
+
+          if [ -x "${TARGET_DIR}/bin/go" ]; then
+            echo "MS Go ${NEXT_PATCH} installed at: ${TARGET_DIR}"
+            echo "TARGET_GO_VERSION=${NEXT_PATCH}" >> "$GITHUB_ENV"
+            echo "TARGET_GOROOT=${TARGET_DIR}" >> "$GITHUB_ENV"
+            echo "TARGET_GO_AVAILABLE=true" >> "$GITHUB_ENV"
+            # Make it available on PATH for Copilot
+            echo "${TARGET_DIR}/bin" >> "$GITHUB_PATH"
+          else
+            # Fallback: use golang.org/dl (upstream Go, may lack MS-specific features)
+            echo "::warning::MCR extraction failed, falling back to golang.org/dl (upstream Go)"
+            go install "golang.org/dl/go${NEXT_PATCH}@latest"
+            "go${NEXT_PATCH}" download
+            TARGET_GOROOT=$("go${NEXT_PATCH}" env GOROOT)
+            echo "TARGET_GO_VERSION=${NEXT_PATCH}" >> "$GITHUB_ENV"
+            echo "TARGET_GOROOT=${TARGET_GOROOT}" >> "$GITHUB_ENV"
+            echo "TARGET_GO_AVAILABLE=true" >> "$GITHUB_ENV"
+            echo "${TARGET_GOROOT}/bin" >> "$GITHUB_PATH"
+          fi
 
       - name: Pre-fetch MS Go documentation (before firewall activates)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          # The agent firewall blocks api.github.com for cross-repo fetches.
-          # Pre-fetch all MS Go docs needed by SKILL.md into .github/ms-go-docs/
           mkdir -p .github/ms-go-docs
 
           docs=(
@@ -51,39 +160,184 @@ jobs:
             fi
           done
 
+          # Fetch version-specific migration guides for current and next minor
+          CURRENT_MIN_NUM=${CURRENT_MIN_NUM:-$(awk '$1 == "go" { split($2,a,"."); print a[2]; exit }' go.mod)}
+          NEXT_MIN_NUM=${NEXT_MIN_NUM:-$((CURRENT_MIN_NUM + 1))}
+          for v in "$CURRENT_MIN_NUM" "$NEXT_MIN_NUM"; do
+            OUTFILE=".github/ms-go-docs/go1.${v}.md"
+            for path in "docs/go1.${v}.md" "eng/doc/go1.${v}.md"; do
+              if gh api "repos/microsoft/go/contents/${path}?ref=microsoft/main" --jq '.content' 2>/dev/null \
+                | base64 -d > "$OUTFILE" 2>/dev/null && [ -s "$OUTFILE" ]; then
+                echo "Fetched migration guide: go1.${v}.md"
+                break
+              fi
+            done
+            # Remove empty/failed downloads
+            if [ -f "$OUTFILE" ] && [ ! -s "$OUTFILE" ]; then
+              rm -f "$OUTFILE"
+              echo "No migration guide found for go1.${v} (not an error)"
+            fi
+          done
+
           echo "--- Pre-fetched docs ---"
           ls -la .github/ms-go-docs/
 
       - name: Pre-resolve container image digests (before firewall activates)
         run: |
-          # The agent firewall blocks MCR DNS resolution.
-          # Pre-resolve all image SHAs needed for Dockerfile generation.
+          set -euo pipefail
           mkdir -p .github/image-digests
+          MCR_GO="mcr.microsoft.com/oss/go/microsoft/golang"
 
-          # Go builder image (floating tag) — match 'export GO_IMG ?= ...' assignment
-          # Write image:tag@sha so Dependabot and make dockerfiles share one format.
+          # Current Go builder image (floating tag from build/images.mk)
           GO_TAG=$(grep -E '^(export[[:space:]]+)?GO_IMG' build/images.mk | head -1 | sed 's/.*golang://' | tr -d ' ')
-          GO_IMG="mcr.microsoft.com/oss/go/microsoft/golang:${GO_TAG}"
-          echo "Resolving Go image tag: $GO_TAG"
+          GO_IMG="${MCR_GO}:${GO_TAG}"
+          echo "Resolving current Go image: $GO_TAG"
           echo "${GO_IMG}@$(skopeo inspect "docker://${GO_IMG}" --format "{{.Digest}}")" \
-            > .github/image-digests/go-image.txt 2>/dev/null || true
+            > .github/image-digests/go-image.txt
+
+          # Next minor Go images (for upgrades)
+          CURRENT_MIN_NUM=${CURRENT_MIN_NUM:-$(echo "$GO_TAG" | grep -oP '^\d+\.(\d+)' | cut -d. -f2)}
+          NEXT_MIN_NUM=${NEXT_MIN_NUM:-$((CURRENT_MIN_NUM + 1))}
+
+          # Azure Linux tag
+          NEXT_AZL_TAG="1.${NEXT_MIN_NUM}-azurelinux3.0"
+          NEXT_AZL_IMG="${MCR_GO}:${NEXT_AZL_TAG}"
+          if skopeo inspect "docker://${NEXT_AZL_IMG}" > /dev/null 2>&1; then
+            DIGEST=$(skopeo inspect "docker://${NEXT_AZL_IMG}" --format "{{.Digest}}")
+            echo "${NEXT_AZL_IMG}@${DIGEST}" > .github/image-digests/go-next-minor.txt
+            echo "Resolved next minor Azure Linux: ${NEXT_AZL_TAG} → ${DIGEST}"
+          fi
+
+          # Debian tag (plain, for bpf-prog)
+          NEXT_DEB_TAG="1.${NEXT_MIN_NUM}"
+          NEXT_DEB_IMG="${MCR_GO}:${NEXT_DEB_TAG}"
+          if skopeo inspect "docker://${NEXT_DEB_IMG}" > /dev/null 2>&1; then
+            DIGEST=$(skopeo inspect "docker://${NEXT_DEB_IMG}" --format "{{.Digest}}")
+            echo "${NEXT_DEB_IMG}@${DIGEST}" >> .github/image-digests/go-next-minor.txt
+            echo "Resolved next minor Debian: ${NEXT_DEB_TAG} → ${DIGEST}"
+          fi
+
+          # Latest patch for next minor (exact Debian tag for bpf-prog/npm)
+          NEXT_PATCH=$(skopeo list-tags "docker://${MCR_GO}" | \
+            python3 -c "
+          import sys, json, re
+          tags = json.load(sys.stdin).get('Tags', [])
+          patches = []
+          for t in tags:
+              m = re.match(r'^1\.${NEXT_MIN_NUM}\.(\d+)$', t)
+              if m:
+                  patches.append((int(m.group(1)), t))
+          if patches:
+              patches.sort(reverse=True)
+              print(patches[0][1])
+          " || echo "")
+          if [ -n "$NEXT_PATCH" ]; then
+            NEXT_PATCH_IMG="${MCR_GO}:${NEXT_PATCH}"
+            DIGEST=$(skopeo inspect "docker://${NEXT_PATCH_IMG}" --format "{{.Digest}}")
+            echo "${NEXT_PATCH_IMG}@${DIGEST}" > .github/image-digests/go-next-patch-debian.txt
+            echo "Resolved next minor Debian patch: ${NEXT_PATCH} → ${DIGEST}"
+          fi
 
           # Azure Linux base images
           MARINER_CORE_IMG="mcr.microsoft.com/azurelinux/base/core:3.0"
           echo "${MARINER_CORE_IMG}@$(skopeo inspect "docker://${MARINER_CORE_IMG}" --format "{{.Digest}}")" \
-            > .github/image-digests/mariner-core.txt 2>/dev/null || true
+            > .github/image-digests/mariner-core.txt
           MARINER_DISTROLESS_IMG="mcr.microsoft.com/azurelinux/distroless/base:3.0"
           echo "${MARINER_DISTROLESS_IMG}@$(skopeo inspect "docker://${MARINER_DISTROLESS_IMG}" --format "{{.Digest}}")" \
-            > .github/image-digests/mariner-distroless.txt 2>/dev/null || true
+            > .github/image-digests/mariner-distroless.txt
 
           # Windows host process base image
           WIN_HPC_IMG="mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0"
           echo "${WIN_HPC_IMG}@$(skopeo inspect --override-os windows "docker://${WIN_HPC_IMG}" --format "{{.Digest}}")" \
-            > .github/image-digests/windows-hpc.txt 2>/dev/null || true
+            > .github/image-digests/windows-hpc.txt
 
           echo "--- Pre-resolved digests ---"
           for f in .github/image-digests/*.txt; do
             echo "$f: $(cat "$f")"
           done
+
+      - name: Verify setup completeness
+        run: |
+          set -euo pipefail
+          ERRORS=0
+
+          echo "=== Setup Verification ==="
+
+          # 1. Current Go is functional
+          echo "Current Go: $(go version)"
+
+          # 2. renderkit is available
+          if ! command -v renderkit > /dev/null 2>&1; then
+            echo "::error::renderkit not installed"
+            ERRORS=$((ERRORS + 1))
+          else
+            echo "✓ renderkit available"
+          fi
+
+          # 3. skopeo is available
+          if ! command -v skopeo > /dev/null 2>&1; then
+            echo "::error::skopeo not installed"
+            ERRORS=$((ERRORS + 1))
+          else
+            echo "✓ skopeo available"
+          fi
+
+          # 4. Module cache is populated — verify offline for every module
+          MOD_ERRORS=0
+          while IFS= read -r -d '' modfile; do
+            moddir=$(dirname "$modfile")
+            if ! (cd "$moddir" && GOPROXY=off GONOSUMDB='*' GOFLAGS=-mod=readonly go build -n ./... 2>/dev/null); then
+              echo "::warning::Offline build check failed for $moddir"
+              MOD_ERRORS=$((MOD_ERRORS + 1))
+            fi
+          done < <(find . -name go.mod -not -path '*/vendor/*' -print0)
+          if [ "$MOD_ERRORS" -eq 0 ]; then
+            echo "✓ All modules can build offline"
+          else
+            echo "::warning::$MOD_ERRORS module(s) failed offline build check"
+          fi
+
+          # 5. MS Go docs are present
+          DOC_COUNT=$(find .github/ms-go-docs -name '*.md' -size +100c 2>/dev/null | wc -l)
+          if [ "$DOC_COUNT" -lt 3 ]; then
+            echo "::error::Only $DOC_COUNT MS Go docs cached (expected ≥3)"
+            ERRORS=$((ERRORS + 1))
+          else
+            echo "✓ $DOC_COUNT MS Go docs cached"
+          fi
+
+          # 6. Current image digests exist
+          if [ ! -s .github/image-digests/go-image.txt ]; then
+            echo "::error::Current Go image digest not resolved"
+            ERRORS=$((ERRORS + 1))
+          else
+            echo "✓ Current Go digest: $(cat .github/image-digests/go-image.txt)"
+          fi
+
+          # 7. Target Go version (if available)
+          if [ "${TARGET_GO_AVAILABLE:-false}" = "true" ]; then
+            if [ -x "${TARGET_GOROOT}/bin/go" ]; then
+              echo "✓ Target Go: $("${TARGET_GOROOT}/bin/go" version)"
+            else
+              echo "::error::TARGET_GO_AVAILABLE=true but binary not found at ${TARGET_GOROOT}"
+              ERRORS=$((ERRORS + 1))
+            fi
+
+            if [ ! -s .github/image-digests/go-next-minor.txt ]; then
+              echo "::error::Next minor Go image digest not resolved"
+              ERRORS=$((ERRORS + 1))
+            else
+              echo "✓ Next minor digests:"
+              cat .github/image-digests/go-next-minor.txt
+            fi
+          else
+            echo "○ No next Go minor available — patch/digest mode only"
+          fi
+
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "::error::Setup verification failed with $ERRORS error(s)"
+            exit 1
+          fi
+          echo "=== All checks passed ==="
 
 
