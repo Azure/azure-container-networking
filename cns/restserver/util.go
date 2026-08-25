@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -142,7 +143,10 @@ func (service *HTTPRestService) restoreState() {
 	}
 }
 
-func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetworkContainerRequest) (types.ResponseCode, string) { //nolint // legacy
+func (service *HTTPRestService) saveNetworkContainerGoalState(
+	req cns.CreateNetworkContainerRequest,
+	validateVersion bool,
+) (types.ResponseCode, string) { //nolint // legacy
 	// we don't want to overwrite what other calls may have written
 	service.Lock()
 	defer service.Unlock()
@@ -162,6 +166,12 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 		hostVersion = existingNCStatus.HostVersion
 		existingSecondaryIPConfigs = existingNCStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
 		vfpUpdateComplete = existingNCStatus.VfpUpdateComplete
+
+		if validateVersion {
+			if returnCode, message := validateNCGoalVersion(existingNCStatus.CreateNetworkContainerRequest, req); returnCode != types.Success {
+				return returnCode, message
+			}
+		}
 	}
 
 	if req.NetworkContainerid == nodesubnet.NodeSubnetNCID {
@@ -252,6 +262,75 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 
 	service.saveState()
 	return 0, ""
+}
+
+func validateNCGoalVersion(existing, incoming cns.CreateNetworkContainerRequest) (types.ResponseCode, string) {
+	existingVersion, err := strconv.Atoi(existing.Version)
+	if err != nil {
+		return types.UnsupportedNCVersion, fmt.Sprintf(
+			"invalid committed nc version %q for nc %s: %v",
+			existing.Version,
+			incoming.NetworkContainerid,
+			err,
+		)
+	}
+
+	incomingVersion, err := strconv.Atoi(incoming.Version)
+	if err != nil {
+		return types.UnsupportedNCVersion, fmt.Sprintf(
+			"invalid incoming nc version %q for nc %s: %v",
+			incoming.Version,
+			incoming.NetworkContainerid,
+			err,
+		)
+	}
+
+	switch {
+	case incomingVersion < existingVersion:
+		return types.UnsupportedNCVersion, fmt.Sprintf(
+			"nc %s version regressed from %d to %d",
+			incoming.NetworkContainerid,
+			existingVersion,
+			incomingVersion,
+		)
+	case incomingVersion == existingVersion && !equalNNCNetworkProgrammingGoal(existing, incoming):
+		return types.InconsistentIPConfigState, fmt.Sprintf(
+			"nc %s goal changed without version advance at version %d",
+			incoming.NetworkContainerid,
+			incomingVersion,
+		)
+	default:
+		return types.Success, ""
+	}
+}
+
+func equalNNCNetworkProgrammingGoal(existing, incoming cns.CreateNetworkContainerRequest) bool {
+	if existing.NetworkContainerid != incoming.NetworkContainerid ||
+		existing.NetworkContainerType != incoming.NetworkContainerType ||
+		existing.HostPrimaryIP != incoming.HostPrimaryIP ||
+		existing.NCStatus != incoming.NCStatus ||
+		existing.NetworkInterfaceInfo != incoming.NetworkInterfaceInfo ||
+		!equalIPConfiguration(existing.IPConfiguration, incoming.IPConfiguration) ||
+		len(existing.SecondaryIPConfigs) != len(incoming.SecondaryIPConfigs) {
+		return false
+	}
+
+	for ipID, existingConfig := range existing.SecondaryIPConfigs {
+		incomingConfig, ok := incoming.SecondaryIPConfigs[ipID]
+		if !ok || existingConfig.IPAddress != incomingConfig.IPAddress {
+			return false
+		}
+	}
+
+	return true
+}
+
+func equalIPConfiguration(existing, incoming cns.IPConfiguration) bool {
+	return existing.IPSubnet == incoming.IPSubnet &&
+		existing.IPSubnetV6 == incoming.IPSubnetV6 &&
+		slices.Equal(existing.DNSServers, incoming.DNSServers) &&
+		existing.GatewayIPAddress == incoming.GatewayIPAddress &&
+		existing.GatewayIPv6Address == incoming.GatewayIPv6Address
 }
 
 // This func will compute the deltaIpConfigState which needs to be updated (Added or Deleted) from the inmemory map
@@ -1006,7 +1085,7 @@ func (service *HTTPRestService) createNetworkContainers(createNetworkContainerRe
 			}
 		}
 		// Save NC Goal State details
-		saveNcReturnCode, saveNcReturnMessage := service.saveNetworkContainerGoalState(createNcReq)
+		saveNcReturnCode, saveNcReturnMessage := service.saveNetworkContainerGoalState(createNcReq, false)
 		// If NC was created successfully, log NC snapshot.
 		if saveNcReturnCode != types.Success {
 			return cns.Response{
