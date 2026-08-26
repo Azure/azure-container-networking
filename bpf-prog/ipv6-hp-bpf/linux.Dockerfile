@@ -1,7 +1,7 @@
 ARG ARCH
 # IMG=mcr.microsoft.com/oss/go/microsoft/golang:1.26.7
 # echo "${IMG}@$(skopeo inspect docker://${IMG} --format '{{.Digest}}')"
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.26.7@sha256:e72f02c6b8e974e3506e2cb50059a19ad5a7e564523ccda2747d31aabdcdd6e7 AS go
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.26.7@sha256:be14ce4ce048adf5584ce3a0919d21987284e2235b6e7e9bb0e6a01133870be9 AS go
 ARG VERSION
 ARG DEBUG
 ARG OS
