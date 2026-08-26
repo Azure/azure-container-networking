@@ -26,3 +26,8 @@ kubectl() {
 }
 
 [[ "$(node_ready_status "unavailable-node")" == "LookupFailed" ]]
+
+if restart_node "unavailable-node"; then
+    echo "expected restart of a non-Ready node to fail" >&2
+    exit 1
+fi

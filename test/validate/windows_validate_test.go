@@ -4,6 +4,8 @@ import (
 	"testing"
 )
 
+const testMACAddress = "00-11-22-33-44-55"
+
 func TestHNSStateFileIPs(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -23,20 +25,20 @@ func TestHNSStateFileIPs(t *testing.T) {
 		},
 		{
 			name:   "single endpoint",
-			result: `{"MacAddress":"00-11-22-33-44-55","IPAddress":"10.0.0.4","IPv6Address":"fd00::4"}`,
+			result: `{"MacAddress":"` + testMACAddress + `","IPAddress":"10.0.0.4","IPv6Address":"fd00::4"}`,
 			wantIPs: map[string]string{
-				"10.0.0.4": "00-11-22-33-44-55",
-				"fd00::4":  "00-11-22-33-44-55",
+				"10.0.0.4": testMACAddress,
+				"fd00::4":  testMACAddress,
 			},
 		},
 		{
 			name: "endpoint list excludes remote endpoints",
 			result: `[
-				{"MacAddress":"00-11-22-33-44-55","IPAddress":"10.0.0.4"},
+				{"MacAddress":"` + testMACAddress + `","IPAddress":"10.0.0.4"},
 				{"MacAddress":"00-11-22-33-44-66","IPAddress":"10.0.0.5","IsRemoteEndpoint":true}
 			]`,
 			wantIPs: map[string]string{
-				"10.0.0.4": "00-11-22-33-44-55",
+				"10.0.0.4": testMACAddress,
 			},
 		},
 		{

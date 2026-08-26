@@ -52,6 +52,13 @@ restart_node() {
     local resource_group=""
     local vmss=""
     local instance=""
+    local status
+
+    status=$(node_ready_status "$node")
+    if [[ "$status" != "True" ]]; then
+        echo "node $node must be Ready before restart, got $status" >&2
+        return 1
+    fi
 
     provider_id=$(kubectl get node "$node" -o jsonpath='{.spec.providerID}')
     if ! parse_provider_id "$provider_id" resource_group vmss instance; then
