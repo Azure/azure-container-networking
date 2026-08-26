@@ -137,3 +137,41 @@ func TestRunValidationAttemptsRejectsInvalidAttemptCount(t *testing.T) {
 	require.Zero(t, attempts)
 	require.False(t, converged)
 }
+
+func TestShouldRestartKubeProxy(t *testing.T) {
+	require.True(t, shouldRestartKubeProxy(false))
+	require.False(t, shouldRestartKubeProxy(true))
+}
+
+func TestCanSkipEmptyRestartState(t *testing.T) {
+	tests := []struct {
+		name        string
+		os          string
+		restartCase bool
+		want        bool
+	}{
+		{
+			name:        "linux restart",
+			os:          "linux",
+			restartCase: true,
+			want:        true,
+		},
+		{
+			name:        "windows restart",
+			os:          "windows",
+			restartCase: true,
+			want:        false,
+		},
+		{
+			name: "non-restart validation",
+			os:   "linux",
+			want: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.want, canSkipEmptyRestartState(test.os, test.restartCase))
+		})
+	}
+}

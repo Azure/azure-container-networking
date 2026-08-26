@@ -70,7 +70,11 @@ steps:
   
   - bash: |
       set -o pipefail
-      kubectl describe nnc -A 2>&1 | tee "$(acnLogs)/node-network-configs.txt"
+      if kubectl get crd nodenetworkconfigs.acn.azure.com >/dev/null 2>&1; then
+        kubectl describe nnc -A 2>&1 | tee "$(acnLogs)/node-network-configs.txt"
+      else
+        echo "NNC CRD is not installed; skipping collection" | tee "$(acnLogs)/node-network-configs.txt"
+      fi
     displayName: Describe Node Network Configs (NNCs)
     condition: and(always(), ne('${{ parameters.cni }}', 'cniv1')) # cniv1/nodesubnet scenarios do not have node network configs
     continueOnError: true # even if nnc doesn't exist we want to continue
