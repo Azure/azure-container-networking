@@ -585,6 +585,8 @@ type IPConfigResponse struct {
 type IPConfigsResponse struct {
 	PodIPInfo []PodIpInfo `json:"podIPInfo"`
 	Response  Response    `json:"response"`
+	// DefaultRouteExternallyManaged indicates that a component outside CNI owns the pod's default route.
+	DefaultRouteExternallyManaged bool `json:"defaultRouteExternallyManaged,omitempty"`
 }
 
 // ClaimResourceInfoRequest is the request for the RequestClaimResourceInfo API. ClaimUID identifies
