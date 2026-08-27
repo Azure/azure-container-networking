@@ -372,14 +372,15 @@ func validateUniqueIPAddresses(
 	toBeDeletedIPConfigs map[string]cns.SecondaryIPConfig,
 	incomingIPConfigs map[string]cns.SecondaryIPConfig,
 	incomingNCID string,
-) (types.ResponseCode, string) {
+) (responseCode types.ResponseCode, message string) {
 	identitiesByAddress := make(map[netip.Addr]ipConfigIdentity, len(currentIPConfigs)+len(incomingIPConfigs))
 	currentAddressesByID := make(map[string]netip.Addr, len(currentIPConfigs))
 
-	for ipID, currentIPConfig := range currentIPConfigs {
+	for ipID := range currentIPConfigs {
 		if _, deleting := toBeDeletedIPConfigs[ipID]; deleting {
 			continue
 		}
+		currentIPConfig := currentIPConfigs[ipID]
 
 		address, err := netip.ParseAddr(currentIPConfig.IPAddress)
 		if err != nil {
@@ -441,7 +442,7 @@ func duplicateIPAddressError(
 	address netip.Addr,
 	existing,
 	incoming ipConfigIdentity,
-) (types.ResponseCode, string) {
+) (responseCode types.ResponseCode, message string) {
 	return types.InconsistentIPConfigState, fmt.Sprintf(
 		"duplicate IP %s for IP IDs %s in nc %s and %s in nc %s",
 		address,
