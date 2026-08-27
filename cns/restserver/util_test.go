@@ -271,7 +271,7 @@ func TestSaveNetworkContainerGoalStateAssignedDeletionDoesNotCorruptBaseline(t *
 	stale := cloneCreateNetworkContainerRequest(committed)
 	stale.Version = "6376"
 	stale.SecondaryIPConfigs = map[string]cns.SecondaryIPConfig{
-		"stale-ip-id": {IPAddress: "10.0.0.6", NCVersion: 6376},
+		"stale-ip-id": {IPAddress: versionValidationSecondaryIP, NCVersion: 6376},
 	}
 
 	for range 2 {
@@ -296,7 +296,7 @@ func TestSaveNetworkContainerGoalStateInvalidHostVersionDoesNotPartiallyDelete(t
 	incoming := cloneCreateNetworkContainerRequest(committed)
 	incoming.Version = "3"
 	incoming.SecondaryIPConfigs = map[string]cns.SecondaryIPConfig{
-		"replacement-id": {IPAddress: "10.0.0.7", NCVersion: 3},
+		"replacement-id": {IPAddress: versionValidationChangedSecondaryIP, NCVersion: 3},
 	}
 
 	returnCode, message := svc.saveNetworkContainerGoalState(incoming, true)
@@ -320,7 +320,7 @@ func TestSaveNetworkContainerGoalStateStoreFailureDoesNotCommit(t *testing.T) {
 	incoming := cloneCreateNetworkContainerRequest(committed)
 	incoming.Version = "3"
 	incoming.SecondaryIPConfigs["new-ip-id"] = cns.SecondaryIPConfig{
-		IPAddress: "10.0.0.7",
+		IPAddress: versionValidationChangedSecondaryIP,
 		NCVersion: 3,
 	}
 

@@ -84,6 +84,7 @@ func (service *HTTPRestService) removeNetworkInfo(networkName string) {
 func (service *HTTPRestService) saveState() error {
 	err := service.writeState(service.state)
 	if err != nil {
+		//nolint:staticcheck // TODO: migrate ignored saveState callers to logger/v2.
 		logger.Errorf("[Azure CNS] Failed to save state, err: %v", err)
 	}
 
@@ -99,7 +100,10 @@ func (service *HTTPRestService) writeState(state *httpRestServiceState) error {
 
 	// Update time stamp.
 	state.TimeStamp = time.Now()
-	return service.store.Write(storeKey, state)
+	if err := service.store.Write(storeKey, state); err != nil {
+		return fmt.Errorf("writing state: %w", err)
+	}
+	return nil
 }
 
 // restoreState restores CNS state from persistent store.
@@ -229,11 +233,11 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(
 				return returnCode, message
 			}
 		default:
-			return types.UnsupportedOrchestratorType, fmt.Sprintf("unsupported orchestrator type %s", service.state.OrchestratorType)
+			return types.UnsupportedOrchestratorType, "unsupported orchestrator type " + string(service.state.OrchestratorType)
 		}
 
 	default:
-		return types.UnsupportedNetworkContainerType, fmt.Sprintf("unsupported network container type %s", req.NetworkContainerType)
+		return types.UnsupportedNetworkContainerType, "unsupported network container type " + string(req.NetworkContainerType)
 	}
 
 	createNetworkContainerRequest := copyCreateNetworkContainerRequest(req, existingSecondaryIPConfigs)
@@ -271,6 +275,7 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(
 		service.applyIPConfigsUpdatePlan(createNetworkContainerRequest, ipPlan)
 	}
 	if updateOrchestratorLookup {
+		//nolint:staticcheck // TODO: migrate to logger/v2.
 		logger.Printf(
 			"service.state.ContainerIDByOrchestratorContext[%s] is %+v",
 			orchestratorContext,
@@ -494,8 +499,8 @@ func copyHTTPRestServiceState(state *httpRestServiceState) *httpRestServiceState
 	copied := *state
 	if state.ContainerStatus != nil {
 		copied.ContainerStatus = make(map[string]containerstatus, len(state.ContainerStatus))
-		for ncID, status := range state.ContainerStatus {
-			copied.ContainerStatus[ncID] = status
+		for ncID := range state.ContainerStatus {
+			copied.ContainerStatus[ncID] = state.ContainerStatus[ncID]
 		}
 	}
 	if state.ContainerIDByOrchestratorContext != nil {
@@ -561,6 +566,7 @@ func (service *HTTPRestService) applyIPConfigsUpdatePlan(
 	plan ipConfigsUpdatePlan,
 ) {
 	for ipID := range plan.toBeDeletedIPConfigs {
+		//nolint:staticcheck // TODO: migrate to logger/v2.
 		logger.Printf(
 			"[Azure-Cns] Delete the PodIpConfigState, IpId: %s, IPConfigStatus: %v",
 			ipID,
