@@ -37,7 +37,11 @@ type windowsService struct {
 }
 
 // Execute is called by the Windows service manager and implements the service control loop
-func (ws *windowsService) Execute(_ []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (bool, uint32) {
+func (ws *windowsService) Execute(
+	_ []string,
+	r <-chan svc.ChangeRequest,
+	changes chan<- svc.Status,
+) (serviceSpecificExitCode bool, errno uint32) {
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
 
 	changes <- svc.Status{State: svc.StartPending}
@@ -108,7 +112,7 @@ func runAsService() error {
 	}
 	defer elog.Close()
 
-	_ = elog.Info(1, fmt.Sprintf("Starting %s service", serviceName)) //nolint:errcheck // Event log writes are best-effort.
+	_ = elog.Info(1, "Starting "+serviceName+" service") //nolint:errcheck // Event log writes are best-effort.
 
 	ws := &windowsService{
 		runService: func() {
@@ -123,7 +127,7 @@ func runAsService() error {
 		return fmt.Errorf("failed to run service: %w", err)
 	}
 
-	_ = elog.Info(1, fmt.Sprintf("%s service stopped", serviceName)) //nolint:errcheck // Event log writes are best-effort.
+	_ = elog.Info(1, serviceName+" service stopped") //nolint:errcheck // Event log writes are best-effort.
 	return nil
 }
 
