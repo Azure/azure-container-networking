@@ -17,6 +17,7 @@ For task-specific guidance, use the appropriate skill:
 | `acn-go-http-api-contracts` | HTTP API contracts and handlers |
 | `acn-go-platform-abstraction` | Platform-specific abstractions |
 | `acn-go-control-plane-contracts` | Control plane contracts |
+| `acn-faa-fix-from-issue` | Implementing a fix for an issue raised by the Failure Analysis Agent (`faa-generated`) |
 
 ## General Guidelines
 

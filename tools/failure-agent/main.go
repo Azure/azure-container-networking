@@ -25,6 +25,7 @@ import (
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/classify"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/collect"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/command"
+	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/escalate"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/fingerprint"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/live"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/model"
@@ -113,7 +114,7 @@ func main() {
 	lc := buildCollector(logger, opts)
 	pc := buildPrivilegedCollector(logger, opts)
 
-	if err := run(ctx, logger, opts, buildClassifier(opts), ks, lc, pc); err != nil {
+	if err := run(ctx, logger, opts, buildClassifier(opts), buildEscalator(opts), ks, lc, pc); err != nil {
 		logger.Error("failure analysis failed", zap.Error(err))
 		os.Exit(1)
 	}
@@ -154,7 +155,7 @@ func parseFlags() options {
 // priorContextLimit caps how many prior incidents of each kind are injected.
 const priorContextLimit = 3
 
-func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, ks knowledgeStore, lc liveCollector, pc liveCollector) error {
+func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, esc escalator, ks knowledgeStore, lc liveCollector, pc liveCollector) error {
 	if opts.input == "" {
 		return errors.New("--input is required")
 	}
@@ -260,9 +261,20 @@ func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, k
 	if classifyErr != nil {
 		inc.AnalysisError = classifyErr.Error()
 	}
+
+	// The escalation gate runs between Build and WriteFiles so it sees exactly
+	// the report.md a human would, and so its ruling lands in both artifacts in a
+	// single write rather than a second, racy pass over them.
+	inc.Escalation = decideEscalation(ctx, logger, opts.timeout, esc, rc, inc)
+
 	if err := report.WriteFiles(opts.output, inc); err != nil {
 		return err
 	}
+
+	// issue.md is an artifact, not a write-back, so it is emitted regardless of
+	// --dry-run. It only reaches GitHub when the independent issue workflow pulls
+	// this build's artifacts.
+	writeIssueArtifact(logger, opts.output, inc)
 
 	recordIncident(ctx, logger, ks, inc, status)
 
@@ -284,6 +296,65 @@ func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, k
 		}
 	}
 	return nil
+}
+
+// decideEscalation asks the AI gate whether this incident warrants a GitHub
+// issue. It never fails the run: a gate error is recorded on the incident as
+// EscalationError so a broken gate stays distinguishable from a declined
+// escalation, and report.md / incident.json still land either way.
+func decideEscalation(ctx context.Context, logger *zap.Logger, timeout time.Duration, esc escalator, rc model.RunContext, inc model.Incident) *model.Escalation {
+	consider, skipReason := escalate.ShouldConsider(rc, inc)
+	if !consider {
+		logger.Info("escalation gate skipped",
+			zap.String("event", "escalation_skipped"),
+			zap.String("fingerprint", inc.Fingerprint),
+			zap.String("reason", skipReason),
+		)
+		return &model.Escalation{Reason: skipReason, Source: model.EscalationSkipped}
+	}
+
+	gateCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	decision, err := esc.Decide(gateCtx, rc, inc, report.RenderMarkdown(inc))
+	if err != nil {
+		logger.Warn("escalation gate failed",
+			zap.String("event", "escalation_failed"),
+			zap.String("fingerprint", inc.Fingerprint),
+			zap.Error(err),
+		)
+		return &model.Escalation{Reason: err.Error(), Source: model.EscalationError}
+	}
+
+	logger.Info("escalation decided",
+		zap.String("event", "escalation_decided"),
+		zap.String("fingerprint", inc.Fingerprint),
+		zap.Bool("needed", decision.Needed),
+		zap.String("source", string(decision.Source)),
+		zap.String("reason", decision.Reason),
+		zap.Strings("labels", decision.Labels),
+	)
+	return &decision
+}
+
+// writeIssueArtifact emits issue.md when the gate asked for an issue. A failure
+// to write it is logged but never fails the run: the report and incident
+// artifacts are already on disk.
+func writeIssueArtifact(logger *zap.Logger, outputDir string, inc model.Incident) {
+	if inc.Escalation == nil || !inc.Escalation.Needed {
+		return
+	}
+	path, err := escalate.WriteFile(outputDir, inc, *inc.Escalation)
+	if err != nil {
+		logger.Warn("failed to write issue artifact", zap.Error(err))
+		return
+	}
+	logger.Info("issue artifact written",
+		zap.String("event", "issue_artifact_written"),
+		zap.String("fingerprint", inc.Fingerprint),
+		zap.String("title", escalate.Title(inc, *inc.Escalation)),
+		zap.String("path", path),
+	)
 }
 
 // handleDuplicate is taken when an unresolved incident with the same fingerprint
@@ -371,6 +442,12 @@ func recordIncident(ctx context.Context, logger *zap.Logger, ks knowledgeStore, 
 // Azure OpenAI-backed implementation; tests inject a fake.
 type classifier interface {
 	Classify(ctx context.Context, rc model.RunContext, ev model.Evidence, fp model.Fingerprint, matches []model.SignatureMatch, prior classify.PriorContext) (model.Classification, error)
+}
+
+// escalator decides whether an incident warrants a GitHub issue for a code fix.
+// main wires the Azure OpenAI-backed gate; tests inject a fake.
+type escalator interface {
+	Decide(ctx context.Context, rc model.RunContext, inc model.Incident, reportMD string) (model.Escalation, error)
 }
 
 // knowledgeStore is the subset of the SQL knowledge base that run depends on. A
@@ -495,6 +572,29 @@ func buildClassifier(opts options) classifier {
 		return errorClassifier{err: err}
 	}
 	return classify.NewLLMClassifier(client)
+}
+
+// unavailableEscalator stands in when Azure OpenAI is not configured. It reports
+// the gate as skipped rather than as an error: without a model there was never a
+// decision to make, and the run has already emitted an analysis_failed incident
+// carrying the same configuration problem.
+type unavailableEscalator struct{ err error }
+
+func (u unavailableEscalator) Decide(context.Context, model.RunContext, model.Incident, string) (model.Escalation, error) {
+	return model.Escalation{
+		Reason: "Escalation gate unavailable: " + u.err.Error(),
+		Source: model.EscalationSkipped,
+	}, nil
+}
+
+// buildEscalator returns the LLM escalation gate, reusing the same Azure OpenAI
+// client as classification so no additional flags or secrets are needed.
+func buildEscalator(opts options) escalator {
+	client, err := buildCompleter(opts)
+	if err != nil {
+		return unavailableEscalator{err: err}
+	}
+	return escalate.NewGate(client)
 }
 
 // buildCompleter constructs the Azure OpenAI ChatCompleter shared by the per-run

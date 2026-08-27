@@ -17,6 +17,13 @@
 # summary comment to the PR (unless --dry-run is passed, which only suppresses
 # PR write-back).
 #
+# On non-PR builds the agent also runs an AI escalation gate over the finished
+# analysis. When the gate judges the failure to need a code change in this repo,
+# the agent writes issue.md, which this job publishes alongside report.md. The
+# artifact is only that — nothing is dispatched from Azure DevOps, which cannot
+# obtain a GitHub token. The .github/workflows/faa-github-issue.yaml workflow is
+# run separately to pull it and raise the issue.
+#
 # The agent is advisory about cluster retention: it writes a `retentionDecision`
 # field to incident.json. This job surfaces that as the `retentionDecision`
 # output variable so a downstream teardown/sweeper job can keep the cluster
@@ -272,6 +279,10 @@ jobs:
             echo "##vso[task.uploadsummary]$REPORT"
             cp "$REPORT" "$OUT_DIR/report.md"
             cp "$(Agent.TempDirectory)/analysis/incident.json" "$OUT_DIR/incident.json" 2>/dev/null || true
+            # issue.md is written only when the escalation gate judged the failure
+            # to need a code fix. Ship it when present so the independent GitHub
+            # workflow can pull it and raise an issue; nothing is dispatched here.
+            cp "$(Agent.TempDirectory)/analysis/issue.md" "$OUT_DIR/issue.md" 2>/dev/null || true
           fi
         displayName: "Publish analysis summary"
         condition: succeededOrFailed()
