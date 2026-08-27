@@ -146,7 +146,7 @@ func (service *HTTPRestService) restoreState() {
 func (service *HTTPRestService) saveNetworkContainerGoalState(
 	req cns.CreateNetworkContainerRequest,
 	validateVersion bool,
-) (types.ResponseCode, string) { //nolint // legacy
+) (responseCode types.ResponseCode, message string) {
 	// we don't want to overwrite what other calls may have written
 	service.Lock()
 	defer service.Unlock()
@@ -264,7 +264,10 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(
 	return 0, ""
 }
 
-func validateNCGoalVersion(existing, incoming cns.CreateNetworkContainerRequest) (types.ResponseCode, string) {
+func validateNCGoalVersion(
+	existing,
+	incoming cns.CreateNetworkContainerRequest,
+) (responseCode types.ResponseCode, message string) {
 	existingVersion, err := strconv.Atoi(existing.Version)
 	if err != nil {
 		return types.UnsupportedNCVersion, fmt.Sprintf(

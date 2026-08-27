@@ -215,8 +215,6 @@ func TestReconcile(t *testing.T) {
 }
 
 func TestReconcileStaticNCDoesNotValidateVersion(t *testing.T) {
-	logger.InitLogger("", 0, 0, "")
-
 	staticNC := validSwiftNC
 	staticNC.AssignmentMode = v1alpha.Static
 	staticNC.PrimaryIP = "10.0.0.1/32"

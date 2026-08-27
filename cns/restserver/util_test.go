@@ -1,7 +1,7 @@
 package restserver
 
 import (
-	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -14,10 +14,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const versionValidationNCID = "version-validation-nc"
+const (
+	versionValidationNCID               = "version-validation-nc"
+	versionValidationSecondaryIP        = "10.0.0.6"
+	versionValidationChangedSecondaryIP = "10.0.0.7"
+	versionValidationDNSServer          = "10.0.0.10"
+	versionValidationMACAddress         = "00:11:22:33:44:55"
+	versionValidationInitialVersion     = 2
+)
 
 func TestSaveNetworkContainerGoalStateRejectsVersionRegression(t *testing.T) {
-	svc, committed := newVersionValidationService(t, 2)
+	svc, committed := newVersionValidationService(t)
 	incoming := cloneCreateNetworkContainerRequest(committed)
 	incoming.Version = "1"
 	for ipID, config := range incoming.SecondaryIPConfigs {
@@ -33,7 +40,7 @@ func TestSaveNetworkContainerGoalStateRejectsVersionRegression(t *testing.T) {
 }
 
 func TestSaveNetworkContainerGoalStateAcceptsVersionAdvance(t *testing.T) {
-	svc, committed := newVersionValidationService(t, 2)
+	svc, committed := newVersionValidationService(t)
 	incoming := cloneCreateNetworkContainerRequest(committed)
 	incoming.Version = "3"
 	for ipID, config := range incoming.SecondaryIPConfigs {
@@ -49,7 +56,7 @@ func TestSaveNetworkContainerGoalStateAcceptsVersionAdvance(t *testing.T) {
 }
 
 func TestSaveNetworkContainerGoalStateAcceptsIdenticalVersionReplay(t *testing.T) {
-	svc, committed := newVersionValidationService(t, 2)
+	svc, committed := newVersionValidationService(t)
 
 	returnCode, message := svc.saveNetworkContainerGoalState(cloneCreateNetworkContainerRequest(committed), true)
 
@@ -121,7 +128,7 @@ func TestSaveNetworkContainerGoalStateRejectsEqualVersionGoalDrift(t *testing.T)
 			name: "secondary IP address",
 			mutate: func(req *cns.CreateNetworkContainerRequest) {
 				config := req.SecondaryIPConfigs["ip-id-1"]
-				config.IPAddress = "10.0.0.7"
+				config.IPAddress = versionValidationChangedSecondaryIP
 				req.SecondaryIPConfigs["ip-id-1"] = config
 			},
 		},
@@ -137,7 +144,7 @@ func TestSaveNetworkContainerGoalStateRejectsEqualVersionGoalDrift(t *testing.T)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc, committed := newVersionValidationService(t, 2)
+			svc, committed := newVersionValidationService(t)
 			incoming := cloneCreateNetworkContainerRequest(committed)
 			tt.mutate(&incoming)
 			before := cloneCreateNetworkContainerRequest(svc.state.ContainerStatus[versionValidationNCID].CreateNetworkContainerRequest)
@@ -154,7 +161,7 @@ func TestSaveNetworkContainerGoalStateRejectsEqualVersionGoalDrift(t *testing.T)
 	}
 }
 
-func newVersionValidationService(t *testing.T, version int) (*HTTPRestService, cns.CreateNetworkContainerRequest) {
+func newVersionValidationService(t *testing.T) (*HTTPRestService, cns.CreateNetworkContainerRequest) {
 	t.Helper()
 
 	svc := &HTTPRestService{
@@ -172,29 +179,29 @@ func newVersionValidationService(t *testing.T, version int) (*HTTPRestService, c
 		NetworkContainerid:   versionValidationNCID,
 		IPConfiguration: cns.IPConfiguration{
 			IPSubnet: cns.IPSubnet{
-				IPAddress:    "10.0.0.5",
+				IPAddress:    primaryIP,
 				PrefixLength: 24,
 			},
 			IPSubnetV6: cns.IPSubnet{
 				IPAddress:    "fd00::5",
 				PrefixLength: 64,
 			},
-			DNSServers:         []string{"10.0.0.10"},
+			DNSServers:         []string{versionValidationDNSServer},
 			GatewayIPAddress:   "10.0.0.1",
 			GatewayIPv6Address: "fd00::1",
 		},
 		SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
 			"ip-id-1": {
-				IPAddress: "10.0.0.6",
-				NCVersion: version,
+				IPAddress: versionValidationSecondaryIP,
+				NCVersion: versionValidationInitialVersion,
 			},
 		},
 		NCStatus: v1alpha.NCStatus("ready"),
 		NetworkInterfaceInfo: cns.NetworkInterfaceInfo{
-			MACAddress: "00:11:22:33:44:55",
+			MACAddress: versionValidationMACAddress,
 		},
 	}
-	req.Version = fmt.Sprint(version)
+	req.Version = strconv.Itoa(versionValidationInitialVersion)
 
 	returnCode, message := svc.saveNetworkContainerGoalState(req, true)
 	require.Equal(t, types.Success, returnCode)
