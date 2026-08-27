@@ -7,25 +7,26 @@
 package main
 
 import (
-	"fmt"
+	"errors"
+
+	acn "github.com/Azure/azure-container-networking/common"
 )
 
-// installService is not supported on non-Windows platforms
-func installService() error {
-	return fmt.Errorf("service installation is only supported on Windows")
-}
+var (
+	errServiceInstallationUnsupported   = errors.New("service installation is only supported on Windows")
+	errServiceUninstallationUnsupported = errors.New("service uninstallation is only supported on Windows")
+	errServiceRunUnsupported            = errors.New("running as a service is only supported on Windows")
+)
 
-// uninstallService is not supported on non-Windows platforms
-func uninstallService() error {
-	return fmt.Errorf("service uninstallation is only supported on Windows")
-}
-
-// runAsService is not supported on non-Windows platforms
-func runAsService() error {
-	return fmt.Errorf("running as service is only supported on Windows")
-}
-
-// isWindowsService always returns false on non-Windows platforms
-func isWindowsService() (bool, error) {
-	return false, nil
+func handleServiceAction(action string) (bool, error) {
+	switch action {
+	case acn.OptServiceInstall:
+		return false, errServiceInstallationUnsupported
+	case acn.OptServiceUninstall:
+		return false, errServiceUninstallationUnsupported
+	case acn.OptServiceRun:
+		return false, errServiceRunUnsupported
+	default:
+		return false, nil
+	}
 }

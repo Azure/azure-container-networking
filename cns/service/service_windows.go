@@ -7,11 +7,13 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
+	acn "github.com/Azure/azure-container-networking/common"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/eventlog"
 	"golang.org/x/sys/windows/svc/mgr"
@@ -23,13 +25,19 @@ const (
 	serviceDescription = "Provides container networking services for Azure"
 )
 
+var (
+	errServiceAlreadyExists = errors.New("service already exists")
+	errServiceStopRequested = errors.New("service stop requested")
+	errServiceStopTimeout   = errors.New("timeout waiting for service to stop")
+)
+
 // windowsService implements the svc.Handler interface for Windows service control
 type windowsService struct {
 	runService func()
 }
 
 // Execute is called by the Windows service manager and implements the service control loop
-func (ws *windowsService) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (ssec bool, errno uint32) {
+func (ws *windowsService) Execute(_ []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (bool, uint32) {
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
 
 	changes <- svc.Status{State: svc.StartPending}
@@ -39,35 +47,60 @@ func (ws *windowsService) Execute(args []string, r <-chan svc.ChangeRequest, cha
 
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 
-	// Service control loop
-loop:
-	for {
-		select {
-		case c := <-r:
-			switch c.Cmd {
-			case svc.Interrogate:
-				changes <- c.CurrentStatus
-			case svc.Stop, svc.Shutdown:
-				changes <- svc.Status{State: svc.StopPending}
-				// Cancel the root context to signal shutdown
-				if rootCtx != nil {
-					// Send shutdown signal through the error channel
-					select {
-					case rootErrCh <- fmt.Errorf("service stop requested"):
-					default:
-					}
-				}
-				break loop
+	for c := range r {
+		switch c.Cmd {
+		case svc.Interrogate:
+			changes <- c.CurrentStatus
+		case svc.Stop, svc.Shutdown:
+			changes <- svc.Status{State: svc.StopPending}
+			select {
+			case rootErrCh <- errServiceStopRequested:
 			default:
-				// Log unexpected control request
 			}
+			return false, 0
+		case svc.Pause,
+			svc.Continue,
+			svc.ParamChange,
+			svc.NetBindAdd,
+			svc.NetBindRemove,
+			svc.NetBindEnable,
+			svc.NetBindDisable,
+			svc.DeviceEvent,
+			svc.HardwareProfileChange,
+			svc.PowerEvent,
+			svc.SessionChange,
+			svc.PreShutdown:
+			// These controls are not accepted by this service.
+		default:
+			// Ignore commands added by newer Windows versions.
 		}
 	}
 
-	return
+	return false, 0
 }
 
-// runAsService runs the application as a Windows service
+func handleServiceAction(action string) (bool, error) {
+	switch action {
+	case acn.OptServiceInstall:
+		return true, installService()
+	case acn.OptServiceUninstall:
+		return true, uninstallService()
+	case acn.OptServiceRun:
+		return false, runAsService()
+	case "":
+		isService, err := isWindowsService()
+		if err != nil {
+			return false, fmt.Errorf("detecting service mode: %w", err)
+		}
+		if isService {
+			return false, runAsService()
+		}
+		return false, nil
+	default:
+		return false, nil
+	}
+}
+
 func runAsService() error {
 	elog, err := eventlog.Open(serviceName)
 	if err != nil {
@@ -75,7 +108,7 @@ func runAsService() error {
 	}
 	defer elog.Close()
 
-	elog.Info(1, fmt.Sprintf("Starting %s service", serviceName))
+	_ = elog.Info(1, fmt.Sprintf("Starting %s service", serviceName)) //nolint:errcheck // Event log writes are best-effort.
 
 	ws := &windowsService{
 		runService: func() {
@@ -86,11 +119,11 @@ func runAsService() error {
 
 	err = svc.Run(serviceName, ws)
 	if err != nil {
-		elog.Error(1, fmt.Sprintf("Service failed: %v", err))
+		_ = elog.Error(1, fmt.Sprintf("Service failed: %v", err)) //nolint:errcheck // Preserve the service run error.
 		return fmt.Errorf("failed to run service: %w", err)
 	}
 
-	elog.Info(1, fmt.Sprintf("%s service stopped", serviceName))
+	_ = elog.Info(1, fmt.Sprintf("%s service stopped", serviceName)) //nolint:errcheck // Event log writes are best-effort.
 	return nil
 }
 
@@ -105,12 +138,14 @@ func installService() error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to service manager: %w", err)
 	}
-	defer m.Disconnect()
+	defer func() {
+		_ = m.Disconnect() //nolint:errcheck // There is no recovery action for disconnect failure.
+	}()
 
 	s, err := m.OpenService(serviceName)
 	if err == nil {
 		s.Close()
-		return fmt.Errorf("service %s already exists", serviceName)
+		return fmt.Errorf("%w: %s", errServiceAlreadyExists, serviceName)
 	}
 
 	s, err = m.CreateService(serviceName, exepath, mgr.Config{
@@ -138,9 +173,8 @@ func installService() error {
 	// Set up event log
 	err = eventlog.InstallAsEventCreate(serviceName, eventlog.Error|eventlog.Warning|eventlog.Info)
 	if err != nil {
-		// Remove the service if we can't set up event log
-		s.Delete()
-		return fmt.Errorf("failed to setup event log: %w", err)
+		deleteErr := s.Delete()
+		return errors.Join(fmt.Errorf("failed to set up event log: %w", err), deleteErr)
 	}
 
 	fmt.Printf("Service %s installed successfully.\n", serviceName)
@@ -154,7 +188,9 @@ func uninstallService() error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to service manager: %w", err)
 	}
-	defer m.Disconnect()
+	defer func() {
+		_ = m.Disconnect() //nolint:errcheck // There is no recovery action for disconnect failure.
+	}()
 
 	s, err := m.OpenService(serviceName)
 	if err != nil {
@@ -178,7 +214,7 @@ func uninstallService() error {
 		timeout := time.Now().Add(10 * time.Second)
 		for status.State != svc.Stopped {
 			if time.Now().After(timeout) {
-				return fmt.Errorf("timeout waiting for service to stop")
+				return errServiceStopTimeout
 			}
 			time.Sleep(300 * time.Millisecond)
 			status, err = s.Query()
@@ -208,12 +244,20 @@ func uninstallService() error {
 func getExecutablePath() (string, error) {
 	exepath, err := os.Executable()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("getting executable path: %w", err)
 	}
-	return filepath.Abs(exepath)
+	exepath, err = filepath.Abs(exepath)
+	if err != nil {
+		return "", fmt.Errorf("getting absolute executable path: %w", err)
+	}
+	return exepath, nil
 }
 
 // isWindowsService checks if the application is running as a Windows service
 func isWindowsService() (bool, error) {
-	return svc.IsWindowsService()
+	isService, err := svc.IsWindowsService()
+	if err != nil {
+		return false, fmt.Errorf("checking Windows service status: %w", err)
+	}
+	return isService, nil
 }

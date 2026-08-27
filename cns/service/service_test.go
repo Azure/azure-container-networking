@@ -6,32 +6,33 @@ package main
 import (
 	"testing"
 
+	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-// TestServiceFunctionsOnNonWindows tests that service functions return appropriate errors on non-Windows platforms
-func TestServiceFunctionsOnNonWindows(t *testing.T) {
-	t.Run("installService should fail on non-Windows", func(t *testing.T) {
-		err := installService()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "only supported on Windows")
+func TestHandleServiceActionOnNonWindows(t *testing.T) {
+	t.Run("install should fail", func(t *testing.T) {
+		exit, err := handleServiceAction(acn.OptServiceInstall)
+		require.ErrorIs(t, err, errServiceInstallationUnsupported)
+		assert.False(t, exit)
 	})
 
-	t.Run("uninstallService should fail on non-Windows", func(t *testing.T) {
-		err := uninstallService()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "only supported on Windows")
+	t.Run("uninstall should fail", func(t *testing.T) {
+		exit, err := handleServiceAction(acn.OptServiceUninstall)
+		require.ErrorIs(t, err, errServiceUninstallationUnsupported)
+		assert.False(t, exit)
 	})
 
-	t.Run("runAsService should fail on non-Windows", func(t *testing.T) {
-		err := runAsService()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "only supported on Windows")
+	t.Run("run should fail", func(t *testing.T) {
+		exit, err := handleServiceAction(acn.OptServiceRun)
+		require.ErrorIs(t, err, errServiceRunUnsupported)
+		assert.False(t, exit)
 	})
 
-	t.Run("isWindowsService should return false on non-Windows", func(t *testing.T) {
-		isService, err := isWindowsService()
-		assert.NoError(t, err)
-		assert.False(t, isService)
+	t.Run("no action should continue startup", func(t *testing.T) {
+		exit, err := handleServiceAction("")
+		require.NoError(t, err)
+		assert.False(t, exit)
 	})
 }
