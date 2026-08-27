@@ -68,7 +68,11 @@ spec:
                   NICs on this node.
                 properties:
                   name:
-                    description: Name of the backend network.
+                    description: |-
+                      Name of the backend network. Must be non-empty: DNC-RC enumerates and
+                      programs the node's IB NICs against this backend network, so an empty
+                      name would otherwise silently reach the fabric-programming layer.
+                    minLength: 1
                     type: string
                 required:
                 - name

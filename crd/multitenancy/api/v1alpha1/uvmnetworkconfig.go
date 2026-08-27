@@ -49,7 +49,10 @@ type UVMNetworkConfigList struct {
 // (DNC-RC) enumerates the node's IB NICs itself (via NodeInfo) and associates
 // all of them with this backend network.
 type BackendNetworkReference struct {
-	// Name of the backend network.
+	// Name of the backend network. Must be non-empty: DNC-RC enumerates and
+	// programs the node's IB NICs against this backend network, so an empty
+	// name would otherwise silently reach the fabric-programming layer.
+	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
 }
 
