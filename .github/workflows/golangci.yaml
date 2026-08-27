@@ -32,7 +32,7 @@ jobs:
         fetch-depth: 0
         persist-credentials: false
     - name: golangci-lint
-      uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+      uses: golangci/golangci-lint-action@8564da7cb3c6866ed1da648ca8f00a258ef0c802 # v6.5.2
       with:
         version: v1.64.8
         args: ${{ (github.event_name == 'pull_request' && format('--new-from-rev=origin/{0}', github.base_ref)) || (github.event_name == 'merge_group' && format('--new-from-rev={0}', github.event.merge_group.base_sha)) || '' }} --config=.golangci.yml --timeout=25m
