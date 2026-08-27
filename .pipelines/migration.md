@@ -79,7 +79,7 @@ These workflows are already in `.github/workflows/` and require no migration wor
 
 ### Phase 0 - CI Control Plane and Baseline
 
-**Value:** Highest leverage. Prevents migration drift and accidental coverage regressions.  
+**Value:** Highest leverage. Prevents migration drift and accidental coverage regressions.
 **New files:**
 - `.github/workflows/_reusable-go-setup.yaml` (optional reusable setup)
 - `.github/workflows/_reusable-azure-auth.yaml` (OIDC login wrapper)
@@ -111,8 +111,8 @@ These workflows are already in `.github/workflows/` and require no migration wor
 
 ### Phase 1 — Unit Tests & Coverage
 
-**Value:** Highest. Zero infrastructure required. Replaces the most-run ADO stage.  
-**Source ADO pipeline:** `.pipelines/templates/run-unit-tests.yaml`, `.pipelines/pipeline.yaml`  
+**Value:** Highest. Zero infrastructure required. Replaces the most-run ADO stage.
+**Source ADO pipeline:** `.pipelines/templates/run-unit-tests.yaml`, `.pipelines/pipeline.yaml`
 **New file:** `.github/workflows/unit-tests.yaml`
 
 #### Jobs
@@ -185,8 +185,8 @@ Trigger intent:
 
 ### Phase 2 — Binary Build Validation
 
-**Value:** Low-medium. Validates cross-platform compilation. Artifacts are not distributed.  
-**Source ADO pipeline:** `.pipelines/build/binary.steps.yaml`, `.pipelines/templates/setup-environment.yaml`  
+**Value:** Low-medium. Validates cross-platform compilation. Artifacts are not distributed.
+**Source ADO pipeline:** `.pipelines/build/binary.steps.yaml`, `.pipelines/templates/setup-environment.yaml`
 **New file:** `.github/workflows/build.yaml`
 
 > **Note:** This phase can be deferred or run in parallel with Phase 3. It is useful as a
@@ -229,8 +229,8 @@ Trigger intent:
 
 ### Phase 3 — Test Image Builds to GHCR
 
-**Value:** High as a prerequisite for AKS E2E (Phase 4+). Not for production use.  
-**Source ADO pipeline:** `.pipelines/containers/container-template.yaml`, `.pipelines/build/images.jobs.yaml`  
+**Value:** High as a prerequisite for AKS E2E (Phase 4+). Not for production use.
+**Source ADO pipeline:** `.pipelines/containers/container-template.yaml`, `.pipelines/build/images.jobs.yaml`
 **New files:** `.github/workflows/test-images.yaml`, `.github/workflows/ghcr-cleanup.yaml`
 
 #### Scope
@@ -293,8 +293,8 @@ on:
 
 ### Phase 4 — AKS E2E: CNS/CNI Singletenancy
 
-**Value:** High. Core correctness signal for CNS and CNI changes.  
-**Source ADO pipeline:** `.pipelines/singletenancy/aks/e2e.stages.yaml`, `.pipelines/templates/create-cluster.yaml`  
+**Value:** High. Core correctness signal for CNS and CNI changes.
+**Source ADO pipeline:** `.pipelines/singletenancy/aks/e2e.stages.yaml`, `.pipelines/templates/create-cluster.yaml`
 **New file:** `.github/workflows/e2e-aks.yaml`
 
 #### Prerequisites
@@ -364,8 +364,8 @@ running on all PRs.
 
 ### Phase 5 — Cilium E2E on AKS
 
-**Value:** High for Cilium-specific correctness.  
-**Source ADO pipelines:** `.pipelines/singletenancy/cilium/`, `.pipelines/cni/cilium/`  
+**Value:** High for Cilium-specific correctness.
+**Source ADO pipelines:** `.pipelines/singletenancy/cilium/`, `.pipelines/cni/cilium/`
 **New file:** `.github/workflows/e2e-cilium.yaml` (or extend `e2e-aks.yaml` with a matrix)
 
 #### Scenarios (expand iteratively)
