@@ -320,7 +320,6 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(ncID string, hostVe
 		if ipState, exists := service.PodIPConfigState[ipID]; exists {
 			if ipState.NCID != ncID {
 				errMsg := fmt.Sprintf("Duplicate IP %s with id %s belongs to NC %s, attempted to add to NC %s", ipState.IPAddress, ipID, ipState.NCID, ncID)
-				logger.Errorf(errMsg)
 				return types.InconsistentIPConfigState, errMsg
 			}
 		}

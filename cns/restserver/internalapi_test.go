@@ -43,6 +43,7 @@ const (
 	requestPercent      = 100
 	batchSize           = 10
 	initPoolSize        = 10
+	ncIDMismatchTestIP  = "10.0.0.6"
 	ncID                = "6a07155a-32d7-49af-872f-1e70ee366dc0"
 	imdsNCID            = "6a07155a-32d7-49af-872f-1e70ee36imds"
 )
@@ -66,7 +67,7 @@ func TestCreateOrUpdateNetworkContainerInternalDetectsNCIDMismatch(t *testing.T)
 	existingNCID := "existing-nc"
 	newNCID := "new-nc"
 	ipID := "ip-1"
-	ipAddress := "10.0.0.6"
+	ipAddress := ncIDMismatchTestIP
 
 	svc.PodIPConfigState[ipID] = newPodState(ipAddress, ipID, existingNCID, types.Available, 0)
 
