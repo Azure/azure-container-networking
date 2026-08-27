@@ -7,7 +7,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v4"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v8"
 )
 
 const (
@@ -80,11 +80,10 @@ func GetStarterClusterTemplate(location string) armcontainerservice.ManagedClust
 					MaxPods:            to.Ptr(int32(MaxPodsPerNode)),
 				},
 			},
-			KubernetesVersion:       to.Ptr(""),
-			DNSPrefix:               to.Ptr("dnsprefix1"),
-			EnablePodSecurityPolicy: to.Ptr(false),
-			EnableRBAC:              to.Ptr(true),
-			LinuxProfile:            nil,
+			KubernetesVersion: to.Ptr(""),
+			DNSPrefix:         to.Ptr("dnsprefix1"),
+			EnableRBAC:        to.Ptr(true),
+			LinuxProfile:      nil,
 			NetworkProfile: &armcontainerservice.NetworkProfile{
 				LoadBalancerSKU: to.Ptr(armcontainerservice.LoadBalancerSKUStandard),
 				OutboundType:    to.Ptr(armcontainerservice.OutboundTypeLoadBalancer),
