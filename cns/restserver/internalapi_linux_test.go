@@ -19,7 +19,6 @@ import (
 var (
 	errChainExists   = errors.New("chain already exists")
 	errChainNotFound = errors.New("chain not found")
-	errRuleExists    = errors.New("rule already exists")
 	errRuleNotFound  = errors.New("rule not found")
 	errIndexBounds   = errors.New("index out of bounds")
 )

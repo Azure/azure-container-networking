@@ -14,6 +14,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var errInsufficientAvailableIPs = errors.New("not enough available IPs to mark as pending release")
+
+const testSubscriptionID = "sub"
+
 type fakeNodeNetworkConfigUpdater struct {
 	nnc *v1alpha.NodeNetworkConfig
 }
@@ -42,17 +46,18 @@ func newIPConfigStore() *ipConfigStore {
 
 func (s *ipConfigStore) GetPodIPConfigState() map[string]cns.IPConfigurationStatus {
 	m := make(map[string]cns.IPConfigurationStatus, len(s.configs))
-	for k, v := range s.configs {
-		m[k] = v
+	for id := range s.configs {
+		m[id] = s.configs[id]
 	}
 	return m
 }
 
 func (s *ipConfigStore) GetPendingReleaseIPConfigs() []cns.IPConfigurationStatus {
 	var out []cns.IPConfigurationStatus
-	for _, v := range s.configs {
-		if v.GetState() == types.PendingRelease {
-			out = append(out, v)
+	for id := range s.configs {
+		ipc := s.configs[id]
+		if ipc.GetState() == types.PendingRelease {
+			out = append(out, ipc)
 		}
 	}
 	return out
@@ -60,10 +65,11 @@ func (s *ipConfigStore) GetPendingReleaseIPConfigs() []cns.IPConfigurationStatus
 
 func (s *ipConfigStore) MarkIPAsPendingRelease(n int) (map[string]cns.IPConfigurationStatus, error) {
 	marked := make(map[string]cns.IPConfigurationStatus)
-	for id, ipc := range s.configs {
+	for id := range s.configs {
 		if len(marked) >= n {
 			break
 		}
+		ipc := s.configs[id]
 		if ipc.GetState() == types.Available {
 			ipc.SetState(types.PendingRelease)
 			s.configs[id] = ipc
@@ -71,7 +77,7 @@ func (s *ipConfigStore) MarkIPAsPendingRelease(n int) (map[string]cns.IPConfigur
 		}
 	}
 	if len(marked) < n {
-		return nil, fmt.Errorf("not enough available IPs to mark %d as pending release (found %d)", n, len(marked))
+		return nil, fmt.Errorf("%w: requested %d, found %d", errInsufficientAvailableIPs, n, len(marked))
 	}
 	return marked, nil
 }
@@ -93,17 +99,19 @@ func (s *ipConfigStore) addAvailableIPs(n int) {
 // setAssignedTotal adjusts so that exactly n IPs are in Assigned state.
 func (s *ipConfigStore) setAssignedTotal(n int) {
 	current := 0
-	for _, ipc := range s.configs {
+	for id := range s.configs {
+		ipc := s.configs[id]
 		if ipc.GetState() == types.Assigned {
 			current++
 		}
 	}
 	delta := n - current
 	if delta > 0 {
-		for id, ipc := range s.configs {
+		for id := range s.configs {
 			if delta == 0 {
 				break
 			}
+			ipc := s.configs[id]
 			if ipc.GetState() == types.Available {
 				ipc.SetState(types.Assigned)
 				s.configs[id] = ipc
@@ -111,10 +119,11 @@ func (s *ipConfigStore) setAssignedTotal(n int) {
 			}
 		}
 	} else if delta < 0 {
-		for id, ipc := range s.configs {
+		for id := range s.configs {
 			if delta == 0 {
 				break
 			}
+			ipc := s.configs[id]
 			if ipc.GetState() == types.Assigned {
 				ipc.SetState(types.Available)
 				s.configs[id] = ipc
@@ -126,7 +135,8 @@ func (s *ipConfigStore) setAssignedTotal(n int) {
 
 // removePendingRelease deletes all PendingRelease IPs (simulates controller cleanup).
 func (s *ipConfigStore) removePendingRelease() {
-	for id, ipc := range s.configs {
+	for id := range s.configs {
+		ipc := s.configs[id]
 		if ipc.GetState() == types.PendingRelease {
 			delete(s.configs, id)
 		}
@@ -783,17 +793,17 @@ func TestGenerateARMID(t *testing.T) {
 		},
 		{
 			name: "missing resource group",
-			nc:   v1alpha.NetworkContainer{SubscriptionID: "sub", VNETID: "v", SubnetID: "s"},
+			nc:   v1alpha.NetworkContainer{SubscriptionID: testSubscriptionID, VNETID: "v", SubnetID: "s"},
 			want: "",
 		},
 		{
 			name: "missing vnet",
-			nc:   v1alpha.NetworkContainer{SubscriptionID: "sub", ResourceGroupID: "rg", SubnetID: "s"},
+			nc:   v1alpha.NetworkContainer{SubscriptionID: testSubscriptionID, ResourceGroupID: "rg", SubnetID: "s"},
 			want: "",
 		},
 		{
 			name: "missing subnet",
-			nc:   v1alpha.NetworkContainer{SubscriptionID: "sub", ResourceGroupID: "rg", VNETID: "v"},
+			nc:   v1alpha.NetworkContainer{SubscriptionID: testSubscriptionID, ResourceGroupID: "rg", VNETID: "v"},
 			want: "",
 		},
 		{

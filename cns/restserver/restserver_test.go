@@ -14,8 +14,12 @@ import (
 )
 
 const (
-	hostPrimaryIP = "10.0.0.4"
-	hostSubnet    = "10.0.0.0/24"
+	hostPrimaryIP       = "10.0.0.4"
+	hostSubnet          = "10.0.0.0/24"
+	testNC1             = "nc1"
+	testNC2             = "nc2"
+	testIMDSAPIVersion1 = "2017-03-01"
+	testIMDSAPIVersion2 = "2021-01-01"
 )
 
 type mockIMDSCtxKey string
@@ -24,7 +28,7 @@ const simulateError mockIMDSCtxKey = "simulate-error"
 
 type wireserverClientFake struct{}
 
-func (c *wireserverClientFake) GetInterfaces(ctx context.Context) (*wireserver.GetInterfacesResult, error) {
+func (c *wireserverClientFake) GetInterfaces(_ context.Context) (*wireserver.GetInterfacesResult, error) {
 	return &wireserver.GetInterfacesResult{
 		Interface: []wireserver.Interface{
 			{
@@ -69,11 +73,11 @@ func (m *mockIMDSClient) GetNetworkInterfaces(ctx context.Context) ([]imds.Netwo
 
 	return []imds.NetworkInterface{
 		{
-			InterfaceCompartmentID: "nc1",
+			InterfaceCompartmentID: testNC1,
 			MacAddress:             imds.HardwareAddr(macAddr1),
 		},
 		{
-			InterfaceCompartmentID: "nc2",
+			InterfaceCompartmentID: testNC2,
 			MacAddress:             imds.HardwareAddr(macAddr2),
 		},
 	}, nil
@@ -86,9 +90,9 @@ func (m *mockIMDSClient) GetIMDSVersions(ctx context.Context) (*imds.APIVersions
 
 	return &imds.APIVersionsResponse{
 		APIVersions: []string{
-			"2017-03-01",
-			"2021-01-01",
-			"2025-07-24",
+			testIMDSAPIVersion1,
+			testIMDSAPIVersion2,
+			expectedIMDSAPIVersion,
 		},
 	}, nil
 }

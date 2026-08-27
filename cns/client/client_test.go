@@ -56,13 +56,15 @@ func (c *wireserverClientFake) GetInterfaces(_ context.Context) (*wireserver.Get
 
 type nmaClientFake struct{}
 
-func (n *nmaClientFake) SupportedAPIs(_ context.Context) ([]string, error)              { return nil, nil }
+func (n *nmaClientFake) SupportedAPIs(_ context.Context) ([]string, error) { return nil, nil }
 func (n *nmaClientFake) GetNCVersionList(_ context.Context) (nmagent.NCVersionList, error) {
 	return nmagent.NCVersionList{}, nil
 }
+
 func (n *nmaClientFake) GetHomeAz(_ context.Context) (nmagent.AzResponse, error) {
 	return nmagent.AzResponse{}, nil
 }
+
 func (n *nmaClientFake) GetInterfaceIPInfo(_ context.Context) (nmagent.Interfaces, error) {
 	return nmagent.Interfaces{}, nil
 }
@@ -76,6 +78,7 @@ func (w *wireserverProxyFake) JoinNetwork(_ context.Context, _ string) (*http.Re
 		ContentLength: int64(len(`{"httpStatusCode":"200"}`)),
 	}, nil
 }
+
 func (w *wireserverProxyFake) PublishNC(_ context.Context, _ cns.NetworkContainerParameters, _ []byte) (*http.Response, error) {
 	return &http.Response{
 		StatusCode:    http.StatusOK,
@@ -83,6 +86,7 @@ func (w *wireserverProxyFake) PublishNC(_ context.Context, _ cns.NetworkContaine
 		ContentLength: int64(len(`{"httpStatusCode":"200"}`)),
 	}, nil
 }
+
 func (w *wireserverProxyFake) UnpublishNC(_ context.Context, _ cns.NetworkContainerParameters, _ []byte) (*http.Response, error) {
 	return &http.Response{
 		StatusCode:    http.StatusOK,

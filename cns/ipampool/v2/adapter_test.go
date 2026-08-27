@@ -6,6 +6,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -131,7 +132,7 @@ func TestAdapterUpdate(t *testing.T) {
 	}
 
 	err := pm.Update(nnc)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// The NNC should have been sent to the sink channel
 	select {
@@ -147,7 +148,7 @@ func TestWithLegacyMetricsObserver(t *testing.T) {
 	mon := NewMonitor(zap.NewNop(), &ipStateStoreMock{}, &nncClientMock{}, nil, nil, nil)
 
 	// default observer should be a no-op that returns nil
-	assert.NoError(t, mon.legacyMetricsObserver(context.Background()))
+	require.NoError(t, mon.legacyMetricsObserver(context.Background()))
 
 	// replace with a custom observer
 	called := false
@@ -155,6 +156,6 @@ func TestWithLegacyMetricsObserver(t *testing.T) {
 		called = true
 		return nil
 	})
-	assert.NoError(t, mon.legacyMetricsObserver(context.Background()))
+	require.NoError(t, mon.legacyMetricsObserver(context.Background()))
 	assert.True(t, called)
 }
