@@ -6,8 +6,8 @@ package state
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"math"
+	"strconv"
 	"testing"
 	"time"
 
@@ -25,7 +25,7 @@ func TestMetadataRoundTripPreservesCoreKeys(t *testing.T) {
 		Generation:       99,
 		BootID:           "boot-1",
 		OrchestratorType: "KubernetesCRD",
-		NodeID:           "node-1",
+		NodeID:           testNodeID,
 		Location:         "westus2",
 		NetworkType:      "azure",
 		Initialized:      true,
@@ -61,7 +61,7 @@ func TestMetadataRoundTripPreservesCoreKeys(t *testing.T) {
 func TestPutMetadataRejectsUnknownAuthority(t *testing.T) {
 	db, _ := openTestDB(t)
 	err := db.Update(context.Background(), func(tx *WriteTx) error {
-		return tx.PutMetadata(Metadata{Authority: Authority("other"), NodeID: "node-1"})
+		return tx.PutMetadata(Metadata{Authority: Authority("other"), NodeID: testNodeID})
 	})
 	require.Error(t, err)
 	metadata := readMetadata(t, db)
@@ -73,7 +73,7 @@ func TestPutMetadataRejectsUnknownAuthority(t *testing.T) {
 func TestIntegerEncoding(t *testing.T) {
 	t.Run("uint32 round trips", func(t *testing.T) {
 		for _, value := range []uint32{0, 1, math.MaxUint32} {
-			t.Run(fmt.Sprintf("%d", value), func(t *testing.T) {
+			t.Run(strconv.FormatUint(uint64(value), 10), func(t *testing.T) {
 				got, err := decodeUint32(encodeUint32(value))
 				require.NoError(t, err)
 				assert.Equal(t, value, got)
@@ -83,7 +83,7 @@ func TestIntegerEncoding(t *testing.T) {
 
 	t.Run("uint64 round trips", func(t *testing.T) {
 		for _, value := range []uint64{0, 1, math.MaxUint64} {
-			t.Run(fmt.Sprintf("%d", value), func(t *testing.T) {
+			t.Run(strconv.FormatUint(value, 10), func(t *testing.T) {
 				got, err := decodeUint64(encodeUint64(value))
 				require.NoError(t, err)
 				assert.Equal(t, value, got)

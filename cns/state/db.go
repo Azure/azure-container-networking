@@ -19,6 +19,10 @@ import (
 var (
 	ErrCorrupt        = errors.New("cns state: corrupt database")
 	ErrSchemaMismatch = errors.New("cns state: schema version mismatch")
+
+	errUnknownAuthority = errors.New("unknown authority")
+	errInvalidUint32    = errors.New("invalid uint32 encoding length")
+	errInvalidUint64    = errors.New("invalid uint64 encoding length")
 )
 
 const defaultOpenTimeout = 5 * time.Second
@@ -102,7 +106,7 @@ func Open(path string, opts Options) (*DB, error) {
 		_ = db.Close()
 		if created {
 			if removeErr := os.Remove(path); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
-				return nil, fmt.Errorf("%w: removing incomplete database: %v", err, removeErr)
+				return nil, fmt.Errorf("%w: removing incomplete database: %w", err, removeErr)
 			}
 		}
 		return nil, err
@@ -168,7 +172,7 @@ func (s *DB) validate() error {
 		return nil
 	}); err != nil {
 		if errors.Is(err, ErrCorrupt) || errors.Is(err, ErrSchemaMismatch) {
-			return err
+			return fmt.Errorf("validating cns state database: %w", err)
 		}
 		return corrupt("validating cns state database", err)
 	}
@@ -251,7 +255,7 @@ func validateAuthority(authority Authority) error {
 	case AuthorityBolt, AuthorityJSON:
 		return nil
 	default:
-		return fmt.Errorf("unknown authority %q", authority)
+		return fmt.Errorf("%w: %q", errUnknownAuthority, authority)
 	}
 }
 
@@ -263,7 +267,7 @@ func encodeUint32(value uint32) []byte {
 
 func decodeUint32(data []byte) (uint32, error) {
 	if len(data) != 4 {
-		return 0, fmt.Errorf("uint32 length %d", len(data))
+		return 0, fmt.Errorf("%w: got %d bytes", errInvalidUint32, len(data))
 	}
 	return binary.LittleEndian.Uint32(data), nil
 }
@@ -276,7 +280,7 @@ func encodeUint64(value uint64) []byte {
 
 func decodeUint64(data []byte) (uint64, error) {
 	if len(data) != 8 {
-		return 0, fmt.Errorf("uint64 length %d", len(data))
+		return 0, fmt.Errorf("%w: got %d bytes", errInvalidUint64, len(data))
 	}
 	return binary.LittleEndian.Uint64(data), nil
 }

@@ -17,11 +17,16 @@ import (
 	bolterrors "go.etcd.io/bbolt/errors"
 )
 
-var errAbort = errors.New("abort transaction")
+var (
+	errAbort              = errors.New("abort transaction")
+	errUnexpectedCallback = errors.New("unexpected callback")
+)
 
-func openTestDB(t *testing.T) (*DB, string) {
+const testNodeID = "node-1"
+
+func openTestDB(t *testing.T) (db *DB, path string) {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "azure-cns.db")
+	path = filepath.Join(t.TempDir(), "azure-cns.db")
 	db, err := Open(path, Options{})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -47,7 +52,7 @@ func TestOpenNewDatabase(t *testing.T) {
 
 	info, err := os.Stat(path)
 	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+	assertDatabaseFileMode(t, info)
 
 	require.NoError(t, db.db.View(func(tx *bolt.Tx) error {
 		var names [][]byte
@@ -76,17 +81,17 @@ func TestUpdateTransaction(t *testing.T) {
 			name: "commit increments generation once",
 			run: func(db *DB) error {
 				return db.Update(context.Background(), func(tx *WriteTx) error {
-					return tx.PutMetadata(Metadata{NodeID: "node-1"})
+					return tx.PutMetadata(Metadata{NodeID: testNodeID})
 				})
 			},
-			wantNodeID:     "node-1",
+			wantNodeID:     testNodeID,
 			wantGeneration: 1,
 		},
 		{
 			name: "abort preserves data and generation",
 			run: func(db *DB) error {
 				return db.Update(context.Background(), func(tx *WriteTx) error {
-					if err := tx.PutMetadata(Metadata{NodeID: "node-1"}); err != nil {
+					if err := tx.PutMetadata(Metadata{NodeID: testNodeID}); err != nil {
 						return err
 					}
 					return errAbort
@@ -126,7 +131,7 @@ func TestUpdateTransaction(t *testing.T) {
 func TestReopenPersistence(t *testing.T) {
 	db, path := openTestDB(t)
 	require.NoError(t, db.Update(context.Background(), func(tx *WriteTx) error {
-		return tx.PutMetadata(Metadata{NodeID: "node-1"})
+		return tx.PutMetadata(Metadata{NodeID: testNodeID})
 	}))
 	require.NoError(t, db.Close())
 
@@ -134,7 +139,7 @@ func TestReopenPersistence(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, reopened.Close()) })
 	metadata := readMetadata(t, reopened)
-	assert.Equal(t, "node-1", metadata.NodeID)
+	assert.Equal(t, testNodeID, metadata.NodeID)
 	assert.Equal(t, uint64(1), metadata.Generation)
 }
 
@@ -197,7 +202,7 @@ func TestUpdateCancellationWhileWaitingForWriteGate(t *testing.T) {
 	secondDone := make(chan error, 1)
 	go func() {
 		secondDone <- db.Update(ctx, func(*WriteTx) error {
-			return errors.New("unexpected callback")
+			return errUnexpectedCallback
 		})
 	}()
 	cancel()
@@ -210,14 +215,14 @@ func TestUpdateCancellationWhileWaitingForWriteGate(t *testing.T) {
 func TestReadOnlyOpen(t *testing.T) {
 	db, path := openTestDB(t)
 	require.NoError(t, db.Update(context.Background(), func(tx *WriteTx) error {
-		return tx.PutMetadata(Metadata{NodeID: "node-1"})
+		return tx.PutMetadata(Metadata{NodeID: testNodeID})
 	}))
 	require.NoError(t, db.Close())
 
 	readOnly, err := Open(path, Options{ReadOnly: true})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, readOnly.Close()) })
-	assert.Equal(t, "node-1", readMetadata(t, readOnly).NodeID)
+	assert.Equal(t, testNodeID, readMetadata(t, readOnly).NodeID)
 
 	err = readOnly.Update(context.Background(), func(*WriteTx) error {
 		t.Fatal("read-only update callback called")

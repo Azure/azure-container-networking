@@ -35,7 +35,7 @@ func (r *ReadTx) Metadata() (Metadata, error) {
 		return Metadata{}, corrupt("invalid schema version", err)
 	}
 	authority := Authority(metaBucket.Get(metaKeyAuthority))
-	if err := validateAuthority(authority); err != nil {
+	if err = validateAuthority(authority); err != nil {
 		return Metadata{}, corrupt("invalid authority", err)
 	}
 	generation, err := decodeUint64(metaBucket.Get(metaKeyGeneration))
