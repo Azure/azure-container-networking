@@ -145,22 +145,23 @@ class PipelineContractTest(unittest.TestCase):
         self.assertEqual("always()", stages[2]["condition"])
 
         jobs = stages[1]["jobs"]
+        self.assertEqual(["json_lifecycle"], [job["job"] for job in jobs])
+        templates = [
+            reference
+            for reference, _ in template_calls(jobs[0]["steps"])
+        ]
         self.assertEqual(
             [
-                "baseline",
-                "same_boot_cns_restart",
-                "active_scale_restart",
-                "node_reboot",
-                "capture",
-                "cleanup_workload",
+                "baseline-json.steps.yaml",
+                "restart-cns-json.steps.yaml",
+                "active-scale-restart.steps.yaml",
+                "../../load-test-templates/restart-node-template.yaml",
+                "../../load-test-templates/validate-state-template.yaml",
+                "capture-json-state.steps.yaml",
+                "cleanup.steps.yaml",
             ],
-            [job["job"] for job in jobs],
+            templates,
         )
-        self.assertEqual("baseline", jobs[1]["dependsOn"])
-        self.assertEqual("same_boot_cns_restart", jobs[2]["dependsOn"])
-        self.assertEqual("active_scale_restart", jobs[3]["dependsOn"])
-        self.assertEqual("always()", jobs[4]["condition"])
-        self.assertEqual("always()", jobs[5]["condition"])
 
     def test_embedded_and_standalone_shell_parse(self):
         shell_sources = list(sorted((ROOT / "scripts").glob("*.sh")))
