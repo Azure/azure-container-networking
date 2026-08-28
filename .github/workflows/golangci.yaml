@@ -10,6 +10,10 @@ on:
   merge_group:
     types:
       - checks_requested
+
+permissions:
+  contents: read
+
 jobs:
   golangci:
     strategy:
@@ -20,14 +24,15 @@ jobs:
     name: Lint
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/setup-go@v5
+    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version: ${{ matrix.go-version }}
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         fetch-depth: 0
+        persist-credentials: false
     - name: golangci-lint
-      uses: golangci/golangci-lint-action@v6
+      uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
       with:
-        version: v1.61
-        args: --new-from-rev=origin/master --config=.golangci.yml --timeout=25m 
+        version: v2.13.1
+        args: ${{ (github.event_name == 'pull_request' && format('--new-from-rev=origin/{0}', github.base_ref)) || (github.event_name == 'merge_group' && format('--new-from-rev={0}', github.event.merge_group.base_sha)) || '' }} --config=.golangci.yml --timeout=25m

@@ -40,15 +40,15 @@ RUN apt-get update && apt-get install -y \
     libcap2=1:2.66-5ubuntu2.4 \
     libgcrypt20=1.10.3-2ubuntu0.1 \
     libgnutls30t64=3.8.3-1.1ubuntu3.6 \
-    libsystemd0=255.4-1ubuntu8.16 \
-    libudev1=255.4-1ubuntu8.16 \
+    libsystemd0=255.4-1ubuntu8.17 \
+    libudev1=255.4-1ubuntu8.17 \
     liblzma5=5.6.1+really5.4.5-1ubuntu0.3 \
     sed=4.9-2ubuntu0.24.04.1 \
     gzip=1.12-1ubuntu3.2 \
     libncursesw6=6.4+20240113-1ubuntu2.1 \
     libtinfo6=6.4+20240113-1ubuntu2.1 \
-    libpam-modules=1.5.3-5ubuntu5.6 \
-    perl-base=5.38.2-3.2ubuntu0.3 \
+    libpam-modules=1.5.3-5ubuntu5.7 \
+    perl-base=5.38.2-3.2ubuntu0.4 \
     tar=1.35+dfsg-3ubuntu0.4 \
     && apt-get autoremove -y && apt-get clean
 RUN chmod +x /usr/bin/azure-npm
