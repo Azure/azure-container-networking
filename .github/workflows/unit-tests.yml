@@ -98,7 +98,7 @@ jobs:
           (exit "$test_exit")
 
       - name: Upload Linux Coverage
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: linux-coverage-${{ matrix.os }}
           path: linux-coverage.out
@@ -125,7 +125,7 @@ jobs:
           go tool cover -func=windows-coverage.out
 
       - name: Upload Windows Coverage
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: windows-coverage
           path: windows-coverage.out
@@ -147,7 +147,7 @@ jobs:
           go-version: ${{ needs.setup.outputs.go-version }}
 
       - name: Download Linux Coverage Artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           name: linux-coverage-ubuntu-24.04
           path: ./
@@ -168,7 +168,7 @@ jobs:
           mv linux-coverage.xml coverage/
 
       - name: Upload Coverage Report
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: linux-coverage-report
           path: coverage/linux-coverage.xml
