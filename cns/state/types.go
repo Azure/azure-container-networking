@@ -41,6 +41,23 @@ type NetworkContainerRecord struct {
 	Request           cns.CreateNetworkContainerRequest `json:"request"`
 }
 
+func NewNetworkContainerRecord(
+	id, vmVersion, hostVersion string,
+	vfpUpdateComplete bool,
+	request cns.CreateNetworkContainerRequest,
+) NetworkContainerRecord {
+	request.NetworkContainerid = id
+	request.AuthorizationToken = ""
+	request.SecondaryIPConfigs = nil
+	return NetworkContainerRecord{
+		ID:                id,
+		VMVersion:         vmVersion,
+		HostVersion:       hostVersion,
+		VFPUpdateComplete: vfpUpdateComplete,
+		Request:           request,
+	}
+}
+
 type IPRecord struct {
 	ID        string `json:"id"`
 	IPAddress string `json:"ipAddress"`
