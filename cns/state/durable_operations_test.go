@@ -5,6 +5,7 @@ package state
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	bolt "go.etcd.io/bbolt"
 	bolterrors "go.etcd.io/bbolt/errors"
 )
 
@@ -113,6 +115,30 @@ func TestDurableTransactions(t *testing.T) {
 		require.ErrorIs(t, err, ErrNotFound)
 		assert.Equal(t, before, readMetadata(t, db).Generation)
 	})
+}
+
+func TestClearBucketAfterMaterializingWritableNode(t *testing.T) {
+	db, _ := openTestDB(t)
+	require.NoError(t, db.db.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket(bucketDeleteIntents)
+		for index := range 200 {
+			key := []byte(fmt.Sprintf("intent-%03d", index))
+			if err := bucket.Put(key, []byte(`{"createdAt":"2026-08-28T00:00:00Z"}`)); err != nil {
+				return err
+			}
+		}
+		if err := bucket.Put([]byte("intent-000"), []byte(`{"createdAt":"2026-08-28T01:00:00Z"}`)); err != nil {
+			return err
+		}
+		return clearBucket(bucket)
+	}))
+
+	require.NoError(t, db.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket(bucketDeleteIntents)
+		key, _ := bucket.Cursor().First()
+		assert.Nil(t, key)
+		return nil
+	}))
 }
 
 func TestDurableTransactionValidationRollsBack(t *testing.T) {

@@ -453,7 +453,7 @@ func replaceJSONBucket(tx *bolt.Tx, name []byte, values map[string][]byte) error
 
 func clearBucket(bucket *bolt.Bucket) error {
 	cursor := bucket.Cursor()
-	for key, _ := cursor.First(); key != nil; key, _ = cursor.Next() {
+	for key, _ := cursor.First(); key != nil; key, _ = cursor.First() {
 		if err := cursor.Delete(); err != nil {
 			return err
 		}
