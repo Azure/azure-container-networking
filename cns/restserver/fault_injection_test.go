@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/state"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/stretchr/testify/require"
 )
@@ -104,11 +105,9 @@ func TestFaultInjectorCheckpointTimeout(t *testing.T) {
 }
 
 func TestPersistentFaultPointAddBeforeEndpointCommit(t *testing.T) {
-	svc := getTestService("KubernetesCRD")
-	enableManagedEndpointState(svc)
-	require.NoError(t, seedAvailableIPs(t, svc, testNCID, map[string]string{testIPID1: testIP1}))
-	db := attachPersistentState(t, svc)
-	t.Cleanup(func() { require.NoError(t, db.Close()) })
+	svc, _, db, _ := newUnifiedAddFixture(t, map[string][]state.IPRecord{
+		"nc-v4": {{ID: testIPID1, IPAddress: testIP1, NCID: "nc-v4", NCVersion: 1}},
+	}, nil)
 	svc.faultInjector = newFaultInjector("test-token", time.Minute)
 	t.Cleanup(svc.faultInjector.disarm)
 	require.NoError(t, svc.faultInjector.arm(faultPointAddBeforeEndpointCommit, faultTargetForPod(testPod1Info)))
@@ -129,18 +128,20 @@ func TestPersistentFaultPointAddBeforeEndpointCommit(t *testing.T) {
 	require.Empty(t, snapshot.Assignments)
 	require.Empty(t, snapshot.Endpoints)
 	ipState := svc.PodIPConfigState[testIPID1]
-	require.Equal(t, types.Assigned, ipState.GetState())
+	require.Equal(t, types.Available, ipState.GetState())
 
 	svc.faultInjector.disarm()
 	require.NoError(t, <-errCh)
+	snapshot, err = db.Snapshot(context.Background())
+	require.NoError(t, err)
+	require.Contains(t, snapshot.Assignments, testPod1Info.Key())
+	require.Contains(t, snapshot.Endpoints, testPod1Info.InfraContainerID())
 }
 
 func TestPersistentFaultPointDeleteAfterIntentCommit(t *testing.T) {
-	svc := getTestService("KubernetesCRD")
-	enableManagedEndpointState(svc)
-	require.NoError(t, seedAvailableIPs(t, svc, testNCID, map[string]string{testIPID1: testIP1}))
-	db := attachPersistentState(t, svc)
-	t.Cleanup(func() { require.NoError(t, db.Close()) })
+	svc, _, db, _ := newUnifiedAddFixture(t, map[string][]state.IPRecord{
+		"nc-v4": {{ID: testIPID1, IPAddress: testIP1, NCID: "nc-v4", NCVersion: 1}},
+	}, nil)
 
 	req := newTestIPConfigsRequest(t, testPod1Info)
 	response, err := svc.requestIPConfigHandlerHelper(context.Background(), req)
@@ -161,21 +162,22 @@ func TestPersistentFaultPointDeleteAfterIntentCommit(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, snapshot.DeleteIntents, testPod1Info.InfraContainerID())
 	require.Empty(t, snapshot.Assignments)
-	require.Empty(t, snapshot.Endpoints)
+	require.Contains(t, snapshot.Endpoints, testPod1Info.InfraContainerID())
 	require.Contains(t, svc.EndpointState, testPod1Info.InfraContainerID())
 	ipState := svc.PodIPConfigState[testIPID1]
 	require.Equal(t, types.Assigned, ipState.GetState())
 
 	svc.faultInjector.disarm()
 	require.NoError(t, <-errCh)
+	require.Contains(t, svc.EndpointState, testPod1Info.InfraContainerID())
+	ipState = svc.PodIPConfigState[testIPID1]
+	require.Equal(t, types.Available, ipState.GetState())
 }
 
 func TestPersistentFaultPointPatchBeforeEndpointCommit(t *testing.T) {
-	svc := getTestService("KubernetesCRD")
-	enableManagedEndpointState(svc)
-	require.NoError(t, seedAvailableIPs(t, svc, testNCID, map[string]string{testIPID1: testIP1}))
-	db := attachPersistentState(t, svc)
-	t.Cleanup(func() { require.NoError(t, db.Close()) })
+	svc, _, db, _ := newUnifiedAddFixture(t, map[string][]state.IPRecord{
+		"nc-v4": {{ID: testIPID1, IPAddress: testIP1, NCID: "nc-v4", NCVersion: 1}},
+	}, nil)
 
 	req := newTestIPConfigsRequest(t, testPod1Info)
 	response, err := svc.requestIPConfigHandlerHelper(context.Background(), req)
@@ -187,7 +189,7 @@ func TestPersistentFaultPointPatchBeforeEndpointCommit(t *testing.T) {
 	require.NoError(t, svc.faultInjector.arm(faultPointPatchBeforeEndpointCommit, faultTargetForPod(testPod1Info)))
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- svc.UpdateEndpointHelper(testPod1Info.InfraContainerID(), map[string]*IPInfo{
+		errCh <- svc.updateEndpoint(context.Background(), testPod1Info.InfraContainerID(), map[string]*IPInfo{
 			InfraInterfaceName: {HnsEndpointID: "hns-endpoint"},
 		})
 	}()

@@ -88,6 +88,12 @@ func (a *durableStateAdapter) requestIPConfigs(
 		return plan.podIPInfo, nil
 	}
 
+	a.service.reachFaultPoint(
+		faultPointAddBeforeEndpointCommit,
+		plan.assignment.Pod.PodName,
+		plan.assignment.Pod.PodNamespace,
+	)
+
 	var projection durableCacheProjection
 	changed, err := a.store.assignEndpoint(
 		ctx,

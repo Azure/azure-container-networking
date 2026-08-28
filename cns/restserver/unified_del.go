@@ -84,6 +84,11 @@ func (a *durableStateAdapter) releaseIPConfigs(
 	if !changed {
 		return nil
 	}
+	a.service.reachFaultPoint(
+		faultPointDeleteAfterIntentCommit,
+		plan.pod.PodName,
+		plan.pod.PodNamespace,
+	)
 	return a.applyDeleteCommitLocked(ctx, projection)
 }
 
