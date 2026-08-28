@@ -4,6 +4,7 @@
 package platform
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -15,6 +16,8 @@ const (
 	windowsBootIDValueName    = "BootId"
 )
 
+var errUnexpectedBootIDRegistryType = errors.New("platform: unexpected boot ID registry type")
+
 type bootIDQuery func() (uint64, error)
 
 // BootID returns the identity of the current Windows boot.
@@ -25,20 +28,20 @@ func BootID() (string, error) {
 func queryBootIDRegistry() (uint64, error) {
 	key, err := registry.OpenKey(registry.LOCAL_MACHINE, windowsBootIDRegistryPath, registry.QUERY_VALUE)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("open boot ID registry key: %w", err)
 	}
 	defer key.Close()
 
 	id, valueType, err := key.GetIntegerValue(windowsBootIDValueName)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("read boot ID registry value: %w", err)
 	}
 	return validateBootIDRegistryValue(id, valueType)
 }
 
 func validateBootIDRegistryValue(id uint64, valueType uint32) (uint64, error) {
 	if valueType != registry.DWORD {
-		return 0, fmt.Errorf("unexpected boot ID registry type %d", valueType)
+		return 0, fmt.Errorf("%w: %d", errUnexpectedBootIDRegistryType, valueType)
 	}
 	return id, nil
 }

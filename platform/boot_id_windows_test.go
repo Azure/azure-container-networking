@@ -71,6 +71,6 @@ func TestValidateBootIDRegistryValue(t *testing.T) {
 	require.Equal(t, uint64(42), id)
 
 	id, err = validateBootIDRegistryValue(42, registry.QWORD)
-	require.EqualError(t, err, "unexpected boot ID registry type 11")
+	require.EqualError(t, err, "platform: unexpected boot ID registry type: 11")
 	require.Zero(t, id)
 }
