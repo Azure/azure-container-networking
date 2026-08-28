@@ -71,7 +71,7 @@ func newPersistentStateStartup(
 	}
 	startup.locks = append(startup.locks, endpointLock)
 
-	if err := deps.createDirectory(paths.endpointDirectory); err != nil {
+	if err = deps.createDirectory(paths.endpointDirectory); err != nil {
 		return nil, startup.closeAfterError(fmt.Errorf("creating endpoint state store directory: %w", err))
 	}
 

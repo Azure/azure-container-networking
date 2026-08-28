@@ -727,8 +727,8 @@ func main() {
 	logger.Printf("Running on %v", platform.GetOSInfo())
 
 	if cnsconfig.ManageEndpointState {
-		logger.Printf("[Azure CNS] Configured to manage endpoints state")
-		logger.Printf("EndpointStoreState path is %s", endpointStorePath+endpointStoreName+".json")
+		logger.Printf("[Azure CNS] Configured to manage endpoints state")                           //nolint:staticcheck // main still uses the legacy global logger
+		logger.Printf("EndpointStoreState path is %s", endpointStorePath+endpointStoreName+".json") //nolint:staticcheck // main still uses the legacy global logger
 	}
 
 	persistentState, err := newJSONPersistentStateStartup(
@@ -746,7 +746,7 @@ func main() {
 		},
 	)
 	if err != nil {
-		logger.Errorf("Failed to initialize persistent state: %v", err)
+		logger.Errorf("Failed to initialize persistent state: %v", err) //nolint:staticcheck // main still uses the legacy global logger
 		return
 	}
 	defer func() {
@@ -1146,7 +1146,7 @@ func main() {
 	}
 
 	if err = persistentState.Close(); err != nil {
-		logger.Errorf("lockclient cns unlock error:%v", err)
+		logger.Errorf("persistent state close error: %v", err) //nolint:staticcheck // main still uses the legacy global logger
 	}
 
 	logger.Printf("CNS exited")
