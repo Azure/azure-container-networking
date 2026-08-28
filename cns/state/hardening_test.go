@@ -296,6 +296,7 @@ func applyStateMachineBoot(
 	model.bootID = bootID
 	for index := range stateMachineNCCount {
 		state := &model.containers[index]
+		wasActive := state.active
 		state.intent = time.Time{}
 		if clearEndpoints {
 			state.active = false
@@ -304,7 +305,7 @@ func applyStateMachineBoot(
 			continue
 		}
 		state.active = state.endpoint
-		state.retained = state.endpoint
+		state.retained = state.endpoint && (state.retained || !wasActive)
 	}
 }
 
@@ -461,6 +462,43 @@ func mustIPNetValue(address string, bits int) net.IPNet {
 		totalBits = 32
 	}
 	return net.IPNet{IP: ip, Mask: net.CIDRMask(bits, totalBits)}
+}
+
+func TestLegacyImportRollbackRoundTrip(t *testing.T) {
+	cnsData, endpointData := completeLegacyImportData(t)
+	source, _ := openTestDB(t)
+	importOpts := writeLegacyImportFiles(t, cnsData, endpointData, true)
+	changed, err := source.ImportLegacy(context.Background(), importOpts)
+	require.NoError(t, err)
+	require.True(t, changed)
+	imported := requireValidSnapshot(t, source)
+
+	exportOpts := exportPaths(t)
+	changed, err = source.ExportLegacy(context.Background(), exportOpts)
+	require.NoError(t, err)
+	require.True(t, changed)
+
+	reimportedDB, _ := openTestDB(t)
+	changed, err = reimportedDB.ImportLegacy(context.Background(), ImportOptions{
+		CNSPath:             exportOpts.CNSJSONPath,
+		EndpointPath:        exportOpts.EndpointJSONPath,
+		ManageEndpointState: true,
+		BootID:              "reimported-boot",
+	})
+	require.NoError(t, err)
+	require.True(t, changed)
+	reimported := requireValidSnapshot(t, reimportedDB)
+
+	assert.Equal(t, logicalRoundTripSnapshot(imported), logicalRoundTripSnapshot(reimported))
+}
+
+func logicalRoundTripSnapshot(snapshot Snapshot) Snapshot {
+	snapshot.Metadata.Authority = ""
+	snapshot.Metadata.Generation = 0
+	snapshot.Metadata.BootID = ""
+	snapshot.Metadata.LegacyImportComplete = false
+	snapshot.Metadata.RollbackExportComplete = false
+	return snapshot
 }
 
 func TestConcurrentImportExportBootAndGateCancellation(t *testing.T) {
