@@ -145,37 +145,37 @@ func (s *DB) exportLegacyWithCommitHook(
 	if err != nil {
 		return false, err
 	}
-	if err := writeRollbackFile(ctx, files, opts.CNSJSONPath, cnsData); err != nil {
-		return false, err
+	if writeErr := writeRollbackFile(ctx, files, opts.CNSJSONPath, cnsData); writeErr != nil {
+		return false, writeErr
 	}
-	if err := writeRollbackFile(ctx, files, opts.EndpointJSONPath, endpointData); err != nil {
-		return false, err
+	if writeErr := writeRollbackFile(ctx, files, opts.EndpointJSONPath, endpointData); writeErr != nil {
+		return false, writeErr
 	}
-	if err := ctx.Err(); err != nil {
-		return false, fmt.Errorf("exporting legacy state: %w", err)
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return false, fmt.Errorf("exporting legacy state: %w", ctxErr)
 	}
 
 	changed, err := s.updateLocked(ctx, func(tx *WriteTx) (bool, error) {
-		meta, err := tx.Metadata()
-		if err != nil {
-			return false, err
+		meta, txErr := tx.Metadata()
+		if txErr != nil {
+			return false, txErr
 		}
-		if err := validateRollbackExportState(meta.Authority, meta.RollbackExportComplete); err != nil {
-			return false, err
+		if validateErr := validateRollbackExportState(meta.Authority, meta.RollbackExportComplete); validateErr != nil {
+			return false, validateErr
 		}
 		if meta.RollbackExportComplete {
 			return false, nil
 		}
 		meta.Authority = AuthorityJSON
-		if err := tx.PutMetadata(meta); err != nil {
-			return false, err
+		if putErr := tx.PutMetadata(meta); putErr != nil {
+			return false, putErr
 		}
-		if err := setRollbackExportComplete(tx.tx); err != nil {
-			return false, err
+		if markErr := setRollbackExportComplete(tx.tx); markErr != nil {
+			return false, markErr
 		}
 		if beforeCommit != nil {
-			if err := beforeCommit(); err != nil {
-				return false, fmt.Errorf("finishing rollback export: %w", err)
+			if commitErr := beforeCommit(); commitErr != nil {
+				return false, fmt.Errorf("finishing rollback export: %w", commitErr)
 			}
 		}
 		return true, nil
@@ -234,8 +234,8 @@ func (s *DB) rollbackSnapshotLocked(ctx context.Context) (Snapshot, bool, error)
 		if err != nil {
 			return err
 		}
-		if err := validateRollbackExportState(meta.Authority, meta.RollbackExportComplete); err != nil {
-			return err
+		if validateErr := validateRollbackExportState(meta.Authority, meta.RollbackExportComplete); validateErr != nil {
+			return validateErr
 		}
 		if meta.RollbackExportComplete {
 			complete = true
@@ -248,15 +248,15 @@ func (s *DB) rollbackSnapshotLocked(ctx context.Context) (Snapshot, bool, error)
 		return snapshot.Validate()
 	})
 	if err != nil {
-		return Snapshot{}, false, err
+		return Snapshot{}, false, fmt.Errorf("reading rollback snapshot: %w", err)
 	}
 	if err := ctx.Err(); err != nil {
-		return Snapshot{}, false, err
+		return Snapshot{}, false, fmt.Errorf("reading rollback snapshot: %w", err)
 	}
 	return snapshot, complete, nil
 }
 
-func encodeRollbackFiles(snapshot Snapshot) ([]byte, []byte, error) {
+func encodeRollbackFiles(snapshot Snapshot) (cnsData, endpointData []byte, err error) {
 	cnsState := rollbackCNSState{
 		Location:                         snapshot.Metadata.Location,
 		NetworkType:                      snapshot.Metadata.NetworkType,
@@ -280,7 +280,8 @@ func encodeRollbackFiles(snapshot Snapshot) ([]byte, []byte, error) {
 			Options:     network.Options,
 		}
 	}
-	for ncID, record := range snapshot.NetworkContainers {
+	for ncID := range snapshot.NetworkContainers {
+		record := snapshot.NetworkContainers[ncID]
 		request := record.Request
 		request.AuthorizationToken = ""
 		request.SecondaryIPConfigs = map[string]cns.SecondaryIPConfig{}
@@ -327,13 +328,13 @@ func encodeRollbackFiles(snapshot Snapshot) ([]byte, []byte, error) {
 		endpoints[containerID] = legacyEndpoint
 	}
 
-	cnsData, err := json.MarshalIndent(map[string]any{
+	cnsData, err = json.MarshalIndent(map[string]any{
 		"ContainerNetworkService": cnsState,
 	}, "", "\t")
 	if err != nil {
 		return nil, nil, fmt.Errorf("encoding rollback CNS state: %w", err)
 	}
-	endpointData, err := json.MarshalIndent(map[string]any{
+	endpointData, err = json.MarshalIndent(map[string]any{
 		"DeleteIntents": snapshot.DeleteIntents,
 		"Endpoints":     endpoints,
 	}, "", "\t")
@@ -390,7 +391,7 @@ func writeAll(writer io.Writer, data []byte) error {
 	for len(data) != 0 {
 		written, err := writer.Write(data)
 		if err != nil {
-			return err
+			return fmt.Errorf("writing rollback data: %w", err)
 		}
 		if written == 0 {
 			return io.ErrShortWrite

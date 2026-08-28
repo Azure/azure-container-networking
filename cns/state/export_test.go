@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"net"
 	"os"
@@ -35,6 +36,17 @@ const (
 	exportIPv4 = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 	exportIPv6 = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
 	exportNet1 = "cccccccc-cccc-cccc-cccc-cccccccccccc"
+
+	exportIPv4Address   = "10.0.0.4"
+	exportIPv6Address   = "fd00::4"
+	exportIfnameEth0    = "eth0"
+	exportNodeID        = "node-1"
+	exportNetworkName   = "network-1"
+	exportGatewayIPv4   = "10.0.0.1"
+	exportSecondaryIPv4 = "10.0.0.5"
+	exportContainerID   = "container-1"
+	exportPodName       = "pod-1"
+	exportPodNamespace  = "ns-1"
 )
 
 type rollbackFailureStage string
@@ -58,14 +70,14 @@ func (f *faultRollbackFile) Write(data []byte) (int, error) {
 	if f.stage == rollbackFailureWrite {
 		return 0, errRollbackFault
 	}
-	return f.rollbackTemporaryFile.Write(data)
+	return f.rollbackTemporaryFile.Write(data) //nolint:wrapcheck // test double forwards the underlying temp file's error unchanged for fault-injection identity checks
 }
 
 func (f *faultRollbackFile) Sync() error {
 	if f.stage == rollbackFailureSync {
 		return errRollbackFault
 	}
-	return f.rollbackTemporaryFile.Sync()
+	return f.rollbackTemporaryFile.Sync() //nolint:wrapcheck // test double forwards the underlying temp file's error unchanged for fault-injection identity checks
 }
 
 func (f *faultRollbackFile) Close() error {
@@ -73,7 +85,7 @@ func (f *faultRollbackFile) Close() error {
 	if f.stage == rollbackFailureClose {
 		return errors.Join(err, errRollbackFault)
 	}
-	return err
+	return err //nolint:wrapcheck // test double forwards the underlying temp file's error unchanged for fault-injection identity checks
 }
 
 func TestExportLegacySuccess(t *testing.T) {
@@ -117,6 +129,7 @@ func TestExportLegacySuccess(t *testing.T) {
 	var cnsEnvelope map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal(cnsData, &cnsEnvelope))
 	var exported rollbackCNSState
+	//nolint:musttag // embeds legacy cns.CreateNetworkContainerRequest, untagged by design for field-name JSON compatibility
 	require.NoError(t, json.Unmarshal(cnsEnvelope["ContainerNetworkService"], &exported))
 	assert.Equal(t, before.Metadata.Location, exported.Location)
 	assert.Equal(t, before.Metadata.NetworkType, exported.NetworkType)
@@ -134,8 +147,8 @@ func TestExportLegacySuccess(t *testing.T) {
 	request := exported.ContainerStatus[exportNC1].CreateNetworkContainerRequest
 	assert.Empty(t, request.AuthorizationToken)
 	assert.Equal(t, map[string]cns.SecondaryIPConfig{
-		exportIPv4: {IPAddress: "10.0.0.4", NCVersion: 7},
-		exportIPv6: {IPAddress: "fd00::4", NCVersion: 7},
+		exportIPv4: {IPAddress: exportIPv4Address, NCVersion: 7},
+		exportIPv6: {IPAddress: exportIPv6Address, NCVersion: 7},
 	}, request.SecondaryIPConfigs)
 	require.Len(t, request.EndpointPolicies, 1)
 	assert.Equal(t, before.NetworkContainers[exportNC1].Request.EndpointPolicies[0].Type, request.EndpointPolicies[0].Type)
@@ -146,30 +159,30 @@ func TestExportLegacySuccess(t *testing.T) {
 		string(request.EndpointPolicies[0].Settings),
 	)
 	assert.Equal(t, before.NetworkContainers[exportNC1].Request.NetworkInterfaceInfo, request.NetworkInterfaceInfo)
-	require.NotNil(t, exported.Networks["network-1"].NicInfo)
-	assert.Equal(t, before.Networks["network-1"].NicInfo, exported.Networks["network-1"].NicInfo)
-	assert.Equal(t, "value", exported.Networks["network-1"].Options["custom"])
+	require.NotNil(t, exported.Networks[exportNetworkName].NicInfo)
+	assert.Equal(t, before.Networks[exportNetworkName].NicInfo, exported.Networks[exportNetworkName].NicInfo)
+	assert.Equal(t, "value", exported.Networks[exportNetworkName].Options["custom"])
 	assert.Equal(t, "PCI\\VEN_1234", exported.PnpIDByMacAddress["00:11:22:33:44:55"])
 
 	var endpointEnvelope map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal(endpointData, &endpointEnvelope))
 	var endpoints map[string]*rollbackEndpointInfo
 	require.NoError(t, json.Unmarshal(endpointEnvelope["Endpoints"], &endpoints))
-	assert.Equal(t, "pod-1", endpoints["container-1"].PodName)
-	assert.Equal(t, "ns-1", endpoints["container-1"].PodNamespace)
-	assert.ElementsMatch(t, []string{"eth0", "net1"}, sortedKeys(endpoints["container-1"].IfnameToIPMap))
-	info := endpoints["container-1"].IfnameToIPMap["eth0"]
+	assert.Equal(t, exportPodName, endpoints[exportContainerID].PodName)
+	assert.Equal(t, exportPodNamespace, endpoints[exportContainerID].PodNamespace)
+	assert.ElementsMatch(t, []string{exportIfnameEth0, "net1"}, sortedKeys(endpoints[exportContainerID].IfnameToIPMap))
+	info := endpoints[exportContainerID].IfnameToIPMap[exportIfnameEth0]
 	require.Len(t, info.IPv4, 1)
-	assert.Equal(t, net.ParseIP("10.0.0.4"), info.IPv4[0].IP)
+	assert.Equal(t, net.ParseIP(exportIPv4Address), info.IPv4[0].IP)
 	require.Len(t, info.IPv6, 1)
-	assert.Equal(t, net.ParseIP("fd00::4"), info.IPv6[0].IP)
+	assert.Equal(t, net.ParseIP(exportIPv6Address), info.IPv6[0].IP)
 	assert.Equal(t, "hns-endpoint-1", info.HnsEndpointID)
 	assert.Equal(t, "hns-network-1", info.HnsNetworkID)
 	assert.Equal(t, "veth-1", info.HostVethName)
 	assert.Equal(t, "00:11:22:33:44:55", info.MacAddress)
 	assert.Equal(t, exportNC1, info.NetworkContainerID)
 	assert.Equal(t, cns.InfraNIC, info.NICType)
-	delegated := endpoints["container-1"].IfnameToIPMap["net1"]
+	delegated := endpoints[exportContainerID].IfnameToIPMap["net1"]
 	require.Len(t, delegated.IPv4, 1)
 	assert.Equal(t, net.ParseIP("10.1.0.4"), delegated.IPv4[0].IP)
 	assert.Equal(t, exportNC2, delegated.NetworkContainerID)
@@ -490,7 +503,7 @@ func TestExportLegacyConcurrencyAndWriterGate(t *testing.T) {
 			exportDone <- err
 		}()
 		<-enteredWrite
-		require.Equal(t, 1, len(db.writeGate))
+		require.Len(t, db.writeGate, 1)
 
 		callbackEntered := make(chan Metadata, 1)
 		updateDone := make(chan error, 1)
@@ -534,7 +547,7 @@ func TestExportLegacyRejectsInconsistentAuthorityMarker(t *testing.T) {
 			require.NoError(t, db.db.Update(func(tx *bolt.Tx) error {
 				metadata := tx.Bucket(bucketMetadata)
 				if err := metadata.Put(metaKeyAuthority, []byte(tt.authority)); err != nil {
-					return err
+					return fmt.Errorf("setting authority marker: %w", err)
 				}
 				if tt.marker {
 					return metadata.Put(metaKeyRollbackExport, []byte(rollbackExportMarker))
@@ -547,8 +560,8 @@ func TestExportLegacyRejectsInconsistentAuthorityMarker(t *testing.T) {
 			changed, err := db.ExportLegacy(context.Background(), opts)
 			require.ErrorIs(t, err, ErrCorrupt)
 			assert.False(t, changed)
-			assert.Equal(t, []byte(`{"newer":"cns"}`), readRollbackFile(t, opts.CNSJSONPath))
-			assert.Equal(t, []byte(`{"newer":"endpoint"}`), readRollbackFile(t, opts.EndpointJSONPath))
+			assert.JSONEq(t, `{"newer":"cns"}`, string(readRollbackFile(t, opts.CNSJSONPath)))
+			assert.JSONEq(t, `{"newer":"endpoint"}`, string(readRollbackFile(t, opts.EndpointJSONPath)))
 		})
 	}
 }
@@ -562,7 +575,7 @@ type blockingRollbackFile struct {
 func (f *blockingRollbackFile) Write(data []byte) (int, error) {
 	close(f.entered)
 	<-f.release
-	return f.rollbackTemporaryFile.Write(data)
+	return f.rollbackTemporaryFile.Write(data) //nolint:wrapcheck // test double forwards the underlying temp file's error unchanged for fault-injection identity checks
 }
 
 func faultRollbackOperations(target string, stage rollbackFailureStage) rollbackFileOperations {
@@ -599,9 +612,11 @@ func faultRollbackOperations(target string, stage rollbackFailureStage) rollback
 			return errRollbackFault
 		case rollbackFailureParentSync:
 			if err := platform.ReplaceFile(source, destination); err != nil {
-				return err
+				return err //nolint:wrapcheck // test double emulates durableReplace and must return platform.ReplaceFile's error unchanged before injecting the fault
 			}
 			return errRollbackFault
+		case rollbackFailureMkdir, rollbackFailureCreate, rollbackFailureWrite, rollbackFailureSync, rollbackFailureClose:
+			return replace(source, destination)
 		default:
 			return replace(source, destination)
 		}
@@ -609,16 +624,16 @@ func faultRollbackOperations(target string, stage rollbackFailureStage) rollback
 	return files
 }
 
-func openPopulatedExportDB(t *testing.T) (*DB, string) {
+func openPopulatedExportDB(t *testing.T) (db *DB, path string) {
 	t.Helper()
-	db, path := openTestDB(t)
+	db, path = openTestDB(t)
 
 	request1 := completeNetworkContainerRequest()
 	request1.AuthorizationToken = "secret-token"
 	record1 := NewNetworkContainerRecord(exportNC1, "7", "6", true, request1)
 	changed, err := db.ApplyNetworkContainer(context.Background(), record1, []IPRecord{
-		{ID: exportIPv4, IPAddress: "10.0.0.4", NCID: exportNC1, NCVersion: 7},
-		{ID: exportIPv6, IPAddress: "fd00::4", NCID: exportNC1, NCVersion: 7},
+		{ID: exportIPv4, IPAddress: exportIPv4Address, NCID: exportNC1, NCVersion: 7},
+		{ID: exportIPv6, IPAddress: exportIPv6Address, NCID: exportNC1, NCVersion: 7},
 	})
 	require.NoError(t, err)
 	require.True(t, changed)
@@ -633,50 +648,50 @@ func openPopulatedExportDB(t *testing.T) (*DB, string) {
 	require.True(t, changed)
 
 	require.NoError(t, db.Update(context.Background(), func(tx *WriteTx) error {
-		meta, err := tx.Metadata()
-		if err != nil {
-			return err
+		meta, metaErr := tx.Metadata()
+		if metaErr != nil {
+			return metaErr
 		}
 		meta.BootID = "export-boot"
 		meta.Location = "eastus"
 		meta.NetworkType = "azure"
 		meta.OrchestratorType = "kubernetes"
-		meta.NodeID = "node-1"
+		meta.NodeID = exportNodeID
 		meta.Initialized = true
 		meta.TimeStamp = testNow.Add(-time.Hour)
-		if err := tx.PutMetadata(meta); err != nil {
-			return err
+		if putErr := tx.PutMetadata(meta); putErr != nil {
+			return putErr
 		}
-		if err := tx.PutNetwork(NetworkRecord{
-			NetworkName: "network-1",
+		if networkErr := tx.PutNetwork(NetworkRecord{
+			NetworkName: exportNetworkName,
 			NicInfo: &wireserver.InterfaceInfo{
 				Subnet:       "10.0.0.0/24",
-				Gateway:      "10.0.0.1",
+				Gateway:      exportGatewayIPv4,
 				IsPrimary:    true,
-				PrimaryIP:    "10.0.0.4",
-				SecondaryIPs: []string{"10.0.0.5"},
+				PrimaryIP:    exportIPv4Address,
+				SecondaryIPs: []string{exportSecondaryIPv4},
 			},
 			Options: map[string]any{"custom": "value"},
-		}); err != nil {
-			return err
+		}); networkErr != nil {
+			return networkErr
 		}
-		if err := tx.PutOrchestratorContext("pod-1ns-1", []string{exportNC1, exportNC2}); err != nil {
-			return err
+		if contextErr := tx.PutOrchestratorContext("pod-1ns-1", []string{exportNC1, exportNC2}); contextErr != nil {
+			return contextErr
 		}
 		return tx.PutPnPID("00:11:22:33:44:55", "PCI\\VEN_1234")
 	}))
 
 	endpoint := completeEndpointRecord()
-	endpoint.IfnameToIPMap["eth0"].NetworkContainerID = exportNC1
+	endpoint.IfnameToIPMap[exportIfnameEth0].NetworkContainerID = exportNC1
 	endpoint.IfnameToIPMap["net1"].NetworkContainerID = exportNC2
 	changed, err = db.AssignEndpoint(
 		context.Background(),
 		AssignmentRecord{
 			Pod: PodIdentity{
-				PodKey:           "container-1",
-				InfraContainerID: "container-1",
-				PodName:          "pod-1",
-				PodNamespace:     "ns-1",
+				PodKey:           exportContainerID,
+				InfraContainerID: exportContainerID,
+				PodName:          exportPodName,
+				PodNamespace:     exportPodNamespace,
 			},
 			IPIDs: []string{exportIPv4, exportIPv6, exportNet1},
 		},
