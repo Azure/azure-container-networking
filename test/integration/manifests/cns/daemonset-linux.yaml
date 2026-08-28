@@ -124,6 +124,9 @@ spec:
             - name: cni-conflist
               mountPath: /etc/cni/net.d
       hostNetwork: true
+      # lets the debug container signal the CNS process, which async-delete-test.sh
+      # uses to make CNS unreachable without stopping it
+      shareProcessNamespace: true
       volumes:
         - name: cni-conflist
           hostPath:
