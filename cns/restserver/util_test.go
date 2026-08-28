@@ -1,6 +1,8 @@
 package restserver
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -10,6 +12,33 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type stateRestoreLogRecorder struct {
+	info     []string
+	failures []string
+}
+
+func (l *stateRestoreLogRecorder) Printf(format string, args ...any) {
+	l.info = append(l.info, fmt.Sprintf(format, args...))
+}
+
+func (l *stateRestoreLogRecorder) Errorf(format string, args ...any) {
+	l.failures = append(l.failures, fmt.Sprintf(format, args...))
+}
+
+func (l *stateRestoreLogRecorder) messages() (info, failures string) {
+	return strings.Join(l.info, "\n"), strings.Join(l.failures, "\n")
+}
+
+type readCountingStore struct {
+	store.KeyValueStore
+	reads int
+}
+
+func (s *readCountingStore) Read(key string, value interface{}) error {
+	s.reads++
+	return s.KeyValueStore.Read(key, value)
+}
 
 func TestAreNCsPresent(t *testing.T) {
 	present := ncList("present")
@@ -183,6 +212,70 @@ func TestRestoreState(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUnifiedInitSkipsJSONStateRestore(t *testing.T) {
+	mainStore := &readCountingStore{KeyValueStore: store.NewMockStore("")}
+	logs := &stateRestoreLogRecorder{}
+	options := map[string]interface{}{
+		acn.OptCnsURL:               "tcp://127.0.0.1:0",
+		acn.OptCnsPort:              "",
+		acn.OptManageEndpointState:  true,
+		acn.OptRestoreStateFromJSON: false,
+	}
+	svc := HTTPRestService{
+		Service: &cns.Service{
+			Service: &common.Service{Options: options},
+		},
+		store: mainStore,
+		state: &httpRestServiceState{
+			Networks: make(map[string]*networkInfo),
+		},
+		EndpointState: map[string]*EndpointInfo{
+			"container-1": {PodName: "bolt-pod"},
+		},
+		stateRestoreLogger: logs,
+	}
+
+	require.NoError(t, svc.Init(&common.ServiceConfig{
+		Store:       mainStore,
+		ChannelMode: cns.Direct,
+	}))
+	require.NotNil(t, svc.Listener)
+	assert.Zero(t, mainStore.reads)
+	require.Contains(t, svc.EndpointState, "container-1")
+	assert.Equal(t, "bolt-pod", svc.EndpointState["container-1"].PodName)
+
+	info, failures := logs.messages()
+	assert.Equal(t, "persistent state JSON restore skipped", info)
+	assert.Empty(t, failures)
+}
+
+func TestJSONRestoreMissingEndpointStorePreservesError(t *testing.T) {
+	mainStore := &readCountingStore{KeyValueStore: store.NewMockStore("")}
+	require.NoError(t, mainStore.Write(storeKey, &httpRestServiceState{}))
+	logs := &stateRestoreLogRecorder{}
+	svc := HTTPRestService{
+		Service: &cns.Service{
+			Service: &common.Service{Options: map[string]interface{}{
+				acn.OptManageEndpointState: true,
+			}},
+		},
+		store:              mainStore,
+		state:              &httpRestServiceState{},
+		EndpointState:      make(map[string]*EndpointInfo),
+		stateRestoreLogger: logs,
+	}
+
+	svc.restoreState()
+	assert.Equal(t, 1, mainStore.reads)
+	info, failures := logs.messages()
+	assert.Empty(t, info)
+	assert.Equal(
+		t,
+		"[Azure CNS]  OptManageEndpointState is enabled but EndpointStateStore is not initialized; endpoint state persistence/restoration is disabled.",
+		failures,
+	)
 }
 
 // test to check if nc can be deleted from ncList for Delete() method

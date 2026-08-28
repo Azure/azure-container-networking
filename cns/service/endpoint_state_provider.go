@@ -17,6 +17,10 @@ const (
 
 const productionEndpointStateProvider = endpointStateProviderJSON
 
+func (provider endpointStateProvider) restoresStateFromJSON() bool {
+	return provider == endpointStateProviderJSON
+}
+
 type endpointStateStartupFactory func() (*persistentStateStartup, error)
 
 func newEndpointStateStartup(

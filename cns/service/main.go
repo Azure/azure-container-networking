@@ -791,6 +791,7 @@ func main() {
 	httpRemoteRestService.SetOption(acn.OptHttpResponseHeaderTimeout, httpResponseHeaderTimeout)
 	httpRemoteRestService.SetOption(acn.OptProgramSNATIPTables, cnsconfig.ProgramSNATIPTables)
 	httpRemoteRestService.SetOption(acn.OptManageEndpointState, cnsconfig.ManageEndpointState)
+	httpRemoteRestService.SetOption(acn.OptRestoreStateFromJSON, productionEndpointStateProvider.restoresStateFromJSON())
 	httpRemoteRestService.SetOption(acn.OptEnableStaleHNSCleanupOnNCCreate, cnsconfig.EnableStaleHNSCleanupOnNCCreate)
 
 	// Create default ext network if commandline option is set

@@ -92,6 +92,11 @@ type iptablesGetter interface {
 	GetIPTablesLegacy() (iptablesLegacyClient, error)
 }
 
+type stateRestoreLogger interface {
+	Printf(string, ...any)
+	Errorf(string, ...any)
+}
+
 // HTTPRestService represents http listener for CNS - Container Networking Service.
 type HTTPRestService struct {
 	*cns.Service
@@ -122,6 +127,7 @@ type HTTPRestService struct {
 	mtpncClient                mtpncClient
 	nodeinfoClient             nodeinfoClient
 	nodeName                   string
+	stateRestoreLogger         stateRestoreLogger
 }
 
 type CNIConflistGenerator interface {
@@ -272,6 +278,7 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 		homeAzMonitor:            homeAzMonitor,
 		cniConflistGenerator:     gen,
 		imdsClient:               imdsClient,
+		stateRestoreLogger:       logger.Log,
 	}, nil
 }
 

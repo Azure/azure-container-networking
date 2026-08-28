@@ -12,6 +12,8 @@ import (
 )
 
 func TestEndpointStateProviderSelection(t *testing.T) {
+	assert.True(t, productionEndpointStateProvider.restoresStateFromJSON())
+
 	t.Run("production JSON does not open unified state", func(t *testing.T) {
 		jsonStartup := &persistentStateStartup{}
 		jsonCalls := 0
@@ -34,6 +36,8 @@ func TestEndpointStateProviderSelection(t *testing.T) {
 	})
 
 	t.Run("internal unified selection", func(t *testing.T) {
+		assert.False(t, endpointStateProviderUnified.restoresStateFromJSON())
+
 		unifiedStartup := &persistentStateStartup{}
 		jsonCalls := 0
 		startup, err := newEndpointStateStartup(
