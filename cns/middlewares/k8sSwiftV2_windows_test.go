@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -23,6 +24,65 @@ import (
 func TestMain(m *testing.M) {
 	logger.InitLogger("testlogs", 0, 0, "./")
 	os.Exit(m.Run())
+}
+
+func TestIPConfigsRequestHandlerWrapperScheduledWithDRA(t *testing.T) {
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
+	t.Setenv(configuration.EnvPodCIDRs, "10.0.1.0/24")
+	t.Setenv(configuration.EnvServiceCIDRs, "10.0.0.0/16")
+	t.Setenv(configuration.EnvInfraVNETCIDRs, "10.240.0.0/16")
+
+	defaultHandler := func(context.Context, cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+		return &cns.IPConfigsResponse{
+			PodIPInfo: []cns.PodIpInfo{
+				{
+					PodIPConfig: cns.IPSubnet{
+						IPAddress:    "10.0.1.10",
+						PrefixLength: 32,
+					},
+					NICType: cns.InfraNIC,
+				},
+			},
+		}, nil
+	}
+	failureHandler := func(context.Context, cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+		return nil, nil
+	}
+	podInfo := cns.NewPodInfo(
+		"5006cad4-eth0",
+		"5006cad4-e54d-472e-863d-c4bac66200a7",
+		"testpod12",
+		"testpod12namespace",
+	)
+	req := cns.IPConfigsRequest{
+		PodInterfaceID:   podInfo.InterfaceID(),
+		InfraContainerID: podInfo.InfraContainerID(),
+	}
+	req.OrchestratorContext, _ = podInfo.OrchestratorContext()
+
+	resp, err := middleware.IPConfigsRequestHandlerWrapper(defaultHandler, failureHandler)(context.TODO(), req)
+
+	require.NoError(t, err)
+	require.Len(t, resp.PodIPInfo, 1)
+	require.Equal(t, cns.InfraNIC, resp.PodIPInfo[0].NICType)
+	require.True(t, resp.PodIPInfo[0].SkipDefaultRoutes)
+	require.True(t, resp.PodConfigurations.SkipDefaultRouteProgramming)
+}
+
+func TestGetSwiftV2IPConfigForDRANET(t *testing.T) {
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
+	podInfo := cns.NewPodInfo(
+		"5006cad4-eth0",
+		"5006cad4-e54d-472e-863d-c4bac66200a7",
+		"testpod12",
+		"testpod12namespace",
+	)
+
+	result, err := middleware.getSwiftV2IpConfigHelper(context.TODO(), podInfo, true)
+
+	require.NoError(t, err)
+	require.Len(t, result.podIPInfos, 1)
+	require.False(t, result.podConfigurations.SkipDefaultRouteProgramming)
 }
 
 func TestSetRoutesSuccess(t *testing.T) {

@@ -85,25 +85,30 @@ func (k *K8sSWIFTv2Middleware) GetPodInfoForIPConfigsRequest(ctx context.Context
 	return podInfo, types.Success, ""
 }
 
-// getIPConfig returns the pod's SWIFT V2 IP configuration.
-func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodInfo) ([]cns.PodIpInfo, error) {
+type ipConfigResult struct {
+	podIPInfos        []cns.PodIpInfo
+	podConfigurations cns.PodConfigurations
+}
+
+// getIPConfig returns the pod's SWIFT V2 IP configuration for CNI.
+func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodInfo) (ipConfigResult, error) {
 	return k.getSwiftV2IpConfigHelper(ctx, podInfo, false)
 }
 
 // getSwiftV2IpConfigHelper builds the pod's SWIFT V2 delegated IP configs from its MTPNC.
 // When includeDRAAllocations is false, pods scheduled with DRA are skipped.
 // when true, DRA-delegated NICs are included.
-func (k *K8sSWIFTv2Middleware) getSwiftV2IpConfigHelper(ctx context.Context, podInfo cns.PodInfo, includeDRAAllocations bool) ([]cns.PodIpInfo, error) {
+func (k *K8sSWIFTv2Middleware) getSwiftV2IpConfigHelper(ctx context.Context, podInfo cns.PodInfo, includeDRAAllocations bool) (ipConfigResult, error) {
 	// Check if the MTPNC CRD exists for the pod, if not, return error
 	mtpnc := v1alpha1.MultitenantPodNetworkConfig{}
 	mtpncNamespacedName := k8stypes.NamespacedName{Namespace: podInfo.Namespace(), Name: podInfo.Name()}
 	if err := k.Cli.Get(ctx, mtpncNamespacedName, &mtpnc); err != nil {
-		return nil, errors.Wrap(err, errGetMTPNC.Error())
+		return ipConfigResult{}, errors.Wrap(err, errGetMTPNC.Error())
 	}
 
 	// Check if the MTPNC CRD is ready. If one of the fields is empty, return error
 	if !mtpnc.IsReady() {
-		return nil, errMTPNCNotReady
+		return ipConfigResult{}, errMTPNCNotReady
 	}
 	logger.Printf("[SWIFTv2Middleware] mtpnc for pod %s is : %+v", podInfo.Name(), mtpnc)
 
@@ -113,7 +118,12 @@ func (k *K8sSWIFTv2Middleware) getSwiftV2IpConfigHelper(ctx context.Context, pod
 	// using ResourceClaims or using the legacy PN/PNI annotation, it cannot be a mix of both.
 	if !includeDRAAllocations && mtpnc.IsScheduledWithDRA() {
 		k.log().Debug("pod scheduled with DRA; skipping delegated NIC IP config for CNI", zap.String("pod", podInfo.Name()))
-		return []cns.PodIpInfo{}, nil
+		return ipConfigResult{
+			podIPInfos: []cns.PodIpInfo{},
+			podConfigurations: cns.PodConfigurations{
+				SkipDefaultRouteProgramming: true,
+			},
+		}, nil
 	}
 
 	var podIPInfos []cns.PodIpInfo
@@ -122,10 +132,10 @@ func (k *K8sSWIFTv2Middleware) getSwiftV2IpConfigHelper(ctx context.Context, pod
 		// Use fields from mtpnc.Status if InterfaceInfos is empty
 		ip, prefixSize, err := utils.ParseIPAndPrefix(mtpnc.Status.PrimaryIP)
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to parse mtpnc primary IP and prefix")
+			return ipConfigResult{}, errors.Wrap(err, "failed to parse mtpnc primary IP and prefix")
 		}
 		if prefixSize != prefixLength {
-			return nil, errors.Wrapf(errInvalidMTPNCPrefixLength, "mtpnc primaryIP prefix length is %d", prefixSize)
+			return ipConfigResult{}, errors.Wrapf(errInvalidMTPNCPrefixLength, "mtpnc primaryIP prefix length is %d", prefixSize)
 		}
 
 		podIPInfos = append(podIPInfos, cns.PodIpInfo{
@@ -158,10 +168,10 @@ func (k *K8sSWIFTv2Middleware) getSwiftV2IpConfigHelper(ctx context.Context, pod
 				// Parse MTPNC primaryIP to get the IP address and prefix length
 				ip, prefixSize, err = utils.ParseIPAndPrefix(interfaceInfo.PrimaryIP)
 				if err != nil {
-					return nil, errors.Wrap(err, "failed to parse mtpnc primary IP and prefix")
+					return ipConfigResult{}, errors.Wrap(err, "failed to parse mtpnc primary IP and prefix")
 				}
 				if prefixSize != prefixLength {
-					return nil, errors.Wrapf(errInvalidMTPNCPrefixLength, "mtpnc primaryIP prefix length is %d", prefixSize)
+					return ipConfigResult{}, errors.Wrapf(errInvalidMTPNCPrefixLength, "mtpnc primaryIP prefix length is %d", prefixSize)
 				}
 
 				podIPInfo := cns.PodIpInfo{
@@ -179,7 +189,7 @@ func (k *K8sSWIFTv2Middleware) getSwiftV2IpConfigHelper(ctx context.Context, pod
 				// received from MTPNC, this function assigns them for windows while linux is a no-op
 				err = k.assignSubnetPrefixLengthFields(&podIPInfo, interfaceInfo, ip)
 				if err != nil {
-					return nil, errors.Wrap(err, "failed to parse mtpnc subnetAddressSpace prefix")
+					return ipConfigResult{}, errors.Wrap(err, "failed to parse mtpnc subnetAddressSpace prefix")
 				}
 				podIPInfos = append(podIPInfos, podIPInfo)
 				// for windows scenario, it is required to add default route with gatewayIP from CNS
@@ -188,13 +198,14 @@ func (k *K8sSWIFTv2Middleware) getSwiftV2IpConfigHelper(ctx context.Context, pod
 		}
 	}
 
-	return podIPInfos, nil
+	return ipConfigResult{podIPInfos: podIPInfos}, nil
 }
 
 // GetSwiftV2IPConfigs returns the pod's SWIFT V2 delegated IP configs INCLUDING DRA-scheduled
 // NICs (unlike getIPConfig, which skips them).
 func (k *K8sSWIFTv2Middleware) GetSwiftV2IPConfigs(ctx context.Context, podInfo cns.PodInfo) ([]cns.PodIpInfo, error) {
-	return k.getSwiftV2IpConfigHelper(ctx, podInfo, true)
+	result, err := k.getSwiftV2IpConfigHelper(ctx, podInfo, true)
+	return result.podIPInfos, err
 }
 
 // GetPodNICMACs returns the MAC addresses of the NICs allocated to the pod, read

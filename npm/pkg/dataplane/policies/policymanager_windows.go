@@ -509,6 +509,27 @@ func (pMgr *PolicyManager) getSettingsFromACL(policy *NPMNetworkPolicy) ([]*NPMA
 		Priority:        priority201,
 		RuleType:        hcn.RuleTypeSwitch,
 	}
+
+	// allow egress from the selected pods to the node's IP on the annotated ports.
+	// These share the policy's ACLPolicyID so they are cleaned up with the rest of the policy on removal.
+	// The allow priority takes precedence over a deny-all egress rule, so the ports stay reachable.
+	// HNS rejects a port-scoped ACL that has no protocol, so to honor "any protocol" we emit one
+	// ACL per port for each of TCP and UDP (the protocols NPM supports on Windows).
+	nodeEgressProtocols := []Protocol{TCP, UDP}
+	for _, port := range policy.NodeEgressPorts {
+		for _, proto := range nodeEgressProtocols {
+			hnsRules = append(hnsRules, &NPMACLPolSettings{
+				Id:              policy.ACLPolicyID,
+				Action:          hcn.ActionTypeAllow,
+				Direction:       hcn.DirectionTypeOut,
+				RemoteAddresses: pMgr.NodeIP,
+				RemotePorts:     fmt.Sprintf("%d", port),
+				Protocols:       protocolNumMap[proto],
+				Priority:        allowRulePriotity,
+				RuleType:        hcn.RuleTypeSwitch,
+			})
+		}
+	}
 	return hnsRules, nil
 }
 

@@ -1284,7 +1284,7 @@ func TestPluginWindowsAdd(t *testing.T) {
 						NetNsPath:         "bc526fae-4ba0-4e80-bc90-ad721e5850bf",
 						NetNs:             "bc526fae-4ba0-4e80-bc90-ad721e5850bf",
 						HostSubnetPrefix:  "<nil>",
-						Options:           map[string]interface{}{},
+						Options:           nil, // delegated NICs get no host-namespace options
 						// matches with cns ip configuration
 						IPAddresses: []net.IPNet{
 							{
@@ -1355,6 +1355,11 @@ func TestPluginWindowsAdd(t *testing.T) {
 				// ensure the endpoint data  and options are separate entities when in separate endpoint infos
 				epInfo1 := epInfos[0]
 				epInfo2 := epInfos[1]
+				// map iteration order is random; mutate the endpoint that owns an Options map,
+				// as delegated NICs carry nil Options
+				if epInfo1.Options == nil {
+					epInfo1, epInfo2 = epInfo2, epInfo1
+				}
 				epInfo1.Data["dummy"] = "dummy value"
 				epInfo1.Options["dummy"] = "another dummy value"
 				require.NotEqual(t, epInfo1.Data, epInfo2.Data)

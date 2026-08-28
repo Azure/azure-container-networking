@@ -11,9 +11,27 @@
 /.github/                   @azure/acn-admins
 /cns/                       @azure/acn-cns-reviewers
 /cni/                       @azure/acn-cni-reviewers
-/dropgz/                    @rbtr @camrynl @paulyufan2 @ashvindeodhar @thatmattlong
+/dropgz/                    @rbtr @camrynl @ashvindeodhar @thatmattlong
 /npm/                       @azure/acn-npm-reviewers
 /zapai/                     @rbtr @ZetaoZhuang
 /bpf-prog/                  @camrynl @QxBytes @santhoshmprabhu
 /azure-ip-masq-merger/      @QxBytes @santhoshmprabhu
 /azure-iptables-monitor/    @QxBytes @santhoshmprabhu
+
+# Infrastructure rules follow component rules so that the last match preempts
+# component ownership for build, dependency, script, and test configuration.
+go.mod                      @azure/acn-infra
+go.sum                      @azure/acn-infra
+Makefile                    @azure/acn-infra
+*.mk                        @azure/acn-infra
+*Dockerfile*                @azure/acn-infra
+scripts/                    @azure/acn-infra
+*.sh                        @azure/acn-infra
+*.ps1                       @azure/acn-infra
+/.pipelines/**/*.yaml       @azure/acn-infra
+/.pipelines/**/*.yml        @azure/acn-infra
+/test/**/*.yaml             @azure/acn-infra
+/test/**/*.yml              @azure/acn-infra
+
+# Workflow changes need infrastructure and administrative review requests.
+/.github/workflows/         @azure/acn-infra @azure/acn-admins

@@ -108,6 +108,24 @@ var linuxChecksMap = map[string][]check{
 			cmd:              azureVnetStateFileCmd,
 		},
 	},
+	"stateless": {
+		{
+			name:             "cns",
+			stateFileIPs:     cnsManagedStateFileIps,
+			podLabelSelector: validatorPod,
+			podNamespace:     privilegedNamespace,
+			containerName:    "debug",
+			cmd:              cnsManagedStateFileCmd,
+		}, // cns configmap "ManageEndpointState": true, | Endpoints managed in CNS State File
+		{
+			name:             "cns cache",
+			stateFileIPs:     cnsCacheStateFileIps,
+			podLabelSelector: validatorPod,
+			podNamespace:     privilegedNamespace,
+			containerName:    "debug",
+			cmd:              cnsCachedAssignedIPStateCmd,
+		},
+	},
 	"cilium_dualstack": {
 		{
 			name:             "cns dualstack",

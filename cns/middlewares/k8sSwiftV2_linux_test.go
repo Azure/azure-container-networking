@@ -96,6 +96,44 @@ func TestIPConfigsRequestHandlerWrapperSuccess(t *testing.T) {
 	assert.Equal(t, err, nil)
 	assert.Equal(t, resp.PodIPInfo[2].PodIPConfig.IPAddress, "192.168.0.1")
 	assert.Equal(t, resp.PodIPInfo[2].MacAddress, "00:00:00:00:00:00")
+	assert.Equal(t, resp.PodConfigurations.SkipDefaultRouteProgramming, false)
+}
+
+func TestIPConfigsRequestHandlerWrapperScheduledWithDRA(t *testing.T) {
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
+	t.Setenv(configuration.EnvPodCIDRs, "10.0.1.0/24")
+	t.Setenv(configuration.EnvServiceCIDRs, "10.0.0.0/16")
+	t.Setenv(configuration.EnvInfraVNETCIDRs, "10.240.0.0/16")
+
+	defaultHandler := func(context.Context, cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+		return &cns.IPConfigsResponse{
+			PodIPInfo: []cns.PodIpInfo{
+				{
+					PodIPConfig: cns.IPSubnet{
+						IPAddress:    "10.0.1.10",
+						PrefixLength: 32,
+					},
+					NICType: cns.InfraNIC,
+				},
+			},
+		}, nil
+	}
+	failureHandler := func(context.Context, cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+		return nil, nil
+	}
+	req := cns.IPConfigsRequest{
+		PodInterfaceID:   testPod12Info.InterfaceID(),
+		InfraContainerID: testPod12Info.InfraContainerID(),
+	}
+	req.OrchestratorContext, _ = testPod12Info.OrchestratorContext()
+
+	resp, err := middleware.IPConfigsRequestHandlerWrapper(defaultHandler, failureHandler)(context.TODO(), req)
+
+	assert.NilError(t, err)
+	assert.Equal(t, len(resp.PodIPInfo), 1)
+	assert.Equal(t, resp.PodIPInfo[0].NICType, cns.InfraNIC)
+	assert.Equal(t, resp.PodIPInfo[0].SkipDefaultRoutes, true)
+	assert.Equal(t, resp.PodConfigurations.SkipDefaultRouteProgramming, true)
 }
 
 func TestIPConfigsRequestHandlerWrapperFailure(t *testing.T) {
@@ -242,23 +280,25 @@ func TestGetSWIFTv2IPConfigSuccess(t *testing.T) {
 
 	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 
-	ipInfos, err := middleware.getIPConfig(context.TODO(), testPod1Info)
+	result, err := middleware.getIPConfig(context.TODO(), testPod1Info)
 	assert.Equal(t, err, nil)
+	assert.Equal(t, result.podConfigurations.SkipDefaultRouteProgramming, false)
 	// Ensure that the length of ipInfos matches the number of InterfaceInfos
 	// Adjust this according to the test setup
-	assert.Equal(t, len(ipInfos), 1)
-	assert.Equal(t, ipInfos[0].NICType, cns.DelegatedVMNIC)
-	assert.Equal(t, ipInfos[0].SkipDefaultRoutes, false)
+	assert.Equal(t, len(result.podIPInfos), 1)
+	assert.Equal(t, result.podIPInfos[0].NICType, cns.DelegatedVMNIC)
+	assert.Equal(t, result.podIPInfos[0].SkipDefaultRoutes, false)
 }
 
 func TestGetSWIFTv2IPConfigSharedNIC(t *testing.T) {
 	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 
-	ipInfos, err := middleware.getIPConfig(context.TODO(), testPod11Info)
+	result, err := middleware.getIPConfig(context.TODO(), testPod11Info)
 	assert.Equal(t, err, nil)
-	assert.Equal(t, len(ipInfos), 1)
-	assert.Equal(t, ipInfos[0].NICType, cns.DelegatedVMNIC)
-	assert.Equal(t, ipInfos[0].SharedNIC, true)
+	assert.Equal(t, result.podConfigurations.SkipDefaultRouteProgramming, false)
+	assert.Equal(t, len(result.podIPInfos), 1)
+	assert.Equal(t, result.podIPInfos[0].NICType, cns.DelegatedVMNIC)
+	assert.Equal(t, result.podIPInfos[0].SharedNIC, true)
 }
 
 func TestGetSWIFTv2IPConfigScheduledWithDRA(t *testing.T) {
@@ -266,9 +306,20 @@ func TestGetSWIFTv2IPConfigScheduledWithDRA(t *testing.T) {
 
 	// When the pod is scheduled with DRA, dranet owns the delegated NIC, so CNS
 	// must not return its IP config to the CNI caller.
-	ipInfos, err := middleware.getIPConfig(context.TODO(), testPod12Info)
+	result, err := middleware.getIPConfig(context.TODO(), testPod12Info)
 	assert.Equal(t, err, nil)
-	assert.Equal(t, len(ipInfos), 0)
+	assert.Equal(t, len(result.podIPInfos), 0)
+	assert.Equal(t, result.podConfigurations.SkipDefaultRouteProgramming, true)
+}
+
+func TestGetSwiftV2IPConfigForDRANET(t *testing.T) {
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
+
+	result, err := middleware.getSwiftV2IpConfigHelper(context.TODO(), testPod12Info, true)
+
+	assert.NilError(t, err)
+	assert.Equal(t, len(result.podIPInfos), 1)
+	assert.Equal(t, result.podConfigurations.SkipDefaultRouteProgramming, false)
 }
 
 func TestGetSWIFTv2IPConfigFailure(t *testing.T) {
@@ -449,12 +500,12 @@ func TestNICTypeConfigSuccess(t *testing.T) {
 	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 
 	// Test Backend NIC type
-	ipInfos, err := middleware.getIPConfig(context.TODO(), testPod6Info)
+	result, err := middleware.getIPConfig(context.TODO(), testPod6Info)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(ipInfos) != 0 {
-		t.Fatalf("expected 0 ipInfo, got %d", len(ipInfos))
+	if len(result.podIPInfos) != 0 {
+		t.Fatalf("expected 0 ipInfo, got %d", len(result.podIPInfos))
 	}
 }
 
@@ -477,14 +528,14 @@ func TestGetSWIFTv2IPConfigMultiInterfaceSuccess(t *testing.T) {
 
 	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 
-	ipInfos, err := middleware.getIPConfig(context.TODO(), testPod7Info)
+	result, err := middleware.getIPConfig(context.TODO(), testPod7Info)
 	assert.Equal(t, err, nil)
 	// Ensure that the length of ipInfos matches the number of InterfaceInfos
 	// Adjust this according to the test setup in mock client
 	expectedInterfaceCount := 2
-	assert.Equal(t, len(ipInfos), expectedInterfaceCount)
+	assert.Equal(t, len(result.podIPInfos), expectedInterfaceCount)
 
-	for _, ipInfo := range ipInfos {
+	for _, ipInfo := range result.podIPInfos {
 		switch ipInfo.NICType {
 		case cns.DelegatedVMNIC:
 			assert.Equal(t, ipInfo.NICType, cns.DelegatedVMNIC)

@@ -23,6 +23,12 @@ parameters:
   - name: dependsOn
     type: object
     default: ""
+  - name: cniType
+    type: string
+    default: "cniv2"
+  - name: installFlag
+    type: string
+    default: "INSTALL_AZURE_VNET"
 
 stages:
   - stage: ${{ parameters.clusterName }}
@@ -63,7 +69,7 @@ stages:
               azureIpamVersion: $(AZURE_IPAM_VERSION)
               cnsVersion: $(CNS_VERSION)
               cniVersion: $(CNI_VERSION)
-              installFlag: INSTALL_AZURE_VNET
+              installFlag: ${{ parameters.installFlag }}
               os: ${{ parameters.os }}
   - stage: ${{ parameters.name }}
     displayName: E2E-${{ parameters.displayName }}
@@ -102,6 +108,8 @@ stages:
               name: ${{ parameters.name }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               scaleup: 100
+              cniType: ${{ parameters.cniType }}
+              installFlag: ${{ parameters.installFlag }}
           - template: ../../templates/k8s-e2e-step-template.yaml
             parameters:
               sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -123,11 +131,11 @@ stages:
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
-              cni: cniv2
+              cni: ${{ parameters.cniType }}
 
       - template: ../../templates/failure-analysis.job.yaml
         parameters:
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
-          cni: cniv2
+          cni: ${{ parameters.cniType }}
 

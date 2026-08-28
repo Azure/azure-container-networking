@@ -118,11 +118,17 @@ stages:
               hostport: true
               service: true
               hybridWin: true
+          # Auto-injected policy tasks can mark an otherwise healthy job as
+          # SucceededWithIssues. This output proves all product test steps ran.
+          - bash: echo "##vso[task.setvariable variable=completed;isOutput=true]true"
+            name: markE2ECompleted
+            displayName: Mark E2E completed
 
       # can only succeed with issues in windows
       - template: ../../templates/warning-handler-job-template.yaml
         parameters:
           dependsOnToEmitWarning: ${{ parameters.name }}_windows
+          completionOutput: markE2ECompleted.completed
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           fileSearchPattern: "azure-vnet*.log"
           # known windows issues that occur only in testing:

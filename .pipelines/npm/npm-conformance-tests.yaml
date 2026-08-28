@@ -247,11 +247,15 @@ stages:
             echo $FQDN
 
             runConformance () {
+                local -a seedArgs=()
+                if [[ $# -gt 0 ]]; then
+                  seedArgs=(--ginkgo.seed="$1")
+                fi
                 if [ $(PROFILE) == "v2-place-first" ]; then
                   # 15 minute timeout for creating LoadBalancer with Azure-internal "external IPs"
                   ./policy-assistant generate --noisy=true --job-timeout-seconds=2 --pod-creation-timeout-seconds 900 --server-protocol TCP,UDP --ignore-loopback --include special-services --exclude cni-brings-source-pod-info-to-other-node
                 else
-                  KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 ./e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig=./kubeconfig
+                  KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 ./e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig=./kubeconfig "${seedArgs[@]}"
                 fi
                 # there can't be a command after e2e.test/policy-assistant because the exit code is important
             }
@@ -260,12 +264,13 @@ stages:
             if [ $(IS_STRESS_TEST) == "true" ]; then
                 echo "Running $NUM_PARALLEL_JOBS_FOR_STRESS_TEST conformance tests at once and writing outputs to files"
                 declare -a conformancePIDs
+                baseSeed=$(date +%s)
                 for round in $(seq 1 $NUM_PARALLEL_JOBS_FOR_STRESS_TEST); do
                     # for each iteration, run the conformance test and echos in the background, and write the output of the conformance test to a file
 
                     # run the conformance test in the foreground and write the output to stdout and a file
                     echo "starting conformance test #$round" && \
-                        runConformance > $npmLogsFolder/conformance-results-$round && \
+                        runConformance $((baseSeed + round)) > $npmLogsFolder/conformance-results-$round && \
                         echo "finished conformance test #$round" &
                     pidOfConformanceTest=$!
                     conformancePIDs+=($pidOfConformanceTest)

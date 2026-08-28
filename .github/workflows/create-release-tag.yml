@@ -190,3 +190,60 @@ jobs:
             echo "- Reason: $REASON"
             echo "- Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  notify_release_channel:
+    name: Notify Release Channel
+    runs-on: ubuntu-latest
+    needs: [validate, create_tag]
+    # Only notify for binary tags (prefix != none). Root tags (CNI/CNS) are
+    # notified by Step 4 in scheduled-release.yaml with a richer message.
+    if: inputs.tag_prefix != 'none'
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TEAMS_RELEASE_CHANNEL_ID: "19:ad6cb6596adf4850910e9be3e8a7f9ab@thread.skype"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.validate.outputs.target_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Build release-cli
+        run: |
+          cd tools/release && go build -o /tmp/release-cli ./cmd/release-cli/
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - name: Post to Release Channel
+        env:
+          FULL_TAG: ${{ needs.validate.outputs.full_tag }}
+          TARGET_SHA: ${{ needs.validate.outputs.target_sha }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          set -euo pipefail
+          REPO="${GITHUB_REPOSITORY}"
+          COMMIT_LINK="https://github.com/${REPO}/commit/${TARGET_SHA}"
+          TAG_LINK="https://github.com/${REPO}/releases/tag/${FULL_TAG}"
+          RUN_LINK="${GITHUB_SERVER_URL}/${REPO}/actions/runs/${GITHUB_RUN_ID}"
+
+          MSG="🏷️ **${FULL_TAG}** — tag created
+          - Managed DALEC Build: _(automatic — triggered by tag)_
+          - Managed DALEC Lead Approval: _(pending — 18hr timeout)_
+          - Managed DALEC MCR Publish: _(automatic after approval)_
+          - Workflow run: ${RUN_LINK}"
+
+          echo "$MSG"
+          /tmp/release-cli notify \
+            --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
+            --title "${FULL_TAG}" \
+            --status completed \
+            --summary "$MSG" \
+            --stage binary-tag-created
