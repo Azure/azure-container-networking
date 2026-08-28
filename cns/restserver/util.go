@@ -162,6 +162,33 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 		hostVersion = existingNCStatus.HostVersion
 		existingSecondaryIPConfigs = existingNCStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
 		vfpUpdateComplete = existingNCStatus.VfpUpdateComplete
+
+		// Guard against replay of a stale NC payload: reject (without mutating any state) an incoming
+		// DNC/NNC version that is older than the version CNS already has stored for this NC. Without
+		// this check, a stale replay would be accepted, the stored version would incorrectly move
+		// backwards, and secondary IPs already released (and removed from PodIPConfigState) could be
+		// recreated as Available. This only applies to the KubernetesCRD (dynamic NNC-driven) IPAM
+		// path when both requests carry a version to compare: other orchestrator types/flows don't
+		// always populate a meaningful NC version here.
+		// See nc-version-replay-repro-handoff.md for full analysis.
+		storedVersionStr := existingNCStatus.CreateNetworkContainerRequest.Version
+		if req.NetworkContainerid != nodesubnet.NodeSubnetNCID && service.state.OrchestratorType == cns.KubernetesCRD &&
+			storedVersionStr != "" && req.Version != "" {
+			storedVersion, storedErr := strconv.Atoi(storedVersionStr)
+			incomingVersion, incomingErr := strconv.Atoi(req.Version)
+			switch {
+			case storedErr != nil || incomingErr != nil:
+				errBuf := fmt.Sprintf(
+					"[Azure CNS] Unable to compare NC versions for %s: stored version %q, incoming version %q",
+					req.NetworkContainerid, storedVersionStr, req.Version)
+				return types.UnsupportedNCVersion, errBuf
+			case incomingVersion < storedVersion:
+				errBuf := fmt.Sprintf(
+					"[Azure CNS] Rejecting stale NC update for %s: incoming version %d is older than stored version %d",
+					req.NetworkContainerid, incomingVersion, storedVersion)
+				return types.NetworkContainerVersionMismatch, errBuf
+			}
+		}
 	}
 
 	if req.NetworkContainerid == nodesubnet.NodeSubnetNCID {
