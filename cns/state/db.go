@@ -14,6 +14,7 @@ import (
 
 	bolt "go.etcd.io/bbolt"
 	bolterrors "go.etcd.io/bbolt/errors"
+	"go.uber.org/zap"
 )
 
 var (
@@ -67,14 +68,30 @@ type Options struct {
 	Timeout  time.Duration
 	ReadOnly bool
 	NoSync   bool
+	Metrics  *Metrics
+	Logger   *zap.Logger
 }
 
 type DB struct {
 	db        *bolt.DB
 	writeGate chan struct{}
+	metrics   *Metrics
+	logger    *zap.Logger
 }
 
-func Open(path string, opts Options) (*DB, error) {
+func Open(path string, opts Options) (store *DB, returnErr error) {
+	if opts.Metrics != nil || opts.Logger != nil {
+		started := metricNow(opts.Metrics)
+		defer func() {
+			result := classifyResult(true, returnErr)
+			duration := metricDuration(opts.Metrics, started)
+			_ = opts.Metrics.ObserveLifecycle(LifecycleStartup, result, duration)
+			if returnErr == nil {
+				store.observeLifecycle(context.TODO(), LifecycleStartup, result, duration)
+			}
+		}()
+	}
+
 	_, statErr := os.Stat(path)
 	exists := statErr == nil
 	if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
@@ -97,7 +114,14 @@ func Open(path string, opts Options) (*DB, error) {
 		return nil, fmt.Errorf("opening cns state database: %w", err)
 	}
 
-	store := &DB{db: db, writeGate: make(chan struct{}, 1)}
+	store = &DB{
+		db:        db,
+		writeGate: make(chan struct{}, 1),
+		metrics:   opts.Metrics,
+	}
+	if opts.Logger != nil {
+		store.logger = opts.Logger.With(zap.String("component", "persistent_state"))
+	}
 	created := !exists && !opts.ReadOnly
 	if created {
 		err = store.initialize()
@@ -194,7 +218,17 @@ func (s *DB) Close() error {
 	return nil
 }
 
-func (s *DB) View(ctx context.Context, fn func(*ReadTx) error) error {
+func (s *DB) View(ctx context.Context, fn func(*ReadTx) error) (returnErr error) {
+	if s.metrics != nil {
+		started := metricNow(s.metrics)
+		defer func() {
+			_ = s.metrics.ObserveTransaction(
+				TransactionView,
+				classifyResult(true, returnErr),
+				metricDuration(s.metrics, started),
+			)
+		}()
+	}
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("viewing cns state: %w", err)
 	}
@@ -216,7 +250,17 @@ func (s *DB) Update(ctx context.Context, fn func(*WriteTx) error) error {
 	return err
 }
 
-func (s *DB) update(ctx context.Context, fn func(*WriteTx) (bool, error)) (bool, error) {
+func (s *DB) update(ctx context.Context, fn func(*WriteTx) (bool, error)) (changed bool, returnErr error) {
+	if s.metrics != nil {
+		started := metricNow(s.metrics)
+		defer func() {
+			_ = s.metrics.ObserveTransaction(
+				TransactionUpdate,
+				classifyResult(changed, returnErr),
+				metricDuration(s.metrics, started),
+			)
+		}()
+	}
 	if err := ctx.Err(); err != nil {
 		return false, fmt.Errorf("updating cns state: %w", err)
 	}

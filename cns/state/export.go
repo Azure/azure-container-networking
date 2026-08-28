@@ -97,7 +97,18 @@ func osRollbackFileOperations() rollbackFileOperations {
 
 // ExportLegacy converts one validated Bolt snapshot into both legacy JSON files.
 // It returns false without touching the files after rollback export is complete.
-func (s *DB) ExportLegacy(ctx context.Context, opts ExportOptions) (bool, error) {
+func (s *DB) ExportLegacy(ctx context.Context, opts ExportOptions) (changed bool, returnErr error) {
+	if s.metrics != nil || s.logger != nil {
+		started := metricNow(s.metrics)
+		defer func() {
+			result := classifyResult(changed, returnErr)
+			duration := metricDuration(s.metrics, started)
+			_ = s.metrics.ObserveLifecycle(LifecycleRollback, result, duration)
+			if returnErr == nil {
+				s.observeLifecycle(ctx, LifecycleRollback, result, duration)
+			}
+		}()
+	}
 	return s.exportLegacy(ctx, opts, osRollbackFileOperations())
 }
 
