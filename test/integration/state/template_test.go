@@ -262,11 +262,7 @@ func TestStateMigrationValidatorRetry(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dir, err := os.MkdirTemp(".", ".r22-retry-")
-			require.NoError(t, err)
-			t.Cleanup(func() {
-				require.NoError(t, os.RemoveAll(dir))
-			})
+			dir := t.TempDir()
 
 			fixture := filepath.Join(dir, "validator-fixture.sh")
 			counter := filepath.Join(dir, "counter")
@@ -622,11 +618,7 @@ type compareFixture struct {
 
 func newCompareFixture(t *testing.T) compareFixture {
 	t.Helper()
-	dir, err := os.MkdirTemp(".", ".r22-fixture-")
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, os.RemoveAll(dir))
-	})
+	dir := t.TempDir()
 	baselineDir := filepath.Join(dir, "baseline")
 	candidateDir := filepath.Join(dir, "candidate")
 	require.NoError(t, os.Mkdir(baselineDir, 0o700))
