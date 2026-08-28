@@ -72,6 +72,15 @@ func (s *DB) ImportLegacy(ctx context.Context, opts ImportOptions) (bool, error)
 }
 
 func (s *DB) importLegacy(ctx context.Context, opts ImportOptions, readFile readFileFunc) (bool, error) {
+	return s.importLegacyWithCommitHook(ctx, opts, readFile, nil)
+}
+
+func (s *DB) importLegacyWithCommitHook(
+	ctx context.Context,
+	opts ImportOptions,
+	readFile readFileFunc,
+	beforeCommit func() error,
+) (bool, error) {
 	if err := validateImportOptions(opts); err != nil {
 		return false, err
 	}
@@ -143,8 +152,8 @@ func (s *DB) importLegacy(ctx context.Context, opts ImportOptions, readFile read
 		if err := meta.Put(metaKeyLegacyImport, []byte(legacyImportMarker)); err != nil {
 			return false, fmt.Errorf("writing legacy import marker: %w", err)
 		}
-		if s.importBeforeCommit != nil {
-			if err := s.importBeforeCommit(); err != nil {
+		if beforeCommit != nil {
+			if err := beforeCommit(); err != nil {
 				return false, fmt.Errorf("finishing legacy import: %w", err)
 			}
 		}

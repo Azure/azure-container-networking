@@ -254,10 +254,20 @@ func TestImportLegacyReadFailures(t *testing.T) {
 func TestImportLegacySemanticFailures(t *testing.T) {
 	validCNS, validEndpoint := completeLegacyImportData(t)
 	tests := []struct {
-		name     string
-		cnsData  []byte
-		endpoint []byte
+		name              string
+		cnsData           []byte
+		endpoint          []byte
+		wantErrorContains string
 	}{
+		{
+			name: "unknown request field",
+			cnsData: mutateLegacyCNS(t, validCNS, func(state map[string]any) {
+				statuses := state["ContainerStatus"].(map[string]any)
+				request := statuses[importNC1].(map[string]any)["CreateNetworkContainerRequest"].(map[string]any)
+				request["Unexpected"] = true
+			}),
+			wantErrorContains: "unknown field",
+		},
 		{
 			name: "invalid IP UUID",
 			cnsData: mutateLegacyCNS(t, validCNS, func(state map[string]any) {
@@ -339,8 +349,9 @@ func TestImportLegacySemanticFailures(t *testing.T) {
 			cnsData: validCNS,
 			endpoint: mutateLegacyEndpoints(t, validEndpoint, func(endpoints map[string]any) {
 				info := endpointIPInfo(endpoints, "container-1", "eth0")
-				info["IPv4"] = encodeIPNets(t, "10.9.0.4/24")
+				info["ipv4"] = encodeIPNets(t, "10.9.0.4/24")
 			}),
+			wantErrorContains: "missing from inventory",
 		},
 		{
 			name:    "duplicate endpoint ownership",
@@ -353,15 +364,17 @@ func TestImportLegacySemanticFailures(t *testing.T) {
 			name:    "endpoint NC mismatch",
 			cnsData: validCNS,
 			endpoint: mutateLegacyEndpoints(t, validEndpoint, func(endpoints map[string]any) {
-				endpointIPInfo(endpoints, "container-1", "eth0")["NetworkContainerID"] = importNC2
+				endpointIPInfo(endpoints, "container-1", "eth0")["networkContainerID"] = importNC2
 			}),
+			wantErrorContains: "does not match",
 		},
 		{
 			name:    "malformed endpoint MAC",
 			cnsData: validCNS,
 			endpoint: mutateLegacyEndpoints(t, validEndpoint, func(endpoints map[string]any) {
-				endpointIPInfo(endpoints, "container-1", "eth0")["MACAddress"] = "bad-mac"
+				endpointIPInfo(endpoints, "container-1", "eth0")["macAddress"] = "bad-mac"
 			}),
+			wantErrorContains: "invalid MAC",
 		},
 		{
 			name:    "invalid delete intent",
@@ -384,6 +397,10 @@ func TestImportLegacySemanticFailures(t *testing.T) {
 			before := requireValidSnapshot(t, db)
 			changed, err := db.ImportLegacy(context.Background(), opts)
 			require.Error(t, err)
+			if tt.wantErrorContains != "" {
+				require.ErrorContains(t, err, tt.wantErrorContains)
+				assert.NotContains(t, err.Error(), "duplicate json key")
+			}
 			assert.False(t, changed)
 			assert.Equal(t, before, requireValidSnapshot(t, db))
 		})
@@ -396,9 +413,12 @@ func TestImportLegacyAtomicityReplayAndConcurrency(t *testing.T) {
 		cnsData, endpointData := completeLegacyImportData(t)
 		opts := writeLegacyImportFiles(t, cnsData, endpointData, true)
 		before := requireValidSnapshot(t, db)
-		db.importBeforeCommit = func() error { return errAbort }
-
-		changed, err := db.ImportLegacy(context.Background(), opts)
+		changed, err := db.importLegacyWithCommitHook(
+			context.Background(),
+			opts,
+			os.ReadFile,
+			func() error { return errAbort },
+		)
 		require.ErrorIs(t, err, errAbort)
 		assert.False(t, changed)
 		assert.Equal(t, before, requireValidSnapshot(t, db))
