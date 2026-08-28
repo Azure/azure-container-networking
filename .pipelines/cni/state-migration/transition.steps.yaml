@@ -43,6 +43,9 @@ parameters:
   - name: podRelation
     type: string
     default: inherit
+  - name: runFaultInjection
+    type: boolean
+    default: false
   - name: injectExternalFault
     type: boolean
     default: false
@@ -584,6 +587,17 @@ steps:
             --argjson afterGeneration "$afterGeneration" \
             '{daemonsetGenerationBefore: $beforeGeneration, daemonsetGenerationAfter: $afterGeneration, restartCount: 1}' \
             >"$evidenceDir/restart.json"
+
+  # Endpoint-commit faults require CNS-owned endpoint state. CNI-managed lanes
+  # still run the mandatory active-scale restart immediately below.
+  - ${{ if and(eq(parameters.action, 'restart-during-scale'), eq(parameters.runFaultInjection, true)) }}:
+    - template: ../load-test-templates/migration-fault-injection-template.yaml
+      parameters:
+        clusterName: ${{ parameters.clusterName }}
+        os: ${{ parameters.os }}
+        cni: ${{ parameters.cni }}
+        scenario: all
+        artifactName: state-migration-${{ parameters.lane }}-04-fault-injection
 
   - ${{ if eq(parameters.action, 'restart-during-scale') }}:
     - task: AzureCLI@2

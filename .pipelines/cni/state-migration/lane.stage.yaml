@@ -211,7 +211,7 @@ stages:
       - job: restart_during_scale
         displayName: 04 Restart during scale
         dependsOn: same_boot_restart
-        timeoutInMinutes: 90
+        timeoutInMinutes: 180
         steps:
           - template: transition.steps.yaml
             parameters:
@@ -234,6 +234,7 @@ stages:
               baselineArtifact: state-migration-$(Build.BuildId)-${{ parameters.name }}-03-same-boot-restart
               stateRelation: changed
               bootRelation: same
+              runFaultInjection: ${{ eq(parameters.manageEndpointState, 'true') }}
 
       - job: node_reboot
         displayName: 05 Node reboot
