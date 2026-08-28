@@ -70,10 +70,8 @@ type Options struct {
 }
 
 type DB struct {
-	db                 *bolt.DB
-	writeGate          chan struct{}
-	importBeforeCommit func() error
-	exportBeforeCommit func() error
+	db        *bolt.DB
+	writeGate chan struct{}
 }
 
 func Open(path string, opts Options) (*DB, error) {
@@ -173,14 +171,7 @@ func (s *DB) validate() error {
 		if _, err := decodeUint64(meta.Get(metaKeyGeneration)); err != nil {
 			return corrupt("invalid generation", err)
 		}
-		if _, err := legacyImportComplete(meta); err != nil {
-			return err
-		}
-		rollbackComplete, err := rollbackExportComplete(meta)
-		if err != nil {
-			return err
-		}
-		if err := validateRollbackExportState(Authority(meta.Get(metaKeyAuthority)), rollbackComplete); err != nil {
+		if err := validateMigrationMetadata(meta); err != nil {
 			return err
 		}
 		return nil
@@ -270,6 +261,9 @@ func (s *DB) updateLocked(ctx context.Context, fn func(*WriteTx) (bool, error)) 
 			return validationErr
 		}
 		meta := tx.Bucket(bucketMetadata)
+		if err := validateMigrationMetadata(meta); err != nil {
+			return err
+		}
 		generation, err := decodeUint64(meta.Get(metaKeyGeneration))
 		if err != nil {
 			return corrupt("invalid generation", err)

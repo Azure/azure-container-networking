@@ -42,6 +42,17 @@ func rollbackExportComplete(metadata *bolt.Bucket) (bool, error) {
 	return true, nil
 }
 
+func validateMigrationMetadata(metadata *bolt.Bucket) error {
+	if _, err := legacyImportComplete(metadata); err != nil {
+		return err
+	}
+	rollbackComplete, err := rollbackExportComplete(metadata)
+	if err != nil {
+		return err
+	}
+	return validateRollbackExportState(Authority(metadata.Get(metaKeyAuthority)), rollbackComplete)
+}
+
 func validateRollbackExportState(authority Authority, complete bool) error {
 	switch {
 	case authority == AuthorityBolt && !complete:
@@ -55,15 +66,4 @@ func validateRollbackExportState(authority Authority, complete bool) error {
 	default:
 		return corrupt(fmt.Sprintf("invalid rollback authority %q", authority), nil)
 	}
-}
-
-func setRollbackExportComplete(tx *bolt.Tx) error {
-	metadata := tx.Bucket(bucketMetadata)
-	if metadata == nil {
-		return corrupt(fmt.Sprintf("missing bucket %q", bucketMetadata), nil)
-	}
-	if err := metadata.Put(metaKeyRollbackExport, []byte(rollbackExportMarker)); err != nil {
-		return fmt.Errorf("writing rollback export marker: %w", err)
-	}
-	return nil
 }

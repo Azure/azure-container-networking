@@ -313,6 +313,12 @@ func TestOpenRejectsCorruption(t *testing.T) {
 			},
 		},
 		{
+			name: "invalid legacy import marker",
+			mutate: func(tx *bolt.Tx) error {
+				return tx.Bucket(bucketMetadata).Put(metaKeyLegacyImport, []byte("invalid"))
+			},
+		},
+		{
 			name: "invalid rollback marker",
 			mutate: func(tx *bolt.Tx) error {
 				return tx.Bucket(bucketMetadata).Put(metaKeyRollbackExport, []byte("invalid"))
