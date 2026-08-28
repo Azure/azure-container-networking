@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"fmt"
+	"io"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -9,6 +11,15 @@ import (
 
 	statevalidate "github.com/Azure/azure-container-networking/test/validate"
 	"github.com/stretchr/testify/require"
+)
+
+const (
+	baselineFlag        = "-baseline"
+	candidateFlag       = "-candidate"
+	expectedBackendFlag = "-expected-backend"
+	baselineFile        = "before.json"
+	candidateFile       = "after.json"
+	backendValue        = "backend"
 )
 
 func TestRun(t *testing.T) {
@@ -92,9 +103,9 @@ func TestRun(t *testing.T) {
 			var stdout bytes.Buffer
 			var stderr bytes.Buffer
 			gotCode := run([]string{
-				"-baseline", baselinePath,
-				"-candidate", candidatePath,
-				"-expected-backend", "json",
+				baselineFlag, baselinePath,
+				candidateFlag, candidatePath,
+				expectedBackendFlag, "json",
 			}, &stdout, &stderr)
 
 			require.Equal(t, tt.wantCode, gotCode)
@@ -112,6 +123,13 @@ func TestRun(t *testing.T) {
 	}
 }
 
+func TestComparisonExitCode(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, 1, comparisonExitCode(fmt.Errorf("comparing summaries: %w", statevalidate.ErrSummaryRegression)))
+	require.Equal(t, 2, comparisonExitCode(io.ErrUnexpectedEOF))
+}
+
 func TestParseOptions(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -122,14 +140,14 @@ func TestParseOptions(t *testing.T) {
 		{
 			name: "all required flags",
 			args: []string{
-				"-baseline", "before.json",
-				"-candidate", "after.json",
-				"-expected-backend", "backend",
+				baselineFlag, baselineFile,
+				candidateFlag, candidateFile,
+				expectedBackendFlag, backendValue,
 			},
 			want: options{
-				baselinePath:    "before.json",
-				candidatePath:   "after.json",
-				expectedBackend: "backend",
+				baselinePath:    baselineFile,
+				candidatePath:   candidateFile,
+				expectedBackend: backendValue,
 			},
 		},
 		{
@@ -138,12 +156,12 @@ func TestParseOptions(t *testing.T) {
 		},
 		{
 			name:    "expected backend missing",
-			args:    []string{"-baseline", "before.json", "-candidate", "after.json"},
-			wantErr: "-expected-backend",
+			args:    []string{baselineFlag, baselineFile, candidateFlag, candidateFile},
+			wantErr: expectedBackendFlag,
 		},
 		{
 			name:    "positional argument",
-			args:    []string{"extra", "-baseline", "before.json", "-candidate", "after.json", "-expected-backend", "backend"},
+			args:    []string{"extra", baselineFlag, baselineFile, candidateFlag, candidateFile, expectedBackendFlag, backendValue},
 			wantErr: "unexpected positional arguments",
 		},
 		{

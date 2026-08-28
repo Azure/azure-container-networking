@@ -52,8 +52,15 @@ type validationCheckID struct {
 	node string
 }
 
-// ErrSummaryRegression identifies a validation summary mismatch.
-var ErrSummaryRegression = errors.New("validation summary regression")
+var (
+	// ErrSummaryRegression identifies a validation summary mismatch.
+	ErrSummaryRegression = errors.New("validation summary regression")
+
+	errInvalidSummary    = errors.New("validate: invalid summary")
+	errInvalidBackend    = errors.New("validate: invalid backend")
+	errInvalidIdentifier = errors.New("validate: invalid identifier")
+	errInvalidIdentity   = errors.New("validate: invalid pod/IP identity")
+)
 
 // DecodeValidationSummary strictly decodes and validates one summary.
 func DecodeValidationSummary(r io.Reader, expectedBackend StateBackend) (ValidationSummary, error) {
@@ -68,7 +75,7 @@ func DecodeValidationSummary(r io.Reader, expectedBackend StateBackend) (Validat
 	var trailing json.RawMessage
 	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
 		if err == nil {
-			return ValidationSummary{}, errors.New("decoding validation summary: multiple JSON values")
+			return ValidationSummary{}, fmt.Errorf("%w: multiple JSON values", errInvalidSummary)
 		}
 		return ValidationSummary{}, fmt.Errorf("decoding validation summary trailer: %w", err)
 	}
@@ -77,14 +84,14 @@ func DecodeValidationSummary(r io.Reader, expectedBackend StateBackend) (Validat
 	if err != nil {
 		return ValidationSummary{}, err
 	}
-	if err := ValidateValidationSummary(summary, expectedBackend); err != nil {
+	if err := CheckSummary(summary, expectedBackend); err != nil {
 		return ValidationSummary{}, err
 	}
 	return summary, nil
 }
 
-// ValidateValidationSummary validates the backend, shape, identities, and check results.
-func ValidateValidationSummary(summary ValidationSummary, expectedBackend StateBackend) error {
+// CheckSummary validates the backend, shape, identities, and check results.
+func CheckSummary(summary ValidationSummary, expectedBackend StateBackend) error {
 	if err := validateBackend(expectedBackend, "expected"); err != nil {
 		return err
 	}
@@ -92,13 +99,18 @@ func ValidateValidationSummary(summary ValidationSummary, expectedBackend StateB
 		return err
 	}
 	if summary.StateBackend != expectedBackend {
-		return fmt.Errorf("summary backend %q does not match expected backend %q", summary.StateBackend, expectedBackend)
+		return fmt.Errorf(
+			"%w: summary backend %q does not match expected backend %q",
+			errInvalidSummary,
+			summary.StateBackend,
+			expectedBackend,
+		)
 	}
 	if summary.Checks == nil {
-		return errors.New("summary checks are missing")
+		return fmt.Errorf("summary checks are missing: %w", errInvalidSummary)
 	}
 	if len(summary.Checks) == 0 {
-		return errors.New("summary has no checks")
+		return fmt.Errorf("%w: summary has no checks", errInvalidSummary)
 	}
 
 	checks := make(map[validationCheckID]struct{}, len(summary.Checks))
@@ -111,17 +123,34 @@ func ValidateValidationSummary(summary ValidationSummary, expectedBackend StateB
 			return fmt.Errorf("check %q: %w", check.CheckName, err)
 		}
 		if check.LivePodCount < 0 {
-			return fmt.Errorf("check %q on node %q has negative live pod count %d", check.CheckName, check.NodeName, check.LivePodCount)
+			return fmt.Errorf(
+				"%w: check %q on node %q has negative live pod count %d",
+				errInvalidSummary,
+				check.CheckName,
+				check.NodeName,
+				check.LivePodCount,
+			)
 		}
 		if check.Expected == nil {
-			return fmt.Errorf("check %q on node %q is missing expected state", check.CheckName, check.NodeName)
+			return fmt.Errorf(
+				"%w: check %q on node %q is missing expected state",
+				errInvalidSummary,
+				check.CheckName,
+				check.NodeName,
+			)
 		}
 		if check.Actual == nil {
-			return fmt.Errorf("check %q on node %q is missing actual state", check.CheckName, check.NodeName)
+			return fmt.Errorf(
+				"%w: check %q on node %q is missing actual state",
+				errInvalidSummary,
+				check.CheckName,
+				check.NodeName,
+			)
 		}
 		if check.LivePodCount > 0 && len(check.Expected) == 0 {
 			return fmt.Errorf(
-				"check %q on node %q has %d live pods but empty expected state",
+				"%w: check %q on node %q has %d live pods but empty expected state",
+				errInvalidSummary,
 				check.CheckName,
 				check.NodeName,
 				check.LivePodCount,
@@ -130,7 +159,12 @@ func ValidateValidationSummary(summary ValidationSummary, expectedBackend StateB
 
 		key := checkKey(check)
 		if _, ok := checks[key]; ok {
-			return fmt.Errorf("duplicate check %q on node %q", check.CheckName, check.NodeName)
+			return fmt.Errorf(
+				"%w: duplicate check %q on node %q",
+				errInvalidSummary,
+				check.CheckName,
+				check.NodeName,
+			)
 		}
 		checks[key] = struct{}{}
 
@@ -155,17 +189,22 @@ func ComparePodIPIdentities(expected, actual []PodIPIdentity) error {
 	missing := identityDifference(expectedSet, actualSet)
 	unexpected := identityDifference(actualSet, expectedSet)
 	if len(missing) != 0 || len(unexpected) != 0 {
-		return fmt.Errorf("pod/IP identity mismatch: missing=%v unexpected=%v", missing, unexpected)
+		return fmt.Errorf(
+			"pod/IP identity mismatch: missing=%v unexpected=%v: %w",
+			missing,
+			unexpected,
+			errInvalidIdentity,
+		)
 	}
 	return nil
 }
 
 // CompareValidationSummaries requires exact check, live-pod, pod, and IP identity equality.
 func CompareValidationSummaries(baseline, candidate ValidationSummary, expectedBackend StateBackend) error {
-	if err := ValidateValidationSummary(baseline, expectedBackend); err != nil {
+	if err := CheckSummary(baseline, expectedBackend); err != nil {
 		return fmt.Errorf("invalid baseline summary: %w", err)
 	}
-	if err := ValidateValidationSummary(candidate, expectedBackend); err != nil {
+	if err := CheckSummary(candidate, expectedBackend); err != nil {
 		return fmt.Errorf("invalid candidate summary: %w", err)
 	}
 
@@ -198,7 +237,7 @@ func CompareValidationSummaries(baseline, candidate ValidationSummary, expectedB
 		}
 		if err := ComparePodIPIdentities(baselineCheck.Expected, candidateCheck.Expected); err != nil {
 			return fmt.Errorf(
-				"%w: check %q on node %q expected state changed: %v",
+				"%w: check %q on node %q expected state changed: %w",
 				ErrSummaryRegression,
 				candidateCheck.CheckName,
 				candidateCheck.NodeName,
@@ -207,7 +246,7 @@ func CompareValidationSummaries(baseline, candidate ValidationSummary, expectedB
 		}
 		if err := ComparePodIPIdentities(baselineCheck.Actual, candidateCheck.Actual); err != nil {
 			return fmt.Errorf(
-				"%w: check %q on node %q actual state changed: %v",
+				"%w: check %q on node %q actual state changed: %w",
 				ErrSummaryRegression,
 				candidateCheck.CheckName,
 				candidateCheck.NodeName,
@@ -230,10 +269,10 @@ func CompareValidationSummaries(baseline, candidate ValidationSummary, expectedB
 
 func validationSummaryFromWire(wire validationSummaryWire) (ValidationSummary, error) {
 	if wire.StateBackend == nil {
-		return ValidationSummary{}, errors.New("summary stateBackend is missing")
+		return ValidationSummary{}, fmt.Errorf("summary stateBackend is missing: %w", errInvalidSummary)
 	}
 	if wire.Checks == nil {
-		return ValidationSummary{}, errors.New("summary checks are missing")
+		return ValidationSummary{}, fmt.Errorf("summary checks are missing: %w", errInvalidSummary)
 	}
 
 	summary := ValidationSummary{
@@ -244,15 +283,15 @@ func validationSummaryFromWire(wire validationSummaryWire) (ValidationSummary, e
 		check := (*wire.Checks)[i]
 		switch {
 		case check.CheckName == nil:
-			return ValidationSummary{}, fmt.Errorf("check %d checkName is missing", i)
+			return ValidationSummary{}, fmt.Errorf("%w: check %d checkName is missing", errInvalidSummary, i)
 		case check.NodeName == nil:
-			return ValidationSummary{}, fmt.Errorf("check %d nodeName is missing", i)
+			return ValidationSummary{}, fmt.Errorf("%w: check %d nodeName is missing", errInvalidSummary, i)
 		case check.LivePodCount == nil:
-			return ValidationSummary{}, fmt.Errorf("check %d livePodCount is missing", i)
+			return ValidationSummary{}, fmt.Errorf("%w: check %d livePodCount is missing", errInvalidSummary, i)
 		case check.Expected == nil:
-			return ValidationSummary{}, fmt.Errorf("check %d expected state is missing", i)
+			return ValidationSummary{}, fmt.Errorf("%w: check %d expected state is missing", errInvalidSummary, i)
 		case check.Actual == nil:
-			return ValidationSummary{}, fmt.Errorf("check %d actual state is missing", i)
+			return ValidationSummary{}, fmt.Errorf("%w: check %d actual state is missing", errInvalidSummary, i)
 		}
 		summary.Checks[i] = ValidationCheckSummary{
 			CheckName:    *check.CheckName,
@@ -268,20 +307,20 @@ func validationSummaryFromWire(wire validationSummaryWire) (ValidationSummary, e
 func validateBackend(backend StateBackend, source string) error {
 	value := string(backend)
 	if value == "" {
-		return fmt.Errorf("%s backend is empty", source)
+		return fmt.Errorf("%w: %s backend is empty", errInvalidBackend, source)
 	}
 	if strings.TrimSpace(value) != value {
-		return fmt.Errorf("%s backend %q contains surrounding whitespace", source, backend)
+		return fmt.Errorf("%w: %s backend %q contains surrounding whitespace", errInvalidBackend, source, backend)
 	}
 	return nil
 }
 
 func validateIdentifier(value, field string) error {
 	if value == "" {
-		return fmt.Errorf("%s is empty", field)
+		return fmt.Errorf("%w: %s is empty", errInvalidIdentifier, field)
 	}
 	if strings.TrimSpace(value) != value {
-		return fmt.Errorf("%s %q contains surrounding whitespace", field, value)
+		return fmt.Errorf("%w: %s %q contains surrounding whitespace", errInvalidIdentifier, field, value)
 	}
 	return nil
 }
@@ -295,14 +334,20 @@ func podIPIdentitySet(identities []PodIPIdentity) (map[PodIPIdentity]struct{}, e
 			return nil, fmt.Errorf("identity %d: %w", i, err)
 		}
 		if !identity.IP.IsValid() {
-			return nil, fmt.Errorf("identity %d for pod %q has an invalid IP", i, identity.PodID)
+			return nil, fmt.Errorf("identity %d for pod %q has an invalid IP: %w", i, identity.PodID, errInvalidIdentity)
 		}
 		identity.IP = identity.IP.Unmap()
 		if _, ok := set[identity]; ok {
-			return nil, fmt.Errorf("duplicate identity %s", formatIdentity(identity))
+			return nil, fmt.Errorf("duplicate identity %s: %w", formatIdentity(identity), errInvalidIdentity)
 		}
 		if owner, ok := owners[identity.IP]; ok {
-			return nil, fmt.Errorf("duplicate IP %s for pods %q and %q", identity.IP, owner, identity.PodID)
+			return nil, fmt.Errorf(
+				"duplicate IP %s for pods %q and %q: %w",
+				identity.IP,
+				owner,
+				identity.PodID,
+				errInvalidIdentity,
+			)
 		}
 		set[identity] = struct{}{}
 		owners[identity.IP] = identity.PodID
