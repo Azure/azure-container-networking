@@ -86,6 +86,15 @@ func (s *DB) ImportCNIEndpointState(
 	records []cns.CNIEndpointState,
 	plan CNIImportPreflight,
 ) (bool, error) {
+	return s.importCNIEndpointState(ctx, records, plan, nil)
+}
+
+func (s *DB) importCNIEndpointState(
+	ctx context.Context,
+	records []cns.CNIEndpointState,
+	plan CNIImportPreflight,
+	beforeCommit func() error,
+) (bool, error) {
 	if ctx == nil {
 		return false, errors.New("importing CNI endpoint state: context is nil")
 	}
@@ -130,8 +139,8 @@ func (s *DB) ImportCNIEndpointState(
 				return false, err
 			}
 		}
-		if s.cniImportBeforeCommit != nil {
-			if err := s.cniImportBeforeCommit(); err != nil {
+		if beforeCommit != nil {
+			if err := beforeCommit(); err != nil {
 				return false, err
 			}
 		}

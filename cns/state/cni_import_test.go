@@ -279,8 +279,12 @@ func TestCNIEndpointImportReplacementStaleTamperedAndCommitFailure(t *testing.T)
 		require.NoError(t, err)
 		before := requireValidSnapshot(t, db)
 		injected := errors.New("injected commit failure")
-		db.cniImportBeforeCommit = func() error { return injected }
-		changed, err := db.ImportCNIEndpointState(context.Background(), records, plan)
+		changed, err := db.importCNIEndpointState(
+			context.Background(),
+			records,
+			plan,
+			func() error { return injected },
+		)
 		require.ErrorIs(t, err, injected)
 		assert.False(t, changed)
 		assert.Equal(t, before, requireValidSnapshot(t, db))
