@@ -10,6 +10,7 @@
 * [IPAM](ipam.md) - describes how container IP address management is done by plugins.
 * [NPM](npm.md) - describes how to setup Azure-NPM (Azure Network Policy Manager).
 * [Scripts](scripts.md) - describes how to use the scripts in this repository.
+* [CNS persistent state observability](persistent-state-observability.md) - describes Bolt state signals, status, soak checks, and debug risk.
 
 ## Code of Conduct
 This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
