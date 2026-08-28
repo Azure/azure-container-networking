@@ -5,6 +5,7 @@ package state
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net"
 	"sync"
@@ -1078,6 +1079,15 @@ func testEndpoint(podName, address string) EndpointRecord {
 			},
 		},
 	}
+}
+
+func deepCloneEndpoint(t *testing.T, endpoint EndpointRecord) EndpointRecord {
+	t.Helper()
+	data, err := json.Marshal(endpoint)
+	require.NoError(t, err)
+	var cloned EndpointRecord
+	require.NoError(t, json.Unmarshal(data, &cloned))
+	return cloned
 }
 
 func requireValidSnapshot(t *testing.T, db *DB) Snapshot {
