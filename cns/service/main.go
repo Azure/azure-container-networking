@@ -749,7 +749,6 @@ func main() {
 		logger.Printf("EndpointStoreState path is %s", endpointStorePath+endpointStoreName+".json") //nolint:staticcheck // main still uses the legacy global logger
 	}
 
-	var persistentState *persistentStateStartup
 	statePaths := resolvePersistentStatePaths(storeFileLocation, endpointStorePath)
 	persistentStateProvider := selectEndpointStateProvider(cnsconfig.StateStoreBackend, cnsconfig.StateStoreMode)
 	var persistentStateOptions state.Options

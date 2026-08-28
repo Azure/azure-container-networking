@@ -3,8 +3,7 @@
 The Bolt persistent state engine is an opt-in CNS-owned endpoint-state backend.
 This release ships dark: every checked-in configuration keeps
 `EnableBoltStateStore=false`, `StateStoreBackend=json`,
-`StateStoreMode=normal`, `EnablePersistentStateDebug=false`, and
-`EnablePersistentStateFaults=false`.
+`StateStoreMode=normal`, and `EnablePersistentStateDebug=false`.
 
 ```mermaid
 flowchart TD
@@ -191,12 +190,12 @@ Authorization tokens are removed before transport. This route exposes sensitive
 logical state and is not an authentication mechanism; keep it disabled except
 during explicitly controlled local diagnosis.
 
-There are no runtime persistent-state fault hooks in this release. Setting
-`EnablePersistentStateFaults=true` fails validation, so no missing, wrong, or
-default token can make a hook reachable. Any future hook must remain on the
-existing local CNS transport and require both an explicit default-false gate and
-a high-entropy out-of-band token on every invocation. Tokens must never be
-logged, persisted, returned by status, or used as metric labels.
+The test-only fault endpoint is absent unless
+`CNS_TEST_FAULT_INJECTION_TOKEN` contains a non-empty, high-entropy token at
+process startup. Every request must present that token in
+`X-CNS-Test-Fault-Token`. The endpoint remains on the existing local CNS
+transport; tokens are never logged, persisted, returned by status, or used as
+metric labels.
 
 ## Lifecycle logs and error ownership
 

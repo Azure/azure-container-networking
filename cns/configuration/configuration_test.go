@@ -17,7 +17,6 @@ func TestPersistentStateManifestDefaultsRemainDark(t *testing.T) {
 	required := []string{
 		`"EnableBoltStateStore": false`,
 		`"EnablePersistentStateDebug": false`,
-		`"EnablePersistentStateFaults": false`,
 		`"StateStoreBackend": "json"`,
 		`"StateStoreMode": "normal"`,
 	}
@@ -364,40 +363,36 @@ func TestCNSConfigValidateStateStore(t *testing.T) {
 			for _, mode := range modes {
 				for _, manage := range boolValues {
 					for _, debug := range boolValues {
-						for _, faults := range boolValues {
-							for _, migrate := range boolValues {
-								for _, initializeFromCNI := range boolValues {
-									config := CNSConfig{
-										EnableBoltStateStore:        enable,
-										EnablePersistentStateDebug:  debug,
-										EnablePersistentStateFaults: faults,
-										EnableStateMigration:        migrate,
-										InitializeFromCNI:           initializeFromCNI,
-										ManageEndpointState:         manage,
-										StateStoreBackend:           backend,
-										StateStoreMode:              mode,
-									}
-									name := fmt.Sprintf(
-										"enable=%t/backend=%s/mode=%s/manage=%t/debug=%t/faults=%t/migrate=%t/from-cni=%t",
-										enable,
-										backend,
-										mode,
-										manage,
-										debug,
-										faults,
-										migrate,
-										initializeFromCNI,
-									)
-									t.Run(name, func(t *testing.T) {
-										wantErr := expectedStateStoreValidationError(config)
-										err := config.ValidateStateStore()
-										if wantErr == nil {
-											require.NoError(t, err)
-											return
-										}
-										require.ErrorIs(t, err, wantErr)
-									})
+						for _, migrate := range boolValues {
+							for _, initializeFromCNI := range boolValues {
+								config := CNSConfig{
+									EnableBoltStateStore:       enable,
+									EnablePersistentStateDebug: debug,
+									EnableStateMigration:       migrate,
+									InitializeFromCNI:          initializeFromCNI,
+									ManageEndpointState:        manage,
+									StateStoreBackend:          backend,
+									StateStoreMode:             mode,
 								}
+								name := fmt.Sprintf(
+									"enable=%t/backend=%s/mode=%s/manage=%t/debug=%t/migrate=%t/from-cni=%t",
+									enable,
+									backend,
+									mode,
+									manage,
+									debug,
+									migrate,
+									initializeFromCNI,
+								)
+								t.Run(name, func(t *testing.T) {
+									wantErr := expectedStateStoreValidationError(config)
+									err := config.ValidateStateStore()
+									if wantErr == nil {
+										require.NoError(t, err)
+										return
+									}
+									require.ErrorIs(t, err, wantErr)
+								})
 							}
 						}
 					}
@@ -408,9 +403,6 @@ func TestCNSConfigValidateStateStore(t *testing.T) {
 }
 
 func expectedStateStoreValidationError(config CNSConfig) error {
-	if config.EnablePersistentStateFaults {
-		return ErrStateStoreFeatureUnavailable
-	}
 	if !config.EnableBoltStateStore {
 		if config.StateStoreBackend != StateStoreBackendJSON ||
 			config.StateStoreMode != StateStoreModeNormal ||
@@ -419,17 +411,21 @@ func expectedStateStoreValidationError(config CNSConfig) error {
 		}
 		return nil
 	}
-	if !config.ManageEndpointState {
-		return ErrInvalidStateStoreConfig
-	}
 	switch {
 	case config.StateStoreBackend == StateStoreBackendBolt && config.StateStoreMode == StateStoreModeNormal:
+		if !config.ManageEndpointState {
+			return ErrInvalidStateStoreConfig
+		}
 		if config.EnableStateMigration && !config.InitializeFromCNI {
 			return ErrInvalidStateStoreConfig
 		}
 		return nil
-	case config.StateStoreBackend == StateStoreBackendJSON &&
-		(config.StateStoreMode == StateStoreModeNormal || config.StateStoreMode == StateStoreModeRollbackToJSON):
+	case config.StateStoreBackend == StateStoreBackendJSON && config.StateStoreMode == StateStoreModeRollbackToJSON:
+		if !config.ManageEndpointState || config.EnablePersistentStateDebug {
+			return ErrInvalidStateStoreConfig
+		}
+		return nil
+	case config.StateStoreBackend == StateStoreBackendJSON && config.StateStoreMode == StateStoreModeNormal:
 		if config.EnablePersistentStateDebug {
 			return ErrInvalidStateStoreConfig
 		}
@@ -454,7 +450,6 @@ func TestCNSConfigValidateStateStoreDefaultsAndInvalidEnums(t *testing.T) {
 			config: CNSConfig{
 				EnableBoltStateStore: true,
 			},
-			wantErr: ErrInvalidStateStoreConfig,
 		},
 		{
 			name: "bolt with default mode",

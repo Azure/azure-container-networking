@@ -16,7 +16,6 @@ data:
       "EnableLoggerV2": true,
       "EnableBoltStateStore": false,
       "EnablePersistentStateDebug": false,
-      "EnablePersistentStateFaults": false,
       "EnableStateMigration": true,
       "EnableSubnetScarcity": false,
       "InitializeFromCNI": false,

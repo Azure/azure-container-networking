@@ -57,7 +57,6 @@ type CNSConfig struct {
 	EnableK8sDevicePlugin           bool
 	EnableLoggerV2                  bool
 	EnablePersistentStateDebug      bool
-	EnablePersistentStateFaults     bool
 	EnablePprof                     bool
 	EnableStateMigration            bool
 	EnableSubnetScarcity            bool
@@ -114,27 +113,26 @@ func (cnsconfig CNSConfig) ValidateStateStore() error {
 		return fmt.Errorf("%w: mode %q", ErrInvalidStateStoreConfig, mode)
 	}
 
-	if cnsconfig.EnablePersistentStateFaults {
-		return ErrStateStoreFeatureUnavailable
-	}
-
 	if !cnsconfig.EnableBoltStateStore {
 		if backend != StateStoreBackendJSON || mode != StateStoreModeNormal || cnsconfig.EnablePersistentStateDebug {
 			return fmt.Errorf("%w: Bolt state store master flag is disabled", ErrInvalidStateStoreConfig)
 		}
 		return nil
 	}
-	if !cnsconfig.ManageEndpointState {
-		return fmt.Errorf("%w: Bolt state store requires CNS-managed endpoint state", ErrInvalidStateStoreConfig)
-	}
 
 	switch {
 	case backend == StateStoreBackendBolt && mode == StateStoreModeNormal:
+		if !cnsconfig.ManageEndpointState {
+			return fmt.Errorf("%w: Bolt state store requires CNS-managed endpoint state", ErrInvalidStateStoreConfig)
+		}
 		if cnsconfig.EnableStateMigration && !cnsconfig.InitializeFromCNI {
 			return fmt.Errorf("%w: Bolt CNI ownership import requires CNI initialization", ErrInvalidStateStoreConfig)
 		}
 		return nil
 	case backend == StateStoreBackendJSON && mode == StateStoreModeRollbackToJSON:
+		if !cnsconfig.ManageEndpointState {
+			return fmt.Errorf("%w: Bolt rollback requires CNS-managed endpoint state", ErrInvalidStateStoreConfig)
+		}
 		if cnsconfig.EnablePersistentStateDebug {
 			return fmt.Errorf("%w: persistent state debug requires normal Bolt mode", ErrInvalidStateStoreConfig)
 		}
