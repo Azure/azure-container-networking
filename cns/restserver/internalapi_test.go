@@ -355,10 +355,10 @@ func TestCreateOrUpdateNetworkContainerInternal_RejectsStaleVersionReplay(t *tes
 		},
 	}
 
-	returnCode := svc.CreateOrUpdateNetworkContainerInternal(oldReq)
+	returnCode := svc.CreateOrUpdateNetworkContainerInternalWithVersionValidation(oldReq, true)
 
 	// Fixed behavior: the stale replay is rejected, atomically, with no partial mutation.
-	assert.Equal(t, types.NetworkContainerVersionMismatch, returnCode, "expected the stale NC replay to be rejected")
+	assert.Equal(t, types.UnsupportedNCVersion, returnCode, "expected the stale NC replay to be rejected")
 
 	containerStatus := svc.state.ContainerStatus[testNCID]
 	assert.Equal(t, "10", containerStatus.CreateNetworkContainerRequest.Version, "stored DNC version must remain 10")
@@ -423,10 +423,10 @@ func TestCreateOrUpdateNetworkContainerInternal_StaleReplayRejectionSurvivesSNAT
 		},
 	}
 
-	returnCode := svc.CreateOrUpdateNetworkContainerInternal(staleReq)
+	returnCode := svc.CreateOrUpdateNetworkContainerInternalWithVersionValidation(staleReq, true)
 
 	// The rejection must not be overwritten by SNAT programming's return code.
-	assert.Equal(t, types.NetworkContainerVersionMismatch, returnCode,
+	assert.Equal(t, types.UnsupportedNCVersion, returnCode,
 		"stale replay rejection must survive even when SNAT programming is enabled")
 
 	containerStatus := svc.state.ContainerStatus[testNCID]
@@ -476,7 +476,7 @@ func TestCreateOrUpdateNetworkContainerInternal_EqualVersionIsIdempotent(t *test
 		},
 	}
 
-	returnCode := svc.CreateOrUpdateNetworkContainerInternal(sameReq)
+	returnCode := svc.CreateOrUpdateNetworkContainerInternalWithVersionValidation(sameReq, true)
 
 	assert.Equal(t, types.Success, returnCode, "an equal-version replay must be accepted idempotently")
 	assert.Equal(t, "10", svc.state.ContainerStatus[testNCID].CreateNetworkContainerRequest.Version)
@@ -526,7 +526,7 @@ func TestCreateOrUpdateNetworkContainerInternal_HigherVersionIsAccepted(t *testi
 		},
 	}
 
-	returnCode := svc.CreateOrUpdateNetworkContainerInternal(newerReq)
+	returnCode := svc.CreateOrUpdateNetworkContainerInternalWithVersionValidation(newerReq, true)
 
 	assert.Equal(t, types.Success, returnCode, "a newer-version update must be accepted")
 	assert.Equal(t, "11", svc.state.ContainerStatus[testNCID].CreateNetworkContainerRequest.Version)
@@ -583,7 +583,7 @@ func TestCreateOrUpdateNetworkContainerInternal_MalformedVersionFailsWithoutMuta
 		},
 	}
 
-	returnCode := svc.CreateOrUpdateNetworkContainerInternal(malformedReq)
+	returnCode := svc.CreateOrUpdateNetworkContainerInternalWithVersionValidation(malformedReq, true)
 
 	assert.Equal(t, types.UnsupportedNCVersion, returnCode, "a malformed version must be rejected")
 	assert.Equal(t, "10", svc.state.ContainerStatus[testNCID].CreateNetworkContainerRequest.Version, "stored version must not be mutated")
@@ -632,9 +632,9 @@ func TestCreateOrUpdateNetworkContainerInternal_StaleReplayCannotAlterAssignedIP
 		SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{},
 	}
 
-	returnCode := svc.CreateOrUpdateNetworkContainerInternal(staleReq)
+	returnCode := svc.CreateOrUpdateNetworkContainerInternalWithVersionValidation(staleReq, true)
 
-	assert.Equal(t, types.NetworkContainerVersionMismatch, returnCode, "the stale replay must be rejected before it can reach IP config deletion logic")
+	assert.Equal(t, types.UnsupportedNCVersion, returnCode, "the stale replay must be rejected before it can reach IP config deletion logic")
 
 	assignedIPState, exists := svc.PodIPConfigState[assignedIPID]
 	require.True(t, exists, "assigned IP must not be removed by a rejected stale replay")
@@ -705,9 +705,9 @@ func TestCreateOrUpdateNetworkContainerInternal_RejectsStaleVersionReplay_Cluste
 		},
 	}
 
-	returnCode := svc.CreateOrUpdateNetworkContainerInternal(oldReq)
+	returnCode := svc.CreateOrUpdateNetworkContainerInternalWithVersionValidation(oldReq, true)
 
-	assert.Equal(t, types.NetworkContainerVersionMismatch, returnCode, "expected the stale cluster-captured NC replay to be rejected")
+	assert.Equal(t, types.UnsupportedNCVersion, returnCode, "expected the stale cluster-captured NC replay to be rejected")
 
 	containerStatus := svc.state.ContainerStatus[clusterNCID]
 	assert.Equal(t, clusterHostVer, containerStatus.CreateNetworkContainerRequest.Version, "stored DNC version must remain 8")

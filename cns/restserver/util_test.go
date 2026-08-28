@@ -1,15 +1,241 @@
 package restserver
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
+	"github.com/Azure/azure-container-networking/cns/types"
 	acn "github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+const (
+	versionValidationNCID               = "version-validation-nc"
+	versionValidationSecondaryIP        = "10.0.0.6"
+	versionValidationChangedSecondaryIP = "10.0.0.7"
+	versionValidationDNSServer          = "10.0.0.10"
+	versionValidationMACAddress         = "00:11:22:33:44:55"
+	versionValidationInitialVersion     = 2
+)
+
+// TestSaveNetworkContainerGoalStateRejectsVersionRegression, TestSaveNetworkContainerGoalStateAcceptsVersionAdvance,
+// TestSaveNetworkContainerGoalStateAcceptsIdenticalVersionReplay, and
+// TestSaveNetworkContainerGoalStateRejectsEqualVersionGoalDrift exercise validateNCGoalVersion directly
+// through saveNetworkContainerGoalState(req, validateVersion=true): a version regression must be
+// rejected, a version advance must be accepted, an identical replay must be accepted idempotently, and
+// a same-version request whose actual programming goal differs from what's committed must be rejected
+// (goal drift), since the version alone would otherwise not catch a corrupted/inconsistent replay.
+func TestSaveNetworkContainerGoalStateRejectsVersionRegression(t *testing.T) {
+	svc, committed := newVersionValidationService(t)
+	incoming := cloneCreateNetworkContainerRequest(committed)
+	incoming.Version = "1"
+	for ipID, config := range incoming.SecondaryIPConfigs {
+		config.NCVersion = 1
+		incoming.SecondaryIPConfigs[ipID] = config
+	}
+
+	returnCode, message := svc.saveNetworkContainerGoalState(incoming, true)
+
+	assert.Equal(t, types.UnsupportedNCVersion, returnCode)
+	assert.Contains(t, message, "version regressed from 2 to 1")
+	assertCommittedGoalVersion(t, svc, "2")
+}
+
+func TestSaveNetworkContainerGoalStateAcceptsVersionAdvance(t *testing.T) {
+	svc, committed := newVersionValidationService(t)
+	incoming := cloneCreateNetworkContainerRequest(committed)
+	incoming.Version = "3"
+	for ipID, config := range incoming.SecondaryIPConfigs {
+		config.NCVersion = 3
+		incoming.SecondaryIPConfigs[ipID] = config
+	}
+
+	returnCode, message := svc.saveNetworkContainerGoalState(incoming, true)
+
+	assert.Equal(t, types.Success, returnCode)
+	assert.Empty(t, message)
+	assertCommittedGoalVersion(t, svc, "3")
+}
+
+func TestSaveNetworkContainerGoalStateAcceptsIdenticalVersionReplay(t *testing.T) {
+	svc, committed := newVersionValidationService(t)
+
+	returnCode, message := svc.saveNetworkContainerGoalState(cloneCreateNetworkContainerRequest(committed), true)
+
+	assert.Equal(t, types.Success, returnCode)
+	assert.Empty(t, message)
+	assertCommittedGoalVersion(t, svc, "2")
+}
+
+func TestSaveNetworkContainerGoalStateRejectsEqualVersionGoalDrift(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*cns.CreateNetworkContainerRequest)
+	}{
+		{
+			name: "host primary IP",
+			mutate: func(req *cns.CreateNetworkContainerRequest) {
+				req.HostPrimaryIP = "10.1.0.11"
+			},
+		},
+		{
+			name: "network container type",
+			mutate: func(req *cns.CreateNetworkContainerRequest) {
+				req.NetworkContainerType = cns.Kubernetes
+			},
+		},
+		{
+			name: "primary subnet",
+			mutate: func(req *cns.CreateNetworkContainerRequest) {
+				req.IPConfiguration.IPSubnet.IPAddress = "10.0.1.5"
+			},
+		},
+		{
+			name: "IPv6 subnet",
+			mutate: func(req *cns.CreateNetworkContainerRequest) {
+				req.IPConfiguration.IPSubnetV6.IPAddress = "fd00::6"
+			},
+		},
+		{
+			name: "DNS servers",
+			mutate: func(req *cns.CreateNetworkContainerRequest) {
+				req.IPConfiguration.DNSServers = []string{"10.0.0.11"}
+			},
+		},
+		{
+			name: "gateway",
+			mutate: func(req *cns.CreateNetworkContainerRequest) {
+				req.IPConfiguration.GatewayIPAddress = "10.0.0.2"
+			},
+		},
+		{
+			name: "IPv6 gateway",
+			mutate: func(req *cns.CreateNetworkContainerRequest) {
+				req.IPConfiguration.GatewayIPv6Address = "fd00::2"
+			},
+		},
+		{
+			name: "NC status",
+			mutate: func(req *cns.CreateNetworkContainerRequest) {
+				req.NCStatus = v1alpha.NCStatus("updated")
+			},
+		},
+		{
+			name: "network interface",
+			mutate: func(req *cns.CreateNetworkContainerRequest) {
+				req.NetworkInterfaceInfo.MACAddress = "00:11:22:33:44:66"
+			},
+		},
+		{
+			name: "secondary IP address",
+			mutate: func(req *cns.CreateNetworkContainerRequest) {
+				config := req.SecondaryIPConfigs["ip-id-1"]
+				config.IPAddress = versionValidationChangedSecondaryIP
+				req.SecondaryIPConfigs["ip-id-1"] = config
+			},
+		},
+		{
+			name: "secondary IP ID",
+			mutate: func(req *cns.CreateNetworkContainerRequest) {
+				config := req.SecondaryIPConfigs["ip-id-1"]
+				delete(req.SecondaryIPConfigs, "ip-id-1")
+				req.SecondaryIPConfigs["replacement-id"] = config
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, committed := newVersionValidationService(t)
+			incoming := cloneCreateNetworkContainerRequest(committed)
+			tt.mutate(&incoming)
+			before := cloneCreateNetworkContainerRequest(svc.state.ContainerStatus[versionValidationNCID].CreateNetworkContainerRequest)
+			beforeIPCount := len(svc.PodIPConfigState)
+
+			returnCode, message := svc.saveNetworkContainerGoalState(incoming, true)
+
+			assert.Equal(t, types.InconsistentIPConfigState, returnCode)
+			assert.Contains(t, message, "goal changed without version advance")
+			assert.Equal(t, before, svc.state.ContainerStatus[versionValidationNCID].CreateNetworkContainerRequest)
+			assert.Len(t, svc.PodIPConfigState, beforeIPCount)
+			assertCommittedGoalVersion(t, svc, "2")
+		})
+	}
+}
+
+func newVersionValidationService(t *testing.T) (*HTTPRestService, cns.CreateNetworkContainerRequest) {
+	t.Helper()
+
+	svc := &HTTPRestService{
+		store: store.NewMockStore(""),
+		state: &httpRestServiceState{
+			OrchestratorType: cns.KubernetesCRD,
+			ContainerStatus:  make(map[string]containerstatus),
+		},
+		PodIPConfigState: make(map[string]cns.IPConfigurationStatus),
+	}
+	req := cns.CreateNetworkContainerRequest{
+		HostPrimaryIP:        "10.1.0.10",
+		Version:              "2",
+		NetworkContainerType: cns.Docker,
+		NetworkContainerid:   versionValidationNCID,
+		IPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    primaryIP,
+				PrefixLength: 24,
+			},
+			IPSubnetV6: cns.IPSubnet{
+				IPAddress:    "fd00::5",
+				PrefixLength: 64,
+			},
+			DNSServers:         []string{versionValidationDNSServer},
+			GatewayIPAddress:   "10.0.0.1",
+			GatewayIPv6Address: "fd00::1",
+		},
+		SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
+			"ip-id-1": {
+				IPAddress: versionValidationSecondaryIP,
+				NCVersion: versionValidationInitialVersion,
+			},
+		},
+		NCStatus: v1alpha.NCStatus("ready"),
+		NetworkInterfaceInfo: cns.NetworkInterfaceInfo{
+			MACAddress: versionValidationMACAddress,
+		},
+	}
+	req.Version = strconv.Itoa(versionValidationInitialVersion)
+
+	returnCode, message := svc.saveNetworkContainerGoalState(req, true)
+	require.Equal(t, types.Success, returnCode)
+	require.Empty(t, message)
+
+	return svc, req
+}
+
+func cloneCreateNetworkContainerRequest(req cns.CreateNetworkContainerRequest) cns.CreateNetworkContainerRequest {
+	cloned := req
+	cloned.IPConfiguration.DNSServers = append([]string(nil), req.IPConfiguration.DNSServers...)
+	cloned.SecondaryIPConfigs = make(map[string]cns.SecondaryIPConfig, len(req.SecondaryIPConfigs))
+	for ipID, config := range req.SecondaryIPConfigs {
+		cloned.SecondaryIPConfigs[ipID] = config
+	}
+	return cloned
+}
+
+func assertCommittedGoalVersion(t *testing.T, svc *HTTPRestService, want string) {
+	t.Helper()
+
+	assert.Equal(t, want, svc.state.ContainerStatus[versionValidationNCID].CreateNetworkContainerRequest.Version)
+
+	var persisted httpRestServiceState
+	require.NoError(t, svc.store.Read(storeKey, &persisted))
+	assert.Equal(t, want, persisted.ContainerStatus[versionValidationNCID].CreateNetworkContainerRequest.Version)
+}
 
 func TestAreNCsPresent(t *testing.T) {
 	present := ncList("present")

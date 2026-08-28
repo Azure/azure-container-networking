@@ -2355,7 +2355,7 @@ func createAndSaveMockNCRequest(t *testing.T, svc *HTTPRestService, ncID string,
 	require.NoError(t, err)
 
 	// save SwiftV2 NC state in CNS
-	returnCode, returnMessage := svc.saveNetworkContainerGoalState(*createNCReq)
+	returnCode, returnMessage := svc.saveNetworkContainerGoalState(*createNCReq, false)
 	require.Equal(t, types.Success, returnCode)
 	require.Empty(t, returnMessage)
 }

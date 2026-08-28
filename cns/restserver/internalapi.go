@@ -590,6 +590,25 @@ func (service *HTTPRestService) MustEnsureNoStaleNCs(validNCIDs []string) {
 
 // This API will be called by CNS RequestController on CRD update.
 func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.CreateNetworkContainerRequest) types.ResponseCode {
+	return service.createOrUpdateNetworkContainerInternal(req, false)
+}
+
+// CreateOrUpdateNetworkContainerInternalWithVersionValidation creates or updates an NC, additionally
+// rejecting version regressions or same-version goal drift when validateVersion is true. Callers
+// that know the incoming NC's version and content are authoritative for its NC ID (currently, the
+// NNC reconciler's dynamic/pod-subnet path) should pass true; other flows (e.g. static/SwiftV2 NCs,
+// NodeSubnet bookkeeping) that don't track a meaningful version should pass false.
+func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternalWithVersionValidation(
+	req *cns.CreateNetworkContainerRequest,
+	validateVersion bool,
+) types.ResponseCode {
+	return service.createOrUpdateNetworkContainerInternal(req, validateVersion)
+}
+
+func (service *HTTPRestService) createOrUpdateNetworkContainerInternal(
+	req *cns.CreateNetworkContainerRequest,
+	validateVersion bool,
+) types.ResponseCode {
 	if req.NetworkContainerid == "" {
 		logger.Errorf("[Azure CNS] Error. NetworkContainerid is empty")
 		return types.NetworkContainerNotSpecified
@@ -648,7 +667,7 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 	}
 
 	// This will Create Or Update the NC state.
-	returnCode, returnMessage := service.saveNetworkContainerGoalState(*req)
+	returnCode, returnMessage := service.saveNetworkContainerGoalState(*req, validateVersion)
 	if returnCode != types.Success {
 		logger.Errorf("%s", returnMessage) //nolint:staticcheck // will migrate to logger/v2
 		return returnCode

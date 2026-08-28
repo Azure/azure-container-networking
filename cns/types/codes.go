@@ -45,7 +45,6 @@ const (
 	UnsupportedAPI                         ResponseCode = 43
 	FailedToAllocateBackendConfig          ResponseCode = 44
 	ConnectionError                        ResponseCode = 45
-	NetworkContainerVersionMismatch        ResponseCode = 46
 	UnexpectedError                        ResponseCode = 99
 	NmAgentNCVersionListError              ResponseCode = 100
 )
@@ -87,8 +86,6 @@ func (c ResponseCode) String() string {
 		return "NetworkContainerVfpProgramComplete"
 	case NetworkContainerVfpProgramPending:
 		return "NetworkContainerVfpProgramPending"
-	case NetworkContainerVersionMismatch:
-		return "NetworkContainerVersionMismatch"
 	case NetworkJoinFailed:
 		return "NetworkJoinFailed"
 	case NmAgentSupportedApisError:

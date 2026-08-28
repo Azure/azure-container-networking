@@ -26,10 +26,15 @@ type mockCNSClient struct {
 	state            cnsClientState
 	createOrUpdateNC func(*cns.CreateNetworkContainerRequest) cnstypes.ResponseCode
 	update           func(*v1alpha.NodeNetworkConfig) error
+	validateVersion  bool
 }
 
-func (m *mockCNSClient) CreateOrUpdateNetworkContainerInternal(req *cns.CreateNetworkContainerRequest) cnstypes.ResponseCode {
+func (m *mockCNSClient) CreateOrUpdateNetworkContainerInternalWithVersionValidation(
+	req *cns.CreateNetworkContainerRequest,
+	validateVersion bool,
+) cnstypes.ResponseCode {
 	m.state.reqsByNCID[req.NetworkContainerid] = req
+	m.validateVersion = validateVersion
 	return m.createOrUpdateNC(req)
 }
 
@@ -202,8 +207,39 @@ func TestReconcile(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
 			assert.Equal(t, tt.wantCNSClientState, tt.cnsClient.state)
+			if len(tt.wantCNSClientState.reqsByNCID) > 0 {
+				assert.True(t, tt.cnsClient.validateVersion)
+			}
 		})
 	}
+}
+
+func TestReconcileStaticNCDoesNotValidateVersion(t *testing.T) {
+	staticNC := v1alpha.NetworkContainer{
+		ID:                 "nc-static",
+		AssignmentMode:     v1alpha.Static,
+		PrimaryIP:          "10.0.0.1/32",
+		SubnetAddressSpace: "10.0.0.0/24",
+		NodeIP:             "10.0.0.10",
+	}
+
+	cnsClient := mockCNSClient{
+		state:            cnsClientState{reqsByNCID: make(map[string]*cns.CreateNetworkContainerRequest)},
+		createOrUpdateNC: func(*cns.CreateNetworkContainerRequest) cnstypes.ResponseCode { return cnstypes.Success },
+		update:           func(*v1alpha.NodeNetworkConfig) error { return nil },
+	}
+	reconciler := NewReconciler(&cnsClient, func(*v1alpha.NodeNetworkConfig) error { return nil }, &cnsClient, "", false, 0)
+	reconciler.nnccli = &mockNCGetter{
+		get: func(context.Context, types.NamespacedName) (*v1alpha.NodeNetworkConfig, error) {
+			return &v1alpha.NodeNetworkConfig{
+				Status: v1alpha.NodeNetworkConfigStatus{NetworkContainers: []v1alpha.NetworkContainer{staticNC}},
+			}, nil
+		},
+	}
+
+	_, err := reconciler.Reconcile(context.Background(), reconcile.Request{})
+	require.NoError(t, err)
+	assert.False(t, cnsClient.validateVersion)
 }
 
 func TestReconcileStaleNCs(t *testing.T) {
