@@ -64,6 +64,18 @@ func (r *ReadTx) Metadata() (Metadata, error) {
 	return meta, nil
 }
 
+// PutMetadata replaces the service-level metadata fields (OrchestratorType,
+// NodeID, Location, NetworkType, Initialized, TimeStamp) with exactly the
+// values in meta. This is a full replacement, not a merge: zero-valued
+// fields in meta are written as zero and overwrite any previously stored
+// non-zero value for that field. Callers that want to change only a subset
+// of fields must first read the current record with Metadata(), mutate the
+// returned struct, and pass it back in full (read-modify-write) -- see how
+// boot-ID and authority-rollback updates are expected to be applied.
+//
+// Authority and BootID are the exception: each is written only when the
+// corresponding meta field is non-empty, so passing a zero value for either
+// preserves whatever is already stored rather than clearing it.
 func (w *WriteTx) PutMetadata(meta Metadata) error {
 	if meta.Authority != "" {
 		if err := validateAuthority(meta.Authority); err != nil {

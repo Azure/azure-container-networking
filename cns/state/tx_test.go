@@ -70,6 +70,50 @@ func TestPutMetadataRejectsUnknownAuthority(t *testing.T) {
 	assert.Zero(t, metadata.Generation)
 }
 
+// TestPutMetadataIsFullReplacementNotMerge pins down PutMetadata's documented
+// contract: it fully replaces the service-level metadata fields on every
+// call, so a subsequent call passing only NodeID zeroes out the other
+// service fields that were previously set, rather than merging with them.
+// Authority and BootID are the documented exception: they are only written
+// when the corresponding field is non-empty, so they are preserved across a
+// call that omits them. Callers that want to change a subset of the
+// full-replacement fields must read-modify-write via Metadata().
+func TestPutMetadataIsFullReplacementNotMerge(t *testing.T) {
+	db, _ := openTestDB(t)
+	timestamp := time.Date(2026, time.July, 23, 22, 0, 0, 0, time.UTC)
+	require.NoError(t, db.Update(context.Background(), func(tx *WriteTx) error {
+		return tx.PutMetadata(Metadata{
+			Authority:        AuthorityJSON,
+			BootID:           "boot-1",
+			OrchestratorType: "KubernetesCRD",
+			NodeID:           testNodeID,
+			Location:         "westus2",
+			NetworkType:      "azure",
+			Initialized:      true,
+			TimeStamp:        timestamp,
+		})
+	}))
+
+	const replacementNodeID = "node-2"
+	require.NoError(t, db.Update(context.Background(), func(tx *WriteTx) error {
+		return tx.PutMetadata(Metadata{NodeID: replacementNodeID})
+	}))
+
+	got := readMetadata(t, db)
+	// Full-replacement fields: only NodeID survives; everything else the
+	// second call left zero-valued is reset to zero, not merged forward.
+	assert.Equal(t, replacementNodeID, got.NodeID)
+	assert.Empty(t, got.OrchestratorType)
+	assert.Empty(t, got.Location)
+	assert.Empty(t, got.NetworkType)
+	assert.False(t, got.Initialized)
+	assert.True(t, got.TimeStamp.IsZero())
+	// Sticky fields: omitted (zero-valued) Authority/BootID preserve the
+	// previously stored value instead of being cleared.
+	assert.Equal(t, AuthorityJSON, got.Authority)
+	assert.Equal(t, "boot-1", got.BootID)
+}
+
 func TestIntegerEncoding(t *testing.T) {
 	t.Run("uint32 round trips", func(t *testing.T) {
 		for _, value := range []uint32{0, 1, math.MaxUint32} {
