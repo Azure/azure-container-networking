@@ -588,6 +588,54 @@ func TestUnifiedPatchReadOnlyClosedAndRestart(t *testing.T) {
 	)
 }
 
+func TestUnifiedPatchImportedEndpointPreservesOwnership(t *testing.T) {
+	db, err := state.Open(filepath.Join(t.TempDir(), "state.db"), state.Options{})
+	require.NoError(t, err)
+	_, err = db.ApplyNetworkContainer(context.Background(), r18NetworkContainer("nc-v4"), []state.IPRecord{{
+		ID: "ip-1", IPAddress: "10.0.0.4", NCID: "nc-v4", NCVersion: 1,
+	}})
+	require.NoError(t, err)
+	records := []cns.CNIEndpointState{{
+		InfraContainerID: "container-1",
+		PodEndpointID:    "interface-1",
+		PodName:          "pod-1",
+		PodNamespace:     "namespace-1",
+		InterfaceKey:     "container-1-eth0",
+		InterfaceName:    "eth0",
+		IPAddresses:      []net.IPNet{testIPNet("10.0.0.4/24")},
+	}}
+	plan, err := db.PreflightCNIEndpointImport(context.Background(), records, false)
+	require.NoError(t, err)
+	changed, err := db.ImportCNIEndpointState(context.Background(), records, plan)
+	require.NoError(t, err)
+	require.True(t, changed)
+	before := requireUnifiedSnapshot(t, db)
+	service := newUnifiedAddTestService(t)
+	restore, closeState, err := NewDurableStateLifecycle(service, db, true)
+	require.NoError(t, err)
+	require.NoError(t, restore(context.Background()))
+	t.Cleanup(func() { require.NoError(t, closeState()) })
+
+	response, _ := invokeEndpointPatch(
+		t,
+		service,
+		context.Background(),
+		"container-1",
+		map[string]*IPInfo{"eth0": {
+			HnsEndpointID:      "imported-hns",
+			NetworkContainerID: "nc-v4",
+			NICType:            cns.InfraNIC,
+		}},
+	)
+	require.Equal(t, types.Success, response.ReturnCode)
+	after := requireUnifiedSnapshot(t, db)
+	assert.Equal(t, before.Assignments, after.Assignments)
+	assert.Equal(t, before.IPOwners, after.IPOwners)
+	assert.Equal(t, before.DeleteIntents, after.DeleteIntents)
+	assert.Equal(t, "imported-hns", after.Endpoints["container-1"].IfnameToIPMap["eth0"].HNSEndpointID)
+	assert.Equal(t, "nc-v4", after.Endpoints["container-1"].IfnameToIPMap["eth0"].NetworkContainerID)
+}
+
 func TestJSONPatchPathRemainsIsolated(t *testing.T) {
 	service := getTestService(cns.KubernetesCRD)
 	enableManagedEndpointState(service)
