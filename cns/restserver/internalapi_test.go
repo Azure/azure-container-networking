@@ -16,14 +16,13 @@ import (
 	"testing"
 	"time"
 
-	acncommon "github.com/Azure/azure-container-networking/common"
-
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/types"
+	acncommon "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	nma "github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/store"
@@ -645,7 +644,7 @@ func TestCreateOrUpdateNetworkContainerInternal_StaleReplayCannotAlterAssignedIP
 // TestCreateOrUpdateNetworkContainerInternal_RejectsStaleVersionReplay_ClusterData is a
 // regression test using real data captured from a live AKS standalone test cluster, instead of
 // synthetic IDs:
-//   - NC ID c51b224b-b747-4063-b470-3676a74f13e8 was observed on node aks-gmp32-53174927-vmss000000.
+//   - NC ID c51b224b-b747-4063-b470-3676a74f13e8 was observed on a node in the test cluster.
 //   - Version 1 of that NC (captured while held-demand pods were still occupying IPs) assigned
 //     secondary IP d9ac4eef-344a-4025-99b6-96c6c6e2ec71 / 10.241.0.69.
 //   - After releasing the held-demand pods, the live NNC advanced to version 8 and that IP ID was
