@@ -7,8 +7,9 @@ ARG ARCH
 FROM --platform=windows/${ARCH} {{.WIN_HPC_PIN}} as windows
 ARG ARTIFACT_DIR .
 
-COPY ${ARTIFACT_DIR}/bin/dropgz.exe /dropgz.exe
-ENTRYPOINT [ "/dropgz.exe" ]
+COPY ${ARTIFACT_DIR}/bin/azure-ipam.exe /Windows/System32/azure-ipam.exe
+COPY ${ARTIFACT_DIR}/files/azilium.conflist /Windows/System32/azilium.conflist
+ENTRYPOINT [ "powershell.exe" ]
 
 # {{.MARINER_DISTROLESS_IMG}}
 FROM --platform=linux/${ARCH} {{.MARINER_DISTROLESS_PIN}} AS linux
