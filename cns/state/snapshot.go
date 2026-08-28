@@ -51,50 +51,11 @@ func NewSnapshot() Snapshot {
 }
 
 func (s *DB) Snapshot(ctx context.Context) (Snapshot, error) {
-	snapshot := NewSnapshot()
+	var snapshot Snapshot
 	err := s.View(ctx, func(tx *ReadTx) error {
-		metadata, err := tx.Metadata()
-		if err != nil {
-			return err
-		}
-		if metadata.SchemaVersion != SchemaVersion {
-			return fmt.Errorf(
-				"%w: database=%d code=%d",
-				ErrSchemaMismatch,
-				metadata.SchemaVersion,
-				SchemaVersion,
-			)
-		}
-		snapshot.Metadata = metadata
-
-		if err := decodeBucket(ctx, tx, bucketNetworkContainers, snapshot.NetworkContainers); err != nil {
-			return err
-		}
-		if err := decodeBucket(ctx, tx, bucketIPs, snapshot.IPs); err != nil {
-			return err
-		}
-		if err := decodeBucket(ctx, tx, bucketNetworks, snapshot.Networks); err != nil {
-			return err
-		}
-		if err := decodeBucket(ctx, tx, bucketOrchestratorContexts, snapshot.OrchestratorContexts); err != nil {
-			return err
-		}
-		if err := decodeBucket(ctx, tx, bucketPnPIDByMAC, snapshot.PnPIDByMAC); err != nil {
-			return err
-		}
-		if err := decodeBucket(ctx, tx, bucketAssignments, snapshot.Assignments); err != nil {
-			return err
-		}
-		if err := decodeBucket(ctx, tx, bucketIPOwners, snapshot.IPOwners); err != nil {
-			return err
-		}
-		if err := decodeBucket(ctx, tx, bucketEndpoints, snapshot.Endpoints); err != nil {
-			return err
-		}
-		if err := decodeBucket(ctx, tx, bucketDeleteIntents, snapshot.DeleteIntents); err != nil {
-			return err
-		}
-		return nil
+		var err error
+		snapshot, err = snapshotFromTx(ctx, tx)
+		return err
 	})
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("taking cns state snapshot: %w", err)
@@ -102,8 +63,54 @@ func (s *DB) Snapshot(ctx context.Context) (Snapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return Snapshot{}, fmt.Errorf("taking cns state snapshot: %w", err)
 	}
-	if err := snapshot.validate(); err != nil {
+	if err := snapshot.Validate(); err != nil {
 		return Snapshot{}, fmt.Errorf("taking cns state snapshot: %w", err)
+	}
+	return snapshot, nil
+}
+
+func snapshotFromTx(ctx context.Context, tx *ReadTx) (Snapshot, error) {
+	snapshot := NewSnapshot()
+	metadata, err := tx.Metadata()
+	if err != nil {
+		return Snapshot{}, err
+	}
+	if metadata.SchemaVersion != SchemaVersion {
+		return Snapshot{}, fmt.Errorf(
+			"%w: database=%d code=%d",
+			ErrSchemaMismatch,
+			metadata.SchemaVersion,
+			SchemaVersion,
+		)
+	}
+	snapshot.Metadata = metadata
+
+	if err := decodeBucket(ctx, tx, bucketNetworkContainers, snapshot.NetworkContainers); err != nil {
+		return Snapshot{}, err
+	}
+	if err := decodeBucket(ctx, tx, bucketIPs, snapshot.IPs); err != nil {
+		return Snapshot{}, err
+	}
+	if err := decodeBucket(ctx, tx, bucketNetworks, snapshot.Networks); err != nil {
+		return Snapshot{}, err
+	}
+	if err := decodeBucket(ctx, tx, bucketOrchestratorContexts, snapshot.OrchestratorContexts); err != nil {
+		return Snapshot{}, err
+	}
+	if err := decodeBucket(ctx, tx, bucketPnPIDByMAC, snapshot.PnPIDByMAC); err != nil {
+		return Snapshot{}, err
+	}
+	if err := decodeBucket(ctx, tx, bucketAssignments, snapshot.Assignments); err != nil {
+		return Snapshot{}, err
+	}
+	if err := decodeBucket(ctx, tx, bucketIPOwners, snapshot.IPOwners); err != nil {
+		return Snapshot{}, err
+	}
+	if err := decodeBucket(ctx, tx, bucketEndpoints, snapshot.Endpoints); err != nil {
+		return Snapshot{}, err
+	}
+	if err := decodeBucket(ctx, tx, bucketDeleteIntents, snapshot.DeleteIntents); err != nil {
+		return Snapshot{}, err
 	}
 	return snapshot, nil
 }
@@ -150,7 +157,7 @@ func decodeJSONValue(data []byte, destination any) error {
 	return nil
 }
 
-func (s Snapshot) validate() error {
+func (s Snapshot) Validate() error {
 	if err := s.validateNetworkContainers(); err != nil {
 		return err
 	}
@@ -181,6 +188,10 @@ func (s Snapshot) validate() error {
 		return err
 	}
 	return validateNonemptyKeys(bucketDeleteIntents, s.DeleteIntents)
+}
+
+func (s Snapshot) validate() error {
+	return s.Validate()
 }
 
 func (s Snapshot) validateNetworkContainers() error {

@@ -4,6 +4,7 @@
 package state
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -12,7 +13,8 @@ import (
 )
 
 type ReadTx struct {
-	tx *bolt.Tx
+	tx  *bolt.Tx
+	ctx context.Context
 }
 
 type WriteTx struct {
