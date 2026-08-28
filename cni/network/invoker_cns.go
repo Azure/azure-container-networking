@@ -28,14 +28,17 @@ const (
 )
 
 var (
-	errEmptyCNIArgs          = errors.New("empty CNI cmd args not allowed")
-	errInvalidArgs           = errors.New("invalid arg(s)")
-	errInvalidDefaultRouting = errors.New("add result requires exactly one interface with default routes")
-	errInvalidGatewayIP      = errors.New("invalid gateway IP")
-	errInvalidIPv6Address    = errors.New("invalid IPv6 address from NetworkContainerIPv6Config")
-	errInvalidGatewayIPv6    = errors.New("invalid gateway IPv6 address")
-	overlayGatewayV6IP       = "fe80::1234:5678:9abc"
-	watcherPath              = "/var/run/azure-vnet/deleteIDs"
+	errEmptyCNIArgs                       = errors.New("empty CNI cmd args not allowed")
+	errInvalidArgs                        = errors.New("invalid arg(s)")
+	errInvalidDefaultRouting              = errors.New("add result requires exactly one interface with default routes")
+	errInvalidSkipDefaultRouteProgramming = errors.New(
+		"add result with SkipDefaultRouteProgramming requires all interfaces to skip default routes",
+	)
+	errInvalidGatewayIP   = errors.New("invalid gateway IP")
+	errInvalidIPv6Address = errors.New("invalid IPv6 address from NetworkContainerIPv6Config")
+	errInvalidGatewayIPv6 = errors.New("invalid gateway IPv6 address")
+	overlayGatewayV6IP    = "fe80::1234:5678:9abc"
+	watcherPath           = "/var/run/azure-vnet/deleteIDs"
 )
 
 type CNSIPAMInvoker struct {
@@ -273,8 +276,12 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		}
 	}
 
-	// Make sure default routes exist for 1 interface
-	if numInterfacesWithDefaultRoutes != expectedNumInterfacesWithDefaultRoutes {
+	skipDefaultRouteProgramming := response.PodConfigurations.SkipDefaultRouteProgramming
+	// Make sure default routes exist for 1 interface unless SkipDefaultRouteProgramming is set.
+	if skipDefaultRouteProgramming && numInterfacesWithDefaultRoutes != 0 {
+		return IPAMAddResult{}, errInvalidSkipDefaultRouteProgramming
+	}
+	if !skipDefaultRouteProgramming && numInterfacesWithDefaultRoutes != expectedNumInterfacesWithDefaultRoutes {
 		return IPAMAddResult{}, errInvalidDefaultRouting
 	}
 

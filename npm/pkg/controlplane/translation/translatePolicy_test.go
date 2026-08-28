@@ -3395,3 +3395,77 @@ func TestCheckForNamedPortType(t *testing.T) {
 		})
 	}
 }
+
+func TestParseNodeEgressPorts(t *testing.T) {
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		expected    []int32
+	}{
+		{
+			name:        "nil annotations",
+			annotations: nil,
+			expected:    nil,
+		},
+		{
+			name:        "annotation missing",
+			annotations: map[string]string{"some/other": "1"},
+			expected:    nil,
+		},
+		{
+			name:        "empty value",
+			annotations: map[string]string{l1vhAllowedPortsAnnotation: ""},
+			expected:    nil,
+		},
+		{
+			name:        "single port",
+			annotations: map[string]string{l1vhAllowedPortsAnnotation: "5005"},
+			expected:    []int32{5005},
+		},
+		{
+			name:        "multiple ports with spaces",
+			annotations: map[string]string{l1vhAllowedPortsAnnotation: " 5005 , 2500 "},
+			expected:    []int32{5005, 2500},
+		},
+		{
+			name:        "skips invalid tokens",
+			annotations: map[string]string{l1vhAllowedPortsAnnotation: "5005,abc,70000,0,2500"},
+			expected:    []int32{5005, 2500},
+		},
+		{
+			name:        "all invalid",
+			annotations: map[string]string{l1vhAllowedPortsAnnotation: "abc,-1,99999"},
+			expected:    nil,
+		},
+		{
+			name:        "boundary ports",
+			annotations: map[string]string{l1vhAllowedPortsAnnotation: "1,65535"},
+			expected:    []int32{1, 65535},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, parseNodeEgressPorts(tt.annotations))
+		})
+	}
+}
+
+func TestTranslatePolicyNodeEgressPorts(t *testing.T) {
+	npObj := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "l1vh",
+			Namespace:   defaultNS,
+			Annotations: map[string]string{l1vhAllowedPortsAnnotation: "5005,2500"},
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+		},
+	}
+
+	npmNetPol, err := TranslatePolicy(npObj, false)
+	require.NoError(t, err)
+	require.Equal(t, []int32{5005, 2500}, npmNetPol.NodeEgressPorts)
+}

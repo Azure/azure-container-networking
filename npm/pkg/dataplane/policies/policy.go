@@ -32,6 +32,13 @@ type NPMNetworkPolicy struct {
 	// podIP is key and endpoint ID as value
 	// Will be populated by dataplane and policy manager
 	PodEndpoints map[string]string
+	// NodeEgressPorts are ports for which egress from the selected pods to the node's IP
+	// is explicitly allowed, regardless of other egress rules in the policy. On Windows this
+	// applies to the supported transport protocols (TCP and UDP); other protocols such as
+	// ICMP or SCTP are not opened.
+	// Populated from a NetworkPolicy annotation at translation time and only consumed by the
+	// Windows dataplane, where the node IP is known.
+	NodeEgressPorts []int32
 }
 
 func NewNPMNetworkPolicy(netPolName, netPolNamespace string) *NPMNetworkPolicy {
@@ -77,6 +84,12 @@ func (netPol *NPMNetworkPolicy) numACLRulesProducedInKernel() int {
 	if hasEgress {
 		numRules++
 	}
+
+	// The Windows dataplane creates one TCP and one UDP ACL for every annotated node-egress port.
+	if util.IsWindowsDP() {
+		numRules += 2 * len(netPol.NodeEgressPorts)
+	}
+
 	return numRules
 }
 

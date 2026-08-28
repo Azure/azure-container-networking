@@ -39,7 +39,7 @@ done
 
 # read a `VAR ?= <value>` line from deploy.mk
 get_var() {
-    grep -E "^$1[[:space:]]" "$DEPLOY_MK" | head -n1 | awk -F'?=' '{print $2}' | tr -d '[:space:]'
+    grep -E "^$1[[:space:]]" "$DEPLOY_MK" | head -n1 | awk -F'[?]=' '{print $2}' | tr -d '[:space:]'
 }
 
 # newest tag from MCR matching regex, natural-sorted

@@ -200,7 +200,7 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 		if err != nil {
 			return ipConfigsResp, err
 		}
-		SWIFTv2PodIPInfos, err := k.getIPConfig(ctx, podInfo)
+		ipConfigResult, err := k.getIPConfig(ctx, podInfo)
 		if err != nil {
 			return &cns.IPConfigsResponse{
 				Response: cns.Response{
@@ -210,7 +210,7 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 				PodIPInfo: []cns.PodIpInfo{},
 			}, errors.Wrapf(err, "failed to get SWIFTv2 IP config : %v", req)
 		}
-		ipConfigsResp.PodIPInfo = append(ipConfigsResp.PodIPInfo, SWIFTv2PodIPInfos...)
+		ipConfigsResp.PodIPInfo = append(ipConfigsResp.PodIPInfo, ipConfigResult.podIPInfos...)
 		// Set routes for the pod
 		for i := range ipConfigsResp.PodIPInfo {
 			ipInfo := &ipConfigsResp.PodIPInfo[i]
@@ -228,6 +228,7 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 				}
 			}
 		}
+		ipConfigsResp.PodConfigurations = ipConfigResult.podConfigurations
 		return ipConfigsResp, nil
 	}
 }

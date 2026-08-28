@@ -1805,6 +1805,135 @@ func Test_getInterfaceInfoKey(t *testing.T) {
 	require.Equal("", inv.getInterfaceInfoKey(cns.BackendNIC, ""))
 }
 
+func TestCNSIPAMInvokerAddDefaultRouteProgramming(t *testing.T) {
+	const (
+		frontendGatewayIP = "20.0.0.1"
+		frontendPrimaryIP = "20.0.0.2"
+		podInterfaceID    = "testcont-testifname1"
+		containerID       = "testcontainerid1"
+	)
+
+	infraNIC := func(skipDefaultRoutes bool) cns.PodIpInfo {
+		return cns.PodIpInfo{
+			PodIPConfig: cns.IPSubnet{
+				IPAddress:    "10.0.1.10",
+				PrefixLength: 24,
+			},
+			NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+				IPSubnet: cns.IPSubnet{
+					IPAddress:    "10.0.1.0",
+					PrefixLength: 24,
+				},
+				GatewayIPAddress: "10.0.0.1",
+			},
+			HostPrimaryIPInfo: cns.HostIPInfo{
+				Gateway:   "10.0.0.1",
+				PrimaryIP: "10.0.0.2",
+				Subnet:    "10.0.0.0/24",
+			},
+			NICType:           cns.InfraNIC,
+			SkipDefaultRoutes: skipDefaultRoutes,
+		}
+	}
+	frontendNIC := func() cns.PodIpInfo {
+		return cns.PodIpInfo{
+			PodIPConfig: cns.IPSubnet{
+				IPAddress:    "20.0.1.10",
+				PrefixLength: 24,
+			},
+			HostPrimaryIPInfo: cns.HostIPInfo{
+				Gateway:   frontendGatewayIP,
+				PrimaryIP: frontendPrimaryIP,
+				Subnet:    "20.0.0.0/24",
+			},
+			NICType:    cns.NodeNetworkInterfaceFrontendNIC,
+			MacAddress: "12:34:56:78:9a:bc",
+		}
+	}
+
+	tests := []struct {
+		name                        string
+		skipDefaultRouteProgramming bool
+		podIPInfo                   []cns.PodIpInfo
+		wantErr                     error
+	}{
+		{
+			name:      "legacy response requires one CNI-managed owner",
+			podIPInfo: []cns.PodIpInfo{infraNIC(false)},
+		},
+		{
+			name:      "legacy response rejects no CNI-managed owner",
+			podIPInfo: []cns.PodIpInfo{infraNIC(true)},
+			wantErr:   errInvalidDefaultRouting,
+		},
+		{
+			name:                        "skip programming response requires no CNI-managed owner",
+			skipDefaultRouteProgramming: true,
+			podIPInfo:                   []cns.PodIpInfo{infraNIC(true)},
+		},
+		{
+			name:                        "skip programming response rejects a CNI-managed owner",
+			skipDefaultRouteProgramming: true,
+			podIPInfo:                   []cns.PodIpInfo{infraNIC(false)},
+			wantErr:                     errInvalidSkipDefaultRouteProgramming,
+		},
+		{
+			name:      "legacy response rejects multiple CNI-managed owners",
+			podIPInfo: []cns.PodIpInfo{infraNIC(false), frontendNIC()},
+			wantErr:   errInvalidDefaultRouting,
+		},
+		{
+			name:                        "skip programming response rejects multiple CNI-managed owners",
+			skipDefaultRouteProgramming: true,
+			podIPInfo:                   []cns.PodIpInfo{infraNIC(false), frontendNIC()},
+			wantErr:                     errInvalidSkipDefaultRouteProgramming,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testRequire := require.New(t)
+			request := cns.IPConfigsRequest{
+				PodInterfaceID:      podInterfaceID,
+				InfraContainerID:    containerID,
+				OrchestratorContext: marshallPodInfo(testPodInfo),
+			}
+			invoker := &CNSIPAMInvoker{
+				podName:      testPodInfo.PodName,
+				podNamespace: testPodInfo.PodNamespace,
+				cnsClient: &MockCNSClient{
+					require: testRequire,
+					requestIPs: requestIPsHandler{
+						ipconfigArgument: request,
+						result: &cns.IPConfigsResponse{
+							PodIPInfo: tt.podIPInfo,
+							PodConfigurations: cns.PodConfigurations{
+								SkipDefaultRouteProgramming: tt.skipDefaultRouteProgramming,
+							},
+						},
+					},
+				},
+			}
+
+			_, err := invoker.Add(IPAMAddConfig{
+				nwCfg: &cni.NetworkConfig{},
+				args: &cniSkel.CmdArgs{
+					ContainerID: containerID,
+					Netns:       "testnetns1",
+					IfName:      "testifname1",
+				},
+				options: map[string]interface{}{},
+			})
+
+			if tt.wantErr == nil {
+				testRequire.NoError(err)
+				return
+			}
+			testRequire.ErrorIs(err, tt.wantErr)
+		})
+	}
+}
+
 func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 	require := require.New(t) //nolint further usage of require without passing t
 

@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	dptestutils "github.com/Azure/azure-container-networking/npm/pkg/dataplane/testutils"
+	"github.com/Microsoft/hcsshim/hcn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -143,6 +144,21 @@ func TestCompareAndRemovePolicies(t *testing.T) {
 	}
 }
 
+func TestNumACLRulesProducedInKernelWithNodeEgressPorts(t *testing.T) {
+	egressACL := NewACLPolicy(Allowed, Egress)
+
+	base := &NPMNetworkPolicy{ACLs: []*ACLPolicy{egressACL}}
+	// egress ACL (1) + extra egress rule (1)
+	require.Equal(t, 2, base.numACLRulesProducedInKernel())
+
+	withPorts := &NPMNetworkPolicy{
+		ACLs:            []*ACLPolicy{egressACL},
+		NodeEgressPorts: []int32{5005, 2500},
+	}
+	// same as base plus one TCP and one UDP ACL per node egress port
+	require.Equal(t, 2+2*len(withPorts.NodeEgressPorts), withPorts.numACLRulesProducedInKernel())
+}
+
 func TestAddPolicies(t *testing.T) {
 	metrics.InitializeWindowsMetrics()
 
@@ -268,6 +284,47 @@ func TestRemovePoliciesEndpointNotFound(t *testing.T) {
 		updateLatencyCalls:      0,
 		updateFailures:          0,
 	}.test(t)
+}
+
+func TestGetSettingsFromACLNodeEgressPorts(t *testing.T) {
+	pMgr, _ := getPMgr(t)
+
+	policy := &NPMNetworkPolicy{
+		PolicyKey:       "test/node-egress",
+		ACLPolicyID:     "azure-acl-test-node-egress",
+		NodeEgressPorts: []int32{5005, 2500},
+	}
+
+	settings, err := pMgr.getSettingsFromACL(policy)
+	require.NoError(t, err)
+
+	// no policy ACLs, so: 1 readiness probe ACL + one ACL per node egress port per protocol (TCP+UDP)
+	require.Len(t, settings, 1+len(policy.NodeEgressPorts)*2)
+
+	// expect a TCP and UDP allow ACL to the node IP for each port
+	expected := map[string]struct{}{
+		"5005/6": {}, "5005/17": {},
+		"2500/6": {}, "2500/17": {},
+	}
+	nodeEgressCount := 0
+	for _, s := range settings {
+		if s.Direction != hcn.DirectionTypeOut {
+			continue
+		}
+		nodeEgressCount++
+		assert.Equal(t, policy.ACLPolicyID, s.Id)
+		assert.Equal(t, hcn.ActionTypeAllow, s.Action)
+		assert.Equal(t, ipsetConfig.NodeIP, s.RemoteAddresses)
+		assert.NotEmpty(t, s.Protocols, "port-scoped ACL must specify a protocol for HNS")
+		assert.Equal(t, "", s.LocalPorts)
+		assert.Equal(t, uint16(allowRulePriotity), s.Priority)
+		key := s.RemotePorts + "/" + s.Protocols
+		_, ok := expected[key]
+		assert.True(t, ok, "unexpected port/protocol combo %q", key)
+		delete(expected, key)
+	}
+	assert.Equal(t, len(policy.NodeEgressPorts)*2, nodeEgressCount, "wrong number of node egress ACLs")
+	assert.Empty(t, expected, "not all expected port/protocol combos were emitted")
 }
 
 // Helper functions for UTS

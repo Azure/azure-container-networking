@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cns-config
+  namespace: kube-system
+data:
+  cns_config.json: |
+    {
+      "TelemetrySettings": {
+          "TelemetryBatchSizeBytes": 16384,
+          "TelemetryBatchIntervalInSecs": 15,
+          "RefreshIntervalInSecs": 15,
+          "DisableAll": false,
+          "HeartBeatIntervalInMins": 30,
+          "DebugMode": false,
+          "SnapshotIntervalInMins": 60
+      },
+      "ManagedSettings": {
+          "PrivateEndpoint": "",
+          "InfrastructureNetworkID": "",
+          "NodeID": "",
+          "NodeSyncIntervalInSeconds": 30
+      },
+      "AsyncPodDeletePath": "/var/run/azure-vnet/deleteIDs",
+      "ChannelMode": "CRD",
+      "CNIConflistFilepath": "/etc/cni/net.d/10-azure.conflist",
+      "CNIConflistScenario": "swift",
+      "EnableAsyncPodDelete": true,
+      "EnableCNIConflistGeneration": true,
+      "EnableIPAMv2": true,
+      "EnableStateMigration": false,
+      "EnableSubnetScarcity": false,
+      "InitializeFromCNI": false,
+      "ManageEndpointState": true,
+      "ProgramSNATIPTables": false
+    }

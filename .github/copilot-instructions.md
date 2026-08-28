@@ -1,5 +1,12 @@
 Use all `agents.md` files found from the repository root to the current directory as instructions and context, applying them in root-to-leaf order; if instructions conflict, the `agents.md` closest to the current directory takes precedence. Use relevant repo skills from `.github/skills/` when applicable.
 
+Public authorship is human-owned. Copilot and all other AI agents must never
+comment, reply, review, react, resolve threads, or edit/close/reopen public
+PR/issue text or metadata. Draft text for a human maintainer instead. Read-only
+GitHub access remains allowed. Branch pushes are allowed. PR creation and
+workflow/release actions are allowed only when the current user task explicitly
+requests that action.
+
 # Copilot Instructions for Azure Container Networking
 
 ## Available Skills

@@ -1,7 +1,7 @@
 # acnpublic: acnpublic.azurecr.io
 # general cilium variables
 DIR 									?= 1.18
-CILIUM_VERSION_TAG               		?= v1.18.11-260622
+CILIUM_VERSION_TAG               		?= v1.18.12-260811
 CILIUM_IMAGE_REGISTRY           		?= mcr.microsoft.com/containernetworking
 IPV6_IMAGE_REGISTRY						?= mcr.microsoft.com/containernetworking
 IPV6_HP_BPF_VERSION               		?= v0.0.1
@@ -16,7 +16,7 @@ EBPF_CILIUM_DIR				     		?= 1.18
 EBPF_CILIUM_IMAGE_REGISTRY           	?= mcr.microsoft.com/containernetworking
 IPV6_HP_BPF_VERSION               		?= v0.0.1
 IPV6_IMAGE_REGISTRY           			?= mcr.microsoft.com/containernetworking
-EBPF_CILIUM_VERSION_TAG               	?= v1.18.11-260622
+EBPF_CILIUM_VERSION_TAG               	?= v1.18.12-260811
 AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY	?= mcr.microsoft.com/containernetworking
 AZURE_IPTABLES_MONITOR_TAG          	?= v0.0.5-0
 AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY		?= mcr.microsoft.com/containernetworking

@@ -67,6 +67,10 @@ func NewClient() *Client {
 	testPod10.Labels = make(map[string]string)
 	testPod10.Labels[configuration.LabelPodNetworkInstanceSwiftV2] = podNetwork
 
+	testPod12 := v1.Pod{}
+	testPod12.Labels = make(map[string]string)
+	testPod12.Labels[configuration.LabelPodSwiftV2] = podNetwork
+
 	testPodMtpncTerminating := v1.Pod{}
 	testPodMtpncTerminating.Labels = make(map[string]string)
 	testPodMtpncTerminating.Labels[configuration.LabelPodSwiftV2] = podNetwork
@@ -196,11 +200,12 @@ func NewClient() *Client {
 		Status: v1alpha1.MultitenantPodNetworkConfigStatus{
 			InterfaceInfos: []v1alpha1.InterfaceInfo{
 				{
-					PrimaryIP:  "192.168.12.1/32",
-					MacAddress: "00:00:00:00:00:12",
-					GatewayIP:  "10.0.0.1",
-					NCID:       "testncid12",
-					DeviceType: v1alpha1.DeviceTypeVnetNIC,
+					PrimaryIP:          "192.168.12.1/32",
+					MacAddress:         "00:00:00:00:00:12",
+					GatewayIP:          "10.0.0.1",
+					NCID:               "testncid12",
+					DeviceType:         v1alpha1.DeviceTypeVnetNIC,
+					SubnetAddressSpace: "192.168.12.0/24",
 				},
 			},
 		},
@@ -225,6 +230,7 @@ func NewClient() *Client {
 			"testpod8namespace/testpod8":                               &testPod8,
 			"testpod9namespace/testpod9":                               &testPod9,
 			"testpod10namespace/testpod10":                             &testPod10,
+			"testpod12namespace/testpod12":                             &testPod12,
 			"testpodMtpncTerminatingnamespace/testpodMtpncTerminating": &testPodMtpncTerminating,
 		},
 		mtpncCache: map[string]*v1alpha1.MultitenantPodNetworkConfig{

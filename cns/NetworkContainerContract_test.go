@@ -59,6 +59,44 @@ func TestUnmarshalPodInfo(t *testing.T) {
 	}
 }
 
+func TestIPConfigsResponsePodConfigurationsJSON(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		response      IPConfigsResponse
+		wantSkipField bool
+	}{
+		{
+			name:     "empty when false",
+			response: IPConfigsResponse{},
+		},
+		{
+			name: "included when true",
+			response: IPConfigsResponse{
+				PodConfigurations: PodConfigurations{
+					SkipDefaultRouteProgramming: true,
+				},
+			},
+			wantSkipField: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.response) //nolint:musttag // response embeds pre-existing contract types
+			assert.NoError(t, err)
+
+			var decoded map[string]any
+			assert.NoError(t, json.Unmarshal(data, &decoded))
+			value, exists := decoded["podConfigurations"]
+			assert.True(t, exists)
+			configurations := value.(map[string]any)
+			skipValue, skipExists := configurations["skipDefaultRouteProgramming"]
+			assert.Equal(t, tt.wantSkipField, skipExists)
+			if tt.wantSkipField {
+				assert.Equal(t, true, skipValue)
+			}
+		})
+	}
+}
+
 func TestNewPodInfoFromIPConfigsRequest(t *testing.T) {
 	GlobalPodInfoScheme = InterfaceIDPodInfoScheme
 	tests := []struct {
@@ -124,6 +162,26 @@ func TestCreateNetworkContainerRequestValidate(t *testing.T) {
 		{
 			name: "valid",
 			req: CreateNetworkContainerRequest{
+				NetworkContainerid: "f47ac10b-58cc-0372-8567-0e02b2c3d479",
+				IPConfiguration: IPConfiguration{
+					IPSubnet: IPSubnet{IPAddress: "10.0.0.4"},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid",
+			req: CreateNetworkContainerRequest{
+				NetworkContainerid: "f47ac10b-58cc-0372-8567-0e02b2c3d479",
+				IPConfiguration: IPConfiguration{
+					IPSubnet: IPSubnet{IPAddress: "2001:db8::4"},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid",
+			req: CreateNetworkContainerRequest{
 				NetworkContainerid: SwiftPrefix + "f47ac10b-58cc-0372-8567-0e02b2c3d479",
 			},
 			wantErr: false,
@@ -132,6 +190,26 @@ func TestCreateNetworkContainerRequestValidate(t *testing.T) {
 			name: "invalid",
 			req: CreateNetworkContainerRequest{
 				NetworkContainerid: "-f47ac10b-58cc-0372-8567-0e02b2c3d479",
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid",
+			req: CreateNetworkContainerRequest{
+				NetworkContainerid: "f47ac10b-58cc-0372-8567-0e02b2c3d479",
+				IPConfiguration: IPConfiguration{
+					IPSubnet: IPSubnet{IPAddress: "10.0.0"},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid",
+			req: CreateNetworkContainerRequest{
+				NetworkContainerid: "f47ac10b-58cc-0372-8567-0e02b2c3d479",
+				IPConfiguration: IPConfiguration{
+					IPSubnet: IPSubnet{IPAddress: "2001:db8:"},
+				},
 			},
 			wantErr: true,
 		},
