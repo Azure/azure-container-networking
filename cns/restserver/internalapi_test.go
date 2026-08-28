@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	acncommon "github.com/Azure/azure-container-networking/common"
+
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
@@ -304,14 +306,13 @@ func TestCreateAndUpdateNCWithSecondaryIPNCVersion(t *testing.T) {
 	}
 }
 
-// TestCreateOrUpdateNetworkContainerInternal_OlderVersionReplayResurrectsReleasedIP is a deterministic
+// TestCreateOrUpdateNetworkContainerInternal_RejectsStaleVersionReplay is a deterministic
 // regression test for the NC-version-replay bug: CNS already has NC version 10 in local state and a
 // matching host (NMAgent-programmed) version of 10. An incoming NC request carrying an older DNC/NNC
 // version (5) for the same NC, referencing a secondary IP ID that was already released and removed from
 // PodIPConfigState, must now be rejected atomically: no stored state may change, and the released IP
 // must remain absent (not recreated as Available or PendingProgramming).
-// See nc-version-replay-repro-handoff.md for the full analysis.
-func TestCreateOrUpdateNetworkContainerInternal_OlderVersionReplayResurrectsReleasedIP(t *testing.T) {
+func TestCreateOrUpdateNetworkContainerInternal_RejectsStaleVersionReplay(t *testing.T) {
 	restartService()
 	setEnv(t)
 	setOrchestratorTypeInternal(cns.KubernetesCRD)
@@ -372,9 +373,70 @@ func TestCreateOrUpdateNetworkContainerInternal_OlderVersionReplayResurrectsRele
 	assert.Equal(t, types.Available, currentIPState.GetState())
 }
 
+// TestCreateOrUpdateNetworkContainerInternal_StaleReplayRejectionSurvivesSNATProgramming is a regression
+// test for a follow-on bug: when SNAT reconciliation is enabled (OptProgramSNATIPTables), CNS used to
+// unconditionally call programSNATRules after saveNetworkContainerGoalState, overwriting a
+// NetworkContainerVersionMismatch rejection with whatever programSNATRules returned - silently hiding
+// the rejection from callers such as the NNC reconciler. This asserts that CNS now returns immediately
+// on rejection, before SNAT programming is even attempted.
+func TestCreateOrUpdateNetworkContainerInternal_StaleReplayRejectionSurvivesSNATProgramming(t *testing.T) {
+	restartService()
+	setEnv(t)
+	setOrchestratorTypeInternal(cns.KubernetesCRD)
+	svc.state.ContainerStatus = make(map[string]containerstatus)
+	svc.PodIPConfigState = make(map[string]cns.IPConfigurationStatus)
+
+	// Enable SNAT programming, as in the affected managed-Cilium deployment configuration.
+	svc.Options[acncommon.OptProgramSNATIPTables] = true
+	// service.iptables is deliberately left nil (its zero value): if the fix regresses and
+	// programSNATRules is reached, calling a method on it would panic, making any regression loud
+	// and obvious rather than silently returning Success.
+
+	testNCID := "666bd5c9-89f2-4b5d-b8d0-616894d6d151"
+	currentIPID := uuid.New().String()
+
+	// Arrange: CNS already has NC version 10 in local state, with host (NMAgent-programmed) version 10 too.
+	svc.state.ContainerStatus[testNCID] = containerstatus{
+		ID:          testNCID,
+		VMVersion:   "10",
+		HostVersion: "10",
+		CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
+			NetworkContainerid:   testNCID,
+			NetworkContainerType: dockerContainerType,
+			Version:              "10",
+			IPConfiguration: cns.IPConfiguration{
+				IPSubnet: cns.IPSubnet{IPAddress: primaryIP, PrefixLength: subnetPrfixLength},
+			},
+			SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
+				currentIPID: newSecondaryIPConfig("10.0.0.6", 10),
+			},
+		},
+	}
+	svc.PodIPConfigState[currentIPID] = newPodState("10.0.0.6", currentIPID, testNCID, types.Available, 10)
+
+	// Act: replay an older DNC/NNC payload (version 5) for the same NC.
+	staleReq := &cns.CreateNetworkContainerRequest{
+		NetworkContainerid:   testNCID,
+		NetworkContainerType: dockerContainerType,
+		Version:              "5",
+		IPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{IPAddress: primaryIP, PrefixLength: subnetPrfixLength},
+		},
+	}
+
+	returnCode := svc.CreateOrUpdateNetworkContainerInternal(staleReq)
+
+	// The rejection must not be overwritten by SNAT programming's return code.
+	assert.Equal(t, types.NetworkContainerVersionMismatch, returnCode,
+		"stale replay rejection must survive even when SNAT programming is enabled")
+
+	containerStatus := svc.state.ContainerStatus[testNCID]
+	assert.Equal(t, "10", containerStatus.CreateNetworkContainerRequest.Version, "stored DNC version must remain 10")
+}
+
 // TestCreateOrUpdateNetworkContainerInternal_EqualVersionIsIdempotent verifies that replaying the same
-// (currently stored) DNC/NNC version is accepted and idempotent, per the "incoming = stored" case in the
-// proposed correctness guard in nc-version-replay-repro-handoff.md.
+// (currently stored) DNC/NNC version is accepted and idempotent (the "incoming == stored" case of the
+// version-comparison guard in saveNetworkContainerGoalState).
 func TestCreateOrUpdateNetworkContainerInternal_EqualVersionIsIdempotent(t *testing.T) {
 	restartService()
 	setEnv(t)
@@ -422,8 +484,8 @@ func TestCreateOrUpdateNetworkContainerInternal_EqualVersionIsIdempotent(t *test
 }
 
 // TestCreateOrUpdateNetworkContainerInternal_HigherVersionIsAccepted verifies that a newer DNC/NNC
-// version is still accepted and reconciled normally, per the "incoming > stored" case in the proposed
-// correctness guard in nc-version-replay-repro-handoff.md.
+// version is still accepted and reconciled normally (the "incoming > stored" case of the
+// version-comparison guard in saveNetworkContainerGoalState).
 func TestCreateOrUpdateNetworkContainerInternal_HigherVersionIsAccepted(t *testing.T) {
 	restartService()
 	setEnv(t)
@@ -481,8 +543,7 @@ func TestCreateOrUpdateNetworkContainerInternal_HigherVersionIsAccepted(t *testi
 }
 
 // TestCreateOrUpdateNetworkContainerInternal_MalformedVersionFailsWithoutMutation verifies that a
-// non-numeric incoming or stored version is rejected without mutating any state, per
-// nc-version-replay-repro-handoff.md's "malformed versions fail without mutation" requirement.
+// non-numeric incoming or stored version is rejected without mutating any state.
 func TestCreateOrUpdateNetworkContainerInternal_MalformedVersionFailsWithoutMutation(t *testing.T) {
 	restartService()
 	setEnv(t)
@@ -581,9 +642,9 @@ func TestCreateOrUpdateNetworkContainerInternal_StaleReplayCannotAlterAssignedIP
 	assert.Equal(t, types.Assigned, assignedIPState.GetState(), "assigned IP state must be unchanged")
 }
 
-// TestCreateOrUpdateNetworkContainerInternal_OlderVersionReplayResurrectsReleasedIP_ClusterData is a
-// regression test using real data captured from a live AKS standalone cluster (Phase 1-2 of the guarded
-// cluster reproduction in nc-version-replay-repro-handoff.md), instead of synthetic IDs:
+// TestCreateOrUpdateNetworkContainerInternal_RejectsStaleVersionReplay_ClusterData is a
+// regression test using real data captured from a live AKS standalone test cluster, instead of
+// synthetic IDs:
 //   - NC ID c51b224b-b747-4063-b470-3676a74f13e8 was observed on node aks-gmp32-53174927-vmss000000.
 //   - Version 1 of that NC (captured while held-demand pods were still occupying IPs) assigned
 //     secondary IP d9ac4eef-344a-4025-99b6-96c6c6e2ec71 / 10.241.0.69.
@@ -595,7 +656,7 @@ func TestCreateOrUpdateNetworkContainerInternal_StaleReplayCannotAlterAssignedIP
 // This verifies the fix using the same real, cluster-derived data: feeding a stale (version 1) replay
 // of the NC payload against locally-stored state reflecting the newer (version 8) baseline must now be
 // rejected, and the released address must remain absent.
-func TestCreateOrUpdateNetworkContainerInternal_OlderVersionReplayResurrectsReleasedIP_ClusterData(t *testing.T) {
+func TestCreateOrUpdateNetworkContainerInternal_RejectsStaleVersionReplay_ClusterData(t *testing.T) {
 	restartService()
 	setEnv(t)
 	setOrchestratorTypeInternal(cns.KubernetesCRD)

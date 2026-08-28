@@ -170,7 +170,6 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 		// recreated as Available. This only applies to the KubernetesCRD (dynamic NNC-driven) IPAM
 		// path when both requests carry a version to compare: other orchestrator types/flows don't
 		// always populate a meaningful NC version here.
-		// See nc-version-replay-repro-handoff.md for full analysis.
 		storedVersionStr := existingNCStatus.CreateNetworkContainerRequest.Version
 		if req.NetworkContainerid != nodesubnet.NodeSubnetNCID && service.state.OrchestratorType == cns.KubernetesCRD &&
 			storedVersionStr != "" && req.Version != "" {

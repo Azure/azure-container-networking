@@ -649,14 +649,13 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 
 	// This will Create Or Update the NC state.
 	returnCode, returnMessage := service.saveNetworkContainerGoalState(*req)
-
-	// If the NC was created successfully, log NC snapshot.
-	if returnCode == 0 {
-		logNCSnapshot(*req)
-		service.publishIPStateMetrics()
-	} else {
+	if returnCode != types.Success {
 		logger.Errorf("%s", returnMessage) //nolint:staticcheck // will migrate to logger/v2
+		return returnCode
 	}
+
+	logNCSnapshot(*req)
+	service.publishIPStateMetrics()
 
 	if service.Options[common.OptProgramSNATIPTables] == true {
 		returnCode, returnMessage = service.programSNATRules(req)
