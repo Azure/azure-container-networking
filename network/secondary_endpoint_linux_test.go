@@ -15,7 +15,6 @@ import (
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
-	"k8s.io/kubernetes/pkg/kubelet"
 )
 
 // mockDHCPFail is a mock DHCP client that always returns an error
@@ -398,7 +397,7 @@ func TestSecondaryConfigureContainerInterfacesAndRoutes(t *testing.T) {
 				},
 			},
 			wantErr:    true,
-			wantErrMsg: kubelet.NetworkNotReadyErrorMsg,
+			wantErrMsg: NetworkNotReadyErrorMsg,
 		},
 	}
 
