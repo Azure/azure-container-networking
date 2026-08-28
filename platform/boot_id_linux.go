@@ -12,6 +12,8 @@ import (
 
 const linuxBootIDPath = "/proc/sys/kernel/random/boot_id"
 
+var errEmptyLinuxBootID = errors.New("platform: linux boot ID is empty")
+
 type bootIDReader func(string) ([]byte, error)
 
 // BootID returns the identity of the current Linux boot.
@@ -27,7 +29,7 @@ func bootID(read bootIDReader) (string, error) {
 
 	id := strings.TrimSpace(string(data))
 	if id == "" {
-		return "", errors.New("linux boot ID is empty")
+		return "", errEmptyLinuxBootID
 	}
 
 	return id, nil

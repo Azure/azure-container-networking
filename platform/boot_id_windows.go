@@ -23,14 +23,24 @@ func BootID() (string, error) {
 }
 
 func queryBootIDRegistry() (uint64, error) {
-	key, err := registry.OpenKey(registry.LOCAL_MACHINE, windowsBootIDRegistryPath, registry.READ)
+	key, err := registry.OpenKey(registry.LOCAL_MACHINE, windowsBootIDRegistryPath, registry.QUERY_VALUE)
 	if err != nil {
 		return 0, err
 	}
 	defer key.Close()
 
-	id, _, err := key.GetIntegerValue(windowsBootIDValueName)
-	return id, err
+	id, valueType, err := key.GetIntegerValue(windowsBootIDValueName)
+	if err != nil {
+		return 0, err
+	}
+	return validateBootIDRegistryValue(id, valueType)
+}
+
+func validateBootIDRegistryValue(id uint64, valueType uint32) (uint64, error) {
+	if valueType != registry.DWORD {
+		return 0, fmt.Errorf("unexpected boot ID registry type %d", valueType)
+	}
+	return id, nil
 }
 
 func bootID(query bootIDQuery) (string, error) {

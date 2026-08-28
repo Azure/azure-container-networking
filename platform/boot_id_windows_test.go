@@ -10,12 +10,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/windows/registry"
 )
+
+var errBootIDRegistry = errors.New("registry failure")
 
 func TestBootIDNativeQueryBoundary(t *testing.T) {
 	t.Parallel()
 
-	errRegistry := errors.New("registry failure")
 	tests := []struct {
 		name     string
 		id       uint64
@@ -30,7 +32,7 @@ func TestBootIDNativeQueryBoundary(t *testing.T) {
 		},
 		{
 			name:     "registry failure",
-			queryErr: errRegistry,
+			queryErr: errBootIDRegistry,
 			wantErr:  "query windows boot ID: registry failure",
 		},
 	}
@@ -59,4 +61,16 @@ func TestBootIDNativeQueryBoundary(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateBootIDRegistryValue(t *testing.T) {
+	t.Parallel()
+
+	id, err := validateBootIDRegistryValue(42, registry.DWORD)
+	require.NoError(t, err)
+	require.Equal(t, uint64(42), id)
+
+	id, err = validateBootIDRegistryValue(42, registry.QWORD)
+	require.EqualError(t, err, "unexpected boot ID registry type 11")
+	require.Zero(t, id)
 }

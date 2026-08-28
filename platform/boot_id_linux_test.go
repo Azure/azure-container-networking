@@ -10,10 +10,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testBootID = "550e8400-e29b-41d4-a716-446655440000"
+
+var errBootIDRead = errors.New("read failure")
+
 func TestBootIDReaderBoundary(t *testing.T) {
 	t.Parallel()
 
-	errRead := errors.New("read failure")
 	tests := []struct {
 		name    string
 		data    string
@@ -23,22 +26,22 @@ func TestBootIDReaderBoundary(t *testing.T) {
 	}{
 		{
 			name: "value",
-			data: "550e8400-e29b-41d4-a716-446655440000",
-			want: "550e8400-e29b-41d4-a716-446655440000",
+			data: testBootID,
+			want: testBootID,
 		},
 		{
 			name: "surrounding whitespace",
-			data: "\t 550e8400-e29b-41d4-a716-446655440000 \r\n",
-			want: "550e8400-e29b-41d4-a716-446655440000",
+			data: "\t " + testBootID + " \r\n",
+			want: testBootID,
 		},
 		{
 			name:    "empty value",
 			data:    " \r\n\t",
-			wantErr: "linux boot ID is empty",
+			wantErr: errEmptyLinuxBootID.Error(),
 		},
 		{
 			name:    "read failure",
-			readErr: errRead,
+			readErr: errBootIDRead,
 			wantErr: "read linux boot ID: read failure",
 		},
 	}
