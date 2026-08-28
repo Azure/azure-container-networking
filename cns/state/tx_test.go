@@ -21,7 +21,7 @@ func TestMetadataRoundTripPreservesCoreKeys(t *testing.T) {
 	timestamp := time.Date(2026, time.July, 23, 22, 0, 0, 0, time.UTC)
 	input := Metadata{
 		SchemaVersion:    99,
-		Authority:        AuthorityJSON,
+		Authority:        AuthorityBolt,
 		Generation:       99,
 		BootID:           "boot-1",
 		OrchestratorType: "KubernetesCRD",
@@ -37,7 +37,7 @@ func TestMetadataRoundTripPreservesCoreKeys(t *testing.T) {
 
 	got := readMetadata(t, db)
 	assert.Equal(t, SchemaVersion, got.SchemaVersion)
-	assert.Equal(t, AuthorityJSON, got.Authority)
+	assert.Equal(t, AuthorityBolt, got.Authority)
 	assert.Equal(t, uint64(1), got.Generation)
 	assert.Equal(t, input.BootID, got.BootID)
 	assert.Equal(t, input.OrchestratorType, got.OrchestratorType)
