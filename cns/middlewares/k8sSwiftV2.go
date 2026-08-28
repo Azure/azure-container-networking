@@ -24,6 +24,7 @@ var (
 )
 
 const (
+	// NetworkNotReadyErrorMsg identifies retryable network readiness errors.
 	NetworkNotReadyErrorMsg = "network is not ready"
 	prefixLength     = 32
 	overlayGatewayv4 = "169.254.1.1"

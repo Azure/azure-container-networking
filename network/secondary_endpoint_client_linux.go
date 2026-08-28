@@ -16,6 +16,7 @@ import (
 )
 
 const (
+	// NetworkNotReadyErrorMsg identifies retryable network readiness errors.
 	NetworkNotReadyErrorMsg = "network is not ready"
 )
 
