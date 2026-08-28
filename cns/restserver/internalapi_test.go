@@ -304,6 +304,71 @@ func TestCreateAndUpdateNCWithSecondaryIPNCVersion(t *testing.T) {
 	}
 }
 
+// TestCreateOrUpdateNetworkContainerInternal_OlderVersionReplayResurrectsReleasedIP is a deterministic
+// reproduction of the NC-version-replay bug: CNS already has NC version 10 in local state and a matching
+// host (NMAgent-programmed) version of 10. An incoming NC request carrying an older DNC/NNC version (5)
+// for the same NC, referencing a secondary IP ID that was already released and removed from
+// PodIPConfigState, is currently accepted and the released IP is incorrectly recreated as Available
+// (instead of being rejected as stale, or at minimum recreated as PendingProgramming).
+// See nc-version-replay-repro-handoff.md for the full analysis.
+func TestCreateOrUpdateNetworkContainerInternal_OlderVersionReplayResurrectsReleasedIP(t *testing.T) {
+	restartService()
+	setEnv(t)
+	setOrchestratorTypeInternal(cns.KubernetesCRD)
+	svc.state.ContainerStatus = make(map[string]containerstatus)
+	svc.PodIPConfigState = make(map[string]cns.IPConfigurationStatus)
+
+	testNCID := "555ac5c9-89f2-4b5d-b8d0-616894d6d150"
+	currentIPID := uuid.New().String()
+	oldIPID := uuid.New().String() // belonged to an older NC payload; already released and removed from state
+
+	// Arrange: CNS already has NC version 10 in local state, with host (NMAgent-programmed) version 10 too.
+	svc.state.ContainerStatus[testNCID] = containerstatus{
+		ID:          testNCID,
+		VMVersion:   "10",
+		HostVersion: "10",
+		CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
+			NetworkContainerid:   testNCID,
+			NetworkContainerType: dockerContainerType,
+			Version:              "10",
+			IPConfiguration: cns.IPConfiguration{
+				IPSubnet: cns.IPSubnet{IPAddress: primaryIP, PrefixLength: subnetPrfixLength},
+			},
+			SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
+				currentIPID: newSecondaryIPConfig("10.0.0.6", 10),
+			},
+		},
+	}
+	svc.PodIPConfigState[currentIPID] = newPodState("10.0.0.6", currentIPID, testNCID, types.Available, 10)
+	// oldIPID intentionally absent from svc.PodIPConfigState: it was already released.
+
+	// Act: replay an older DNC/NNC payload (version 5) for the same NC, still referencing the released oldIPID.
+	oldReq := &cns.CreateNetworkContainerRequest{
+		NetworkContainerid:   testNCID,
+		NetworkContainerType: dockerContainerType,
+		Version:              "5",
+		IPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{IPAddress: primaryIP, PrefixLength: subnetPrfixLength},
+		},
+		SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
+			oldIPID: newSecondaryIPConfig("10.0.0.99", 5),
+		},
+	}
+
+	returnCode := svc.CreateOrUpdateNetworkContainerInternal(oldReq)
+
+	// Current (buggy) behavior: the stale replay is accepted.
+	require.Equal(t, types.Success, returnCode, "expected the stale NC replay to currently be accepted (demonstrating the bug)")
+
+	containerStatus := svc.state.ContainerStatus[testNCID]
+	assert.Equal(t, "5", containerStatus.CreateNetworkContainerRequest.Version, "stored DNC version incorrectly drops from 10 to 5")
+	assert.Equal(t, "10", containerStatus.HostVersion, "host version should remain unchanged")
+
+	oldIPState, exists := svc.PodIPConfigState[oldIPID]
+	require.True(t, exists, "old IP incorrectly recreated in PodIPConfigState")
+	assert.Equal(t, types.Available, oldIPState.GetState(), "old IP incorrectly enters Available instead of PendingProgramming")
+}
+
 func TestSyncHostNCVersion(t *testing.T) {
 	// cns.KubernetesCRD has one more logic compared to other orchestrator type, so test both of them
 	orchestratorTypes := []string{cns.Kubernetes, cns.KubernetesCRD}
