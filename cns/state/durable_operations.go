@@ -238,6 +238,13 @@ func (s *DB) ApplyBoot(ctx context.Context, bootID string, policy BootPolicy) (b
 		candidate.DeleteIntents = map[string]DeleteIntent{}
 		if policy.ClearEndpoints {
 			candidate.Endpoints = map[string]EndpointRecord{}
+		} else {
+			assignments, owners, err := reconstructRetainedEndpointOwnership(candidate)
+			if err != nil {
+				return false, err
+			}
+			candidate.Assignments = assignments
+			candidate.IPOwners = owners
 		}
 		if policy.ResetReadiness {
 			for id := range candidate.NetworkContainers {
@@ -251,6 +258,14 @@ func (s *DB) ApplyBoot(ctx context.Context, bootID string, policy BootPolicy) (b
 			return false, verr
 		}
 
+		assignmentData, err := encodeJSONMap(candidate.Assignments)
+		if err != nil {
+			return false, err
+		}
+		ownerData, err := encodeJSONMap(candidate.IPOwners)
+		if err != nil {
+			return false, err
+		}
 		var ncData map[string][]byte
 		if policy.ResetReadiness {
 			ncData, err = encodeJSONMap(candidate.NetworkContainers)
@@ -261,11 +276,16 @@ func (s *DB) ApplyBoot(ctx context.Context, bootID string, policy BootPolicy) (b
 		if err := tx.tx.Bucket(bucketMetadata).Put(metaKeyBootID, []byte(bootID)); err != nil {
 			return false, fmt.Errorf("writing boot ID: %w", err)
 		}
-		for _, bucketName := range [][]byte{bucketAssignments, bucketIPOwners, bucketDeleteIntents} {
-			if err := clearBucket(tx.tx.Bucket(bucketName)); err != nil {
-				return false, fmt.Errorf("clearing bucket %q: %w", bucketName, err)
-			}
+		if err := replaceJSONBucket(tx.tx, bucketAssignments, assignmentData); err != nil {
+			return false, err
 		}
+		if err := replaceJSONBucket(tx.tx, bucketIPOwners, ownerData); err != nil {
+			return false, err
+		}
+		if err := clearBucket(tx.tx.Bucket(bucketDeleteIntents)); err != nil {
+			return false, fmt.Errorf("clearing bucket %q: %w", bucketDeleteIntents, err)
+		}
+
 		if policy.ClearEndpoints {
 			if err := clearBucket(tx.tx.Bucket(bucketEndpoints)); err != nil {
 				return false, fmt.Errorf("clearing bucket %q: %w", bucketEndpoints, err)
@@ -278,6 +298,70 @@ func (s *DB) ApplyBoot(ctx context.Context, bootID string, policy BootPolicy) (b
 		}
 		return true, nil
 	})
+}
+
+func reconstructRetainedEndpointOwnership(
+	snapshot Snapshot,
+) (map[string]AssignmentRecord, map[string]string, error) {
+	ipAddresses, err := snapshot.validateIPs()
+	if err != nil {
+		return nil, nil, err
+	}
+	ipIDByAddress := make(map[string]string, len(ipAddresses))
+	for _, ipID := range sortedKeys(ipAddresses) {
+		address := ipAddresses[ipID].String()
+		if other, ok := ipIDByAddress[address]; ok {
+			return nil, nil, invalidInput(
+				fmt.Sprintf("retained endpoint IP %q has duplicate inventory IDs %q and %q", address, other, ipID),
+				nil,
+			)
+		}
+		ipIDByAddress[address] = ipID
+	}
+
+	assignments := make(map[string]AssignmentRecord, len(snapshot.Endpoints))
+	owners := map[string]string{}
+	for _, containerID := range sortedKeys(snapshot.Endpoints) {
+		endpoint := snapshot.Endpoints[containerID]
+		addresses, err := endpointAddresses(endpoint)
+		if err != nil {
+			return nil, nil, invalidInput(fmt.Sprintf("retained endpoint %q", containerID), err)
+		}
+		ipIDs := make([]string, 0, len(addresses))
+		for _, address := range addresses {
+			ipID, ok := ipIDByAddress[address.String()]
+			if !ok {
+				return nil, nil, invalidInput(
+					fmt.Sprintf("retained endpoint %q IP %q is missing from inventory", containerID, address),
+					nil,
+				)
+			}
+			ipIDs = append(ipIDs, ipID)
+		}
+		assignment, err := normalizeAssignment(AssignmentRecord{
+			Pod: PodIdentity{
+				PodKey:           containerID,
+				InfraContainerID: containerID,
+				PodName:          endpoint.PodName,
+				PodNamespace:     endpoint.PodNamespace,
+			},
+			IPIDs: ipIDs,
+		}, false)
+		if err != nil {
+			return nil, nil, err
+		}
+		assignments[containerID] = assignment
+		for _, ipID := range assignment.IPIDs {
+			if other, ok := owners[ipID]; ok {
+				return nil, nil, invalidInput(
+					fmt.Sprintf("retained endpoint IP %q is owned by %q and %q", ipID, other, containerID),
+					nil,
+				)
+			}
+			owners[ipID] = containerID
+		}
+	}
+	return assignments, owners, nil
 }
 
 func normalizeDurableState(input DurableState) (DurableState, error) {

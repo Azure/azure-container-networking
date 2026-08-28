@@ -187,7 +187,7 @@ func (s Snapshot) Validate() error {
 	if err := s.validateAssignmentEndpoints(ipAddresses, endpointIPs); err != nil {
 		return err
 	}
-	return validateNonemptyKeys(bucketDeleteIntents, s.DeleteIntents)
+	return s.validateDeleteIntents()
 }
 
 func (s Snapshot) validate() error {
@@ -550,6 +550,18 @@ func (s Snapshot) validateAssignmentEndpoints(
 			if !ok || location.endpointKey != assignment.Pod.InfraContainerID {
 				return inconsistent("assignment %q IP %q is missing from its endpoint", assignmentKey, ipID)
 			}
+		}
+	}
+	return nil
+}
+
+func (s Snapshot) validateDeleteIntents() error {
+	for _, key := range sortedKeys(s.DeleteIntents) {
+		switch {
+		case key == "":
+			return inconsistent("delete intent key is empty")
+		case s.DeleteIntents[key].CreatedAt.IsZero():
+			return inconsistent("delete intent %q has zero creation time", key)
 		}
 	}
 	return nil

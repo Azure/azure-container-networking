@@ -13,9 +13,11 @@ import (
 )
 
 var (
-	ErrNotFound        = errors.New("cns state: not found")
-	ErrStaleGeneration = errors.New("cns state: stale generation")
-	ErrInvalidInput    = errors.New("cns state: invalid input")
+	ErrNotFound          = errors.New("cns state: not found")
+	ErrStaleGeneration   = errors.New("cns state: stale generation")
+	ErrInvalidInput      = errors.New("cns state: invalid input")
+	ErrDeleteIntent      = errors.New("cns state: delete intent")
+	ErrIPAlreadyAssigned = errors.New("cns state: ip already assigned")
 )
 
 func (r *ReadTx) GetNetworkContainer(id string) (NetworkContainerRecord, error) {
