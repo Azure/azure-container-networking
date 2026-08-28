@@ -83,7 +83,7 @@ func TestPutMetadataIsFullReplacementNotMerge(t *testing.T) {
 	timestamp := time.Date(2026, time.July, 23, 22, 0, 0, 0, time.UTC)
 	require.NoError(t, db.Update(context.Background(), func(tx *WriteTx) error {
 		return tx.PutMetadata(Metadata{
-			Authority:        AuthorityJSON,
+			Authority:        AuthorityBolt,
 			BootID:           "boot-1",
 			OrchestratorType: "KubernetesCRD",
 			NodeID:           testNodeID,
@@ -110,7 +110,7 @@ func TestPutMetadataIsFullReplacementNotMerge(t *testing.T) {
 	assert.True(t, got.TimeStamp.IsZero())
 	// Sticky fields: omitted (zero-valued) Authority/BootID preserve the
 	// previously stored value instead of being cleared.
-	assert.Equal(t, AuthorityJSON, got.Authority)
+	assert.Equal(t, AuthorityBolt, got.Authority)
 	assert.Equal(t, "boot-1", got.BootID)
 }
 
