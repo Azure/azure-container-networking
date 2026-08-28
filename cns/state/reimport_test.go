@@ -120,14 +120,19 @@ func TestReimportLegacyFailuresAreAtomic(t *testing.T) {
 		require.True(t, changed)
 		before := requireValidSnapshot(t, db)
 		injected := errors.New("injected reimport failure")
-		db.importBeforeCommit = func() error { return injected }
 
-		changed, err = db.ReimportLegacy(context.Background(), ImportOptions{
-			CNSPath:             paths.CNSJSONPath,
-			EndpointPath:        paths.EndpointJSONPath,
-			ManageEndpointState: true,
-			BootID:              "new-boot",
-		}, BootPolicy{})
+		changed, err = db.reimportLegacyWithCommitHook(
+			context.Background(),
+			ImportOptions{
+				CNSPath:             paths.CNSJSONPath,
+				EndpointPath:        paths.EndpointJSONPath,
+				ManageEndpointState: true,
+				BootID:              "new-boot",
+			},
+			BootPolicy{},
+			os.ReadFile,
+			func() error { return injected },
+		)
 		require.ErrorIs(t, err, injected)
 		assert.False(t, changed)
 		assert.Equal(t, before, requireValidSnapshot(t, db))

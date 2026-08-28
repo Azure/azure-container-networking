@@ -209,6 +209,16 @@ func (s *DB) reimportLegacy(
 	policy BootPolicy,
 	readFile readFileFunc,
 ) (bool, error) {
+	return s.reimportLegacyWithCommitHook(ctx, opts, policy, readFile, nil)
+}
+
+func (s *DB) reimportLegacyWithCommitHook(
+	ctx context.Context,
+	opts ImportOptions,
+	policy BootPolicy,
+	readFile readFileFunc,
+	beforeCommit func() error,
+) (bool, error) {
 	opts.ManageEndpointState = true
 	if err := validateImportOptions(opts); err != nil {
 		return false, err
@@ -277,8 +287,8 @@ func (s *DB) reimportLegacy(
 		if err := metadata.Delete(metaKeyRollbackExport); err != nil {
 			return false, fmt.Errorf("clearing rollback export marker: %w", err)
 		}
-		if s.importBeforeCommit != nil {
-			if err := s.importBeforeCommit(); err != nil {
+		if beforeCommit != nil {
+			if err := beforeCommit(); err != nil {
 				return false, fmt.Errorf("finishing legacy reimport: %w", err)
 			}
 		}
