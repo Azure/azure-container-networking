@@ -54,6 +54,14 @@ func (r *ReadTx) Metadata() (Metadata, error) {
 		Generation:    generation,
 		BootID:        string(metaBucket.Get(metaKeyBootID)),
 	}
+	meta.LegacyImportComplete, err = legacyImportComplete(metaBucket)
+	if err != nil {
+		return Metadata{}, err
+	}
+	meta.RollbackExportComplete, err = rollbackExportComplete(metaBucket)
+	if err != nil {
+		return Metadata{}, err
+	}
 	if data := metaBucket.Get(metaKeyService); data != nil {
 		var serviceMeta serviceMetadata
 		if err := decodeJSONValue(data, &serviceMeta); err != nil {

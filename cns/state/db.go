@@ -54,11 +54,13 @@ var allBuckets = [][]byte{
 }
 
 var (
-	metaKeySchemaVersion = []byte("schema_version")
-	metaKeyAuthority     = []byte("authority")
-	metaKeyGeneration    = []byte("generation")
-	metaKeyBootID        = []byte("boot_id")
-	metaKeyService       = []byte("service")
+	metaKeySchemaVersion  = []byte("schema_version")
+	metaKeyAuthority      = []byte("authority")
+	metaKeyGeneration     = []byte("generation")
+	metaKeyBootID         = []byte("boot_id")
+	metaKeyService        = []byte("service")
+	metaKeyLegacyImport   = []byte("legacy_import_complete")
+	metaKeyRollbackExport = []byte("rollback_export_complete")
 )
 
 type Options struct {
@@ -68,8 +70,10 @@ type Options struct {
 }
 
 type DB struct {
-	db        *bolt.DB
-	writeGate chan struct{}
+	db                 *bolt.DB
+	writeGate          chan struct{}
+	importBeforeCommit func() error
+	exportBeforeCommit func() error
 }
 
 func Open(path string, opts Options) (*DB, error) {
@@ -169,6 +173,16 @@ func (s *DB) validate() error {
 		if _, err := decodeUint64(meta.Get(metaKeyGeneration)); err != nil {
 			return corrupt("invalid generation", err)
 		}
+		if _, err := legacyImportComplete(meta); err != nil {
+			return err
+		}
+		rollbackComplete, err := rollbackExportComplete(meta)
+		if err != nil {
+			return err
+		}
+		if err := validateRollbackExportState(Authority(meta.Get(metaKeyAuthority)), rollbackComplete); err != nil {
+			return err
+		}
 		return nil
 	}); err != nil {
 		if errors.Is(err, ErrCorrupt) || errors.Is(err, ErrSchemaMismatch) {
@@ -215,12 +229,28 @@ func (s *DB) update(ctx context.Context, fn func(*WriteTx) (bool, error)) (bool,
 	if err := ctx.Err(); err != nil {
 		return false, fmt.Errorf("updating cns state: %w", err)
 	}
+	if err := s.acquireWriteGate(ctx); err != nil {
+		return false, fmt.Errorf("updating cns state: %w", err)
+	}
+	defer s.releaseWriteGate()
+
+	return s.updateLocked(ctx, fn)
+}
+
+func (s *DB) acquireWriteGate(ctx context.Context) error {
 	select {
 	case s.writeGate <- struct{}{}:
-		defer func() { <-s.writeGate }()
+		return nil
 	case <-ctx.Done():
-		return false, fmt.Errorf("updating cns state: %w", ctx.Err())
+		return ctx.Err()
 	}
+}
+
+func (s *DB) releaseWriteGate() {
+	<-s.writeGate
+}
+
+func (s *DB) updateLocked(ctx context.Context, fn func(*WriteTx) (bool, error)) (bool, error) {
 	if err := ctx.Err(); err != nil {
 		return false, fmt.Errorf("updating cns state: %w", err)
 	}
