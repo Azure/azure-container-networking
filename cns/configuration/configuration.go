@@ -39,7 +39,7 @@ const (
 
 var (
 	ErrInvalidStateStoreConfig      = errors.New("configuration: invalid state store configuration")
-	ErrStateStoreFeatureUnavailable = errors.New("configuration: bolt state store feature unavailable")
+	ErrStateStoreFeatureUnavailable = errors.New("configuration: state store feature selection unavailable")
 )
 
 type CNSConfig struct {

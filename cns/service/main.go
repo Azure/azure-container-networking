@@ -567,8 +567,12 @@ func main() {
 		}
 	}
 	configuration.SetCNSConfigDefaults(cnsconfig)
-	if err := cnsconfig.ValidateStateStore(); err != nil {
-		logger.Errorf("fatal: invalid CNS state store configuration: %v", err)
+	if err = cnsconfig.ValidateStateStore(); err != nil {
+		if errors.Is(err, configuration.ErrStateStoreFeatureUnavailable) {
+			logger.Errorf("fatal: CNS state store feature unavailable: %v", err) //nolint:staticcheck // main still uses the legacy global logger
+		} else {
+			logger.Errorf("fatal: invalid CNS state store configuration: %v", err) //nolint:staticcheck // main still uses the legacy global logger
+		}
 		os.Exit(1)
 	}
 
