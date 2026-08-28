@@ -40,8 +40,8 @@ RUN apt-get update && apt-get install -y \
     libcap2=1:2.66-5ubuntu2.4 \
     libgcrypt20=1.10.3-2ubuntu0.1 \
     libgnutls30t64=3.8.3-1.1ubuntu3.6 \
-    libsystemd0=255.4-1ubuntu8.16 \
-    libudev1=255.4-1ubuntu8.16 \
+    libsystemd0=255.4-1ubuntu8.17 \
+    libudev1=255.4-1ubuntu8.17 \
     liblzma5=5.6.1+really5.4.5-1ubuntu0.3 \
     sed=4.9-2ubuntu0.24.04.1 \
     gzip=1.12-1ubuntu3.2 \
