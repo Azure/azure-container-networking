@@ -369,6 +369,81 @@ func TestCreateOrUpdateNetworkContainerInternal_OlderVersionReplayResurrectsRele
 	assert.Equal(t, types.Available, oldIPState.GetState(), "old IP incorrectly enters Available instead of PendingProgramming")
 }
 
+// TestCreateOrUpdateNetworkContainerInternal_OlderVersionReplayResurrectsReleasedIP_ClusterData replays
+// the same bug using real data captured from a live AKS standalone cluster (Phase 1-2 of the guarded
+// cluster reproduction in nc-version-replay-repro-handoff.md), instead of synthetic IDs:
+//   - NC ID c51b224b-b747-4063-b470-3676a74f13e8 was observed on node aks-gmp32-53174927-vmss000000.
+//   - Version 1 of that NC (captured while held-demand pods were still occupying IPs) assigned
+//     secondary IP d9ac4eef-344a-4025-99b6-96c6c6e2ec71 / 10.241.0.69.
+//   - After releasing the held-demand pods, the live NNC advanced to version 8 and that IP ID was
+//     confirmed absent from the current ipAssignments set (i.e. genuinely released cluster-side).
+//
+// This demonstrates the same code path resurrects a real, cluster-released address as Available when
+// fed a stale (version 1) replay of the NC payload against locally-stored state reflecting the newer
+// (version 8) baseline.
+func TestCreateOrUpdateNetworkContainerInternal_OlderVersionReplayResurrectsReleasedIP_ClusterData(t *testing.T) {
+	restartService()
+	setEnv(t)
+	setOrchestratorTypeInternal(cns.KubernetesCRD)
+	svc.state.ContainerStatus = make(map[string]containerstatus)
+	svc.PodIPConfigState = make(map[string]cns.IPConfigurationStatus)
+
+	const (
+		clusterNCID       = "c51b224b-b747-4063-b470-3676a74f13e8"
+		clusterHostVer    = "8"
+		clusterOldVer     = "1"
+		currentIPID       = "1fdc5ace-15e9-482a-a751-8aac094cda99" // still present at version 8, per phase 2 capture
+		releasedIPID      = "d9ac4eef-344a-4025-99b6-96c6c6e2ec71" // released by version 8, per phase 2 capture
+		releasedIPAddress = "10.241.0.69"
+	)
+
+	// Arrange: CNS reflects the real cluster baseline captured in Phase 2 -- NC at version 8, host
+	// version 8, with only the currently-assigned IP present in local state.
+	svc.state.ContainerStatus[clusterNCID] = containerstatus{
+		ID:          clusterNCID,
+		VMVersion:   clusterHostVer,
+		HostVersion: clusterHostVer,
+		CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
+			NetworkContainerid:   clusterNCID,
+			NetworkContainerType: dockerContainerType,
+			Version:              clusterHostVer,
+			IPConfiguration: cns.IPConfiguration{
+				IPSubnet: cns.IPSubnet{IPAddress: primaryIP, PrefixLength: subnetPrfixLength},
+			},
+			SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
+				currentIPID: newSecondaryIPConfig("10.241.0.64", 8),
+			},
+		},
+	}
+	svc.PodIPConfigState[currentIPID] = newPodState("10.241.0.64", currentIPID, clusterNCID, types.Available, 8)
+	// releasedIPID intentionally absent: confirmed released by the live cluster capture in Phase 2.
+
+	// Act: replay the real Phase 1 (version 1) NC payload referencing the now-released cluster IP.
+	oldReq := &cns.CreateNetworkContainerRequest{
+		NetworkContainerid:   clusterNCID,
+		NetworkContainerType: dockerContainerType,
+		Version:              clusterOldVer,
+		IPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{IPAddress: primaryIP, PrefixLength: subnetPrfixLength},
+		},
+		SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
+			releasedIPID: newSecondaryIPConfig(releasedIPAddress, 1),
+		},
+	}
+
+	returnCode := svc.CreateOrUpdateNetworkContainerInternal(oldReq)
+
+	require.Equal(t, types.Success, returnCode, "expected the stale cluster-captured NC replay to currently be accepted (demonstrating the bug)")
+
+	containerStatus := svc.state.ContainerStatus[clusterNCID]
+	assert.Equal(t, clusterOldVer, containerStatus.CreateNetworkContainerRequest.Version, "stored DNC version incorrectly drops from 8 to 1")
+	assert.Equal(t, clusterHostVer, containerStatus.HostVersion, "host version should remain unchanged")
+
+	releasedIPState, exists := svc.PodIPConfigState[releasedIPID]
+	require.True(t, exists, "cluster-released IP incorrectly recreated in PodIPConfigState")
+	assert.Equal(t, types.Available, releasedIPState.GetState(), "cluster-released IP incorrectly enters Available instead of PendingProgramming")
+}
+
 func TestSyncHostNCVersion(t *testing.T) {
 	// cns.KubernetesCRD has one more logic compared to other orchestrator type, so test both of them
 	orchestratorTypes := []string{cns.Kubernetes, cns.KubernetesCRD}
