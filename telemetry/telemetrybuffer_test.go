@@ -25,6 +25,32 @@ func createTBServer(t *testing.T) (*TelemetryBuffer, func()) {
 	}
 }
 
+// waitForServerConnCount blocks until the server's accept goroutine has
+// registered exactly want connections, or fails the test after timeout.
+// StartServer accepts connections asynchronously, so a client Connect()
+// returning does not guarantee the server has registered the connection
+// yet; racing ahead (e.g. into Close()) can leave that connection
+// unregistered and therefore unclosed by the server.
+func waitForServerConnCount(t *testing.T, tb *TelemetryBuffer, want int, timeout time.Duration) {
+	t.Helper()
+
+	deadline := time.Now().Add(timeout)
+	for {
+		tb.mutex.Lock()
+		got := len(tb.connections)
+		tb.mutex.Unlock()
+
+		if got == want {
+			return
+		}
+		if time.Now().After(deadline) {
+			require.Equal(t, want, got, "timed out waiting for server to register client connections")
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
 func TestStartServer(t *testing.T) {
 	_, closeTBServer := createTBServer(t)
 	defer closeTBServer()
@@ -54,6 +80,11 @@ func TestServerConnClose(t *testing.T) {
 	err := tbClient.Connect()
 	require.NoError(t, err)
 	defer tbClient.Close()
+
+	// Wait for the server to register the accepted connection before closing
+	// it; otherwise the server may not yet know about the connection when it
+	// closes, leaving it open and making the write below flaky.
+	waitForServerConnCount(t, tbServer, 1, 5*time.Second)
 
 	tbServer.Close()
 
