@@ -112,7 +112,6 @@ steps:
           --argjson migrate "${{ parameters.enableStateMigration }}" \
           '.EnableBoltStateStore = false
             | .EnablePersistentStateDebug = false
-            | .EnablePersistentStateFaults = false
             | .StateStoreBackend = "json"
             | .StateStoreMode = "normal"
             | .ManageEndpointState = $manage
@@ -131,7 +130,6 @@ steps:
           --argjson migrate "${{ parameters.enableStateMigration }}" \
           '.EnableBoltStateStore == false
             and .EnablePersistentStateDebug == false
-            and .EnablePersistentStateFaults == false
             and .StateStoreBackend == "json"
             and .StateStoreMode == "normal"
             and .ManageEndpointState == $manage

@@ -171,7 +171,6 @@ func TestMigrationTemplateSafetyContract(t *testing.T) {
 	for _, expected := range []string{
 		".EnableBoltStateStore = $enableBolt",
 		".EnablePersistentStateDebug = $enableDebug",
-		".EnablePersistentStateFaults = false",
 		"rollback-json-and-clear-endpoints",
 		"external-pod-deletion",
 		"kubectl delete pod",
@@ -185,6 +184,8 @@ func TestMigrationTemplateSafetyContract(t *testing.T) {
 		"run-state-migration-validator.sh",
 		"RESTART_CASE=false",
 		"persistent-state/snapshot",
+		"migration-fault-injection-template.yaml",
+		"runFaultInjection",
 	} {
 		require.Contains(t, transition, expected)
 	}
@@ -198,7 +199,6 @@ func TestMigrationTemplateSafetyContract(t *testing.T) {
 	)
 	for _, forbidden := range []string{
 		"|| true",
-		"migration-fault-injection-template",
 		"faultinjection",
 		"CNS_TEST_FAULT",
 		"pkill",
@@ -220,7 +220,6 @@ func TestMigrationTemplateSafetyContract(t *testing.T) {
 	for _, expected := range []string{
 		".EnableBoltStateStore = false",
 		".EnablePersistentStateDebug = false",
-		".EnablePersistentStateFaults = false",
 		`.StateStoreBackend = "json"`,
 	} {
 		require.Contains(t, install, expected)

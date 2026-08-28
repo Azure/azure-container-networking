@@ -130,7 +130,6 @@ steps:
                 | .StateStoreMode = $mode
                 | .EnableBoltStateStore = $enableBolt
                 | .EnablePersistentStateDebug = $enableDebug
-                | .EnablePersistentStateFaults = false
                 | .ManageEndpointState = $manageEndpointState
                 | .InitializeFromCNI = $initializeFromCNI
                 | .EnableStateMigration = $enableStateMigration' \
@@ -368,7 +367,6 @@ steps:
               and .StateStoreMode == "normal"
               and .EnableBoltStateStore == $enableBolt
               and .EnablePersistentStateDebug == $enableDebug
-              and .EnablePersistentStateFaults == false
               and .ManageEndpointState == $manageEndpointState
               and .InitializeFromCNI == $initializeFromCNI
               and .EnableStateMigration == $enableStateMigration' \
@@ -934,7 +932,6 @@ steps:
             and .StateStoreMode == "normal"
             and .EnableBoltStateStore == $enableBolt
             and .EnablePersistentStateDebug == $enableDebug
-            and .EnablePersistentStateFaults == false
             and .ManageEndpointState == $manageEndpointState
             and .InitializeFromCNI == $initializeFromCNI
             and .EnableStateMigration == $enableStateMigration' \
