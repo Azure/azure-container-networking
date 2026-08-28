@@ -106,6 +106,15 @@ func (s *DB) exportLegacy(
 	opts ExportOptions,
 	files rollbackFileOperations,
 ) (bool, error) {
+	return s.exportLegacyWithCommitHook(ctx, opts, files, nil)
+}
+
+func (s *DB) exportLegacyWithCommitHook(
+	ctx context.Context,
+	opts ExportOptions,
+	files rollbackFileOperations,
+	beforeCommit func() error,
+) (bool, error) {
 	if err := validateExportOptions(opts); err != nil {
 		return false, err
 	}
@@ -164,8 +173,8 @@ func (s *DB) exportLegacy(
 		if err := setRollbackExportComplete(tx.tx); err != nil {
 			return false, err
 		}
-		if s.exportBeforeCommit != nil {
-			if err := s.exportBeforeCommit(); err != nil {
+		if beforeCommit != nil {
+			if err := beforeCommit(); err != nil {
 				return false, fmt.Errorf("finishing rollback export: %w", err)
 			}
 		}
@@ -175,6 +184,17 @@ func (s *DB) exportLegacy(
 		return false, fmt.Errorf("marking JSON state authoritative: %w", err)
 	}
 	return changed, nil
+}
+
+func setRollbackExportComplete(tx *bolt.Tx) error {
+	metadata := tx.Bucket(bucketMetadata)
+	if metadata == nil {
+		return corrupt(fmt.Sprintf("missing bucket %q", bucketMetadata), nil)
+	}
+	if err := metadata.Put(metaKeyRollbackExport, []byte(rollbackExportMarker)); err != nil {
+		return fmt.Errorf("writing rollback export marker: %w", err)
+	}
+	return nil
 }
 
 func validateExportOptions(opts ExportOptions) error {

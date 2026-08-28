@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io/fs"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/wireserver"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -116,6 +118,18 @@ func TestExportLegacySuccess(t *testing.T) {
 	require.NoError(t, json.Unmarshal(cnsData, &cnsEnvelope))
 	var exported rollbackCNSState
 	require.NoError(t, json.Unmarshal(cnsEnvelope["ContainerNetworkService"], &exported))
+	assert.Equal(t, before.Metadata.Location, exported.Location)
+	assert.Equal(t, before.Metadata.NetworkType, exported.NetworkType)
+	assert.Equal(t, before.Metadata.OrchestratorType, exported.OrchestratorType)
+	assert.Equal(t, before.Metadata.NodeID, exported.NodeID)
+	assert.Equal(t, before.Metadata.Initialized, exported.Initialized)
+	assert.Equal(t, before.Metadata.TimeStamp, exported.TimeStamp)
+	require.NotNil(t, exported.ContainerIDByOrchestratorContext["pod-1ns-1"])
+	assert.Equal(
+		t,
+		exportNC1+","+exportNC2,
+		*exported.ContainerIDByOrchestratorContext["pod-1ns-1"],
+	)
 	request := exported.ContainerStatus[exportNC1].CreateNetworkContainerRequest
 	assert.Empty(t, request.AuthorizationToken)
 	assert.Equal(t, map[string]cns.SecondaryIPConfig{
@@ -131,6 +145,8 @@ func TestExportLegacySuccess(t *testing.T) {
 		string(request.EndpointPolicies[0].Settings),
 	)
 	assert.Equal(t, before.NetworkContainers[exportNC1].Request.NetworkInterfaceInfo, request.NetworkInterfaceInfo)
+	require.NotNil(t, exported.Networks["network-1"].NicInfo)
+	assert.Equal(t, before.Networks["network-1"].NicInfo, exported.Networks["network-1"].NicInfo)
 	assert.Equal(t, "value", exported.Networks["network-1"].Options["custom"])
 	assert.Equal(t, "PCI\\VEN_1234", exported.PnpIDByMacAddress["00:11:22:33:44:55"])
 
@@ -138,7 +154,13 @@ func TestExportLegacySuccess(t *testing.T) {
 	require.NoError(t, json.Unmarshal(endpointData, &endpointEnvelope))
 	var endpoints map[string]*rollbackEndpointInfo
 	require.NoError(t, json.Unmarshal(endpointEnvelope["Endpoints"], &endpoints))
+	assert.Equal(t, "pod-1", endpoints["container-1"].PodName)
+	assert.Equal(t, "ns-1", endpoints["container-1"].PodNamespace)
 	info := endpoints["container-1"].IfnameToIPMap["eth0"]
+	require.Len(t, info.IPv4, 1)
+	assert.Equal(t, net.ParseIP("10.0.0.4"), info.IPv4[0].IP)
+	require.Len(t, info.IPv6, 1)
+	assert.Equal(t, net.ParseIP("fd00::4"), info.IPv6[0].IP)
 	assert.Equal(t, "hns-endpoint-1", info.HnsEndpointID)
 	assert.Equal(t, "hns-network-1", info.HnsNetworkID)
 	assert.Equal(t, "veth-1", info.HostVethName)
@@ -332,8 +354,12 @@ func TestExportLegacyMarkerFailureReplayAndNoop(t *testing.T) {
 		db, _ := openPopulatedExportDB(t)
 		before := requireValidSnapshot(t, db)
 		opts := exportPaths(t)
-		db.exportBeforeCommit = func() error { return errAbort }
-		changed, err := db.ExportLegacy(context.Background(), opts)
+		changed, err := db.exportLegacyWithCommitHook(
+			context.Background(),
+			opts,
+			osRollbackFileOperations(),
+			func() error { return errAbort },
+		)
 		require.ErrorIs(t, err, errAbort)
 		assert.False(t, changed)
 		assertValidRollbackJSON(t, opts.CNSJSONPath)
@@ -347,7 +373,6 @@ func TestExportLegacyMarkerFailureReplayAndNoop(t *testing.T) {
 		firstEndpoint := readRollbackFile(t, opts.EndpointJSONPath)
 		require.NoError(t, os.WriteFile(opts.CNSJSONPath, []byte(`{"torn":"cns"}`), 0o600))
 		require.NoError(t, os.WriteFile(opts.EndpointJSONPath, []byte(`{"torn":"endpoint"}`), 0o600))
-		db.exportBeforeCommit = nil
 		changed, err = db.ExportLegacy(context.Background(), opts)
 		require.NoError(t, err)
 		assert.True(t, changed)
@@ -611,12 +636,20 @@ func openPopulatedExportDB(t *testing.T) (*DB, string) {
 		meta.OrchestratorType = "kubernetes"
 		meta.NodeID = "node-1"
 		meta.Initialized = true
+		meta.TimeStamp = testNow.Add(-time.Hour)
 		if err := tx.PutMetadata(meta); err != nil {
 			return err
 		}
 		if err := tx.PutNetwork(NetworkRecord{
 			NetworkName: "network-1",
-			Options:     map[string]any{"custom": "value"},
+			NicInfo: &wireserver.InterfaceInfo{
+				Subnet:       "10.0.0.0/24",
+				Gateway:      "10.0.0.1",
+				IsPrimary:    true,
+				PrimaryIP:    "10.0.0.4",
+				SecondaryIPs: []string{"10.0.0.5"},
+			},
+			Options: map[string]any{"custom": "value"},
 		}); err != nil {
 			return err
 		}
