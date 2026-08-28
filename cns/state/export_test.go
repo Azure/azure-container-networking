@@ -130,6 +130,7 @@ func TestExportLegacySuccess(t *testing.T) {
 		exportNC1+","+exportNC2,
 		*exported.ContainerIDByOrchestratorContext["pod-1ns-1"],
 	)
+	assert.ElementsMatch(t, []string{exportNC1, exportNC2}, sortedKeys(exported.ContainerStatus))
 	request := exported.ContainerStatus[exportNC1].CreateNetworkContainerRequest
 	assert.Empty(t, request.AuthorizationToken)
 	assert.Equal(t, map[string]cns.SecondaryIPConfig{
@@ -156,6 +157,7 @@ func TestExportLegacySuccess(t *testing.T) {
 	require.NoError(t, json.Unmarshal(endpointEnvelope["Endpoints"], &endpoints))
 	assert.Equal(t, "pod-1", endpoints["container-1"].PodName)
 	assert.Equal(t, "ns-1", endpoints["container-1"].PodNamespace)
+	assert.ElementsMatch(t, []string{"eth0", "net1"}, sortedKeys(endpoints["container-1"].IfnameToIPMap))
 	info := endpoints["container-1"].IfnameToIPMap["eth0"]
 	require.Len(t, info.IPv4, 1)
 	assert.Equal(t, net.ParseIP("10.0.0.4"), info.IPv4[0].IP)
@@ -167,6 +169,11 @@ func TestExportLegacySuccess(t *testing.T) {
 	assert.Equal(t, "00:11:22:33:44:55", info.MacAddress)
 	assert.Equal(t, exportNC1, info.NetworkContainerID)
 	assert.Equal(t, cns.InfraNIC, info.NICType)
+	delegated := endpoints["container-1"].IfnameToIPMap["net1"]
+	require.Len(t, delegated.IPv4, 1)
+	assert.Equal(t, net.ParseIP("10.1.0.4"), delegated.IPv4[0].IP)
+	assert.Equal(t, exportNC2, delegated.NetworkContainerID)
+	assert.Equal(t, cns.DelegatedVMNIC, delegated.NICType)
 	var intents map[string]DeleteIntent
 	require.NoError(t, json.Unmarshal(endpointEnvelope["DeleteIntents"], &intents))
 	assert.Equal(t, before.DeleteIntents, intents)
