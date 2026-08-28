@@ -233,10 +233,10 @@ func (s *DB) ApplyBoot(ctx context.Context, bootID string, policy BootPolicy) (b
 		}
 
 		candidate.Metadata.BootID = bootID
-		candidate.Assignments = map[string]AssignmentRecord{}
-		candidate.IPOwners = map[string]string{}
 		candidate.DeleteIntents = map[string]DeleteIntent{}
 		if policy.ClearEndpoints {
+			candidate.Assignments = map[string]AssignmentRecord{}
+			candidate.IPOwners = map[string]string{}
 			candidate.Endpoints = map[string]EndpointRecord{}
 		} else {
 			assignments, owners, err := reconstructRetainedEndpointOwnership(candidate)
@@ -319,9 +319,19 @@ func reconstructRetainedEndpointOwnership(
 		ipIDByAddress[address] = ipID
 	}
 
-	assignments := make(map[string]AssignmentRecord, len(snapshot.Endpoints))
-	owners := map[string]string{}
+	assignments := make(map[string]AssignmentRecord, len(snapshot.Assignments)+len(snapshot.Endpoints))
+	for key, assignment := range snapshot.Assignments {
+		assignment.IPIDs = append([]string(nil), assignment.IPIDs...)
+		assignments[key] = assignment
+	}
+	owners := make(map[string]string, len(snapshot.IPOwners)+len(snapshot.IPs))
+	for ipID, owner := range snapshot.IPOwners {
+		owners[ipID] = owner
+	}
 	for _, containerID := range sortedKeys(snapshot.Endpoints) {
+		if len(assignmentsForContainer(snapshot, containerID)) != 0 {
+			continue
+		}
 		endpoint := snapshot.Endpoints[containerID]
 		addresses, err := endpointAddresses(endpoint)
 		if err != nil {

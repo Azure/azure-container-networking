@@ -478,22 +478,18 @@ func TestApplyBoot(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, "boot-1", got.Metadata.BootID)
 			if tt.wantEndpoints {
-				assert.Equal(t, map[string]AssignmentRecord{
-					"container-1": {
-						Pod: PodIdentity{
-							PodKey:           "container-1",
-							InfraContainerID: "container-1",
-							PodName:          "pod-1",
-							PodNamespace:     "ns-1",
-						},
-						IPIDs: []string{"ip-secondary", "ip-v4", "ip-v6"},
-					},
-				}, got.Assignments)
-				assert.Equal(t, map[string]string{
-					"ip-secondary": "container-1",
-					"ip-v4":        "container-1",
-					"ip-v6":        "container-1",
-				}, got.IPOwners)
+				assert.Equal(t, initial.Assignments, got.Assignments)
+				assert.Equal(t, initial.IPOwners, got.IPOwners)
+
+				changed, err := db.AssignEndpoint(
+					context.Background(),
+					initial.Assignments["iface-primary"],
+					initial.Endpoints["container-1"],
+					testNow,
+					testDeleteIntentTTL,
+				)
+				require.NoError(t, err)
+				assert.False(t, changed)
 			} else {
 				assert.Empty(t, got.Assignments)
 				assert.Empty(t, got.IPOwners)
