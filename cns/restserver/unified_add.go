@@ -20,7 +20,10 @@ import (
 
 const unifiedDeleteIntentTTL = 10 * time.Minute
 
-var errUnifiedIPUnavailable = errors.New("unified ADD: IP unavailable")
+var (
+	errUnifiedIPUnavailable       = errors.New("unified ADD: IP unavailable")
+	errNilEndpointAssignOperation = errors.New("durable state endpoint assignment operation is nil")
+)
 
 type unifiedAddPlan struct {
 	assignment state.AssignmentRecord
@@ -65,7 +68,7 @@ func (a *durableStateAdapter) requestIPConfigs(
 	podInfo cns.PodInfo,
 ) ([]cns.PodIpInfo, error) {
 	if a.store.assignEndpoint == nil {
-		return nil, errors.New("durable state endpoint assignment operation is nil")
+		return nil, errNilEndpointAssignOperation
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -132,7 +135,7 @@ func (a *durableStateAdapter) restoreCommittedAddProjectionLocked(
 	committed durableCacheProjection,
 	applyErr error,
 ) error {
-	restoreErr := error(nil)
+	var restoreErr error
 	snapshot, err := a.store.snapshot(context.WithoutCancel(ctx))
 	if err != nil {
 		restoreErr = fmt.Errorf("reading committed endpoint assignment: %w", err)
@@ -157,7 +160,7 @@ func (service *HTTPRestService) requestIPConfigsUnifiedLocked(
 	snapshot state.Snapshot,
 ) (unifiedAddPlan, error) {
 	if err := ctx.Err(); err != nil {
-		return unifiedAddPlan{}, err
+		return unifiedAddPlan{}, fmt.Errorf("planning unified endpoint assignment: %w", err)
 	}
 	requestedPod := state.PodIdentity{
 		PodKey:           podInfo.Key(),
@@ -210,13 +213,13 @@ func (service *HTTPRestService) requestIPConfigsUnifiedLocked(
 	}
 	responses := make([]cns.PodIpInfo, 0, len(candidates))
 	ipIDs := make([]string, 0, len(candidates))
-	for _, candidate := range candidates {
-		response, err := service.podIPInfoForCandidateLocked(ctx, candidate)
-		if err != nil {
-			return unifiedAddPlan{}, err
+	for i := range candidates {
+		response, responseErr := service.podIPInfoForCandidateLocked(ctx, candidates[i])
+		if responseErr != nil {
+			return unifiedAddPlan{}, responseErr
 		}
 		responses = append(responses, response)
-		ipIDs = append(ipIDs, candidate.record.ID)
+		ipIDs = append(ipIDs, candidates[i].record.ID)
 	}
 
 	endpoint, err := buildUnifiedEndpoint(snapshot, requestedPod, ifname, candidates, responses)
@@ -261,8 +264,14 @@ func (service *HTTPRestService) selectUnifiedIPCandidatesLocked(
 			switch candidate.status.GetState() {
 			case types.Available, types.PendingProgramming:
 				selected = append(selected, candidate)
-			default:
+			case types.Assigned, types.PendingRelease:
 				return nil, fmt.Errorf("%w: desired IP is not available", errUnifiedIPUnavailable)
+			default:
+				return nil, fmt.Errorf(
+					"%w: desired IP has unknown state %q",
+					state.ErrInvalidInput,
+					candidate.status.GetState(),
+				)
 			}
 		}
 		return selected, nil
@@ -273,7 +282,8 @@ func (service *HTTPRestService) selectUnifiedIPCandidatesLocked(
 	}
 	families := service.getIPFamiliesMap()
 	selectedByFamily := make(map[cns.IPFamily]unifiedIPCandidate, len(families))
-	for _, candidate := range inventory {
+	for i := range inventory {
+		candidate := inventory[i]
 		if candidate.status.GetState() != types.Available {
 			continue
 		}
@@ -421,7 +431,7 @@ func buildUnifiedEndpoint(
 		var err error
 		endpoint, err = cloneJSON(existing)
 		if err != nil {
-			return state.EndpointRecord{}, fmt.Errorf("%w: cloning endpoint: %v", state.ErrInvalidInput, err)
+			return state.EndpointRecord{}, fmt.Errorf("%w: cloning endpoint: %w", state.ErrInvalidInput, err)
 		}
 	}
 	if _, exists := endpoint.IfnameToIPMap[ifname]; exists {
@@ -432,7 +442,8 @@ func buildUnifiedEndpoint(
 	}
 	info := &state.IPInfoRecord{NICType: cns.InfraNIC}
 	commonNCID := ""
-	for index, candidate := range candidates {
+	for index := range candidates {
+		candidate := candidates[index]
 		if index == 0 {
 			commonNCID = candidate.record.NCID
 		} else if commonNCID != candidate.record.NCID {

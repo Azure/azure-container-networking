@@ -23,6 +23,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	errUnifiedAddCommitFailure     = errors.New("injected commit failure")
+	errUnifiedAddProjectionFailure = errors.New("injected projection build failure")
+	errUnifiedAddCacheFailure      = errors.New("injected cache application failure")
+)
+
+const (
+	unifiedTestIPv6        = "2001:db8::4"
+	unifiedTestIPID1       = "ip-1"
+	unifiedTestIPv6Network = "2001:db8::"
+	unifiedTestIPv4ID      = "ip-v4"
+	unifiedTestIPv6ID      = "ip-v6"
+	unifiedTestNCIPv4      = "nc-v4"
+	unifiedTestNCIPv6      = "nc-v6"
+)
+
 func TestUnifiedAddSingleAndDualStack(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -33,18 +49,18 @@ func TestUnifiedAddSingleAndDualStack(t *testing.T) {
 		{
 			name: "single",
 			containers: map[string][]state.IPRecord{
-				"nc-v4": {{ID: "ip-v4", IPAddress: "10.0.0.4", NCID: "nc-v4", NCVersion: 1}},
+				unifiedTestNCIPv4: {{ID: unifiedTestIPv4ID, IPAddress: adapterTestIPv4, NCID: unifiedTestNCIPv4, NCVersion: 1}},
 			},
-			want: []string{"10.0.0.4"},
+			want: []string{adapterTestIPv4},
 		},
 		{
 			name: "dual stack desired order",
 			containers: map[string][]state.IPRecord{
-				"nc-v4": {{ID: "ip-v4", IPAddress: "10.0.0.4", NCID: "nc-v4", NCVersion: 1}},
-				"nc-v6": {{ID: "ip-v6", IPAddress: "2001:db8::4", NCID: "nc-v6", NCVersion: 1}},
+				unifiedTestNCIPv4: {{ID: unifiedTestIPv4ID, IPAddress: adapterTestIPv4, NCID: unifiedTestNCIPv4, NCVersion: 1}},
+				unifiedTestNCIPv6: {{ID: unifiedTestIPv6ID, IPAddress: unifiedTestIPv6, NCID: unifiedTestNCIPv6, NCVersion: 1}},
 			},
-			desired: []string{"2001:db8::4", "10.0.0.4"},
-			want:    []string{"2001:db8::4", "10.0.0.4"},
+			desired: []string{unifiedTestIPv6, adapterTestIPv4},
+			want:    []string{unifiedTestIPv6, adapterTestIPv4},
 		},
 	}
 	for _, tt := range tests {
@@ -56,7 +72,7 @@ func TestUnifiedAddSingleAndDualStack(t *testing.T) {
 				refreshCalls++
 				return refreshMetrics(ctx)
 			}
-			request := unifiedAddRequest("container-1", "interface-1", "eth0", "pod-1", "namespace-1")
+			request := unifiedAddRequest(adapterTestContainerID, "interface-1", InfraInterfaceName, "pod-1", "namespace-1")
 			request.DesiredIPAddresses = tt.desired
 			before := requireUnifiedSnapshot(t, db)
 
@@ -72,10 +88,10 @@ func TestUnifiedAddSingleAndDualStack(t *testing.T) {
 			assert.Equal(t, before.Metadata.Generation+1, after.Metadata.Generation)
 			assignment := after.Assignments["interface-1"]
 			require.Len(t, assignment.IPIDs, len(tt.want))
-			assert.Equal(t, "container-1", assignment.Pod.InfraContainerID)
+			assert.Equal(t, adapterTestContainerID, assignment.Pod.InfraContainerID)
 			assert.Equal(t, "interface-1", assignment.Pod.InterfaceID)
-			require.Contains(t, after.Endpoints, "container-1")
-			endpointInfo := after.Endpoints["container-1"].IfnameToIPMap["eth0"]
+			require.Contains(t, after.Endpoints, adapterTestContainerID)
+			endpointInfo := after.Endpoints[adapterTestContainerID].IfnameToIPMap[InfraInterfaceName]
 			assert.Len(t, endpointInfo.IPv4, 1)
 			assert.Len(t, endpointInfo.IPv6, len(tt.want)-1)
 			for _, ipID := range assignment.IPIDs {
@@ -94,22 +110,22 @@ func TestUnifiedAddSingleAndDualStack(t *testing.T) {
 
 func TestUnifiedAddMultiNICAndReplayIdentity(t *testing.T) {
 	service, adapter, db, _ := newUnifiedAddFixture(t, map[string][]state.IPRecord{
-		"nc-v4": {
-			{ID: "ip-1", IPAddress: "10.0.0.4", NCID: "nc-v4", NCVersion: 1},
-			{ID: "ip-2", IPAddress: "10.0.0.5", NCID: "nc-v4", NCVersion: 1},
+		unifiedTestNCIPv4: {
+			{ID: unifiedTestIPID1, IPAddress: adapterTestIPv4, NCID: unifiedTestNCIPv4, NCVersion: 1},
+			{ID: "ip-2", IPAddress: primaryIP, NCID: unifiedTestNCIPv4, NCVersion: 1},
 		},
 	}, nil)
-	primary := unifiedAddRequest("container-1", "interface-1", "eth0", "pod-1", "namespace-1")
-	primary.DesiredIPAddresses = []string{"10.0.0.4"}
-	secondary := unifiedAddRequest("container-1", "interface-2", "net1", "pod-1", "namespace-1")
-	secondary.DesiredIPAddresses = []string{"10.0.0.5"}
+	primary := unifiedAddRequest(adapterTestContainerID, "interface-1", InfraInterfaceName, "pod-1", "namespace-1")
+	primary.DesiredIPAddresses = []string{adapterTestIPv4}
+	secondary := unifiedAddRequest(adapterTestContainerID, "interface-2", "net1", "pod-1", "namespace-1")
+	secondary.DesiredIPAddresses = []string{primaryIP}
 	secondary.SecondaryInterfacesExist = true
 
 	_, err := service.requestIPConfigHandlerHelper(context.Background(), primary)
 	require.NoError(t, err)
 	afterPrimary := requireUnifiedSnapshot(t, db)
 	conflictingInterface := secondary
-	conflictingInterface.Ifname = "eth0"
+	conflictingInterface.Ifname = InfraInterfaceName
 	response, err := service.requestIPConfigHandlerHelper(context.Background(), conflictingInterface)
 	require.ErrorIs(t, err, state.ErrInvalidInput)
 	assert.Equal(t, types.InvalidRequest, response.Response.ReturnCode)
@@ -119,14 +135,14 @@ func TestUnifiedAddMultiNICAndReplayIdentity(t *testing.T) {
 	require.NoError(t, err)
 	afterAdds := requireUnifiedSnapshot(t, db)
 	require.Len(t, afterAdds.Assignments, 2)
-	require.Len(t, afterAdds.Endpoints["container-1"].IfnameToIPMap, 2)
-	assert.Contains(t, afterAdds.Endpoints["container-1"].IfnameToIPMap, "eth0")
-	assert.Contains(t, afterAdds.Endpoints["container-1"].IfnameToIPMap, "net1")
+	require.Len(t, afterAdds.Endpoints[adapterTestContainerID].IfnameToIPMap, 2)
+	assert.Contains(t, afterAdds.Endpoints[adapterTestContainerID].IfnameToIPMap, InfraInterfaceName)
+	assert.Contains(t, afterAdds.Endpoints[adapterTestContainerID].IfnameToIPMap, "net1")
 
 	replay, err := service.requestIPConfigHandlerHelper(context.Background(), secondary)
 	require.NoError(t, err)
 	require.Len(t, replay.PodIPInfo, 1)
-	assert.Equal(t, "10.0.0.5", replay.PodIPInfo[0].PodIPConfig.IPAddress)
+	assert.Equal(t, primaryIP, replay.PodIPInfo[0].PodIPConfig.IPAddress)
 	assert.Equal(t, afterAdds.Metadata.Generation, requireUnifiedSnapshot(t, db).Metadata.Generation)
 	generation, _ := adapter.cacheGeneration()
 	assert.Equal(t, afterAdds.Metadata.Generation, generation)
@@ -134,22 +150,21 @@ func TestUnifiedAddMultiNICAndReplayIdentity(t *testing.T) {
 	changed := secondary
 	changed.OrchestratorContext = mustPodContext(t, "other-pod", "namespace-1")
 	response, err = service.requestIPConfigHandlerHelper(context.Background(), changed)
-	require.Error(t, err)
-	assert.ErrorIs(t, err, state.ErrInvalidInput)
+	require.ErrorIs(t, err, state.ErrInvalidInput)
 	assert.Equal(t, types.InvalidRequest, response.Response.ReturnCode)
 	assert.Equal(t, afterAdds.Metadata.Generation, requireUnifiedSnapshot(t, db).Metadata.Generation)
 }
 
 func TestUnifiedAddDuplicateConcurrencyIsAtomic(t *testing.T) {
 	service, _, db, _ := newUnifiedAddFixture(t, map[string][]state.IPRecord{
-		"nc-v4": {{ID: "ip-1", IPAddress: "10.0.0.4", NCID: "nc-v4", NCVersion: 1}},
+		unifiedTestNCIPv4: {{ID: unifiedTestIPID1, IPAddress: adapterTestIPv4, NCID: unifiedTestNCIPv4, NCVersion: 1}},
 	}, nil)
 	requests := []cns.IPConfigsRequest{
-		unifiedAddRequest("container-1", "interface-1", "eth0", "pod-1", "namespace-1"),
-		unifiedAddRequest("container-2", "interface-2", "eth0", "pod-2", "namespace-1"),
+		unifiedAddRequest(adapterTestContainerID, "interface-1", InfraInterfaceName, "pod-1", "namespace-1"),
+		unifiedAddRequest("container-2", "interface-2", InfraInterfaceName, "pod-2", "namespace-1"),
 	}
 	for index := range requests {
-		requests[index].DesiredIPAddresses = []string{"10.0.0.4"}
+		requests[index].DesiredIPAddresses = []string{adapterTestIPv4}
 	}
 
 	start := make(chan struct{})
@@ -213,10 +228,10 @@ func TestUnifiedAddDeleteIntentAndExpiry(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			service, adapter, db, _ := newUnifiedAddFixture(t, map[string][]state.IPRecord{
-				"nc-v4": {{ID: "ip-1", IPAddress: "10.0.0.4", NCID: "nc-v4", NCVersion: 1}},
+				unifiedTestNCIPv4: {{ID: unifiedTestIPID1, IPAddress: adapterTestIPv4, NCID: unifiedTestNCIPv4, NCVersion: 1}},
 			}, func(db *state.DB) {
 				require.NoError(t, db.Update(context.Background(), func(tx *state.WriteTx) error {
-					return tx.PutDeleteIntent("container-1", state.DeleteIntent{CreatedAt: tt.createdAt})
+					return tx.PutDeleteIntent(adapterTestContainerID, state.DeleteIntent{CreatedAt: tt.createdAt})
 				}))
 			})
 			adapter.now = func() time.Time { return now }
@@ -224,14 +239,14 @@ func TestUnifiedAddDeleteIntentAndExpiry(t *testing.T) {
 
 			response, err := service.requestIPConfigHandlerHelper(
 				context.Background(),
-				unifiedAddRequest("container-1", "interface-1", "eth0", "pod-1", "namespace-1"),
+				unifiedAddRequest(adapterTestContainerID, "interface-1", InfraInterfaceName, "pod-1", "namespace-1"),
 			)
 			assert.Equal(t, tt.wantCode, response.Response.ReturnCode)
 			after := requireUnifiedSnapshot(t, db)
 			if tt.wantSuccess {
 				require.NoError(t, err)
 				assert.Equal(t, before.Metadata.Generation+1, after.Metadata.Generation)
-				assert.NotContains(t, after.DeleteIntents, "container-1")
+				assert.NotContains(t, after.DeleteIntents, adapterTestContainerID)
 				assert.Contains(t, after.Assignments, "interface-1")
 			} else {
 				require.ErrorIs(t, err, state.ErrDeleteIntent)
@@ -245,11 +260,10 @@ func TestUnifiedAddDeleteIntentAndExpiry(t *testing.T) {
 func TestUnifiedAddFailuresDoNotPartiallyAllocate(t *testing.T) {
 	t.Run("commit", func(t *testing.T) {
 		service, adapter, db, _ := newUnifiedAddFixture(t, map[string][]state.IPRecord{
-			"nc-v4": {{ID: "ip-1", IPAddress: "10.0.0.4", NCID: "nc-v4", NCVersion: 1}},
+			unifiedTestNCIPv4: {{ID: unifiedTestIPID1, IPAddress: adapterTestIPv4, NCID: unifiedTestNCIPv4, NCVersion: 1}},
 		}, nil)
 		beforeSnapshot := requireUnifiedSnapshot(t, db)
 		beforeCache := durableCacheFingerprint(service, adapter)
-		injected := errors.New("injected commit failure")
 		adapter.store.assignEndpoint = func(
 			context.Context,
 			uint64,
@@ -259,14 +273,14 @@ func TestUnifiedAddFailuresDoNotPartiallyAllocate(t *testing.T) {
 			time.Duration,
 			func(state.Snapshot) error,
 		) (bool, error) {
-			return false, injected
+			return false, errUnifiedAddCommitFailure
 		}
 
 		response, err := service.requestIPConfigHandlerHelper(
 			context.Background(),
-			unifiedAddRequest("container-1", "interface-1", "eth0", "pod-1", "namespace-1"),
+			unifiedAddRequest(adapterTestContainerID, "interface-1", InfraInterfaceName, "pod-1", "namespace-1"),
 		)
-		require.ErrorIs(t, err, injected)
+		require.ErrorIs(t, err, errUnifiedAddCommitFailure)
 		assert.Equal(t, types.UnexpectedError, response.Response.ReturnCode)
 		assert.Equal(t, beforeSnapshot, requireUnifiedSnapshot(t, db))
 		assert.Equal(t, beforeCache, durableCacheFingerprint(service, adapter))
@@ -274,20 +288,19 @@ func TestUnifiedAddFailuresDoNotPartiallyAllocate(t *testing.T) {
 
 	t.Run("projection prebuild callback", func(t *testing.T) {
 		service, adapter, db, _ := newUnifiedAddFixture(t, map[string][]state.IPRecord{
-			"nc-v4": {{ID: "ip-1", IPAddress: "10.0.0.4", NCID: "nc-v4", NCVersion: 1}},
+			unifiedTestNCIPv4: {{ID: unifiedTestIPID1, IPAddress: adapterTestIPv4, NCID: unifiedTestNCIPv4, NCVersion: 1}},
 		}, nil)
 		beforeSnapshot := requireUnifiedSnapshot(t, db)
 		beforeCache := durableCacheFingerprint(service, adapter)
-		injected := errors.New("injected projection build failure")
 		adapter.buildProjection = func(state.Snapshot) (durableCacheProjection, error) {
-			return durableCacheProjection{}, injected
+			return durableCacheProjection{}, errUnifiedAddProjectionFailure
 		}
 
 		response, err := service.requestIPConfigHandlerHelper(
 			context.Background(),
-			unifiedAddRequest("container-1", "interface-1", "eth0", "pod-1", "namespace-1"),
+			unifiedAddRequest(adapterTestContainerID, "interface-1", InfraInterfaceName, "pod-1", "namespace-1"),
 		)
-		require.ErrorIs(t, err, injected)
+		require.ErrorIs(t, err, errUnifiedAddProjectionFailure)
 		assert.Equal(t, types.UnexpectedError, response.Response.ReturnCode)
 		assert.Equal(t, beforeSnapshot, requireUnifiedSnapshot(t, db))
 		assert.Equal(t, beforeCache, durableCacheFingerprint(service, adapter))
@@ -295,16 +308,16 @@ func TestUnifiedAddFailuresDoNotPartiallyAllocate(t *testing.T) {
 
 	t.Run("later invalid multi-IP candidate", func(t *testing.T) {
 		service, adapter, db, _ := newUnifiedAddFixture(t, map[string][]state.IPRecord{
-			"nc-v4": {{ID: "ip-v4", IPAddress: "10.0.0.4", NCID: "nc-v4", NCVersion: 1}},
-			"nc-v6": {{ID: "ip-v6", IPAddress: "2001:db8::4", NCID: "nc-v6", NCVersion: 1}},
+			unifiedTestNCIPv4: {{ID: unifiedTestIPv4ID, IPAddress: adapterTestIPv4, NCID: unifiedTestNCIPv4, NCVersion: 1}},
+			unifiedTestNCIPv6: {{ID: unifiedTestIPv6ID, IPAddress: unifiedTestIPv6, NCID: unifiedTestNCIPv6, NCVersion: 1}},
 		}, nil)
-		nc := service.state.ContainerStatus["nc-v6"]
+		nc := service.state.ContainerStatus[unifiedTestNCIPv6]
 		nc.CreateNetworkContainerRequest.IPConfiguration.IPSubnet.PrefixLength = 200
-		service.state.ContainerStatus["nc-v6"] = nc
+		service.state.ContainerStatus[unifiedTestNCIPv6] = nc
 		beforeSnapshot := requireUnifiedSnapshot(t, db)
 		beforeCache := durableCacheFingerprint(service, adapter)
-		request := unifiedAddRequest("container-1", "interface-1", "eth0", "pod-1", "namespace-1")
-		request.DesiredIPAddresses = []string{"10.0.0.4", "2001:db8::4"}
+		request := unifiedAddRequest(adapterTestContainerID, "interface-1", InfraInterfaceName, "pod-1", "namespace-1")
+		request.DesiredIPAddresses = []string{adapterTestIPv4, unifiedTestIPv6}
 
 		response, err := service.requestIPConfigHandlerHelper(context.Background(), request)
 		require.Error(t, err)
@@ -315,7 +328,7 @@ func TestUnifiedAddFailuresDoNotPartiallyAllocate(t *testing.T) {
 
 	t.Run("canceled before transaction", func(t *testing.T) {
 		service, adapter, db, _ := newUnifiedAddFixture(t, map[string][]state.IPRecord{
-			"nc-v4": {{ID: "ip-1", IPAddress: "10.0.0.4", NCID: "nc-v4", NCVersion: 1}},
+			unifiedTestNCIPv4: {{ID: unifiedTestIPID1, IPAddress: adapterTestIPv4, NCID: unifiedTestNCIPv4, NCVersion: 1}},
 		}, nil)
 		beforeSnapshot := requireUnifiedSnapshot(t, db)
 		beforeCache := durableCacheFingerprint(service, adapter)
@@ -324,7 +337,7 @@ func TestUnifiedAddFailuresDoNotPartiallyAllocate(t *testing.T) {
 
 		response, err := service.requestIPConfigHandlerHelper(
 			ctx,
-			unifiedAddRequest("container-1", "interface-1", "eth0", "pod-1", "namespace-1"),
+			unifiedAddRequest(adapterTestContainerID, "interface-1", InfraInterfaceName, "pod-1", "namespace-1"),
 		)
 		require.ErrorIs(t, err, context.Canceled)
 		assert.Equal(t, types.FailedToAllocateIPConfig, response.Response.ReturnCode)
@@ -334,7 +347,7 @@ func TestUnifiedAddFailuresDoNotPartiallyAllocate(t *testing.T) {
 
 	t.Run("deadline before transaction", func(t *testing.T) {
 		service, adapter, db, _ := newUnifiedAddFixture(t, map[string][]state.IPRecord{
-			"nc-v4": {{ID: "ip-1", IPAddress: "10.0.0.4", NCID: "nc-v4", NCVersion: 1}},
+			unifiedTestNCIPv4: {{ID: unifiedTestIPID1, IPAddress: adapterTestIPv4, NCID: unifiedTestNCIPv4, NCVersion: 1}},
 		}, nil)
 		beforeSnapshot := requireUnifiedSnapshot(t, db)
 		beforeCache := durableCacheFingerprint(service, adapter)
@@ -343,7 +356,7 @@ func TestUnifiedAddFailuresDoNotPartiallyAllocate(t *testing.T) {
 
 		response, err := service.requestIPConfigHandlerHelper(
 			ctx,
-			unifiedAddRequest("container-1", "interface-1", "eth0", "pod-1", "namespace-1"),
+			unifiedAddRequest(adapterTestContainerID, "interface-1", InfraInterfaceName, "pod-1", "namespace-1"),
 		)
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 		assert.Equal(t, types.FailedToAllocateIPConfig, response.Response.ReturnCode)
@@ -354,10 +367,9 @@ func TestUnifiedAddFailuresDoNotPartiallyAllocate(t *testing.T) {
 
 func TestUnifiedAddProjectionFailureRestoresCommittedState(t *testing.T) {
 	service, adapter, db, _ := newUnifiedAddFixture(t, map[string][]state.IPRecord{
-		"nc-v4": {{ID: "ip-1", IPAddress: "10.0.0.4", NCID: "nc-v4", NCVersion: 1}},
+		unifiedTestNCIPv4: {{ID: unifiedTestIPID1, IPAddress: adapterTestIPv4, NCID: unifiedTestNCIPv4, NCVersion: 1}},
 	}, nil)
 	beforeGeneration := requireUnifiedSnapshot(t, db).Metadata.Generation
-	injected := errors.New("injected cache application failure")
 	refreshMetrics := adapter.store.refreshMetrics
 	refreshCalls := 0
 	adapter.store.refreshMetrics = func(ctx context.Context) (state.Status, error) {
@@ -366,24 +378,24 @@ func TestUnifiedAddProjectionFailureRestoresCommittedState(t *testing.T) {
 	}
 	adapter.applyAddProjection = func(durableCacheProjection) error {
 		service.PodIPConfigState = map[string]cns.IPConfigurationStatus{}
-		return injected
+		return errUnifiedAddCacheFailure
 	}
 
 	response, err := service.requestIPConfigHandlerHelper(
 		context.Background(),
-		unifiedAddRequest("container-1", "interface-1", "eth0", "pod-1", "namespace-1"),
+		unifiedAddRequest(adapterTestContainerID, "interface-1", InfraInterfaceName, "pod-1", "namespace-1"),
 	)
 	var committedErr *unifiedAddCommittedError
 	require.ErrorAs(t, err, &committedErr)
-	require.ErrorIs(t, err, injected)
+	require.ErrorIs(t, err, errUnifiedAddCacheFailure)
 	assert.Equal(t, types.UnexpectedError, response.Response.ReturnCode)
 
 	snapshot := requireUnifiedSnapshot(t, db)
 	assert.Equal(t, beforeGeneration+1, snapshot.Metadata.Generation)
 	assert.Contains(t, snapshot.Assignments, "interface-1")
-	status := service.PodIPConfigState["ip-1"]
+	status := service.PodIPConfigState[unifiedTestIPID1]
 	assert.Equal(t, types.Assigned, status.GetState())
-	assert.Equal(t, []string{"ip-1"}, service.PodIPIDByPodInterfaceKey["interface-1"])
+	assert.Equal(t, []string{unifiedTestIPID1}, service.PodIPIDByPodInterfaceKey["interface-1"])
 	generation, projected := adapter.cacheGeneration()
 	assert.True(t, projected)
 	assert.Equal(t, snapshot.Metadata.Generation, generation)
@@ -393,7 +405,7 @@ func TestUnifiedAddProjectionFailureRestoresCommittedState(t *testing.T) {
 func TestUnifiedAddStaleGenerationAndClosedDatabase(t *testing.T) {
 	t.Run("stale adapter", func(t *testing.T) {
 		service, adapter, db, _ := newUnifiedAddFixture(t, map[string][]state.IPRecord{
-			"nc-v4": {{ID: "ip-1", IPAddress: "10.0.0.4", NCID: "nc-v4", NCVersion: 1}},
+			unifiedTestNCIPv4: {{ID: unifiedTestIPID1, IPAddress: adapterTestIPv4, NCID: unifiedTestNCIPv4, NCVersion: 1}},
 		}, nil)
 		beforeCache := durableCacheFingerprint(service, adapter)
 		_, err := db.ApplyNetworkContainer(
@@ -406,7 +418,7 @@ func TestUnifiedAddStaleGenerationAndClosedDatabase(t *testing.T) {
 
 		response, err := service.requestIPConfigHandlerHelper(
 			context.Background(),
-			unifiedAddRequest("container-1", "interface-1", "eth0", "pod-1", "namespace-1"),
+			unifiedAddRequest(adapterTestContainerID, "interface-1", InfraInterfaceName, "pod-1", "namespace-1"),
 		)
 		require.ErrorIs(t, err, state.ErrStaleGeneration)
 		assert.Equal(t, types.InconsistentIPConfigState, response.Response.ReturnCode)
@@ -417,14 +429,14 @@ func TestUnifiedAddStaleGenerationAndClosedDatabase(t *testing.T) {
 
 	t.Run("closed", func(t *testing.T) {
 		service, adapter, db, closeState := newUnifiedAddFixture(t, map[string][]state.IPRecord{
-			"nc-v4": {{ID: "ip-1", IPAddress: "10.0.0.4", NCID: "nc-v4", NCVersion: 1}},
+			unifiedTestNCIPv4: {{ID: unifiedTestIPID1, IPAddress: adapterTestIPv4, NCID: unifiedTestNCIPv4, NCVersion: 1}},
 		}, nil)
 		beforeCache := durableCacheFingerprint(service, adapter)
 		require.NoError(t, closeState())
 
 		response, err := service.requestIPConfigHandlerHelper(
 			context.Background(),
-			unifiedAddRequest("container-1", "interface-1", "eth0", "pod-1", "namespace-1"),
+			unifiedAddRequest(adapterTestContainerID, "interface-1", InfraInterfaceName, "pod-1", "namespace-1"),
 		)
 		require.Error(t, err)
 		assert.Equal(t, types.UnexpectedError, response.Response.ReturnCode)
@@ -435,29 +447,29 @@ func TestUnifiedAddStaleGenerationAndClosedDatabase(t *testing.T) {
 }
 
 func TestUnifiedAddImportedOwnershipReplayAndConflict(t *testing.T) {
-	request := unifiedAddRequest("container-1", "interface-1", "eth0", "pod-1", "namespace-1")
+	request := unifiedAddRequest(adapterTestContainerID, "interface-1", InfraInterfaceName, "pod-1", "namespace-1")
 	service, _, db, _ := newUnifiedAddFixture(t, map[string][]state.IPRecord{
-		"nc-v4": {{ID: "ip-1", IPAddress: "10.0.0.4", NCID: "nc-v4", NCVersion: 1}},
+		unifiedTestNCIPv4: {{ID: unifiedTestIPID1, IPAddress: adapterTestIPv4, NCID: unifiedTestNCIPv4, NCVersion: 1}},
 	}, func(db *state.DB) {
 		_, err := db.AssignEndpoint(
 			context.Background(),
 			state.AssignmentRecord{
 				Pod: state.PodIdentity{
 					PodKey:           "interface-1",
-					InfraContainerID: "container-1",
+					InfraContainerID: adapterTestContainerID,
 					InterfaceID:      "interface-1",
 					PodName:          "pod-1",
 					PodNamespace:     "namespace-1",
 				},
-				IPIDs: []string{"ip-1"},
+				IPIDs: []string{unifiedTestIPID1},
 			},
 			state.EndpointRecord{
 				PodName:      "pod-1",
 				PodNamespace: "namespace-1",
 				IfnameToIPMap: map[string]*state.IPInfoRecord{
-					"eth0": {
+					InfraInterfaceName: {
 						IPv4:               []net.IPNet{testIPNet("10.0.0.4/24")},
-						NetworkContainerID: "nc-v4",
+						NetworkContainerID: unifiedTestNCIPv4,
 						NICType:            cns.InfraNIC,
 					},
 				},
@@ -485,16 +497,16 @@ func TestUnifiedAddImportedOwnershipReplayAndConflict(t *testing.T) {
 func TestJSONAddPathDoesNotSelectUnifiedState(t *testing.T) {
 	service := newUnifiedAddTestService(t)
 	assert.Nil(t, service.selectedUnifiedStateAdapter())
-	service.state.ContainerStatus["nc-v4"] = containerstatus{
-		ID:                            "nc-v4",
+	service.state.ContainerStatus[unifiedTestNCIPv4] = containerstatus{
+		ID:                            unifiedTestNCIPv4,
 		HostVersion:                   "1",
-		CreateNetworkContainerRequest: r18NetworkContainer("nc-v4").Request,
+		CreateNetworkContainerRequest: r18NetworkContainer(unifiedTestNCIPv4).Request,
 	}
-	status := cns.IPConfigurationStatus{ID: "ip-1", IPAddress: "10.0.0.4", NCID: "nc-v4"}
+	status := cns.IPConfigurationStatus{ID: unifiedTestIPID1, IPAddress: adapterTestIPv4, NCID: unifiedTestNCIPv4}
 	status.SetState(types.Available)
-	service.PodIPConfigState["ip-1"] = status
-	request := unifiedAddRequest("container-1", "interface-1", "eth0", "pod-1", "namespace-1")
-	request.DesiredIPAddresses = []string{"10.0.0.4"}
+	service.PodIPConfigState[unifiedTestIPID1] = status
+	request := unifiedAddRequest(adapterTestContainerID, "interface-1", InfraInterfaceName, "pod-1", "namespace-1")
+	request.DesiredIPAddresses = []string{adapterTestIPv4}
 
 	beforeAdapter := service.unifiedStateAdapter
 	response, err := service.requestIPConfigHandlerHelper(context.Background(), request)
@@ -502,27 +514,27 @@ func TestJSONAddPathDoesNotSelectUnifiedState(t *testing.T) {
 	expected := &cns.IPConfigsResponse{
 		Response: cns.Response{ReturnCode: types.Success},
 		PodIPInfo: []cns.PodIpInfo{{
-			PodIPConfig: cns.IPSubnet{IPAddress: "10.0.0.4", PrefixLength: 24},
-			NetworkContainerPrimaryIPConfig: service.state.ContainerStatus["nc-v4"].
+			PodIPConfig: cns.IPSubnet{IPAddress: adapterTestIPv4, PrefixLength: 24},
+			NetworkContainerPrimaryIPConfig: service.state.ContainerStatus[unifiedTestNCIPv4].
 				CreateNetworkContainerRequest.IPConfiguration,
 			HostPrimaryIPInfo: cns.HostIPInfo{
 				PrimaryIP: "192.0.2.10",
 				Subnet:    "192.0.2.0/24",
 				Gateway:   "192.0.2.1",
 			},
-			MacAddress: "00:11:22:33:44:55",
+			MacAddress: adapterTestMAC,
 			NICType:    cns.InfraNIC,
 		}},
 	}
 	assert.Equal(t, expected, response)
-	gotJSON, err := json.Marshal(response)
+	gotJSON, err := json.Marshal(response) //nolint:musttag // IPConfigsResponse is the existing CNS API wire type.
 	require.NoError(t, err)
-	wantJSON, err := json.Marshal(expected)
+	wantJSON, err := json.Marshal(expected) //nolint:musttag // IPConfigsResponse is the existing CNS API wire type.
 	require.NoError(t, err)
-	assert.Equal(t, wantJSON, gotJSON)
+	assert.JSONEq(t, string(wantJSON), string(gotJSON))
 	assert.Same(t, beforeAdapter, service.unifiedStateAdapter)
-	assert.Equal(t, []string{"ip-1"}, service.PodIPIDByPodInterfaceKey["interface-1"])
-	assigned := service.PodIPConfigState["ip-1"]
+	assert.Equal(t, []string{unifiedTestIPID1}, service.PodIPIDByPodInterfaceKey["interface-1"])
+	assigned := service.PodIPConfigState[unifiedTestIPID1]
 	assert.Equal(t, types.Assigned, assigned.GetState())
 }
 
@@ -535,8 +547,8 @@ func newUnifiedAddFixture(
 	db, err := state.Open(filepath.Join(t.TempDir(), "state.db"), state.Options{})
 	require.NoError(t, err)
 	for id, ips := range containers {
-		_, err := db.ApplyNetworkContainer(context.Background(), r18NetworkContainer(id), ips)
-		require.NoError(t, err)
+		_, applyErr := db.ApplyNetworkContainer(context.Background(), r18NetworkContainer(id), ips)
+		require.NoError(t, applyErr)
 	}
 	if beforeAttach != nil {
 		beforeAttach(db)
@@ -575,9 +587,9 @@ func newUnifiedAddTestService(t *testing.T) *HTTPRestService {
 }
 
 func r18NetworkContainer(id string) state.NetworkContainerRecord {
-	prefix := cns.IPSubnet{IPAddress: "10.0.0.0", PrefixLength: 24}
+	prefix := cns.IPSubnet{IPAddress: adapterTestNetwork, PrefixLength: 24}
 	if strings.Contains(id, "v6") {
-		prefix = cns.IPSubnet{IPAddress: "2001:db8::", PrefixLength: 64}
+		prefix = cns.IPSubnet{IPAddress: unifiedTestIPv6Network, PrefixLength: 64}
 	}
 	return state.NewNetworkContainerRecord(id, "1", "1", true, cns.CreateNetworkContainerRequest{
 		NetworkContainerid: id,
@@ -587,12 +599,13 @@ func r18NetworkContainer(id string) state.NetworkContainerRecord {
 			GatewayIPAddress: "10.0.0.1",
 			DNSServers:       []string{"168.63.129.16"},
 		},
-		NetworkInterfaceInfo: cns.NetworkInterfaceInfo{MACAddress: "00:11:22:33:44:55"},
+		NetworkInterfaceInfo: cns.NetworkInterfaceInfo{MACAddress: adapterTestMAC},
 	})
 }
 
+//nolint:unparam // Downstream DEL and PATCH slices exercise distinct namespaces.
 func unifiedAddRequest(containerID, interfaceID, ifname, podName, namespace string) cns.IPConfigsRequest {
-	context, err := json.Marshal(cns.KubernetesPodInfo{PodName: podName, PodNamespace: namespace})
+	orchestratorContext, err := json.Marshal(cns.KubernetesPodInfo{PodName: podName, PodNamespace: namespace})
 	if err != nil {
 		panic(err)
 	}
@@ -600,7 +613,7 @@ func unifiedAddRequest(containerID, interfaceID, ifname, podName, namespace stri
 		PodInterfaceID:      interfaceID,
 		InfraContainerID:    containerID,
 		Ifname:              ifname,
-		OrchestratorContext: context,
+		OrchestratorContext: orchestratorContext,
 	}
 }
 

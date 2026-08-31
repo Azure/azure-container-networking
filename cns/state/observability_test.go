@@ -25,6 +25,11 @@ var errMetricRegistration = errors.New("register failure")
 
 const metricTestDelta = 1e-9
 
+const (
+	metricTestIPOwner      = "IP owner"
+	metricTestDeleteIntent = "delete intent"
+)
+
 func TestNewMetricsRegistration(t *testing.T) {
 	t.Run("descriptors", func(t *testing.T) {
 		registry := prometheus.NewRegistry()
@@ -112,9 +117,9 @@ func TestNewMetricsRegistration(t *testing.T) {
 
 func TestClassifyOwnershipConflictResult(t *testing.T) {
 	tests := map[string]error{
-		"stale generation": ErrStaleGeneration,
-		"IP owner":         ErrIPAlreadyAssigned,
-		"delete intent":    ErrDeleteIntent,
+		"stale generation":     ErrStaleGeneration,
+		metricTestIPOwner:      ErrIPAlreadyAssigned,
+		metricTestDeleteIntent: ErrDeleteIntent,
 	}
 	for name, err := range tests {
 		t.Run(name, func(t *testing.T) {

@@ -22,7 +22,12 @@ const testDeleteIntentTTL = 10 * time.Minute
 
 var testNow = time.Date(2026, time.July, 24, 0, 0, 0, 0, time.UTC)
 
-const testIPv4Address2 = "10.0.0.5"
+var errAssignmentCandidate = errors.New("injected candidate failure")
+
+const (
+	testIPv4Address2 = "10.0.0.5"
+	testContainerID2 = "container-2"
+)
 
 func TestOwnershipTransactions(t *testing.T) {
 	db, _ := openTestDB(t)
@@ -247,7 +252,6 @@ func TestAssignEndpointIfGenerationPrecommitAndCancellation(t *testing.T) {
 		db, _ := openTestDB(t)
 		assignment, endpoint := seedOwnershipInventory(t, db)
 		before := requireValidSnapshot(t, db)
-		injected := errors.New("injected candidate failure")
 		callbackCalled := false
 
 		changed, err := db.AssignEndpointIfGeneration(
@@ -263,10 +267,10 @@ func TestAssignEndpointIfGenerationPrecommitAndCancellation(t *testing.T) {
 				assert.Contains(t, candidate.Assignments, assignment.Pod.PodKey)
 				assert.Contains(t, candidate.Endpoints, assignment.Pod.InfraContainerID)
 				assert.Len(t, candidate.IPOwners, len(assignment.IPIDs))
-				return injected
+				return errAssignmentCandidate
 			},
 		)
-		require.ErrorIs(t, err, injected)
+		require.ErrorIs(t, err, errAssignmentCandidate)
 		assert.False(t, changed)
 		assert.True(t, callbackCalled)
 		assert.Equal(t, before, requireValidSnapshot(t, db))
@@ -368,16 +372,16 @@ func TestAssignEndpointRejectsIdentityConflicts(t *testing.T) {
 		{
 			name: "pod changes containers before release",
 			changeRequest: func(assignment *AssignmentRecord, _ *EndpointRecord) {
-				assignment.Pod.PodKey = "container-2"
-				assignment.Pod.InfraContainerID = "container-2"
+				assignment.Pod.PodKey = testContainerID2
+				assignment.Pod.InfraContainerID = testContainerID2
 			},
 		},
 		{
 			name:        "pod changes containers while endpoint retained",
 			retainFirst: true,
 			changeRequest: func(assignment *AssignmentRecord, _ *EndpointRecord) {
-				assignment.Pod.PodKey = "container-2"
-				assignment.Pod.InfraContainerID = "container-2"
+				assignment.Pod.PodKey = testContainerID2
+				assignment.Pod.InfraContainerID = testContainerID2
 			},
 		},
 	}
