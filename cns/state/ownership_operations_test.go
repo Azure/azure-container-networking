@@ -27,6 +27,7 @@ var errAssignmentCandidate = errors.New("injected candidate failure")
 const (
 	testIPv4Address2 = "10.0.0.5"
 	testContainerID2 = "container-2"
+	testPatchedVeth  = "patched-veth"
 )
 
 func TestOwnershipTransactions(t *testing.T) {
@@ -768,7 +769,7 @@ func TestPatchEndpointIfGeneration(t *testing.T) {
 		require.NoError(t, err)
 		before := requireValidSnapshot(t, db)
 		patched := deepCloneEndpoint(t, endpoint)
-		patched.IfnameToIPMap["eth0"].HostVethName = "patched-veth"
+		patched.IfnameToIPMap["eth0"].HostVethName = testPatchedVeth
 
 		changed, err := db.PatchEndpointIfGeneration(
 			context.Background(),
@@ -888,7 +889,7 @@ func TestPatchEndpointIfGeneration(t *testing.T) {
 			}))
 			before := requireValidSnapshot(t, db)
 			patched := deepCloneEndpoint(t, endpoint)
-			patched.IfnameToIPMap["eth0"].HostVethName = "patched-veth"
+			patched.IfnameToIPMap["eth0"].HostVethName = testPatchedVeth
 
 			changed, err := db.PatchEndpointIfGeneration(
 				context.Background(),
@@ -917,7 +918,7 @@ func TestPatchEndpointIfGeneration(t *testing.T) {
 			require.NoError(t, err)
 			before := requireValidSnapshot(t, db)
 			patched := deepCloneEndpoint(t, endpoint)
-			patched.IfnameToIPMap["eth0"].HostVethName = "patched-veth"
+			patched.IfnameToIPMap["eth0"].HostVethName = testPatchedVeth
 			ctx, cancel := context.WithCancel(context.Background())
 
 			changed, err := db.PatchEndpointIfGeneration(
@@ -1053,7 +1054,7 @@ func TestPatchEndpointIfGeneration(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, readOnly.Close()) })
 		patched := deepCloneEndpoint(t, endpoint)
-		patched.IfnameToIPMap["eth0"].HostVethName = "patched-veth"
+		patched.IfnameToIPMap["eth0"].HostVethName = testPatchedVeth
 		_, err = readOnly.PatchEndpointIfGeneration(
 			context.Background(),
 			before.Metadata.Generation,
