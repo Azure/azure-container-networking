@@ -17,32 +17,33 @@ import (
 func TestNewNetworkContainerRecord(t *testing.T) {
 	request := completeNetworkContainerRequest()
 	request.NetworkContainerid = "old-id"
-	request.AuthorizationToken = "secret"
+	request.AuthorizationToken = testSecretToken
 	request.SecondaryIPConfigs = map[string]cns.SecondaryIPConfig{
-		"ip-1": {IPAddress: "10.0.0.4", NCVersion: 2},
+		testIPID1: {IPAddress: testIPv4Address, NCVersion: 2},
 	}
 
-	record := NewNetworkContainerRecord("nc-1", "2", "1", true, request)
+	record := NewNetworkContainerRecord(testNCID, "2", "1", true, request)
 
 	expectedRequest := request
-	expectedRequest.NetworkContainerid = "nc-1"
+	expectedRequest.NetworkContainerid = testNCID
 	expectedRequest.AuthorizationToken = ""
 	expectedRequest.SecondaryIPConfigs = nil
 	assert.Equal(t, NetworkContainerRecord{
-		ID:                "nc-1",
+		ID:                testNCID,
 		VMVersion:         "2",
 		HostVersion:       "1",
 		VFPUpdateComplete: true,
 		Request:           expectedRequest,
 	}, record)
 	assert.Equal(t, "old-id", request.NetworkContainerid)
-	assert.Equal(t, "secret", request.AuthorizationToken)
+	assert.Equal(t, testSecretToken, request.AuthorizationToken)
 	assert.NotNil(t, request.SecondaryIPConfigs)
 }
 
 func TestNetworkContainerRecordJSONRoundTrip(t *testing.T) {
-	input := NewNetworkContainerRecord("nc-1", "2", "1", true, completeNetworkContainerRequest())
+	input := NewNetworkContainerRecord(testNCID, "2", "1", true, completeNetworkContainerRequest())
 
+	//nolint:musttag // CreateNetworkContainerRequest intentionally retains its legacy untagged JSON field names.
 	data, err := json.Marshal(input)
 	require.NoError(t, err)
 	var got NetworkContainerRecord
@@ -62,9 +63,9 @@ func TestIPAndEndpointRecordsJSONRoundTrip(t *testing.T) {
 		{
 			name: "IP record",
 			input: IPRecord{
-				ID:        "ip-1",
-				IPAddress: "10.0.0.4",
-				NCID:      "nc-1",
+				ID:        testIPID1,
+				IPAddress: testIPv4Address,
+				NCID:      testNCID,
 				NCVersion: 3,
 			},
 			run: func(data []byte) any {
@@ -98,7 +99,7 @@ func completeNetworkContainerRequest() cns.CreateNetworkContainerRequest {
 		HostPrimaryIP:              "192.0.2.10",
 		Version:                    "7",
 		NetworkContainerType:       "VNet",
-		NetworkContainerid:         "nc-1",
+		NetworkContainerid:         testNCID,
 		PrimaryInterfaceIdentifier: "192.0.2.11",
 		LocalIPConfiguration: cns.IPConfiguration{
 			IPSubnet: cns.IPSubnet{
@@ -115,7 +116,7 @@ func completeNetworkContainerRequest() cns.CreateNetworkContainerRequest {
 				PrefixLength: 24,
 			},
 			DNSServers:       []string{"10.0.0.10"},
-			GatewayIPAddress: "10.0.0.1",
+			GatewayIPAddress: testGatewayAddress,
 		},
 		IPv6Configuration: cns.IPConfiguration{
 			IPSubnetV6: cns.IPSubnet{
@@ -135,8 +136,8 @@ func completeNetworkContainerRequest() cns.CreateNetworkContainerRequest {
 		}},
 		Routes: []cns.Route{{
 			IPAddress:        "0.0.0.0/0",
-			GatewayIPAddress: "10.0.0.1",
-			InterfaceToUse:   "eth0",
+			GatewayIPAddress: testGatewayAddress,
+			InterfaceToUse:   testEth0,
 		}},
 		AllowHostToNCCommunication: true,
 		AllowNCToHostCommunication: true,
@@ -156,12 +157,12 @@ func completeNetworkContainerRequest() cns.CreateNetworkContainerRequest {
 
 func completeEndpointRecord() EndpointRecord {
 	return EndpointRecord{
-		PodName:      "pod-1",
-		PodNamespace: "ns-1",
+		PodName:      testPodName,
+		PodNamespace: testPodNamespace,
 		IfnameToIPMap: map[string]*IPInfoRecord{
-			"eth0": {
+			testEth0: {
 				IPv4: []net.IPNet{{
-					IP:   net.ParseIP("10.0.0.4"),
+					IP:   net.ParseIP(testIPv4Address),
 					Mask: net.CIDRMask(24, 32),
 				}},
 				IPv6: []net.IPNet{{
@@ -172,7 +173,7 @@ func completeEndpointRecord() EndpointRecord {
 				HNSNetworkID:       "hns-network-1",
 				HostVethName:       "veth-1",
 				MACAddress:         "00:11:22:33:44:55",
-				NetworkContainerID: "nc-1",
+				NetworkContainerID: testNCID,
 				NICType:            cns.InfraNIC,
 			},
 			"net1": {
@@ -184,7 +185,7 @@ func completeEndpointRecord() EndpointRecord {
 				HNSNetworkID:       "hns-network-2",
 				HostVethName:       "veth-2",
 				MACAddress:         "00:11:22:33:44:66",
-				NetworkContainerID: "nc-1",
+				NetworkContainerID: testNCID,
 				NICType:            cns.DelegatedVMNIC,
 			},
 		},

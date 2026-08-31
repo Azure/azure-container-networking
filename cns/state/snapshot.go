@@ -17,6 +17,12 @@ import (
 
 var ErrInconsistentState = errors.New("cns state: inconsistent state")
 
+var (
+	errJSONValueNull     = errors.New("json value is null")
+	errJSONValueMultiple = errors.New("multiple JSON values")
+	errInvalidIPPrefix   = errors.New("invalid IP prefix")
+)
+
 type Snapshot struct {
 	Metadata             Metadata
 	NetworkContainers    map[string]NetworkContainerRecord
@@ -107,9 +113,9 @@ func decodeBucket[T any](ctx context.Context, tx *ReadTx, name []byte, destinati
 	if bucket == nil {
 		return corrupt(fmt.Sprintf("missing bucket %q", name), nil)
 	}
-	return bucket.ForEach(func(key, value []byte) error {
+	if err := bucket.ForEach(func(key, value []byte) error {
 		if err := ctx.Err(); err != nil {
-			return err
+			return fmt.Errorf("decoding bucket %q: %w", name, err)
 		}
 		if value == nil {
 			return corrupt(fmt.Sprintf("bucket %q key %q is not a value", name, key), nil)
@@ -120,23 +126,26 @@ func decodeBucket[T any](ctx context.Context, tx *ReadTx, name []byte, destinati
 		}
 		destination[string(key)] = record
 		return nil
-	})
+	}); err != nil {
+		return fmt.Errorf("iterating bucket %q: %w", name, err)
+	}
+	return nil
 }
 
 func decodeJSONValue(data []byte, destination any) error {
 	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
-		return errors.New("json value is null")
+		return errJSONValueNull
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(destination); err != nil {
-		return err
+		return fmt.Errorf("decoding json value: %w", err)
 	}
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		if err == nil {
-			return errors.New("multiple JSON values")
+			return errJSONValueMultiple
 		}
-		return err
+		return fmt.Errorf("decoding json value: %w", err)
 	}
 	return nil
 }
@@ -145,9 +154,9 @@ func (s Snapshot) validate() error {
 	if err := s.validateNetworkContainers(); err != nil {
 		return err
 	}
-	ipAddresses, err := s.validateIPs()
-	if err != nil {
-		return err
+	ipAddresses, ipsErr := s.validateIPs()
+	if ipsErr != nil {
+		return ipsErr
 	}
 	if err := s.validateNetworks(); err != nil {
 		return err
@@ -164,9 +173,9 @@ func (s Snapshot) validate() error {
 	if err := s.validateOwners(); err != nil {
 		return err
 	}
-	endpointIPs, err := s.validateEndpoints()
-	if err != nil {
-		return err
+	endpointIPs, endpointsErr := s.validateEndpoints()
+	if endpointsErr != nil {
+		return endpointsErr
 	}
 	if err := s.validateAssignmentEndpoints(ipAddresses, endpointIPs); err != nil {
 		return err
@@ -476,21 +485,21 @@ func (s Snapshot) validateEndpoints() (map[netip.Addr]endpointIPLocation, error)
 func validateIPNet(value net.IPNet, expectedBits int) (netip.Addr, error) {
 	address, ok := netip.AddrFromSlice(value.IP)
 	if !ok {
-		return netip.Addr{}, fmt.Errorf("invalid IP %q", value.IP)
+		return netip.Addr{}, fmt.Errorf("%w: invalid IP %q", errInvalidIPPrefix, value.IP)
 	}
 	address = address.Unmap()
 	ones, bits := value.Mask.Size()
 	if bits != expectedBits {
-		return netip.Addr{}, fmt.Errorf("mask has %d bits, expected %d", bits, expectedBits)
+		return netip.Addr{}, fmt.Errorf("%w: mask has %d bits, expected %d", errInvalidIPPrefix, bits, expectedBits)
 	}
 	if expectedBits == 32 && !address.Is4() {
-		return netip.Addr{}, fmt.Errorf("IPv6 address %q in IPv4 prefixes", address)
+		return netip.Addr{}, fmt.Errorf("%w: IPv6 address %q in IPv4 prefixes", errInvalidIPPrefix, address)
 	}
 	if expectedBits == 128 && !address.Is6() {
-		return netip.Addr{}, fmt.Errorf("IPv4 address %q in IPv6 prefixes", address)
+		return netip.Addr{}, fmt.Errorf("%w: IPv4 address %q in IPv6 prefixes", errInvalidIPPrefix, address)
 	}
 	if !netip.PrefixFrom(address, ones).IsValid() {
-		return netip.Addr{}, fmt.Errorf("invalid prefix length %d for %q", ones, address)
+		return netip.Addr{}, fmt.Errorf("%w: invalid prefix length %d for %q", errInvalidIPPrefix, ones, address)
 	}
 	return address, nil
 }

@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"net"
-	"strings"
 	"testing"
 	"time"
 
@@ -17,6 +16,30 @@ import (
 	"github.com/stretchr/testify/require"
 	bolt "go.etcd.io/bbolt"
 	bolterrors "go.etcd.io/bbolt/errors"
+)
+
+// Shared fixture identifiers reused across snapshot_test.go and
+// types_test.go table-driven tests; named as constants instead of
+// repeating string literals so the test data intent stays explicit and
+// goconst does not flag the duplication.
+const (
+	testContainerID    = "container-1"
+	testPodName        = "pod-1"
+	testPodNamespace   = "ns-1"
+	testIPv4ID         = "ip-v4"
+	testIPv6ID         = "ip-v6"
+	testIPSecondary    = "ip-secondary"
+	testMismatchValue  = "other"
+	testSecretToken    = "secret"
+	testIPID1          = "ip-1"
+	testNCID           = "nc-1"
+	testMissingID      = "missing"
+	testIfaceSecondary = "iface-secondary"
+	testIfacePrimary   = "iface-primary"
+	testEth0           = "eth0"
+	testNetworkName    = "network-1"
+	testIPv4Address    = "10.0.0.4"
+	testGatewayAddress = "10.0.0.1"
 )
 
 func TestNewSnapshotInitializesMaps(t *testing.T) {
@@ -71,8 +94,8 @@ func TestSnapshotCompleteDualStackMultiNICState(t *testing.T) {
 	assert.Equal(t, want.DeleteIntents, got.DeleteIntents)
 	assert.Equal(
 		t,
-		"10.0.0.4",
-		got.Endpoints["container-1"].IfnameToIPMap["eth0"].IPv4[0].IP.String(),
+		testIPv4Address,
+		got.Endpoints[testContainerID].IfnameToIPMap[testEth0].IPv4[0].IP.String(),
 	)
 }
 
@@ -80,20 +103,20 @@ func TestSnapshotInfraContainerIdentity(t *testing.T) {
 	db, _ := openTestDB(t)
 	want := completeSnapshot()
 	want.Assignments = map[string]AssignmentRecord{
-		"container-1": {
+		testContainerID: {
 			Pod: PodIdentity{
-				PodKey:           "container-1",
-				InfraContainerID: "container-1",
-				PodName:          "pod-1",
-				PodNamespace:     "ns-1",
+				PodKey:           testContainerID,
+				InfraContainerID: testContainerID,
+				PodName:          testPodName,
+				PodNamespace:     testPodNamespace,
 			},
-			IPIDs: []string{"ip-v4", "ip-v6", "ip-secondary"},
+			IPIDs: []string{testIPv4ID, testIPv6ID, testIPSecondary},
 		},
 	}
 	want.IPOwners = map[string]string{
-		"ip-v4":        "container-1",
-		"ip-v6":        "container-1",
-		"ip-secondary": "container-1",
+		testIPv4ID:      testContainerID,
+		testIPv6ID:      testContainerID,
+		testIPSecondary: testContainerID,
 	}
 	writeSnapshot(t, db, want)
 
@@ -111,15 +134,15 @@ func TestSnapshotRejectsMalformedValuesInEveryBucket(t *testing.T) {
 		key    []byte
 	}{
 		{name: "metadata", bucket: bucketMetadata, key: metaKeyService},
-		{name: "network containers", bucket: bucketNetworkContainers, key: []byte("nc-1")},
-		{name: "IPs", bucket: bucketIPs, key: []byte("ip-1")},
-		{name: "networks", bucket: bucketNetworks, key: []byte("network-1")},
+		{name: "network containers", bucket: bucketNetworkContainers, key: []byte(testNCID)},
+		{name: "IPs", bucket: bucketIPs, key: []byte(testIPID1)},
+		{name: "networks", bucket: bucketNetworks, key: []byte(testNetworkName)},
 		{name: "orchestrator contexts", bucket: bucketOrchestratorContexts, key: []byte("context-1")},
 		{name: "PnP IDs", bucket: bucketPnPIDByMAC, key: []byte("00:11:22:33:44:55")},
 		{name: "assignments", bucket: bucketAssignments, key: []byte("interface-1")},
-		{name: "IP owners", bucket: bucketIPOwners, key: []byte("ip-1")},
-		{name: "endpoints", bucket: bucketEndpoints, key: []byte("container-1")},
-		{name: "delete intents", bucket: bucketDeleteIntents, key: []byte("nc-1")},
+		{name: "IP owners", bucket: bucketIPOwners, key: []byte(testIPID1)},
+		{name: "endpoints", bucket: bucketEndpoints, key: []byte(testContainerID)},
+		{name: "delete intents", bucket: bucketDeleteIntents, key: []byte(testNCID)},
 	}
 
 	for _, tt := range tests {
@@ -130,7 +153,7 @@ func TestSnapshotRejectsMalformedValuesInEveryBucket(t *testing.T) {
 			_, err := db.Snapshot(context.Background())
 
 			require.ErrorIs(t, err, ErrCorrupt)
-			assert.NotErrorIs(t, err, ErrInconsistentState)
+			require.NotErrorIs(t, err, ErrInconsistentState)
 			assert.Contains(t, err.Error(), string(tt.bucket))
 			assert.Contains(t, err.Error(), string(tt.key))
 		})
@@ -145,26 +168,26 @@ func TestSnapshotRejectsWrongWireShapes(t *testing.T) {
 		value  []byte
 	}{
 		{name: "metadata array", bucket: bucketMetadata, key: metaKeyService, value: []byte("[]")},
-		{name: "network container array", bucket: bucketNetworkContainers, key: []byte("nc-1"), value: []byte("[]")},
-		{name: "IP array", bucket: bucketIPs, key: []byte("ip-1"), value: []byte("[]")},
-		{name: "network array", bucket: bucketNetworks, key: []byte("network-1"), value: []byte("[]")},
+		{name: "network container array", bucket: bucketNetworkContainers, key: []byte(testNCID), value: []byte("[]")},
+		{name: "IP array", bucket: bucketIPs, key: []byte(testIPID1), value: []byte("[]")},
+		{name: "network array", bucket: bucketNetworks, key: []byte(testNetworkName), value: []byte("[]")},
 		{name: "orchestrator object", bucket: bucketOrchestratorContexts, key: []byte("context-1"), value: []byte("{}")},
 		{name: "PnP array", bucket: bucketPnPIDByMAC, key: []byte("00:11:22:33:44:55"), value: []byte("[]")},
 		{name: "assignment array", bucket: bucketAssignments, key: []byte("interface-1"), value: []byte("[]")},
-		{name: "owner array", bucket: bucketIPOwners, key: []byte("ip-1"), value: []byte("[]")},
-		{name: "endpoint array", bucket: bucketEndpoints, key: []byte("container-1"), value: []byte("[]")},
-		{name: "delete intent array", bucket: bucketDeleteIntents, key: []byte("nc-1"), value: []byte("[]")},
-		{name: "null value", bucket: bucketEndpoints, key: []byte("container-1"), value: []byte("null")},
+		{name: "owner array", bucket: bucketIPOwners, key: []byte(testIPID1), value: []byte("[]")},
+		{name: "endpoint array", bucket: bucketEndpoints, key: []byte(testContainerID), value: []byte("[]")},
+		{name: "delete intent array", bucket: bucketDeleteIntents, key: []byte(testNCID), value: []byte("[]")},
+		{name: "null value", bucket: bucketEndpoints, key: []byte(testContainerID), value: []byte("null")},
 		{
 			name:   "unknown field",
 			bucket: bucketNetworks,
-			key:    []byte("network-1"),
+			key:    []byte(testNetworkName),
 			value:  []byte(`{"networkName":"network-1","unknown":true}`),
 		},
 		{
 			name:   "multiple values",
 			bucket: bucketDeleteIntents,
-			key:    []byte("nc-1"),
+			key:    []byte(testNCID),
 			value:  []byte(`{"createdAt":"2026-07-23T22:00:00Z"} {}`),
 		},
 	}
@@ -190,41 +213,41 @@ func TestSnapshotRejectsLogicalInconsistencies(t *testing.T) {
 		{
 			name: "network container record ID mismatch",
 			mutate: func(snapshot *Snapshot) {
-				record := snapshot.NetworkContainers["nc-1"]
-				record.ID = "other"
-				snapshot.NetworkContainers["nc-1"] = record
+				record := snapshot.NetworkContainers[testNCID]
+				record.ID = testMismatchValue
+				snapshot.NetworkContainers[testNCID] = record
 			},
 		},
 		{
 			name: "network container request ID mismatch",
 			mutate: func(snapshot *Snapshot) {
-				record := snapshot.NetworkContainers["nc-1"]
-				record.Request.NetworkContainerid = "other"
-				snapshot.NetworkContainers["nc-1"] = record
+				record := snapshot.NetworkContainers[testNCID]
+				record.Request.NetworkContainerid = testMismatchValue
+				snapshot.NetworkContainers[testNCID] = record
 			},
 		},
 		{
 			name: "network container secret",
 			mutate: func(snapshot *Snapshot) {
-				record := snapshot.NetworkContainers["nc-1"]
-				record.Request.AuthorizationToken = "secret"
-				snapshot.NetworkContainers["nc-1"] = record
+				record := snapshot.NetworkContainers[testNCID]
+				record.Request.AuthorizationToken = testSecretToken
+				snapshot.NetworkContainers[testNCID] = record
 			},
 		},
 		{
 			name: "network container embedded secondary IPs",
 			mutate: func(snapshot *Snapshot) {
-				record := snapshot.NetworkContainers["nc-1"]
-				record.Request.SecondaryIPConfigs = map[string]cns.SecondaryIPConfig{"ip-1": {}}
-				snapshot.NetworkContainers["nc-1"] = record
+				record := snapshot.NetworkContainers[testNCID]
+				record.Request.SecondaryIPConfigs = map[string]cns.SecondaryIPConfig{testIPID1: {}}
+				snapshot.NetworkContainers[testNCID] = record
 			},
 		},
 		{
 			name: "IP record ID mismatch",
 			mutate: func(snapshot *Snapshot) {
-				record := snapshot.IPs["ip-v4"]
-				record.ID = "other"
-				snapshot.IPs["ip-v4"] = record
+				record := snapshot.IPs[testIPv4ID]
+				record.ID = testMismatchValue
+				snapshot.IPs[testIPv4ID] = record
 			},
 		},
 		{
@@ -233,36 +256,36 @@ func TestSnapshotRejectsLogicalInconsistencies(t *testing.T) {
 				snapshot.IPs["ip-alias"] = IPRecord{
 					ID:        "ip-alias",
 					IPAddress: "::ffff:10.0.0.4",
-					NCID:      "nc-1",
+					NCID:      testNCID,
 				}
 			},
 		},
 		{
 			name: "IP missing network container",
 			mutate: func(snapshot *Snapshot) {
-				record := snapshot.IPs["ip-v4"]
-				record.NCID = "missing"
-				snapshot.IPs["ip-v4"] = record
+				record := snapshot.IPs[testIPv4ID]
+				record.NCID = testMissingID
+				snapshot.IPs[testIPv4ID] = record
 			},
 		},
 		{
 			name: "network record name mismatch",
 			mutate: func(snapshot *Snapshot) {
-				record := snapshot.Networks["network-1"]
-				record.NetworkName = "other"
-				snapshot.Networks["network-1"] = record
+				record := snapshot.Networks[testNetworkName]
+				record.NetworkName = testMismatchValue
+				snapshot.Networks[testNetworkName] = record
 			},
 		},
 		{
 			name: "orchestrator context duplicate NC",
 			mutate: func(snapshot *Snapshot) {
-				snapshot.OrchestratorContexts["context-1"] = []string{"nc-1", "nc-1"}
+				snapshot.OrchestratorContexts["context-1"] = []string{testNCID, testNCID}
 			},
 		},
 		{
 			name: "orchestrator context missing NC",
 			mutate: func(snapshot *Snapshot) {
-				snapshot.OrchestratorContexts["context-1"] = []string{"missing"}
+				snapshot.OrchestratorContexts["context-1"] = []string{testMissingID}
 			},
 		},
 		{
@@ -280,83 +303,83 @@ func TestSnapshotRejectsLogicalInconsistencies(t *testing.T) {
 		{
 			name: "assignment key mismatch",
 			mutate: func(snapshot *Snapshot) {
-				record := snapshot.Assignments["iface-primary"]
-				record.Pod.PodKey = "other"
-				snapshot.Assignments["iface-primary"] = record
+				record := snapshot.Assignments[testIfacePrimary]
+				record.Pod.PodKey = testMismatchValue
+				snapshot.Assignments[testIfacePrimary] = record
 			},
 		},
 		{
 			name: "assignment empty infra container",
 			mutate: func(snapshot *Snapshot) {
-				record := snapshot.Assignments["iface-primary"]
+				record := snapshot.Assignments[testIfacePrimary]
 				record.Pod.InfraContainerID = ""
-				snapshot.Assignments["iface-primary"] = record
+				snapshot.Assignments[testIfacePrimary] = record
 			},
 		},
 		{
 			name: "infra-key assignment has mismatched key",
 			mutate: func(snapshot *Snapshot) {
-				record := snapshot.Assignments["iface-primary"]
+				record := snapshot.Assignments[testIfacePrimary]
 				record.Pod.InterfaceID = ""
-				snapshot.Assignments["iface-primary"] = record
+				snapshot.Assignments[testIfacePrimary] = record
 			},
 		},
 		{
 			name: "interface assignment has mismatched key",
 			mutate: func(snapshot *Snapshot) {
-				record := snapshot.Assignments["iface-primary"]
-				record.Pod.InterfaceID = "other"
-				snapshot.Assignments["iface-primary"] = record
+				record := snapshot.Assignments[testIfacePrimary]
+				record.Pod.InterfaceID = testMismatchValue
+				snapshot.Assignments[testIfacePrimary] = record
 			},
 		},
 		{
 			name: "assignment has no IPs",
 			mutate: func(snapshot *Snapshot) {
-				record := snapshot.Assignments["iface-primary"]
+				record := snapshot.Assignments[testIfacePrimary]
 				record.IPIDs = []string{}
-				snapshot.Assignments["iface-primary"] = record
+				snapshot.Assignments[testIfacePrimary] = record
 			},
 		},
 		{
 			name: "assignment duplicate IP ID",
 			mutate: func(snapshot *Snapshot) {
-				record := snapshot.Assignments["iface-primary"]
-				record.IPIDs = []string{"ip-v4", "ip-v4"}
-				snapshot.Assignments["iface-primary"] = record
+				record := snapshot.Assignments[testIfacePrimary]
+				record.IPIDs = []string{testIPv4ID, testIPv4ID}
+				snapshot.Assignments[testIfacePrimary] = record
 			},
 		},
 		{
 			name: "assignment missing IP",
 			mutate: func(snapshot *Snapshot) {
-				record := snapshot.Assignments["iface-primary"]
-				record.IPIDs = []string{"missing"}
-				snapshot.Assignments["iface-primary"] = record
+				record := snapshot.Assignments[testIfacePrimary]
+				record.IPIDs = []string{testMissingID}
+				snapshot.Assignments[testIfacePrimary] = record
 			},
 		},
 		{
 			name: "IP in multiple assignments",
 			mutate: func(snapshot *Snapshot) {
-				record := snapshot.Assignments["iface-secondary"]
-				record.IPIDs = append(record.IPIDs, "ip-v4")
-				snapshot.Assignments["iface-secondary"] = record
+				record := snapshot.Assignments[testIfaceSecondary]
+				record.IPIDs = append(record.IPIDs, testIPv4ID)
+				snapshot.Assignments[testIfaceSecondary] = record
 			},
 		},
 		{
 			name: "assignment IP missing owner",
 			mutate: func(snapshot *Snapshot) {
-				delete(snapshot.IPOwners, "ip-v4")
+				delete(snapshot.IPOwners, testIPv4ID)
 			},
 		},
 		{
 			name: "assignment owner mismatch",
 			mutate: func(snapshot *Snapshot) {
-				snapshot.IPOwners["ip-v4"] = "iface-secondary"
+				snapshot.IPOwners[testIPv4ID] = testIfaceSecondary
 			},
 		},
 		{
 			name: "owner missing IP",
 			mutate: func(snapshot *Snapshot) {
-				snapshot.IPOwners["missing"] = "iface-primary"
+				snapshot.IPOwners[testMissingID] = testIfacePrimary
 			},
 		},
 		{
@@ -365,9 +388,9 @@ func TestSnapshotRejectsLogicalInconsistencies(t *testing.T) {
 				snapshot.IPs["ip-unassigned"] = IPRecord{
 					ID:        "ip-unassigned",
 					IPAddress: "10.2.0.4",
-					NCID:      "nc-1",
+					NCID:      testNCID,
 				}
-				snapshot.IPOwners["ip-unassigned"] = "missing"
+				snapshot.IPOwners["ip-unassigned"] = testMissingID
 			},
 		},
 		{
@@ -376,29 +399,29 @@ func TestSnapshotRejectsLogicalInconsistencies(t *testing.T) {
 				snapshot.IPs["ip-unassigned"] = IPRecord{
 					ID:        "ip-unassigned",
 					IPAddress: "10.2.0.4",
-					NCID:      "nc-1",
+					NCID:      testNCID,
 				}
-				snapshot.IPOwners["ip-unassigned"] = "iface-primary"
+				snapshot.IPOwners["ip-unassigned"] = testIfacePrimary
 			},
 		},
 		{
 			name: "missing endpoint",
 			mutate: func(snapshot *Snapshot) {
-				delete(snapshot.Endpoints, "container-1")
+				delete(snapshot.Endpoints, testContainerID)
 			},
 		},
 		{
 			name: "endpoint pod identity mismatch",
 			mutate: func(snapshot *Snapshot) {
-				record := snapshot.Endpoints["container-1"]
-				record.PodName = "other"
-				snapshot.Endpoints["container-1"] = record
+				record := snapshot.Endpoints[testContainerID]
+				record.PodName = testMismatchValue
+				snapshot.Endpoints[testContainerID] = record
 			},
 		},
 		{
 			name: "assigned IP missing from endpoint",
 			mutate: func(snapshot *Snapshot) {
-				snapshot.Endpoints["container-1"].IfnameToIPMap["eth0"].IPv4 = nil
+				snapshot.Endpoints[testContainerID].IfnameToIPMap[testEth0].IPv4 = nil
 			},
 		},
 		{
@@ -411,7 +434,7 @@ func TestSnapshotRejectsLogicalInconsistencies(t *testing.T) {
 					true,
 					completeNetworkContainerRequest(),
 				)
-				snapshot.Endpoints["container-1"].IfnameToIPMap["eth0"].NetworkContainerID = "nc-2"
+				snapshot.Endpoints[testContainerID].IfnameToIPMap[testEth0].NetworkContainerID = "nc-2"
 			},
 		},
 		{
@@ -419,12 +442,12 @@ func TestSnapshotRejectsLogicalInconsistencies(t *testing.T) {
 			mutate: func(snapshot *Snapshot) {
 				snapshot.Endpoints["container-2"] = EndpointRecord{
 					IfnameToIPMap: map[string]*IPInfoRecord{
-						"eth0": {
+						testEth0: {
 							IPv4: []net.IPNet{{
-								IP:   net.ParseIP("10.0.0.4"),
+								IP:   net.ParseIP(testIPv4Address),
 								Mask: net.CIDRMask(24, 32),
 							}},
-							NetworkContainerID: "nc-1",
+							NetworkContainerID: testNCID,
 						},
 					},
 				}
@@ -433,13 +456,13 @@ func TestSnapshotRejectsLogicalInconsistencies(t *testing.T) {
 		{
 			name: "empty endpoint interface name",
 			mutate: func(snapshot *Snapshot) {
-				snapshot.Endpoints["container-1"].IfnameToIPMap[""] = &IPInfoRecord{}
+				snapshot.Endpoints[testContainerID].IfnameToIPMap[""] = &IPInfoRecord{}
 			},
 		},
 		{
 			name: "endpoint missing NC",
 			mutate: func(snapshot *Snapshot) {
-				snapshot.Endpoints["container-1"].IfnameToIPMap["eth0"].NetworkContainerID = "missing"
+				snapshot.Endpoints[testContainerID].IfnameToIPMap[testEth0].NetworkContainerID = testMissingID
 			},
 		},
 	}
@@ -467,7 +490,7 @@ func TestSnapshotValidationRejectsEmptyKeys(t *testing.T) {
 		{
 			name: "network container",
 			mutate: func(snapshot *Snapshot) {
-				snapshot.NetworkContainers[""] = snapshot.NetworkContainers["nc-1"]
+				snapshot.NetworkContainers[""] = snapshot.NetworkContainers[testNCID]
 			},
 		},
 		{
@@ -503,7 +526,7 @@ func TestSnapshotValidationRejectsEmptyKeys(t *testing.T) {
 		{
 			name: "IP owner",
 			mutate: func(snapshot *Snapshot) {
-				snapshot.IPOwners[""] = "iface-primary"
+				snapshot.IPOwners[""] = testIfacePrimary
 			},
 		},
 		{
@@ -543,27 +566,27 @@ func TestSnapshotRejectsStructuralNetworkData(t *testing.T) {
 		{
 			name:   "malformed IP record address",
 			bucket: bucketIPs,
-			key:    "ip-v4",
+			key:    testIPv4ID,
 			mutate: func(snapshot *Snapshot) {
-				record := snapshot.IPs["ip-v4"]
+				record := snapshot.IPs[testIPv4ID]
 				record.IPAddress = "not-an-ip"
-				snapshot.IPs["ip-v4"] = record
+				snapshot.IPs[testIPv4ID] = record
 			},
 		},
 		{
 			name:   "malformed network prefix",
 			bucket: bucketNetworks,
-			key:    "network-1",
+			key:    testNetworkName,
 			mutate: func(snapshot *Snapshot) {
-				snapshot.Networks["network-1"].NicInfo.Subnet = "10.0.0.0/not-a-prefix"
+				snapshot.Networks[testNetworkName].NicInfo.Subnet = "10.0.0.0/not-a-prefix"
 			},
 		},
 		{
 			name:   "malformed network address",
 			bucket: bucketNetworks,
-			key:    "network-1",
+			key:    testNetworkName,
 			mutate: func(snapshot *Snapshot) {
-				snapshot.Networks["network-1"].NicInfo.Gateway = "not-an-ip"
+				snapshot.Networks[testNetworkName].NicInfo.Gateway = "not-an-ip"
 			},
 		},
 		{
@@ -578,33 +601,33 @@ func TestSnapshotRejectsStructuralNetworkData(t *testing.T) {
 		{
 			name:   "null endpoint IP info",
 			bucket: bucketEndpoints,
-			key:    "container-1",
+			key:    testContainerID,
 			mutate: func(snapshot *Snapshot) {
-				snapshot.Endpoints["container-1"].IfnameToIPMap["eth0"] = nil
+				snapshot.Endpoints[testContainerID].IfnameToIPMap[testEth0] = nil
 			},
 		},
 		{
 			name:   "malformed endpoint MAC",
 			bucket: bucketEndpoints,
-			key:    "container-1",
+			key:    testContainerID,
 			mutate: func(snapshot *Snapshot) {
-				snapshot.Endpoints["container-1"].IfnameToIPMap["eth0"].MACAddress = "not-a-mac"
+				snapshot.Endpoints[testContainerID].IfnameToIPMap[testEth0].MACAddress = "not-a-mac"
 			},
 		},
 		{
 			name:   "non-contiguous endpoint mask",
 			bucket: bucketEndpoints,
-			key:    "container-1",
+			key:    testContainerID,
 			mutate: func(snapshot *Snapshot) {
-				snapshot.Endpoints["container-1"].IfnameToIPMap["eth0"].IPv4[0].Mask = net.IPMask{255, 0, 255, 0}
+				snapshot.Endpoints[testContainerID].IfnameToIPMap[testEth0].IPv4[0].Mask = net.IPMask{255, 0, 255, 0}
 			},
 		},
 		{
 			name:   "IPv6 address in IPv4 prefixes",
 			bucket: bucketEndpoints,
-			key:    "container-1",
+			key:    testContainerID,
 			mutate: func(snapshot *Snapshot) {
-				snapshot.Endpoints["container-1"].IfnameToIPMap["eth0"].IPv4[0] = net.IPNet{
+				snapshot.Endpoints[testContainerID].IfnameToIPMap[testEth0].IPv4[0] = net.IPNet{
 					IP:   net.ParseIP("fd00::99"),
 					Mask: net.CIDRMask(64, 128),
 				}
@@ -613,9 +636,9 @@ func TestSnapshotRejectsStructuralNetworkData(t *testing.T) {
 		{
 			name:   "IPv4 address in IPv6 prefixes",
 			bucket: bucketEndpoints,
-			key:    "container-1",
+			key:    testContainerID,
 			mutate: func(snapshot *Snapshot) {
-				snapshot.Endpoints["container-1"].IfnameToIPMap["eth0"].IPv6[0] = net.IPNet{
+				snapshot.Endpoints[testContainerID].IfnameToIPMap[testEth0].IPv6[0] = net.IPNet{
 					IP:   net.ParseIP("10.0.0.99"),
 					Mask: net.CIDRMask(24, 32),
 				}
@@ -633,7 +656,7 @@ func TestSnapshotRejectsStructuralNetworkData(t *testing.T) {
 			_, err := db.Snapshot(context.Background())
 
 			require.ErrorIs(t, err, ErrCorrupt)
-			assert.NotErrorIs(t, err, ErrInconsistentState)
+			require.NotErrorIs(t, err, ErrInconsistentState)
 			assert.Contains(t, err.Error(), string(tt.bucket))
 			assert.Contains(t, err.Error(), tt.key)
 		})
@@ -649,7 +672,7 @@ func TestSnapshotRejectsUnknownSchema(t *testing.T) {
 	_, err := db.Snapshot(context.Background())
 
 	require.ErrorIs(t, err, ErrSchemaMismatch)
-	assert.NotErrorIs(t, err, ErrCorrupt)
+	require.NotErrorIs(t, err, ErrCorrupt)
 	assert.NotErrorIs(t, err, ErrInconsistentState)
 }
 
@@ -692,19 +715,20 @@ func TestSnapshotRejectsEveryMissingBucket(t *testing.T) {
 
 func TestSnapshotDoesNotRepairPersistedData(t *testing.T) {
 	db, _ := openTestDB(t)
-	record := NewNetworkContainerRecord("nc-1", "2", "1", true, completeNetworkContainerRequest())
-	record.Request.AuthorizationToken = "secret"
+	record := NewNetworkContainerRecord(testNCID, "2", "1", true, completeNetworkContainerRequest())
+	record.Request.AuthorizationToken = testSecretToken
+	//nolint:musttag // CreateNetworkContainerRequest intentionally retains its legacy untagged JSON field names.
 	data, err := json.Marshal(record)
 	require.NoError(t, err)
-	putRaw(t, db, bucketNetworkContainers, []byte("nc-1"), data)
-	before := rawValue(t, db, bucketNetworkContainers, []byte("nc-1"))
+	putRaw(t, db, bucketNetworkContainers, []byte(testNCID), data)
+	before := rawValue(t, db, bucketNetworkContainers, []byte(testNCID))
 
 	_, err = db.Snapshot(context.Background())
 
 	require.ErrorIs(t, err, ErrInconsistentState)
-	after := rawValue(t, db, bucketNetworkContainers, []byte("nc-1"))
+	after := rawValue(t, db, bucketNetworkContainers, []byte(testNCID))
 	assert.Equal(t, before, after)
-	assert.Contains(t, string(after), "secret")
+	assert.Contains(t, string(after), testSecretToken)
 }
 
 func TestSnapshotValidationErrorsAreDeterministic(t *testing.T) {
@@ -722,45 +746,45 @@ func TestSnapshotValidationErrorsAreDeterministic(t *testing.T) {
 		}
 		assert.Equal(t, first, err.Error())
 	}
-	assert.True(t, strings.Contains(first, `"a"`))
+	assert.Contains(t, first, `"a"`)
 }
 
 func completeSnapshot() Snapshot {
 	snapshot := NewSnapshot()
-	snapshot.NetworkContainers["nc-1"] = NewNetworkContainerRecord(
-		"nc-1",
+	snapshot.NetworkContainers[testNCID] = NewNetworkContainerRecord(
+		testNCID,
 		"2",
 		"1",
 		true,
 		completeNetworkContainerRequest(),
 	)
 	snapshot.IPs = map[string]IPRecord{
-		"ip-v4": {
-			ID:        "ip-v4",
-			IPAddress: "10.0.0.4",
-			NCID:      "nc-1",
+		testIPv4ID: {
+			ID:        testIPv4ID,
+			IPAddress: testIPv4Address,
+			NCID:      testNCID,
 			NCVersion: 7,
 		},
-		"ip-v6": {
-			ID:        "ip-v6",
+		testIPv6ID: {
+			ID:        testIPv6ID,
 			IPAddress: "fd00::4",
-			NCID:      "nc-1",
+			NCID:      testNCID,
 			NCVersion: 7,
 		},
-		"ip-secondary": {
-			ID:        "ip-secondary",
+		testIPSecondary: {
+			ID:        testIPSecondary,
 			IPAddress: "10.1.0.4",
-			NCID:      "nc-1",
+			NCID:      testNCID,
 			NCVersion: 7,
 		},
 	}
-	snapshot.Networks["network-1"] = NetworkRecord{
-		NetworkName: "network-1",
+	snapshot.Networks[testNetworkName] = NetworkRecord{
+		NetworkName: testNetworkName,
 		NicInfo: &wireserver.InterfaceInfo{
 			Subnet:       "10.0.0.0/24",
-			Gateway:      "10.0.0.1",
+			Gateway:      testGatewayAddress,
 			IsPrimary:    true,
-			PrimaryIP:    "10.0.0.4",
+			PrimaryIP:    testIPv4Address,
 			SecondaryIPs: []string{"10.0.0.5"},
 		},
 		Options: map[string]any{
@@ -768,36 +792,36 @@ func completeSnapshot() Snapshot {
 			"enabled": true,
 		},
 	}
-	snapshot.OrchestratorContexts["context-1"] = []string{"nc-1"}
+	snapshot.OrchestratorContexts["context-1"] = []string{testNCID}
 	snapshot.PnPIDByMAC["00:11:22:33:44:55"] = "pnp-1"
 	snapshot.Assignments = map[string]AssignmentRecord{
-		"iface-primary": {
+		testIfacePrimary: {
 			Pod: PodIdentity{
-				PodKey:           "iface-primary",
-				InfraContainerID: "container-1",
-				InterfaceID:      "iface-primary",
-				PodName:          "pod-1",
-				PodNamespace:     "ns-1",
+				PodKey:           testIfacePrimary,
+				InfraContainerID: testContainerID,
+				InterfaceID:      testIfacePrimary,
+				PodName:          testPodName,
+				PodNamespace:     testPodNamespace,
 			},
-			IPIDs: []string{"ip-v4", "ip-v6"},
+			IPIDs: []string{testIPv4ID, testIPv6ID},
 		},
-		"iface-secondary": {
+		testIfaceSecondary: {
 			Pod: PodIdentity{
-				PodKey:           "iface-secondary",
-				InfraContainerID: "container-1",
-				InterfaceID:      "iface-secondary",
-				PodName:          "pod-1",
-				PodNamespace:     "ns-1",
+				PodKey:           testIfaceSecondary,
+				InfraContainerID: testContainerID,
+				InterfaceID:      testIfaceSecondary,
+				PodName:          testPodName,
+				PodNamespace:     testPodNamespace,
 			},
-			IPIDs: []string{"ip-secondary"},
+			IPIDs: []string{testIPSecondary},
 		},
 	}
 	snapshot.IPOwners = map[string]string{
-		"ip-v4":        "iface-primary",
-		"ip-v6":        "iface-primary",
-		"ip-secondary": "iface-secondary",
+		testIPv4ID:      testIfacePrimary,
+		testIPv6ID:      testIfacePrimary,
+		testIPSecondary: testIfaceSecondary,
 	}
-	snapshot.Endpoints["container-1"] = completeEndpointRecord()
+	snapshot.Endpoints[testContainerID] = completeEndpointRecord()
 	snapshot.DeleteIntents["nc-old"] = DeleteIntent{
 		CreatedAt: time.Date(2026, time.July, 23, 22, 0, 0, 0, time.UTC),
 	}
