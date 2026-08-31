@@ -481,15 +481,15 @@ func TestApplyBoot(t *testing.T) {
 				assert.Equal(t, initial.Assignments, got.Assignments)
 				assert.Equal(t, initial.IPOwners, got.IPOwners)
 
-				changed, err := db.AssignEndpoint(
+				replayChanged, replayErr := db.AssignEndpoint(
 					context.Background(),
 					initial.Assignments["iface-primary"],
 					initial.Endpoints["container-1"],
 					testNow,
 					testDeleteIntentTTL,
 				)
-				require.NoError(t, err)
-				assert.False(t, changed)
+				require.NoError(t, replayErr)
+				assert.False(t, replayChanged)
 			} else {
 				assert.Empty(t, got.Assignments)
 				assert.Empty(t, got.IPOwners)

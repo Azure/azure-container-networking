@@ -239,9 +239,9 @@ func (s *DB) ApplyBoot(ctx context.Context, bootID string, policy BootPolicy) (b
 			candidate.IPOwners = map[string]string{}
 			candidate.Endpoints = map[string]EndpointRecord{}
 		} else {
-			assignments, owners, err := reconstructRetainedEndpointOwnership(candidate)
-			if err != nil {
-				return false, err
+			assignments, owners, ownershipErr := reconstructRetainedEndpointOwnership(candidate)
+			if ownershipErr != nil {
+				return false, ownershipErr
 			}
 			candidate.Assignments = assignments
 			candidate.IPOwners = owners
@@ -302,7 +302,7 @@ func (s *DB) ApplyBoot(ctx context.Context, bootID string, policy BootPolicy) (b
 
 func reconstructRetainedEndpointOwnership(
 	snapshot Snapshot,
-) (map[string]AssignmentRecord, map[string]string, error) {
+) (assignments map[string]AssignmentRecord, owners map[string]string, returnErr error) {
 	ipAddresses, err := snapshot.validateIPs()
 	if err != nil {
 		return nil, nil, err
@@ -319,12 +319,12 @@ func reconstructRetainedEndpointOwnership(
 		ipIDByAddress[address] = ipID
 	}
 
-	assignments := make(map[string]AssignmentRecord, len(snapshot.Assignments)+len(snapshot.Endpoints))
+	assignments = make(map[string]AssignmentRecord, len(snapshot.Assignments)+len(snapshot.Endpoints))
 	for key, assignment := range snapshot.Assignments {
 		assignment.IPIDs = append([]string(nil), assignment.IPIDs...)
 		assignments[key] = assignment
 	}
-	owners := make(map[string]string, len(snapshot.IPOwners)+len(snapshot.IPs))
+	owners = make(map[string]string, len(snapshot.IPOwners)+len(snapshot.IPs))
 	for ipID, owner := range snapshot.IPOwners {
 		owners[ipID] = owner
 	}

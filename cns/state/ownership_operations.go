@@ -16,6 +16,15 @@ import (
 	"time"
 )
 
+type endpointAssignmentPlan struct {
+	candidate           Snapshot
+	containerID         string
+	assignmentExists    bool
+	endpointExists      bool
+	endpointChanged     bool
+	removeExpiredIntent bool
+}
+
 func (s *DB) AssignEndpoint(
 	ctx context.Context,
 	assignment AssignmentRecord,
@@ -31,8 +40,8 @@ func (s *DB) AssignEndpoint(
 	if err != nil {
 		return false, err
 	}
-	if err := validateEndpointPod(normalizedAssignment.Pod, normalizedEndpoint); err != nil {
-		return false, err
+	if validationErr := validateEndpointPod(normalizedAssignment.Pod, normalizedEndpoint); validationErr != nil {
+		return false, validationErr
 	}
 	now, err = normalizeNow(now, deleteIntentTTL)
 	if err != nil {
@@ -40,108 +49,126 @@ func (s *DB) AssignEndpoint(
 	}
 
 	return s.update(ctx, func(tx *WriteTx) (bool, error) {
-		current, err := tx.validSnapshot()
-		if err != nil {
-			return false, err
+		current, snapshotErr := tx.validSnapshot()
+		if snapshotErr != nil {
+			return false, snapshotErr
 		}
-		candidate := cloneSnapshot(current)
-		containerID := normalizedAssignment.Pod.InfraContainerID
-		removeExpiredIntent := false
-		if intent, ok := current.DeleteIntents[containerID]; ok {
-			if deleteIntentLive(intent, now, deleteIntentTTL) {
-				return false, fmt.Errorf("%w: infra container %q", ErrDeleteIntent, containerID)
-			}
-			delete(candidate.DeleteIntents, containerID)
-			removeExpiredIntent = true
-		}
-
-		if err := preflightAssignmentIdentity(current, normalizedAssignment); err != nil {
-			return false, err
-		}
-		for _, ipID := range normalizedAssignment.IPIDs {
-			if _, ok := current.IPs[ipID]; !ok {
-				return false, invalidInput(fmt.Sprintf("assignment references missing IP %q", ipID), nil)
-			}
-			if owner, ok := current.IPOwners[ipID]; ok && owner != normalizedAssignment.Pod.PodKey {
-				return false, fmt.Errorf("%w: IP %q is owned by %q", ErrIPAlreadyAssigned, ipID, owner)
-			}
+		plan, planErr := buildEndpointAssignmentPlan(
+			current,
+			normalizedAssignment,
+			normalizedEndpoint,
+			now,
+			deleteIntentTTL,
+		)
+		if planErr != nil {
+			return false, planErr
 		}
 
-		existingAssignment, assignmentExists := current.Assignments[normalizedAssignment.Pod.PodKey]
-		if assignmentExists && !assignmentEqual(existingAssignment, normalizedAssignment) {
-			return false, invalidInput(
-				fmt.Sprintf("assignment %q requires explicit release before change", normalizedAssignment.Pod.PodKey),
-				nil,
-			)
+		assignmentData, encodeErr := encodeJSONInput(normalizedAssignment)
+		if encodeErr != nil {
+			return false, invalidInput("encoding assignment", encodeErr)
 		}
-		existingEndpoint, endpointExists := current.Endpoints[containerID]
-		if assignmentExists && endpointExists {
-			equal, err := endpointsEqual(existingEndpoint, normalizedEndpoint)
-			if err != nil {
-				return false, err
-			}
-			if !equal {
-				return false, invalidInput(
-					fmt.Sprintf("endpoint %q requires PatchEndpoint before change", containerID),
-					nil,
-				)
-			}
+		endpointData, encodeErr := encodeJSONInput(normalizedEndpoint)
+		if encodeErr != nil {
+			return false, invalidInput("encoding endpoint", encodeErr)
+		}
+		ownerData, encodeErr := encodeJSONMap(ownersFromAssignment(normalizedAssignment))
+		if encodeErr != nil {
+			return false, encodeErr
 		}
 
-		candidate.Assignments[normalizedAssignment.Pod.PodKey] = normalizedAssignment
-		for _, ipID := range normalizedAssignment.IPIDs {
-			candidate.IPOwners[ipID] = normalizedAssignment.Pod.PodKey
-		}
-		candidate.Endpoints[containerID] = normalizedEndpoint
-		if err := validateInput(candidate); err != nil {
-			return false, err
-		}
-
-		assignmentData, err := encodeJSONInput(normalizedAssignment)
-		if err != nil {
-			return false, invalidInput("encoding assignment", err)
-		}
-		endpointData, err := encodeJSONInput(normalizedEndpoint)
-		if err != nil {
-			return false, invalidInput("encoding endpoint", err)
-		}
-		ownerData, err := encodeJSONMap(ownersFromAssignment(normalizedAssignment))
-		if err != nil {
-			return false, err
-		}
-
-		endpointChanged := true
-		if endpointExists {
-			equal, equalErr := endpointsEqual(existingEndpoint, normalizedEndpoint)
-			err = equalErr
-			if err != nil {
-				return false, err
-			}
-			endpointChanged = !equal
-		}
-		if assignmentExists && !endpointChanged && !removeExpiredIntent {
+		if plan.assignmentExists && !plan.endpointChanged && !plan.removeExpiredIntent {
 			return false, nil
 		}
 
-		if removeExpiredIntent {
-			if err := tx.tx.Bucket(bucketDeleteIntents).Delete([]byte(containerID)); err != nil {
-				return false, fmt.Errorf("deleting expired intent %q: %w", containerID, err)
+		if plan.removeExpiredIntent {
+			if deleteErr := tx.tx.Bucket(bucketDeleteIntents).Delete([]byte(plan.containerID)); deleteErr != nil {
+				return false, fmt.Errorf("deleting expired intent %q: %w", plan.containerID, deleteErr)
 			}
 		}
-		if err := tx.tx.Bucket(bucketAssignments).Put([]byte(normalizedAssignment.Pod.PodKey), assignmentData); err != nil {
-			return false, fmt.Errorf("writing assignment %q: %w", normalizedAssignment.Pod.PodKey, err)
+		if writeErr := tx.tx.Bucket(bucketAssignments).Put(
+			[]byte(normalizedAssignment.Pod.PodKey),
+			assignmentData,
+		); writeErr != nil {
+			return false, fmt.Errorf("writing assignment %q: %w", normalizedAssignment.Pod.PodKey, writeErr)
 		}
 		ownerBucket := tx.tx.Bucket(bucketIPOwners)
 		for _, ipID := range sortedKeys(ownerData) {
-			if err := ownerBucket.Put([]byte(ipID), ownerData[ipID]); err != nil {
-				return false, fmt.Errorf("writing IP owner %q: %w", ipID, err)
+			if writeErr := ownerBucket.Put([]byte(ipID), ownerData[ipID]); writeErr != nil {
+				return false, fmt.Errorf("writing IP owner %q: %w", ipID, writeErr)
 			}
 		}
-		if err := tx.tx.Bucket(bucketEndpoints).Put([]byte(containerID), endpointData); err != nil {
-			return false, fmt.Errorf("writing endpoint %q: %w", containerID, err)
+		if writeErr := tx.tx.Bucket(bucketEndpoints).Put([]byte(plan.containerID), endpointData); writeErr != nil {
+			return false, fmt.Errorf("writing endpoint %q: %w", plan.containerID, writeErr)
 		}
 		return true, nil
 	})
+}
+
+func buildEndpointAssignmentPlan(
+	current Snapshot,
+	assignment AssignmentRecord,
+	endpoint EndpointRecord,
+	now time.Time,
+	deleteIntentTTL time.Duration,
+) (endpointAssignmentPlan, error) {
+	plan := endpointAssignmentPlan{
+		candidate:       cloneSnapshot(current),
+		containerID:     assignment.Pod.InfraContainerID,
+		endpointChanged: true,
+	}
+	if intent, ok := current.DeleteIntents[plan.containerID]; ok {
+		if deleteIntentLive(intent, now, deleteIntentTTL) {
+			return endpointAssignmentPlan{}, fmt.Errorf("%w: infra container %q", ErrDeleteIntent, plan.containerID)
+		}
+		delete(plan.candidate.DeleteIntents, plan.containerID)
+		plan.removeExpiredIntent = true
+	}
+	if validationErr := preflightAssignmentIdentity(current, assignment); validationErr != nil {
+		return endpointAssignmentPlan{}, validationErr
+	}
+	for _, ipID := range assignment.IPIDs {
+		if _, ok := current.IPs[ipID]; !ok {
+			return endpointAssignmentPlan{}, invalidInput(fmt.Sprintf("assignment references missing IP %q", ipID), nil)
+		}
+		if owner, ok := current.IPOwners[ipID]; ok && owner != assignment.Pod.PodKey {
+			return endpointAssignmentPlan{}, fmt.Errorf("%w: IP %q is owned by %q", ErrIPAlreadyAssigned, ipID, owner)
+		}
+	}
+
+	existingAssignment, assignmentExists := current.Assignments[assignment.Pod.PodKey]
+	plan.assignmentExists = assignmentExists
+	if assignmentExists && !assignmentEqual(existingAssignment, assignment) {
+		return endpointAssignmentPlan{}, invalidInput(
+			fmt.Sprintf("assignment %q requires explicit release before change", assignment.Pod.PodKey),
+			nil,
+		)
+	}
+	existingEndpoint, endpointExists := current.Endpoints[plan.containerID]
+	plan.endpointExists = endpointExists
+	if endpointExists {
+		equal, equalErr := endpointsEqual(existingEndpoint, endpoint)
+		if equalErr != nil {
+			return endpointAssignmentPlan{}, equalErr
+		}
+		plan.endpointChanged = !equal
+		if assignmentExists && !equal {
+			return endpointAssignmentPlan{}, invalidInput(
+				fmt.Sprintf("endpoint %q requires PatchEndpoint before change", plan.containerID),
+				nil,
+			)
+		}
+	}
+
+	plan.candidate.Assignments[assignment.Pod.PodKey] = assignment
+	for _, ipID := range assignment.IPIDs {
+		plan.candidate.IPOwners[ipID] = assignment.Pod.PodKey
+	}
+	plan.candidate.Endpoints[plan.containerID] = endpoint
+	if validationErr := validateInput(plan.candidate); validationErr != nil {
+		return endpointAssignmentPlan{}, validationErr
+	}
+	return plan, nil
 }
 
 func (s *DB) ReleaseEndpoint(
@@ -159,12 +186,12 @@ func (s *DB) ReleaseEndpoint(
 	}
 
 	return s.update(ctx, func(tx *WriteTx) (bool, error) {
-		current, err := tx.validSnapshot()
-		if err != nil {
-			return false, err
+		current, snapshotErr := tx.validSnapshot()
+		if snapshotErr != nil {
+			return false, snapshotErr
 		}
-		if err := validateReleaseIdentity(current, normalizedPod); err != nil {
-			return false, err
+		if validationErr := validateReleaseIdentity(current, normalizedPod); validationErr != nil {
+			return false, validationErr
 		}
 
 		candidate := cloneSnapshot(current)
@@ -192,35 +219,35 @@ func (s *DB) ReleaseEndpoint(
 		} else {
 			candidate.DeleteIntents[normalizedPod.InfraContainerID] = intent
 		}
-		if err := validateInput(candidate); err != nil {
-			return false, err
+		if validationErr := validateInput(candidate); validationErr != nil {
+			return false, validationErr
 		}
-		intentData, err := encodeJSONInput(intent)
-		if err != nil {
-			return false, invalidInput("encoding delete intent", err)
+		intentData, encodeErr := encodeJSONInput(intent)
+		if encodeErr != nil {
+			return false, invalidInput("encoding delete intent", encodeErr)
 		}
 		if len(assignmentKeys) == 0 && intentExists {
 			return false, nil
 		}
 
 		if !intentExists {
-			if err := tx.tx.Bucket(bucketDeleteIntents).Put(
+			if writeErr := tx.tx.Bucket(bucketDeleteIntents).Put(
 				[]byte(normalizedPod.InfraContainerID),
 				intentData,
-			); err != nil {
-				return false, fmt.Errorf("writing delete intent %q: %w", normalizedPod.InfraContainerID, err)
+			); writeErr != nil {
+				return false, fmt.Errorf("writing delete intent %q: %w", normalizedPod.InfraContainerID, writeErr)
 			}
 		}
 		assignmentBucket := tx.tx.Bucket(bucketAssignments)
 		ownerBucket := tx.tx.Bucket(bucketIPOwners)
 		for _, assignmentKey := range assignmentKeys {
 			assignment := current.Assignments[assignmentKey]
-			if err := assignmentBucket.Delete([]byte(assignmentKey)); err != nil {
-				return false, fmt.Errorf("deleting assignment %q: %w", assignmentKey, err)
+			if deleteErr := assignmentBucket.Delete([]byte(assignmentKey)); deleteErr != nil {
+				return false, fmt.Errorf("deleting assignment %q: %w", assignmentKey, deleteErr)
 			}
 			for _, ipID := range assignment.IPIDs {
-				if err := ownerBucket.Delete([]byte(ipID)); err != nil {
-					return false, fmt.Errorf("deleting IP owner %q: %w", ipID, err)
+				if deleteErr := ownerBucket.Delete([]byte(ipID)); deleteErr != nil {
+					return false, fmt.Errorf("deleting IP owner %q: %w", ipID, deleteErr)
 				}
 			}
 		}
@@ -243,8 +270,8 @@ func (s *DB) PatchEndpoint(
 	if err != nil {
 		return false, err
 	}
-	if err := validateEndpointPod(normalizedPod, normalizedEndpoint); err != nil {
-		return false, err
+	if validationErr := validateEndpointPod(normalizedPod, normalizedEndpoint); validationErr != nil {
+		return false, validationErr
 	}
 	now, err = normalizeNow(now, deleteIntentTTL)
 	if err != nil {
@@ -252,9 +279,9 @@ func (s *DB) PatchEndpoint(
 	}
 
 	return s.update(ctx, func(tx *WriteTx) (bool, error) {
-		current, err := tx.validSnapshot()
-		if err != nil {
-			return false, err
+		current, snapshotErr := tx.validSnapshot()
+		if snapshotErr != nil {
+			return false, snapshotErr
 		}
 		if intent, ok := current.DeleteIntents[normalizedPod.InfraContainerID]; ok &&
 			deleteIntentLive(intent, now, deleteIntentTTL) {
@@ -273,22 +300,25 @@ func (s *DB) PatchEndpoint(
 
 		candidate := cloneSnapshot(current)
 		candidate.Endpoints[normalizedPod.InfraContainerID] = normalizedEndpoint
-		if err := validateInput(candidate); err != nil {
-			return false, err
+		if validationErr := validateInput(candidate); validationErr != nil {
+			return false, validationErr
 		}
-		equal, err := endpointsEqual(current.Endpoints[normalizedPod.InfraContainerID], normalizedEndpoint)
-		if err != nil {
-			return false, err
+		equal, equalErr := endpointsEqual(current.Endpoints[normalizedPod.InfraContainerID], normalizedEndpoint)
+		if equalErr != nil {
+			return false, equalErr
 		}
 		if equal {
 			return false, nil
 		}
-		data, err := encodeJSONInput(normalizedEndpoint)
-		if err != nil {
-			return false, invalidInput("encoding endpoint", err)
+		data, encodeErr := encodeJSONInput(normalizedEndpoint)
+		if encodeErr != nil {
+			return false, invalidInput("encoding endpoint", encodeErr)
 		}
-		if err := tx.tx.Bucket(bucketEndpoints).Put([]byte(normalizedPod.InfraContainerID), data); err != nil {
-			return false, fmt.Errorf("writing endpoint %q: %w", normalizedPod.InfraContainerID, err)
+		if writeErr := tx.tx.Bucket(bucketEndpoints).Put(
+			[]byte(normalizedPod.InfraContainerID),
+			data,
+		); writeErr != nil {
+			return false, fmt.Errorf("writing endpoint %q: %w", normalizedPod.InfraContainerID, writeErr)
 		}
 		return true, nil
 	})
@@ -300,20 +330,20 @@ func (s *DB) DeleteEndpointRecord(ctx context.Context, infraContainerID string) 
 		return false, invalidInput("infra container ID is empty", nil)
 	}
 	return s.update(ctx, func(tx *WriteTx) (bool, error) {
-		current, err := tx.validSnapshot()
-		if err != nil {
-			return false, err
+		current, snapshotErr := tx.validSnapshot()
+		if snapshotErr != nil {
+			return false, snapshotErr
 		}
 		if _, ok := current.Endpoints[infraContainerID]; !ok {
 			return false, nil
 		}
 		candidate := cloneSnapshot(current)
 		delete(candidate.Endpoints, infraContainerID)
-		if err := validateInput(candidate); err != nil {
-			return false, err
+		if validationErr := validateInput(candidate); validationErr != nil {
+			return false, validationErr
 		}
-		if err := tx.tx.Bucket(bucketEndpoints).Delete([]byte(infraContainerID)); err != nil {
-			return false, fmt.Errorf("deleting endpoint %q: %w", infraContainerID, err)
+		if deleteErr := tx.tx.Bucket(bucketEndpoints).Delete([]byte(infraContainerID)); deleteErr != nil {
+			return false, fmt.Errorf("deleting endpoint %q: %w", infraContainerID, deleteErr)
 		}
 		return true, nil
 	})
@@ -330,9 +360,9 @@ func (s *DB) PruneDeleteIntents(
 	}
 	count := 0
 	_, err = s.update(ctx, func(tx *WriteTx) (bool, error) {
-		current, err := tx.validSnapshot()
-		if err != nil {
-			return false, err
+		current, snapshotErr := tx.validSnapshot()
+		if snapshotErr != nil {
+			return false, snapshotErr
 		}
 		expired := make([]string, 0)
 		for _, containerID := range sortedKeys(current.DeleteIntents) {
@@ -347,13 +377,13 @@ func (s *DB) PruneDeleteIntents(
 		for _, containerID := range expired {
 			delete(candidate.DeleteIntents, containerID)
 		}
-		if err := validateInput(candidate); err != nil {
-			return false, err
+		if validationErr := validateInput(candidate); validationErr != nil {
+			return false, validationErr
 		}
 		bucket := tx.tx.Bucket(bucketDeleteIntents)
 		for _, containerID := range expired {
-			if err := bucket.Delete([]byte(containerID)); err != nil {
-				return false, fmt.Errorf("deleting expired intent %q: %w", containerID, err)
+			if deleteErr := bucket.Delete([]byte(containerID)); deleteErr != nil {
+				return false, fmt.Errorf("deleting expired intent %q: %w", containerID, deleteErr)
 			}
 		}
 		count = len(expired)

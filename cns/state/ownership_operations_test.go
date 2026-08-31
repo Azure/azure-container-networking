@@ -21,6 +21,8 @@ const testDeleteIntentTTL = 10 * time.Minute
 
 var testNow = time.Date(2026, time.July, 24, 0, 0, 0, 0, time.UTC)
 
+const testIPv4Address2 = "10.0.0.5"
+
 func TestOwnershipTransactions(t *testing.T) {
 	db, _ := openTestDB(t)
 	assignment, endpoint := seedOwnershipInventory(t, db)
@@ -46,7 +48,7 @@ func TestOwnershipTransactions(t *testing.T) {
 			gotAssignment, err := tx.GetAssignment(assignment.Pod.PodKey)
 			require.NoError(t, err)
 			assert.Equal(t, assignment, gotAssignment)
-			gotOwner, err := tx.GetIPOwner("ip-v4")
+			gotOwner, err := tx.GetIPOwner(testIPv4ID)
 			require.NoError(t, err)
 			assert.Equal(t, assignment.Pod.PodKey, gotOwner)
 			gotEndpoint, err := tx.GetEndpoint(assignment.Pod.InfraContainerID)
@@ -92,7 +94,7 @@ func TestOwnershipTransactions(t *testing.T) {
 		require.NoError(t, db.View(context.Background(), func(tx *ReadTx) error {
 			_, err := tx.GetAssignment(assignment.Pod.PodKey)
 			require.ErrorIs(t, err, ErrNotFound)
-			_, err = tx.GetIPOwner("ip-v4")
+			_, err = tx.GetIPOwner(testIPv4ID)
 			require.ErrorIs(t, err, ErrNotFound)
 			_, err = tx.GetEndpoint(assignment.Pod.InfraContainerID)
 			require.ErrorIs(t, err, ErrNotFound)
@@ -102,7 +104,7 @@ func TestOwnershipTransactions(t *testing.T) {
 		}))
 		for _, run := range []func(*WriteTx) error{
 			func(tx *WriteTx) error { return tx.DeleteAssignment(assignment.Pod.PodKey) },
-			func(tx *WriteTx) error { return tx.DeleteIPOwner("ip-v4") },
+			func(tx *WriteTx) error { return tx.DeleteIPOwner(testIPv4ID) },
 			func(tx *WriteTx) error { return tx.DeleteEndpoint(assignment.Pod.InfraContainerID) },
 			func(tx *WriteTx) error { return tx.DeleteDeleteIntent("old-container") },
 		} {
@@ -129,7 +131,7 @@ func TestOwnershipTransactionsReadOnly(t *testing.T) {
 		run  func() error
 	}{
 		{name: "assignment", run: func() error { return writeTx.PutAssignment(assignment) }},
-		{name: "IP owner", run: func() error { return writeTx.PutIPOwner("ip-v4", assignment.Pod.PodKey) }},
+		{name: "IP owner", run: func() error { return writeTx.PutIPOwner(testIPv4ID, assignment.Pod.PodKey) }},
 		{name: "endpoint", run: func() error {
 			return writeTx.PutEndpoint(assignment.Pod.InfraContainerID, endpoint)
 		}},
@@ -177,7 +179,7 @@ func TestAssignEndpoint(t *testing.T) {
 		assert.Equal(t, before+1, readMetadata(t, db).Generation)
 
 		changedAssignment := assignment
-		changedAssignment.IPIDs = []string{"ip-v4"}
+		changedAssignment.IPIDs = []string{testIPv4ID}
 		_, err = db.AssignEndpoint(
 			context.Background(),
 			changedAssignment,
@@ -191,15 +193,15 @@ func TestAssignEndpoint(t *testing.T) {
 
 	t.Run("single IP", func(t *testing.T) {
 		db, _ := openTestDB(t)
-		ip := IPRecord{ID: "ip-1", IPAddress: "10.0.0.4", NCID: "nc-1"}
+		ip := IPRecord{ID: testIPID1, IPAddress: testIPv4Address, NCID: testNCID}
 		_, err := db.ApplyNetworkContainer(
 			context.Background(),
-			testNetworkContainer("nc-1"),
+			testNetworkContainer(testNCID),
 			[]IPRecord{ip},
 		)
 		require.NoError(t, err)
-		assignment := testAssignment("container-1", "pod-1", "ns-1", "ip-1")
-		endpoint := testEndpoint("pod-1", "ns-1", "10.0.0.4", "nc-1")
+		assignment := testAssignment("container-1", "pod-1", testIPID1)
+		endpoint := testEndpoint("pod-1", testIPv4Address)
 		changed, err := db.AssignEndpoint(
 			context.Background(),
 			assignment,
@@ -216,7 +218,7 @@ func TestAssignEndpoint(t *testing.T) {
 		db, _ := openTestDB(t)
 		assignment, endpoint := seedOwnershipInventory(t, db)
 		duplicate := assignment
-		duplicate.IPIDs = []string{"ip-v4", "ip-v4"}
+		duplicate.IPIDs = []string{testIPv4ID, testIPv4ID}
 		_, err := db.AssignEndpoint(
 			context.Background(),
 			duplicate,
@@ -241,7 +243,7 @@ func TestAssignEndpoint(t *testing.T) {
 
 func TestConcurrentDuplicateOwnership(t *testing.T) {
 	db, _ := openTestDB(t)
-	ip := IPRecord{ID: "ip-1", IPAddress: "10.0.0.4", NCID: "nc-1"}
+	ip := IPRecord{ID: testIPID1, IPAddress: testIPv4Address, NCID: testNCID}
 	_, err := db.ApplyNetworkContainer(
 		context.Background(),
 		testNetworkContainer("nc-1"),
@@ -253,12 +255,12 @@ func TestConcurrentDuplicateOwnership(t *testing.T) {
 		endpoint   EndpointRecord
 	}{
 		{
-			assignment: testAssignment("container-1", "pod-1", "ns-1", "ip-1"),
-			endpoint:   testEndpoint("pod-1", "ns-1", "10.0.0.4", "nc-1"),
+			assignment: testAssignment("container-1", "pod-1", testIPID1),
+			endpoint:   testEndpoint("pod-1", testIPv4Address),
 		},
 		{
-			assignment: testAssignment("container-2", "pod-2", "ns-1", "ip-1"),
-			endpoint:   testEndpoint("pod-2", "ns-1", "10.0.0.4", "nc-1"),
+			assignment: testAssignment("container-2", "pod-2", testIPID1),
+			endpoint:   testEndpoint("pod-2", testIPv4Address),
 		},
 	}
 	start := make(chan struct{})
@@ -376,17 +378,17 @@ func TestReleaseEndpointRemovesAllContainerAssignments(t *testing.T) {
 func TestAssignRequiresRetainedEndpointCleanupBeforeContainerChange(t *testing.T) {
 	db, _ := openTestDB(t)
 	ips := []IPRecord{
-		{ID: "ip-1", IPAddress: "10.0.0.4", NCID: "nc-1"},
-		{ID: "ip-2", IPAddress: "10.0.0.5", NCID: "nc-1"},
+		{ID: testIPID1, IPAddress: testIPv4Address, NCID: testNCID},
+		{ID: testIPID2, IPAddress: testIPv4Address2, NCID: testNCID},
 	}
 	_, err := db.ApplyNetworkContainer(
 		context.Background(),
-		testNetworkContainer("nc-1"),
+		testNetworkContainer(testNCID),
 		ips,
 	)
 	require.NoError(t, err)
-	oldAssignment := testAssignment("container-1", "pod-1", "ns-1", "ip-1")
-	oldEndpoint := testEndpoint("pod-1", "ns-1", "10.0.0.4", "nc-1")
+	oldAssignment := testAssignment("container-1", "pod-1", testIPID1)
+	oldEndpoint := testEndpoint("pod-1", testIPv4Address)
 	_, err = db.AssignEndpoint(
 		context.Background(),
 		oldAssignment,
@@ -400,8 +402,8 @@ func TestAssignRequiresRetainedEndpointCleanupBeforeContainerChange(t *testing.T
 
 	_, err = db.AssignEndpoint(
 		context.Background(),
-		testAssignment("container-2", "pod-1", "ns-1", "ip-2"),
-		testEndpoint("pod-1", "ns-1", "10.0.0.5", "nc-1"),
+		testAssignment("container-2", "pod-1", testIPID2),
+		testEndpoint("pod-1", testIPv4Address2),
 		testNow.Add(testDeleteIntentTTL),
 		testDeleteIntentTTL,
 	)
@@ -561,29 +563,29 @@ func TestOwnershipFailuresRollback(t *testing.T) {
 		assignment, endpoint := seedOwnershipInventory(t, db)
 		before := requireValidSnapshot(t, db)
 		err := db.Update(context.Background(), func(tx *WriteTx) error {
-			if err := tx.PutEndpoint(assignment.Pod.InfraContainerID, endpoint); err != nil {
-				return err
+			if writeErr := tx.PutEndpoint(assignment.Pod.InfraContainerID, endpoint); writeErr != nil {
+				return writeErr
 			}
-			if err := tx.PutAssignment(assignment); err != nil {
-				return err
+			if writeErr := tx.PutAssignment(assignment); writeErr != nil {
+				return writeErr
 			}
 			for _, ipID := range assignment.IPIDs {
-				if err := tx.PutIPOwner(ipID, assignment.Pod.PodKey); err != nil {
-					return err
+				if writeErr := tx.PutIPOwner(ipID, assignment.Pod.PodKey); writeErr != nil {
+					return writeErr
 				}
 			}
 			return errAbort
 		})
 
 		t.Run("final transaction guard", func(t *testing.T) {
-			db, _ := openTestDB(t)
-			assignment, _ := seedOwnershipInventory(t, db)
-			before := requireValidSnapshot(t, db)
-			err := db.Update(context.Background(), func(tx *WriteTx) error {
-				return tx.PutAssignment(assignment)
+			guardDB, _ := openTestDB(t)
+			guardAssignment, _ := seedOwnershipInventory(t, guardDB)
+			guardBefore := requireValidSnapshot(t, guardDB)
+			guardErr := guardDB.Update(context.Background(), func(tx *WriteTx) error {
+				return tx.PutAssignment(guardAssignment)
 			})
-			require.ErrorIs(t, err, ErrInvalidInput)
-			assert.Equal(t, before, requireValidSnapshot(t, db))
+			require.ErrorIs(t, guardErr, ErrInvalidInput)
+			assert.Equal(t, guardBefore, requireValidSnapshot(t, guardDB))
 		})
 		require.ErrorIs(t, err, errAbort)
 		assert.Equal(t, before, requireValidSnapshot(t, db))
@@ -621,12 +623,12 @@ func TestOwnershipFailuresRollback(t *testing.T) {
 			testDeleteIntentTTL,
 		)
 		require.NoError(t, err)
-		putRaw(t, db, bucketIPOwners, []byte("ip-v4"), []byte(`"other"`))
-		beforeOwner := rawValue(t, db, bucketIPOwners, []byte("ip-v4"))
+		putRaw(t, db, bucketIPOwners, []byte(testIPv4ID), []byte(`"other"`))
+		beforeOwner := rawValue(t, db, bucketIPOwners, []byte(testIPv4ID))
 		beforeGeneration := readMetadata(t, db).Generation
 		_, err = db.ReleaseEndpoint(context.Background(), assignment.Pod, testNow)
 		require.ErrorIs(t, err, ErrInconsistentState)
-		assert.Equal(t, beforeOwner, rawValue(t, db, bucketIPOwners, []byte("ip-v4")))
+		assert.Equal(t, beforeOwner, rawValue(t, db, bucketIPOwners, []byte(testIPv4ID)))
 		assert.Equal(t, beforeGeneration, readMetadata(t, db).Generation)
 	})
 }
@@ -832,10 +834,10 @@ func TestApplyBootRetainedEndpointFailuresRollback(t *testing.T) {
 	t.Run("duplicate inventory", func(t *testing.T) {
 		db, _ := openTestDB(t)
 		snapshot := endpointOnlySnapshot()
-		snapshot.Endpoints["container-1"] = testEndpoint("pod-1", "ns-1", "10.0.0.4", "nc-1")
+		snapshot.Endpoints["container-1"] = testEndpoint("pod-1", testIPv4Address)
 		snapshot.IPs["ip-duplicate"] = IPRecord{
 			ID:        "ip-duplicate",
-			IPAddress: "10.0.0.4",
+			IPAddress: testIPv4Address,
 			NCID:      "nc-1",
 		}
 		writeSnapshot(t, db, snapshot)
@@ -867,37 +869,36 @@ func seedOwnershipInventory(t *testing.T, db *DB) (AssignmentRecord, EndpointRec
 	return testAssignment(
 		"container-1",
 		"pod-1",
-		"ns-1",
 		"ip-secondary",
-		"ip-v4",
+		testIPv4ID,
 		"ip-v6",
 	), completeEndpointRecord()
 }
 
-func testAssignment(containerID, podName, podNamespace string, ipIDs ...string) AssignmentRecord {
+func testAssignment(containerID, podName string, ipIDs ...string) AssignmentRecord {
 	return AssignmentRecord{
 		Pod: PodIdentity{
 			PodKey:           containerID,
 			InfraContainerID: containerID,
 			PodName:          podName,
-			PodNamespace:     podNamespace,
+			PodNamespace:     testPodNamespace,
 		},
 		IPIDs: ipIDs,
 	}
 }
 
-func testEndpoint(podName, podNamespace, address, ncID string) EndpointRecord {
+func testEndpoint(podName, address string) EndpointRecord {
 	return EndpointRecord{
 		PodName:      podName,
-		PodNamespace: podNamespace,
+		PodNamespace: testPodNamespace,
 		IfnameToIPMap: map[string]*IPInfoRecord{
-			"eth0": {
+			testEth0: {
 				IPv4: []net.IPNet{{
 					IP:   net.ParseIP(address),
 					Mask: net.CIDRMask(24, 32),
 				}},
-				MACAddress:         "00:11:22:33:44:55",
-				NetworkContainerID: ncID,
+				MACAddress:         testMACAddress,
+				NetworkContainerID: testNCID,
 			},
 		},
 	}

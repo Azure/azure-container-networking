@@ -236,8 +236,8 @@ func (s *DB) update(ctx context.Context, fn func(*WriteTx) (bool, error)) (bool,
 		if err != nil {
 			return err
 		}
-		if err := validateInput(candidate); err != nil {
-			return err
+		if validationErr := validateInput(candidate); validationErr != nil {
+			return validationErr
 		}
 		meta := tx.Bucket(bucketMetadata)
 		generation, err := decodeUint64(meta.Get(metaKeyGeneration))
