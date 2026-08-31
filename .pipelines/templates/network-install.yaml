@@ -114,16 +114,7 @@ steps:
           CILIUM_ARGS+=("CILIUM_IMAGE_REGISTRY=${{ parameters.ciliumImageRegistry }}")
         fi
 
-        format_image() {
-          local registry="$1"
-          local name="$2"
-          local version="$3"
-          if [[ "$version" == @* ]]; then
-            echo "${registry}/${name}${version}"
-            return
-          fi
-          echo "${registry}/${name}:${version}"
-        }
+        . ./hack/scripts/parse_override_image.sh
 
         configure_ebpf() {
           export AZURE_IPTABLES_MONITOR_IMAGE=${AZURE_IPTABLES_MONITOR_IMAGE_OVERRIDE:-$(format_image acnpublic.azurecr.io azure-iptables-monitor "$(make azure-iptables-monitor-version)")}

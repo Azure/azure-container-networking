@@ -35,16 +35,16 @@ stages:
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     variables:
-      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
-      CNS_VERSION: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
-      AZURE_IPAM_VERSION: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.ipamVersion'] ]
-      CNI_VERSION: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
-      CNS_IMAGE_REPO: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cnsImageRepo'] ]
-      IPAM_IMAGE_REPO: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.ipamImageRepo'] ]
-      CNI_IMAGE_REPO: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cniImageRepo'] ]
-      CNS_IMAGE_NAME_OVERRIDE: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cnsImageNameOverride'] ]
-      IPAM_IMAGE_NAME_OVERRIDE: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.ipamImageNameOverride'] ]
-      CNI_IMAGE_NAME_OVERRIDE: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cniImageNameOverride'] ]
+      commitID: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
+      AZURE_IPAM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipamVersion'] ]
+      CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
+      CNS_IMAGE_REPO: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsImageRepo'] ]
+      IPAM_IMAGE_REPO: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipamImageRepo'] ]
+      CNI_IMAGE_REPO: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniImageRepo'] ]
+      CNS_IMAGE_NAME_OVERRIDE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsImageNameOverride'] ]
+      IPAM_IMAGE_NAME_OVERRIDE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipamImageNameOverride'] ]
+      CNI_IMAGE_NAME_OVERRIDE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniImageNameOverride'] ]
       CILIUM_LOG_COLLECTOR_IMAGE_OVERRIDE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ciliumLogCollectorImage'] ]
     jobs:
       - job: ${{ parameters.name }}
@@ -73,11 +73,11 @@ stages:
     - publish
     - ${{ parameters.clusterName }}
     variables:
-      TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-      CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagManifests.currentTagManifests'] ]
-      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
-      CNS_VERSION: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
-      AZURE_IPAM_VERSION: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.ipamVersion'] ]
+      TAG: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+      CURRENT_VERSION: $[ stageDependencies.containerize.check_tag.outputs['CurrentTagManifests.currentTagManifests'] ]
+      commitID: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
+      AZURE_IPAM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipamVersion'] ]
 
 
       CNS_IMAGE_NAME_OVERRIDE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsImageNameOverride'] ]

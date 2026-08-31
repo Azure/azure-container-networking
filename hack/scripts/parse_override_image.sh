@@ -56,14 +56,21 @@ parse_override_image() {
 }
 
 format_override_image() {
-  repo="$1"
-  name="$2"
-  version="$3"
+  local repo="$1"
+  local registry
 
   case "$repo" in
     MCR) registry="mcr.microsoft.com/containernetworking" ;;
     *) registry="acnpublic.azurecr.io" ;;
   esac
+
+  format_image "$registry" "$2" "$3"
+}
+
+format_image() {
+  local registry="$1"
+  local name="$2"
+  local version="$3"
 
   if [[ "$version" == @* ]]; then
     echo "${registry}/${name}${version}"
