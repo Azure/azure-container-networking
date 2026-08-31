@@ -54,11 +54,13 @@ var allBuckets = [][]byte{
 }
 
 var (
-	metaKeySchemaVersion = []byte("schema_version")
-	metaKeyAuthority     = []byte("authority")
-	metaKeyGeneration    = []byte("generation")
-	metaKeyBootID        = []byte("boot_id")
-	metaKeyService       = []byte("service")
+	metaKeySchemaVersion  = []byte("schema_version")
+	metaKeyAuthority      = []byte("authority")
+	metaKeyGeneration     = []byte("generation")
+	metaKeyBootID         = []byte("boot_id")
+	metaKeyService        = []byte("service")
+	metaKeyLegacyImport   = []byte("legacy_import_complete")
+	metaKeyRollbackExport = []byte("rollback_export_complete")
 )
 
 type Options struct {
@@ -169,6 +171,9 @@ func (s *DB) validate() error {
 		if _, err := decodeUint64(meta.Get(metaKeyGeneration)); err != nil {
 			return corrupt("invalid generation", err)
 		}
+		if err := validateMigrationMetadata(meta); err != nil {
+			return err
+		}
 		return nil
 	}); err != nil {
 		if errors.Is(err, ErrCorrupt) || errors.Is(err, ErrSchemaMismatch) {
@@ -215,12 +220,28 @@ func (s *DB) update(ctx context.Context, fn func(*WriteTx) (bool, error)) (bool,
 	if err := ctx.Err(); err != nil {
 		return false, fmt.Errorf("updating cns state: %w", err)
 	}
+	if err := s.acquireWriteGate(ctx); err != nil {
+		return false, fmt.Errorf("updating cns state: %w", err)
+	}
+	defer s.releaseWriteGate()
+
+	return s.updateLocked(ctx, fn)
+}
+
+func (s *DB) acquireWriteGate(ctx context.Context) error {
 	select {
 	case s.writeGate <- struct{}{}:
-		defer func() { <-s.writeGate }()
+		return nil
 	case <-ctx.Done():
-		return false, fmt.Errorf("updating cns state: %w", ctx.Err())
+		return fmt.Errorf("acquiring write gate: %w", ctx.Err())
 	}
+}
+
+func (s *DB) releaseWriteGate() {
+	<-s.writeGate
+}
+
+func (s *DB) updateLocked(ctx context.Context, fn func(*WriteTx) (bool, error)) (bool, error) {
 	if err := ctx.Err(); err != nil {
 		return false, fmt.Errorf("updating cns state: %w", err)
 	}
@@ -240,6 +261,10 @@ func (s *DB) update(ctx context.Context, fn func(*WriteTx) (bool, error)) (bool,
 			return validationErr
 		}
 		meta := tx.Bucket(bucketMetadata)
+		migrationErr := validateMigrationMetadata(meta)
+		if migrationErr != nil {
+			return migrationErr
+		}
 		generation, err := decodeUint64(meta.Get(metaKeyGeneration))
 		if err != nil {
 			return corrupt("invalid generation", err)
@@ -247,8 +272,9 @@ func (s *DB) update(ctx context.Context, fn func(*WriteTx) (bool, error)) (bool,
 		if generation == math.MaxUint64 {
 			return corrupt("generation overflow", nil)
 		}
-		if err := meta.Put(metaKeyGeneration, encodeUint64(generation+1)); err != nil {
-			return fmt.Errorf("writing state generation: %w", err)
+		writeErr := meta.Put(metaKeyGeneration, encodeUint64(generation+1))
+		if writeErr != nil {
+			return fmt.Errorf("writing state generation: %w", writeErr)
 		}
 		return nil
 	}); err != nil {

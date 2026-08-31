@@ -58,6 +58,28 @@ func TestMetadataRoundTripPreservesCoreKeys(t *testing.T) {
 	}))
 }
 
+func TestMetadataUpdateRejectsIncompleteRollbackTransition(t *testing.T) {
+	db, path := openTestDB(t)
+
+	err := db.Update(context.Background(), func(tx *WriteTx) error {
+		return tx.PutMetadata(Metadata{
+			Authority: AuthorityJSON,
+			NodeID:    "must-not-commit",
+		})
+	})
+	require.ErrorIs(t, err, ErrCorrupt)
+
+	metadata := readMetadata(t, db)
+	assert.Equal(t, AuthorityBolt, metadata.Authority)
+	assert.Empty(t, metadata.NodeID)
+	assert.Zero(t, metadata.Generation)
+
+	require.NoError(t, db.Close())
+	reopened, err := Open(path, Options{})
+	require.NoError(t, err)
+	require.NoError(t, reopened.Close())
+}
+
 func TestPutMetadataRejectsUnknownAuthority(t *testing.T) {
 	db, _ := openTestDB(t)
 	err := db.Update(context.Background(), func(tx *WriteTx) error {

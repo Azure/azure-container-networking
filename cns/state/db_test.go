@@ -6,6 +6,7 @@ package state
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -313,6 +314,30 @@ func TestOpenRejectsCorruption(t *testing.T) {
 			},
 		},
 		{
+			name: "invalid legacy import marker",
+			mutate: func(tx *bolt.Tx) error {
+				return tx.Bucket(bucketMetadata).Put(metaKeyLegacyImport, []byte("invalid"))
+			},
+		},
+		{
+			name: "invalid rollback marker",
+			mutate: func(tx *bolt.Tx) error {
+				return tx.Bucket(bucketMetadata).Put(metaKeyRollbackExport, []byte("invalid"))
+			},
+		},
+		{
+			name: "Bolt authority with rollback marker",
+			mutate: func(tx *bolt.Tx) error {
+				return tx.Bucket(bucketMetadata).Put(metaKeyRollbackExport, []byte(rollbackExportMarker))
+			},
+		},
+		{
+			name: "JSON authority without rollback marker",
+			mutate: func(tx *bolt.Tx) error {
+				return tx.Bucket(bucketMetadata).Put(metaKeyAuthority, []byte(AuthorityJSON))
+			},
+		},
+		{
 			name: "missing bucket",
 			mutate: func(tx *bolt.Tx) error {
 				return tx.DeleteBucket(bucketEndpoints)
@@ -345,7 +370,16 @@ func TestOpenAcceptsKnownAuthorities(t *testing.T) {
 		t.Run(string(authority), func(t *testing.T) {
 			path := createValidClosedDB(t)
 			mutateDatabase(t, path, func(tx *bolt.Tx) error {
-				return tx.Bucket(bucketMetadata).Put(metaKeyAuthority, []byte(authority))
+				metadata := tx.Bucket(bucketMetadata)
+				if err := metadata.Put(metaKeyAuthority, []byte(authority)); err != nil {
+					return fmt.Errorf("putting authority: %w", err)
+				}
+				if authority == AuthorityJSON {
+					if err := metadata.Put(metaKeyRollbackExport, []byte(rollbackExportMarker)); err != nil {
+						return fmt.Errorf("putting rollback marker: %w", err)
+					}
+				}
+				return nil
 			})
 			db, err := Open(path, Options{ReadOnly: true})
 			require.NoError(t, err)

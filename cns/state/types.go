@@ -21,16 +21,18 @@ const (
 )
 
 type Metadata struct {
-	SchemaVersion    uint32    `json:"schemaVersion"`
-	Authority        Authority `json:"authority"`
-	Generation       uint64    `json:"generation"`
-	BootID           string    `json:"bootID,omitempty"`
-	OrchestratorType string    `json:"orchestratorType,omitempty"`
-	NodeID           string    `json:"nodeID,omitempty"`
-	Location         string    `json:"location,omitempty"`
-	NetworkType      string    `json:"networkType,omitempty"`
-	Initialized      bool      `json:"initialized"`
-	TimeStamp        time.Time `json:"timestamp,omitempty"`
+	SchemaVersion          uint32    `json:"schemaVersion"`
+	Authority              Authority `json:"authority"`
+	Generation             uint64    `json:"generation"`
+	BootID                 string    `json:"bootID,omitempty"`
+	OrchestratorType       string    `json:"orchestratorType,omitempty"`
+	NodeID                 string    `json:"nodeID,omitempty"`
+	Location               string    `json:"location,omitempty"`
+	NetworkType            string    `json:"networkType,omitempty"`
+	Initialized            bool      `json:"initialized"`
+	TimeStamp              time.Time `json:"timestamp,omitempty"`
+	LegacyImportComplete   bool      `json:"legacyImportComplete"`
+	RollbackExportComplete bool      `json:"rollbackExportComplete"`
 }
 
 type NetworkContainerRecord struct {
