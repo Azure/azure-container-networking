@@ -60,7 +60,26 @@ const (
 	RecordDeleteIntent     RecordType = "delete_intent"
 )
 
+const (
+	metricLabelOperation  = "operation"
+	metricLabelResult     = "result"
+	metricLabelInvariant  = "invariant"
+	metricLabelBackend    = "backend"
+	metricLabelAuthority  = "authority"
+	metricLabelSchema     = "schema"
+	metricLabelRecordType = "record_type"
+)
+
 var (
+	errNilMetricsRegisterer          = errors.New("persistent state metrics registerer is nil")
+	errUnknownTransactionOperation   = errors.New("unknown persistent state transaction operation")
+	errNegativeTransactionDuration   = errors.New("persistent state transaction duration is negative")
+	errUnknownLifecycleOperation     = errors.New("unknown persistent state lifecycle operation")
+	errNegativeLifecycleDuration     = errors.New("persistent state lifecycle duration is negative")
+	errUnknownPersistentInvariant    = errors.New("unknown persistent state invariant")
+	errUnknownPersistentStateBackend = errors.New("unknown persistent state backend")
+	errUnknownOperationResult        = errors.New("unknown persistent state operation result")
+
 	transactionOperations = map[TransactionOperation]struct{}{
 		TransactionView: {}, TransactionUpdate: {},
 	}
@@ -100,7 +119,7 @@ type Metrics struct {
 
 func NewMetrics(registerer prometheus.Registerer) (*Metrics, error) {
 	if registerer == nil {
-		return nil, errors.New("persistent state metrics registerer is nil")
+		return nil, errNilMetricsRegisterer
 	}
 
 	durationBuckets := []float64{0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5}
@@ -108,29 +127,29 @@ func NewMetrics(registerer prometheus.Registerer) (*Metrics, error) {
 		transactions: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "cns_persistent_state_transactions_total",
 			Help: "Total number of persistent state database transactions by operation and result.",
-		}, []string{"operation", "result"}),
+		}, []string{metricLabelOperation, metricLabelResult}),
 		transactionTime: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "cns_persistent_state_transaction_duration_seconds",
 			Help:    "Persistent state database transaction duration in seconds by operation and result.",
 			Buckets: durationBuckets,
-		}, []string{"operation", "result"}),
+		}, []string{metricLabelOperation, metricLabelResult}),
 		lifecycle: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "cns_persistent_state_lifecycle_total",
 			Help: "Total number of persistent state lifecycle operations by operation and result.",
-		}, []string{"operation", "result"}),
+		}, []string{metricLabelOperation, metricLabelResult}),
 		lifecycleTime: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "cns_persistent_state_lifecycle_duration_seconds",
 			Help:    "Persistent state lifecycle operation duration in seconds by operation and result.",
 			Buckets: durationBuckets,
-		}, []string{"operation", "result"}),
+		}, []string{metricLabelOperation, metricLabelResult}),
 		invariantFailures: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "cns_persistent_state_invariant_failures_total",
 			Help: "Total number of bounded persistent state invariant failures.",
-		}, []string{"invariant"}),
+		}, []string{metricLabelInvariant}),
 		info: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cns_persistent_state_info",
 			Help: "Persistent state backend, authority, and schema information.",
-		}, []string{"backend", "authority", "schema"}),
+		}, []string{metricLabelBackend, metricLabelAuthority, metricLabelSchema}),
 		generation: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "cns_persistent_state_generation",
 			Help: "Current committed persistent state generation.",
@@ -146,7 +165,7 @@ func NewMetrics(registerer prometheus.Registerer) (*Metrics, error) {
 		records: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cns_persistent_state_records",
 			Help: "Current persistent state record count by bounded record type.",
-		}, []string{"record_type"}),
+		}, []string{metricLabelRecordType}),
 		now: time.Now,
 	}
 
@@ -187,13 +206,13 @@ func (m *Metrics) ObserveTransaction(operation TransactionOperation, result Oper
 		return nil
 	}
 	if _, ok := transactionOperations[operation]; !ok {
-		return fmt.Errorf("unknown persistent state transaction operation %q", operation)
+		return fmt.Errorf("%w: %q", errUnknownTransactionOperation, operation)
 	}
 	if err := validateOperationResult(result); err != nil {
 		return err
 	}
 	if duration < 0 {
-		return errors.New("persistent state transaction duration is negative")
+		return errNegativeTransactionDuration
 	}
 	m.transactions.WithLabelValues(string(operation), string(result)).Inc()
 	m.transactionTime.WithLabelValues(string(operation), string(result)).Observe(duration.Seconds())
@@ -205,13 +224,13 @@ func (m *Metrics) ObserveLifecycle(operation LifecycleOperation, result Operatio
 		return nil
 	}
 	if _, ok := lifecycleOperations[operation]; !ok {
-		return fmt.Errorf("unknown persistent state lifecycle operation %q", operation)
+		return fmt.Errorf("%w: %q", errUnknownLifecycleOperation, operation)
 	}
 	if err := validateOperationResult(result); err != nil {
 		return err
 	}
 	if duration < 0 {
-		return errors.New("persistent state lifecycle duration is negative")
+		return errNegativeLifecycleDuration
 	}
 	m.lifecycle.WithLabelValues(string(operation), string(result)).Inc()
 	m.lifecycleTime.WithLabelValues(string(operation), string(result)).Observe(duration.Seconds())
@@ -223,7 +242,7 @@ func (m *Metrics) ObserveInvariant(name InvariantName) error {
 		return nil
 	}
 	if _, ok := invariantNames[name]; !ok {
-		return fmt.Errorf("unknown persistent state invariant %q", name)
+		return fmt.Errorf("%w: %q", errUnknownPersistentInvariant, name)
 	}
 	m.invariantFailures.WithLabelValues(string(name)).Inc()
 	return nil
@@ -235,7 +254,7 @@ func (m *Metrics) Refresh(status Status) error {
 	}
 	if status.InvariantStatus != InvariantFailed {
 		if status.Backend != BackendBolt {
-			return fmt.Errorf("unknown persistent state backend %q", status.Backend)
+			return fmt.Errorf("%w: %q", errUnknownPersistentStateBackend, status.Backend)
 		}
 		if err := validateAuthority(status.Authority); err != nil {
 			return fmt.Errorf("refreshing persistent state metrics: %w", err)
@@ -272,7 +291,7 @@ func (m *Metrics) Refresh(status Status) error {
 
 func validateOperationResult(result OperationResult) error {
 	if _, ok := operationResults[result]; !ok {
-		return fmt.Errorf("unknown persistent state operation result %q", result)
+		return fmt.Errorf("%w: %q", errUnknownOperationResult, result)
 	}
 	return nil
 }

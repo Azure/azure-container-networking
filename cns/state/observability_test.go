@@ -16,10 +16,14 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	bolt "go.etcd.io/bbolt"
+	bolterrors "go.etcd.io/bbolt/errors"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 )
+
+var errMetricRegistration = errors.New("register failure")
+
+const metricTestDelta = 1e-9
 
 func TestNewMetricsRegistration(t *testing.T) {
 	t.Run("descriptors", func(t *testing.T) {
@@ -48,23 +52,23 @@ func TestNewMetricsRegistration(t *testing.T) {
 			"cns_persistent_state_records":                      "Current persistent state record count by bounded record type.",
 		}
 		wantLabels := map[string][]string{
-			"cns_persistent_state_transactions_total":           {"operation", "result"},
-			"cns_persistent_state_transaction_duration_seconds": {"operation", "result"},
-			"cns_persistent_state_lifecycle_total":              {"operation", "result"},
-			"cns_persistent_state_lifecycle_duration_seconds":   {"operation", "result"},
-			"cns_persistent_state_invariant_failures_total":     {"invariant"},
-			"cns_persistent_state_info":                         {"backend", "authority", "schema"},
+			"cns_persistent_state_transactions_total":           {metricLabelOperation, metricLabelResult},
+			"cns_persistent_state_transaction_duration_seconds": {metricLabelOperation, metricLabelResult},
+			"cns_persistent_state_lifecycle_total":              {metricLabelOperation, metricLabelResult},
+			"cns_persistent_state_lifecycle_duration_seconds":   {metricLabelOperation, metricLabelResult},
+			"cns_persistent_state_invariant_failures_total":     {metricLabelInvariant},
+			"cns_persistent_state_info":                         {metricLabelBackend, metricLabelAuthority, metricLabelSchema},
 			"cns_persistent_state_generation":                   {},
 			"cns_persistent_state_storage_present":              {},
 			"cns_persistent_state_database_bytes":               {},
-			"cns_persistent_state_records":                      {"record_type"},
+			"cns_persistent_state_records":                      {metricLabelRecordType},
 		}
 		for name, help := range wantHelp {
 			family := findMetricFamily(t, families, name)
 			assert.Equal(t, help, family.GetHelp())
-			require.NotEmpty(t, family.Metric)
+			require.NotEmpty(t, family.GetMetric())
 			var labels []string
-			for _, label := range family.Metric[0].Label {
+			for _, label := range family.GetMetric()[0].GetLabel() {
 				labels = append(labels, label.GetName())
 			}
 			assert.ElementsMatch(t, wantLabels[name], labels)
@@ -157,20 +161,20 @@ func TestTransactionMetricsClassifyResults(t *testing.T) {
 
 	families, err := registry.Gather()
 	require.NoError(t, err)
-	assert.Equal(t, float64(1), counterValue(t, families, "cns_persistent_state_transactions_total", map[string]string{
-		"operation": "update", "result": "success",
-	}))
-	for _, result := range []string{"error", "noop", "conflict", "canceled"} {
-		assert.Equal(t, float64(1), counterValue(t, families, "cns_persistent_state_transactions_total", map[string]string{
-			"operation": "update", "result": result,
-		}))
+	assert.InDelta(t, float64(1), counterValue(t, families, "cns_persistent_state_transactions_total", map[string]string{
+		metricLabelOperation: string(TransactionUpdate), metricLabelResult: string(ResultSuccess),
+	}), metricTestDelta)
+	for _, result := range []OperationResult{ResultError, ResultNoop, ResultConflict, ResultCanceled} {
+		assert.InDelta(t, float64(1), counterValue(t, families, "cns_persistent_state_transactions_total", map[string]string{
+			metricLabelOperation: string(TransactionUpdate), metricLabelResult: string(result),
+		}), metricTestDelta)
 	}
 	assert.Equal(t, uint64(1), histogramCount(t, families, "cns_persistent_state_transaction_duration_seconds", map[string]string{
-		"operation": "update", "result": "success",
+		metricLabelOperation: string(TransactionUpdate), metricLabelResult: string(ResultSuccess),
 	}))
-	assert.Equal(t, 0.25, histogramSum(t, families, "cns_persistent_state_transaction_duration_seconds", map[string]string{
-		"operation": "update", "result": "success",
-	}))
+	assert.InDelta(t, 0.25, histogramSum(t, families, "cns_persistent_state_transaction_duration_seconds", map[string]string{
+		metricLabelOperation: string(TransactionUpdate), metricLabelResult: string(ResultSuccess),
+	}), metricTestDelta)
 }
 
 func TestLifecycleMetricsAndLogs(t *testing.T) {
@@ -213,36 +217,36 @@ func TestLifecycleMetricsAndLogs(t *testing.T) {
 
 	families, err := registry.Gather()
 	require.NoError(t, err)
-	assert.Equal(t, float64(1), counterValue(t, families, "cns_persistent_state_lifecycle_total", map[string]string{
-		"operation": "startup", "result": "success",
-	}))
-	assert.Equal(t, float64(1), counterValue(t, families, "cns_persistent_state_lifecycle_total", map[string]string{
-		"operation": "boot", "result": "success",
-	}))
-	assert.Equal(t, float64(1), counterValue(t, families, "cns_persistent_state_lifecycle_total", map[string]string{
-		"operation": "boot", "result": "noop",
-	}))
-	assert.Equal(t, float64(1), counterValue(t, families, "cns_persistent_state_lifecycle_total", map[string]string{
-		"operation": "boot", "result": "error",
-	}))
-	assert.Equal(t, float64(1), counterValue(t, families, "cns_persistent_state_lifecycle_total", map[string]string{
-		"operation": "boot", "result": "canceled",
-	}))
+	assert.InDelta(t, float64(1), counterValue(t, families, "cns_persistent_state_lifecycle_total", map[string]string{
+		metricLabelOperation: string(LifecycleStartup), metricLabelResult: string(ResultSuccess),
+	}), metricTestDelta)
+	assert.InDelta(t, float64(1), counterValue(t, families, "cns_persistent_state_lifecycle_total", map[string]string{
+		metricLabelOperation: string(LifecycleBoot), metricLabelResult: string(ResultSuccess),
+	}), metricTestDelta)
+	assert.InDelta(t, float64(1), counterValue(t, families, "cns_persistent_state_lifecycle_total", map[string]string{
+		metricLabelOperation: string(LifecycleBoot), metricLabelResult: string(ResultNoop),
+	}), metricTestDelta)
+	assert.InDelta(t, float64(1), counterValue(t, families, "cns_persistent_state_lifecycle_total", map[string]string{
+		metricLabelOperation: string(LifecycleBoot), metricLabelResult: string(ResultError),
+	}), metricTestDelta)
+	assert.InDelta(t, float64(1), counterValue(t, families, "cns_persistent_state_lifecycle_total", map[string]string{
+		metricLabelOperation: string(LifecycleBoot), metricLabelResult: string(ResultCanceled),
+	}), metricTestDelta)
 	assert.Equal(t, uint64(1), histogramCount(t, families, "cns_persistent_state_lifecycle_duration_seconds", map[string]string{
-		"operation": "boot", "result": "success",
+		metricLabelOperation: string(LifecycleBoot), metricLabelResult: string(ResultSuccess),
 	}))
 
 	importFamilies, err := importRegistry.Gather()
 	require.NoError(t, err)
-	for _, operation := range []string{"import", "rollback"} {
-		for _, result := range []string{"success", "noop"} {
-			assert.Equal(t, float64(1), counterValue(t, importFamilies, "cns_persistent_state_lifecycle_total", map[string]string{
-				"operation": operation, "result": result,
-			}))
+	for _, operation := range []LifecycleOperation{LifecycleImport, LifecycleRollback} {
+		for _, result := range []OperationResult{ResultSuccess, ResultNoop} {
+			assert.InDelta(t, float64(1), counterValue(t, importFamilies, "cns_persistent_state_lifecycle_total", map[string]string{
+				metricLabelOperation: string(operation), metricLabelResult: string(result),
+			}), metricTestDelta)
 		}
-		assert.Equal(t, float64(1), counterValue(t, importFamilies, "cns_persistent_state_lifecycle_total", map[string]string{
-			"operation": operation, "result": "error",
-		}))
+		assert.InDelta(t, float64(1), counterValue(t, importFamilies, "cns_persistent_state_lifecycle_total", map[string]string{
+			metricLabelOperation: string(operation), metricLabelResult: string(ResultError),
+		}), metricTestDelta)
 	}
 
 	messages := logs.All()
@@ -255,8 +259,8 @@ func TestLifecycleMetricsAndLogs(t *testing.T) {
 	assert.Equal(t, string(AuthorityBolt), fields["authority"])
 	assert.EqualValues(t, SchemaVersion, fields["schema"])
 	assert.EqualValues(t, 1, fields["generation"])
-	assert.Equal(t, "boot", fields["operation"])
-	assert.Equal(t, "success", fields["result"])
+	assert.Equal(t, string(LifecycleBoot), fields[metricLabelOperation])
+	assert.Equal(t, string(ResultSuccess), fields[metricLabelResult])
 	assert.NotContains(t, fields, "path")
 	assert.NotContains(t, fields, "error")
 }
@@ -275,9 +279,9 @@ func TestStartupErrorMetricIsReturnedWithoutLogging(t *testing.T) {
 
 	families, gatherErr := registry.Gather()
 	require.NoError(t, gatherErr)
-	assert.Equal(t, float64(1), counterValue(t, families, "cns_persistent_state_lifecycle_total", map[string]string{
-		"operation": "startup", "result": "error",
-	}))
+	assert.InDelta(t, float64(1), counterValue(t, families, "cns_persistent_state_lifecycle_total", map[string]string{
+		metricLabelOperation: string(LifecycleStartup), metricLabelResult: string(ResultError),
+	}), metricTestDelta)
 }
 
 func TestStatusAndGaugeRefresh(t *testing.T) {
@@ -316,14 +320,16 @@ func TestStatusAndGaugeRefresh(t *testing.T) {
 
 	families, err := registry.Gather()
 	require.NoError(t, err)
-	assert.Equal(t, float64(status.Generation), gaugeValue(t, families, "cns_persistent_state_generation", nil))
-	assert.Equal(t, float64(status.DatabaseBytes), gaugeValue(t, families, "cns_persistent_state_database_bytes", nil))
-	assert.Equal(t, float64(status.Records.IPs), gaugeValue(t, families, "cns_persistent_state_records", map[string]string{
-		"record_type": "ip",
-	}))
-	assert.Equal(t, float64(1), gaugeValue(t, families, "cns_persistent_state_info", map[string]string{
-		"backend": "bbolt", "authority": "bolt", "schema": "1",
-	}))
+	assert.InDelta(t, float64(status.Generation), gaugeValue(t, families, "cns_persistent_state_generation", nil), metricTestDelta)
+	assert.InDelta(t, float64(status.DatabaseBytes), gaugeValue(t, families, "cns_persistent_state_database_bytes", nil), metricTestDelta)
+	assert.InDelta(t, float64(status.Records.IPs), gaugeValue(t, families, "cns_persistent_state_records", map[string]string{
+		metricLabelRecordType: string(RecordIP),
+	}), metricTestDelta)
+	assert.InDelta(t, float64(1), gaugeValue(t, families, "cns_persistent_state_info", map[string]string{
+		metricLabelBackend:   BackendBolt,
+		metricLabelAuthority: string(AuthorityBolt),
+		metricLabelSchema:    "1",
+	}), metricTestDelta)
 	assertBoundedMetricLabels(t, families)
 }
 
@@ -367,9 +373,9 @@ func TestStatusInvalidClosedAndCanceled(t *testing.T) {
 			assert.Equal(t, tt.want, status.FailedInvariant)
 			families, gatherErr := registry.Gather()
 			require.NoError(t, gatherErr)
-			assert.Equal(t, float64(1), counterValue(t, families, "cns_persistent_state_invariant_failures_total", map[string]string{
-				"invariant": string(tt.want),
-			}))
+			assert.InDelta(t, float64(1), counterValue(t, families, "cns_persistent_state_invariant_failures_total", map[string]string{
+				metricLabelInvariant: string(tt.want),
+			}), metricTestDelta)
 		})
 	}
 
@@ -380,7 +386,7 @@ func TestStatusInvalidClosedAndCanceled(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 	require.NoError(t, db.Close())
 	_, err = db.Status(context.Background())
-	require.ErrorIs(t, err, bolt.ErrDatabaseNotOpen)
+	require.ErrorIs(t, err, bolterrors.ErrDatabaseNotOpen)
 }
 
 func TestMetricsConcurrentUse(t *testing.T) {
@@ -390,26 +396,29 @@ func TestMetricsConcurrentUse(t *testing.T) {
 	status := Status{Backend: BackendBolt, Authority: AuthorityBolt, SchemaVersion: SchemaVersion}
 
 	const workers = 32
+	errs := make(chan error, workers*4)
 	var wg sync.WaitGroup
 	wg.Add(workers)
 	for range workers {
 		go func() {
 			defer wg.Done()
-			require.NoError(t, metrics.ObserveTransaction(TransactionView, ResultSuccess, time.Millisecond))
-			require.NoError(t, metrics.ObserveLifecycle(LifecycleBoot, ResultNoop, time.Millisecond))
-			require.NoError(t, metrics.ObserveInvariant(InvariantStructural))
-			if err := metrics.Refresh(status); err != nil {
-				t.Errorf("refresh metrics: %v", err)
-			}
+			errs <- metrics.ObserveTransaction(TransactionView, ResultSuccess, time.Millisecond)
+			errs <- metrics.ObserveLifecycle(LifecycleBoot, ResultNoop, time.Millisecond)
+			errs <- metrics.ObserveInvariant(InvariantStructural)
+			errs <- metrics.Refresh(status)
 		}()
 	}
 	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
 
 	families, err := registry.Gather()
 	require.NoError(t, err)
-	assert.Equal(t, float64(workers), counterValue(t, families, "cns_persistent_state_transactions_total", map[string]string{
-		"operation": "view", "result": "success",
-	}))
+	assert.InDelta(t, float64(workers), counterValue(t, families, "cns_persistent_state_transactions_total", map[string]string{
+		metricLabelOperation: string(TransactionView), metricLabelResult: string(ResultSuccess),
+	}), metricTestDelta)
 }
 
 func openObservedTestDB(t *testing.T, logger *zap.Logger) (*DB, *prometheus.Registry, *Metrics) {
@@ -421,7 +430,7 @@ func openObservedTestDB(t *testing.T, logger *zap.Logger) (*DB, *prometheus.Regi
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		err := db.Close()
-		require.True(t, err == nil || errors.Is(err, bolt.ErrDatabaseNotOpen))
+		require.True(t, err == nil || errors.Is(err, bolterrors.ErrDatabaseNotOpen))
 	})
 	return db, registry, metrics
 }
@@ -436,7 +445,7 @@ type failingRegisterer struct {
 func (r *failingRegisterer) Register(prometheus.Collector) error {
 	r.calls++
 	if r.calls == r.failAt {
-		return errors.New("register failure")
+		return errMetricRegistration
 	}
 	return nil
 }
@@ -461,9 +470,9 @@ func findMetricFamily(t *testing.T, families []*dto.MetricFamily, name string) *
 
 func findMetric(t *testing.T, family *dto.MetricFamily, labels map[string]string) *dto.Metric {
 	t.Helper()
-	for _, metric := range family.Metric {
+	for _, metric := range family.GetMetric() {
 		got := map[string]string{}
-		for _, label := range metric.Label {
+		for _, label := range metric.GetLabel() {
 			got[label.GetName()] = label.GetValue()
 		}
 		if (len(labels) == 0 && len(got) == 0) || assert.ObjectsAreEqual(labels, got) {
@@ -497,11 +506,17 @@ func histogramSum(t *testing.T, families []*dto.MetricFamily, name string, label
 func assertBoundedMetricLabels(t *testing.T, families []*dto.MetricFamily) {
 	t.Helper()
 	allowedNames := map[string]struct{}{
-		"operation": {}, "result": {}, "invariant": {}, "backend": {}, "authority": {}, "schema": {}, "record_type": {},
+		metricLabelOperation:  {},
+		metricLabelResult:     {},
+		metricLabelInvariant:  {},
+		metricLabelBackend:    {},
+		metricLabelAuthority:  {},
+		metricLabelSchema:     {},
+		metricLabelRecordType: {},
 	}
 	for _, family := range families {
-		for _, metric := range family.Metric {
-			for _, label := range metric.Label {
+		for _, metric := range family.GetMetric() {
+			for _, label := range metric.GetLabel() {
 				_, ok := allowedNames[label.GetName()]
 				assert.True(t, ok, "%s has unexpected label %q", family.GetName(), label.GetName())
 				for _, prohibited := range []string{"node-", "pod-", "10.", "fd00", "/", "secret"} {
