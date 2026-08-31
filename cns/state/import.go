@@ -91,7 +91,18 @@ type legacyNetworkInfo struct {
 
 // ImportLegacy atomically imports legacy JSON state into an initialized empty database.
 // It returns false without reading the sources after a completed import.
-func (s *DB) ImportLegacy(ctx context.Context, opts ImportOptions) (bool, error) {
+func (s *DB) ImportLegacy(ctx context.Context, opts ImportOptions) (changed bool, returnErr error) {
+	if s.metrics != nil || s.logger != nil {
+		started := metricNow(s.metrics)
+		defer func() {
+			result := classifyResult(changed, returnErr)
+			duration := metricDuration(s.metrics, started)
+			_ = s.metrics.ObserveLifecycle(LifecycleImport, result, duration)
+			if returnErr == nil {
+				s.observeLifecycle(ctx, LifecycleImport, result, duration)
+			}
+		}()
+	}
 	return s.importLegacy(ctx, opts, os.ReadFile)
 }
 

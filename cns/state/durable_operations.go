@@ -219,7 +219,22 @@ func (s *DB) UpdateReadinessObservation(
 	})
 }
 
-func (s *DB) ApplyBoot(ctx context.Context, bootID string, policy BootPolicy) (bool, error) {
+func (s *DB) ApplyBoot(
+	ctx context.Context,
+	bootID string,
+	policy BootPolicy,
+) (changed bool, returnErr error) {
+	if s.metrics != nil || s.logger != nil {
+		started := metricNow(s.metrics)
+		defer func() {
+			result := classifyResult(changed, returnErr)
+			duration := metricDuration(s.metrics, started)
+			_ = s.metrics.ObserveLifecycle(LifecycleBoot, result, duration)
+			if returnErr == nil {
+				s.observeLifecycle(ctx, LifecycleBoot, result, duration)
+			}
+		}()
+	}
 	if bootID == "" {
 		return false, invalidInput("boot ID is empty", nil)
 	}
