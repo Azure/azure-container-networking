@@ -30,6 +30,9 @@ type serviceMetadata struct {
 
 func (r *ReadTx) Metadata() (Metadata, error) {
 	metaBucket := r.tx.Bucket(bucketMetadata)
+	if metaBucket == nil {
+		return Metadata{}, corrupt(fmt.Sprintf("missing bucket %q", bucketMetadata), nil)
+	}
 	schemaVersion, err := decodeUint32(metaBucket.Get(metaKeySchemaVersion))
 	if err != nil {
 		return Metadata{}, corrupt("invalid schema version", err)
@@ -51,8 +54,11 @@ func (r *ReadTx) Metadata() (Metadata, error) {
 	}
 	if data := metaBucket.Get(metaKeyService); data != nil {
 		var serviceMeta serviceMetadata
-		if err := json.Unmarshal(data, &serviceMeta); err != nil {
-			return Metadata{}, corrupt("decoding service metadata", err)
+		if err := decodeJSONValue(data, &serviceMeta); err != nil {
+			return Metadata{}, corrupt(
+				fmt.Sprintf("decoding bucket %q key %q", bucketMetadata, metaKeyService),
+				err,
+			)
 		}
 		meta.OrchestratorType = serviceMeta.OrchestratorType
 		meta.NodeID = serviceMeta.NodeID
