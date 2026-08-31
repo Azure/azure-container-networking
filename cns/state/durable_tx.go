@@ -304,7 +304,7 @@ func canonicalMAC(value string) (string, error) {
 
 func validateInput(snapshot Snapshot) error {
 	if err := snapshot.Validate(); err != nil {
-		return fmt.Errorf("%w: candidate state: %v", ErrInvalidInput, err)
+		return fmt.Errorf("%w: candidate state: %w", ErrInvalidInput, err)
 	}
 	return nil
 }

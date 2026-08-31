@@ -17,11 +17,19 @@ import (
 	bolterrors "go.etcd.io/bbolt/errors"
 )
 
+const (
+	testMACAddress       = "00:11:22:33:44:55"
+	testInvalidIPAddress = "not-an-ip"
+	testAuthToken        = "secret"
+	testIPID2            = "ip-2"
+	testPnPID            = "pnp-1"
+)
+
 func TestDurableTransactions(t *testing.T) {
 	db, _ := openTestDB(t)
-	nc := testNetworkContainer("nc-1")
-	ip := IPRecord{ID: "ip-1", IPAddress: "10.0.0.4", NCID: "nc-1", NCVersion: 1}
-	network := NetworkRecord{NetworkName: "network-1"}
+	nc := testNetworkContainer(testNCID)
+	ip := IPRecord{ID: testIPID1, IPAddress: testIPv4Address, NCID: testNCID, NCVersion: 1}
+	network := NetworkRecord{NetworkName: testNetworkName}
 
 	t.Run("put get and list", func(t *testing.T) {
 		require.NoError(t, db.Update(context.Background(), func(tx *WriteTx) error {
@@ -34,29 +42,29 @@ func TestDurableTransactions(t *testing.T) {
 			if err := tx.PutNetwork(network); err != nil {
 				return err
 			}
-			if err := tx.PutOrchestratorContext("context-1", []string{"nc-1"}); err != nil {
+			if err := tx.PutOrchestratorContext("context-1", []string{testNCID}); err != nil {
 				return err
 			}
-			return tx.PutPnPID("00-11-22-33-44-55", "pnp-1")
+			return tx.PutPnPID("00-11-22-33-44-55", testPnPID)
 		}))
 
 		require.NoError(t, db.View(context.Background(), func(tx *ReadTx) error {
-			gotNC, err := tx.GetNetworkContainer("nc-1")
+			gotNC, err := tx.GetNetworkContainer(testNCID)
 			require.NoError(t, err)
 			assert.Equal(t, nc, gotNC)
-			gotIP, err := tx.GetIP("ip-1")
+			gotIP, err := tx.GetIP(testIPID1)
 			require.NoError(t, err)
 			assert.Equal(t, ip, gotIP)
-			gotNetwork, err := tx.GetNetwork("network-1")
+			gotNetwork, err := tx.GetNetwork(testNetworkName)
 			require.NoError(t, err)
 			assert.Equal(t, network, gotNetwork)
 			contextNCs, err := tx.GetOrchestratorContext("context-1")
 			require.NoError(t, err)
-			assert.Equal(t, []string{"nc-1"}, contextNCs)
+			assert.Equal(t, []string{testNCID}, contextNCs)
 			contextNCs[0] = "mutated"
-			pnpID, err := tx.GetPnPID("00:11:22:33:44:55")
+			pnpID, err := tx.GetPnPID(testMACAddress)
 			require.NoError(t, err)
-			assert.Equal(t, "pnp-1", pnpID)
+			assert.Equal(t, testPnPID, pnpID)
 
 			ncs, err := tx.ListNetworkContainers()
 			require.NoError(t, err)
@@ -68,11 +76,11 @@ func TestDurableTransactions(t *testing.T) {
 			require.NoError(t, err)
 			pnpIDs, err := tx.ListPnPIDs()
 			require.NoError(t, err)
-			assert.Equal(t, map[string]NetworkContainerRecord{"nc-1": nc}, ncs)
-			assert.Equal(t, map[string]IPRecord{"ip-1": ip}, ips)
-			assert.Equal(t, map[string]NetworkRecord{"network-1": network}, networks)
-			assert.Equal(t, map[string][]string{"context-1": {"nc-1"}}, contexts)
-			assert.Equal(t, map[string]string{"00:11:22:33:44:55": "pnp-1"}, pnpIDs)
+			assert.Equal(t, map[string]NetworkContainerRecord{testNCID: nc}, ncs)
+			assert.Equal(t, map[string]IPRecord{testIPID1: ip}, ips)
+			assert.Equal(t, map[string]NetworkRecord{testNetworkName: network}, networks)
+			assert.Equal(t, map[string][]string{"context-1": {testNCID}}, contexts)
+			assert.Equal(t, map[string]string{testMACAddress: testPnPID}, pnpIDs)
 			return nil
 		}))
 	})
@@ -82,35 +90,35 @@ func TestDurableTransactions(t *testing.T) {
 			if err := tx.DeleteOrchestratorContext("context-1"); err != nil {
 				return err
 			}
-			if err := tx.DeletePnPID("00:11:22:33:44:55"); err != nil {
+			if err := tx.DeletePnPID(testMACAddress); err != nil {
 				return err
 			}
-			if err := tx.DeleteNetwork("network-1"); err != nil {
+			if err := tx.DeleteNetwork(testNetworkName); err != nil {
 				return err
 			}
-			if err := tx.DeleteIP("ip-1"); err != nil {
+			if err := tx.DeleteIP(testIPID1); err != nil {
 				return err
 			}
-			return tx.DeleteNetworkContainer("nc-1")
+			return tx.DeleteNetworkContainer(testNCID)
 		}))
 
 		require.NoError(t, db.View(context.Background(), func(tx *ReadTx) error {
-			_, err := tx.GetNetworkContainer("nc-1")
+			_, err := tx.GetNetworkContainer(testNCID)
 			require.ErrorIs(t, err, ErrNotFound)
-			_, err = tx.GetIP("ip-1")
+			_, err = tx.GetIP(testIPID1)
 			require.ErrorIs(t, err, ErrNotFound)
-			_, err = tx.GetNetwork("network-1")
+			_, err = tx.GetNetwork(testNetworkName)
 			require.ErrorIs(t, err, ErrNotFound)
 			_, err = tx.GetOrchestratorContext("context-1")
 			require.ErrorIs(t, err, ErrNotFound)
-			_, err = tx.GetPnPID("00:11:22:33:44:55")
+			_, err = tx.GetPnPID(testMACAddress)
 			require.ErrorIs(t, err, ErrNotFound)
 			return nil
 		}))
 
 		before := readMetadata(t, db).Generation
 		err := db.Update(context.Background(), func(tx *WriteTx) error {
-			return tx.DeleteNetworkContainer("nc-1")
+			return tx.DeleteNetworkContainer(testNCID)
 		})
 		require.ErrorIs(t, err, ErrNotFound)
 		assert.Equal(t, before, readMetadata(t, db).Generation)
@@ -124,11 +132,11 @@ func TestClearBucketAfterMaterializingWritableNode(t *testing.T) {
 		for index := range 200 {
 			key := []byte(fmt.Sprintf("intent-%03d", index))
 			if err := bucket.Put(key, []byte(`{"createdAt":"2026-08-28T00:00:00Z"}`)); err != nil {
-				return err
+				return fmt.Errorf("putting key %q: %w", key, err)
 			}
 		}
 		if err := bucket.Put([]byte("intent-000"), []byte(`{"createdAt":"2026-08-28T01:00:00Z"}`)); err != nil {
-			return err
+			return fmt.Errorf("putting key %q: %w", "intent-000", err)
 		}
 		return clearBucket(bucket)
 	}))
@@ -147,18 +155,18 @@ func TestDurableTransactionValidationRollsBack(t *testing.T) {
 	require.NoError(t, err)
 
 	err = db.Update(context.Background(), func(tx *WriteTx) error {
-		if err := tx.PutNetworkContainer(testNetworkContainer("nc-1")); err != nil {
-			return err
+		if perr := tx.PutNetworkContainer(testNetworkContainer(testNCID)); perr != nil {
+			return perr
 		}
-		if err := tx.PutIP(IPRecord{
-			ID:        "ip-1",
-			IPAddress: "not-an-ip",
-			NCID:      "nc-1",
-		}); err != nil {
-			return err
+		if perr := tx.PutIP(IPRecord{
+			ID:        testIPID1,
+			IPAddress: testInvalidIPAddress,
+			NCID:      testNCID,
+		}); perr != nil {
+			return perr
 		}
 		return tx.PutNetwork(NetworkRecord{
-			NetworkName: "network-1",
+			NetworkName: testNetworkName,
 			Options:     map[string]any{"unsupported": make(chan struct{})},
 		})
 	})
@@ -172,19 +180,19 @@ func TestDurableTransactionValidationRollsBack(t *testing.T) {
 func TestApplyNetworkContainer(t *testing.T) {
 	t.Run("exact replacement and normalization", func(t *testing.T) {
 		db, _ := openTestDB(t)
-		record := testNetworkContainer("nc-1")
-		record.Request.AuthorizationToken = "secret"
+		record := testNetworkContainer(testNCID)
+		record.Request.AuthorizationToken = testAuthToken
 		record.Request.SecondaryIPConfigs = map[string]cns.SecondaryIPConfig{"embedded": {}}
 		first := []IPRecord{
-			{ID: "ip-1", IPAddress: "10.0.0.4", NCID: "nc-1", NCVersion: 1},
-			{ID: "ip-2", IPAddress: "fd00::4", NCID: "nc-1", NCVersion: 1},
+			{ID: testIPID1, IPAddress: testIPv4Address, NCID: testNCID, NCVersion: 1},
+			{ID: testIPID2, IPAddress: "fd00::4", NCID: testNCID, NCVersion: 1},
 		}
 
 		changed, err := db.ApplyNetworkContainer(context.Background(), record, first)
 		require.NoError(t, err)
 		assert.True(t, changed)
 		replacement := []IPRecord{
-			{ID: "ip-2", IPAddress: "fd00::5", NCID: "nc-1", NCVersion: 2},
+			{ID: testIPID2, IPAddress: "fd00::5", NCID: testNCID, NCVersion: 2},
 		}
 		changed, err = db.ApplyNetworkContainer(context.Background(), record, replacement)
 		require.NoError(t, err)
@@ -192,8 +200,8 @@ func TestApplyNetworkContainer(t *testing.T) {
 
 		snapshot, err := db.Snapshot(context.Background())
 		require.NoError(t, err)
-		assert.Equal(t, map[string]IPRecord{"ip-2": replacement[0]}, snapshot.IPs)
-		stored := snapshot.NetworkContainers["nc-1"]
+		assert.Equal(t, map[string]IPRecord{testIPID2: replacement[0]}, snapshot.IPs)
+		stored := snapshot.NetworkContainers[testNCID]
 		assert.Empty(t, stored.Request.AuthorizationToken)
 		assert.Nil(t, stored.Request.SecondaryIPConfigs)
 		assert.Equal(t, uint64(2), snapshot.Metadata.Generation)
@@ -201,19 +209,19 @@ func TestApplyNetworkContainer(t *testing.T) {
 
 	t.Run("full input preflight", func(t *testing.T) {
 		db, _ := openTestDB(t)
-		record := testNetworkContainer("nc-1")
+		record := testNetworkContainer(testNCID)
 		_, err := db.ApplyNetworkContainer(context.Background(), record, []IPRecord{{
-			ID:        "ip-1",
-			IPAddress: "10.0.0.4",
-			NCID:      "nc-1",
+			ID:        testIPID1,
+			IPAddress: testIPv4Address,
+			NCID:      testNCID,
 		}})
 		require.NoError(t, err)
 		before, err := db.Snapshot(context.Background())
 		require.NoError(t, err)
 
 		_, err = db.ApplyNetworkContainer(context.Background(), record, []IPRecord{
-			{ID: "ip-2", IPAddress: "10.0.0.5", NCID: "nc-1"},
-			{ID: "ip-3", IPAddress: "::ffff:10.0.0.5", NCID: "nc-1"},
+			{ID: testIPID2, IPAddress: "10.0.0.5", NCID: testNCID},
+			{ID: "ip-3", IPAddress: "::ffff:10.0.0.5", NCID: testNCID},
 		})
 		require.ErrorIs(t, err, ErrInvalidInput)
 		after, snapshotErr := db.Snapshot(context.Background())
@@ -223,12 +231,12 @@ func TestApplyNetworkContainer(t *testing.T) {
 
 	t.Run("global duplicate address", func(t *testing.T) {
 		db, _ := openTestDB(t)
-		_, err := db.ApplyNetworkContainer(context.Background(), testNetworkContainer("nc-1"), []IPRecord{{
-			ID: "ip-1", IPAddress: "10.0.0.4", NCID: "nc-1",
+		_, err := db.ApplyNetworkContainer(context.Background(), testNetworkContainer(testNCID), []IPRecord{{
+			ID: testIPID1, IPAddress: testIPv4Address, NCID: testNCID,
 		}})
 		require.NoError(t, err)
 		_, err = db.ApplyNetworkContainer(context.Background(), testNetworkContainer("nc-2"), []IPRecord{{
-			ID: "ip-2", IPAddress: "::ffff:10.0.0.4", NCID: "nc-2",
+			ID: testIPID2, IPAddress: "::ffff:10.0.0.4", NCID: "nc-2",
 		}})
 		require.ErrorIs(t, err, ErrInvalidInput)
 	})
@@ -242,7 +250,7 @@ func TestApplyNetworkContainer(t *testing.T) {
 
 		_, err = db.ApplyNetworkContainer(
 			context.Background(),
-			snapshot.NetworkContainers["nc-1"],
+			snapshot.NetworkContainers[testNCID],
 			nil,
 		)
 		require.ErrorIs(t, err, ErrInvalidInput)
@@ -255,15 +263,15 @@ func TestApplyNetworkContainer(t *testing.T) {
 func TestDeleteNetworkContainer(t *testing.T) {
 	t.Run("existing and missing are explicit", func(t *testing.T) {
 		db, _ := openTestDB(t)
-		_, err := db.ApplyNetworkContainer(context.Background(), testNetworkContainer("nc-1"), []IPRecord{{
-			ID: "ip-1", IPAddress: "10.0.0.4", NCID: "nc-1",
+		_, err := db.ApplyNetworkContainer(context.Background(), testNetworkContainer(testNCID), []IPRecord{{
+			ID: testIPID1, IPAddress: testIPv4Address, NCID: testNCID,
 		}})
 		require.NoError(t, err)
 
-		changed, err := db.DeleteNetworkContainer(context.Background(), "nc-1")
+		changed, err := db.DeleteNetworkContainer(context.Background(), testNCID)
 		require.NoError(t, err)
 		assert.True(t, changed)
-		changed, err = db.DeleteNetworkContainer(context.Background(), "nc-1")
+		changed, err = db.DeleteNetworkContainer(context.Background(), testNCID)
 		require.NoError(t, err)
 		assert.False(t, changed)
 		assert.Equal(t, uint64(2), readMetadata(t, db).Generation)
@@ -275,7 +283,7 @@ func TestDeleteNetworkContainer(t *testing.T) {
 		before, err := db.Snapshot(context.Background())
 		require.NoError(t, err)
 
-		_, err = db.DeleteNetworkContainer(context.Background(), "nc-1")
+		_, err = db.DeleteNetworkContainer(context.Background(), testNCID)
 		require.ErrorIs(t, err, ErrInvalidInput)
 		after, snapshotErr := db.Snapshot(context.Background())
 		require.NoError(t, snapshotErr)
@@ -303,7 +311,7 @@ func TestReplaceDurableState(t *testing.T) {
 	assert.Equal(t, durable.IPs, snapshot.IPs)
 	assert.Equal(t, durable.Networks, snapshot.Networks)
 	assert.Equal(t, durable.OrchestratorContexts, snapshot.OrchestratorContexts)
-	assert.Equal(t, map[string]string{"00:11:22:33:44:55": "pnp-replaced"}, snapshot.PnPIDByMAC)
+	assert.Equal(t, map[string]string{testMACAddress: "pnp-replaced"}, snapshot.PnPIDByMAC)
 	assert.Equal(t, initial.Assignments, snapshot.Assignments)
 	assert.Equal(t, initial.IPOwners, snapshot.IPOwners)
 	assert.Equal(t, initial.Endpoints, snapshot.Endpoints)
@@ -352,7 +360,7 @@ func TestReplaceDurableState(t *testing.T) {
 func TestNetworkAndMappingValidation(t *testing.T) {
 	db, _ := openTestDB(t)
 	require.NoError(t, db.Update(context.Background(), func(tx *WriteTx) error {
-		return tx.PutNetworkContainer(testNetworkContainer("nc-1"))
+		return tx.PutNetworkContainer(testNetworkContainer(testNCID))
 	}))
 	before := readMetadata(t, db).Generation
 
@@ -364,7 +372,7 @@ func TestNetworkAndMappingValidation(t *testing.T) {
 			name: "invalid network prefix",
 			run: func(tx *WriteTx) error {
 				return tx.PutNetwork(NetworkRecord{
-					NetworkName: "network-1",
+					NetworkName: testNetworkName,
 					NicInfo:     &wireserver.InterfaceInfo{Subnet: "not-a-prefix"},
 				})
 			},
@@ -372,25 +380,25 @@ func TestNetworkAndMappingValidation(t *testing.T) {
 		{
 			name: "duplicate orchestrator reference",
 			run: func(tx *WriteTx) error {
-				return tx.PutOrchestratorContext("context-1", []string{"nc-1", "nc-1"})
+				return tx.PutOrchestratorContext("context-1", []string{testNCID, testNCID})
 			},
 		},
 		{
 			name: "missing orchestrator reference",
 			run: func(tx *WriteTx) error {
-				return tx.PutOrchestratorContext("context-1", []string{"missing"})
+				return tx.PutOrchestratorContext("context-1", []string{testMissingID})
 			},
 		},
 		{
 			name: "invalid MAC",
 			run: func(tx *WriteTx) error {
-				return tx.PutPnPID("not-a-mac", "pnp-1")
+				return tx.PutPnPID("not-a-mac", testPnPID)
 			},
 		},
 		{
 			name: "empty PnP ID",
 			run: func(tx *WriteTx) error {
-				return tx.PutPnPID("00:11:22:33:44:55", "")
+				return tx.PutPnPID(testMACAddress, "")
 			},
 		},
 	}
@@ -405,7 +413,7 @@ func TestNetworkAndMappingValidation(t *testing.T) {
 
 func TestUpdateReadinessObservation(t *testing.T) {
 	db, _ := openTestDB(t)
-	record := testNetworkContainer("nc-1")
+	record := testNetworkContainer(testNCID)
 	_, err := db.ApplyNetworkContainer(context.Background(), record, nil)
 	require.NoError(t, err)
 	observation := ReadinessObservation{
@@ -414,23 +422,23 @@ func TestUpdateReadinessObservation(t *testing.T) {
 		VFPUpdateComplete: true,
 	}
 
-	changed, err := db.UpdateReadinessObservation(context.Background(), "nc-1", observation)
+	changed, err := db.UpdateReadinessObservation(context.Background(), testNCID, observation)
 	require.NoError(t, err)
 	assert.True(t, changed)
 	snapshot, err := db.Snapshot(context.Background())
 	require.NoError(t, err)
-	got := snapshot.NetworkContainers["nc-1"]
+	got := snapshot.NetworkContainers[testNCID]
 	assert.Equal(t, observation.VMVersion, got.VMVersion)
 	assert.Equal(t, observation.HostVersion, got.HostVersion)
 	assert.Equal(t, observation.VFPUpdateComplete, got.VFPUpdateComplete)
 	assert.Equal(t, record.Request, got.Request)
 
-	changed, err = db.UpdateReadinessObservation(context.Background(), "nc-1", observation)
+	changed, err = db.UpdateReadinessObservation(context.Background(), testNCID, observation)
 	require.NoError(t, err)
 	assert.False(t, changed)
 	assert.Equal(t, uint64(2), readMetadata(t, db).Generation)
 
-	_, err = db.UpdateReadinessObservation(context.Background(), "missing", observation)
+	_, err = db.UpdateReadinessObservation(context.Background(), testMissingID, observation)
 	require.ErrorIs(t, err, ErrNotFound)
 	assert.Equal(t, uint64(2), readMetadata(t, db).Generation)
 }
@@ -477,9 +485,9 @@ func TestApplyBoot(t *testing.T) {
 			assert.Equal(t, initial.Networks, got.Networks)
 			assert.Equal(t, initial.OrchestratorContexts, got.OrchestratorContexts)
 			assert.Equal(t, initial.PnPIDByMAC, got.PnPIDByMAC)
-			nc := got.NetworkContainers["nc-1"]
-			assert.Equal(t, initial.NetworkContainers["nc-1"].VMVersion, nc.VMVersion)
-			assert.Equal(t, initial.NetworkContainers["nc-1"].Request, nc.Request)
+			nc := got.NetworkContainers[testNCID]
+			assert.Equal(t, initial.NetworkContainers[testNCID].VMVersion, nc.VMVersion)
+			assert.Equal(t, initial.NetworkContainers[testNCID].Request, nc.Request)
 			assert.Equal(t, tt.wantHostVersion, nc.HostVersion)
 			assert.Equal(t, tt.wantVFPComplete, nc.VFPUpdateComplete)
 			assert.Equal(t, uint64(1), got.Metadata.Generation)
@@ -512,7 +520,7 @@ func TestConcurrentDurableUpdates(t *testing.T) {
 	ready.Add(count)
 	for index := range count {
 		go func() {
-			id := "nc-" + string(rune('a'+index))
+			id := "nc-" + string(rune('a'+index)) //#nosec G115 -- index is bounded by count (max 8), safe conversion
 			ready.Done()
 			<-start
 			_, err := db.ApplyNetworkContainer(context.Background(), testNetworkContainer(id), nil)
@@ -568,7 +576,7 @@ func TestDurableOperationsContextAndReadOnly(t *testing.T) {
 		db, _ := openTestDB(t)
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		_, err := db.ApplyNetworkContainer(ctx, testNetworkContainer("nc-1"), nil)
+		_, err := db.ApplyNetworkContainer(ctx, testNetworkContainer(testNCID), nil)
 		require.ErrorIs(t, err, context.Canceled)
 		assert.Zero(t, readMetadata(t, db).Generation)
 	})
@@ -582,7 +590,7 @@ func TestDurableOperationsContextAndReadOnly(t *testing.T) {
 
 		_, err = readOnly.ApplyNetworkContainer(
 			context.Background(),
-			testNetworkContainer("nc-1"),
+			testNetworkContainer(testNCID),
 			nil,
 		)
 		require.ErrorIs(t, err, bolterrors.ErrDatabaseReadOnly)
@@ -592,18 +600,18 @@ func TestDurableOperationsContextAndReadOnly(t *testing.T) {
 
 func TestDurableStateReopenRoundTrip(t *testing.T) {
 	db, path := openTestDB(t)
-	record := testNetworkContainer("nc-1")
-	ips := []IPRecord{{ID: "ip-1", IPAddress: "10.0.0.4", NCID: "nc-1", NCVersion: 3}}
+	record := testNetworkContainer(testNCID)
+	ips := []IPRecord{{ID: testIPID1, IPAddress: testIPv4Address, NCID: testNCID, NCVersion: 3}}
 	_, err := db.ApplyNetworkContainer(context.Background(), record, ips)
 	require.NoError(t, err)
 	require.NoError(t, db.Update(context.Background(), func(tx *WriteTx) error {
-		if err := tx.PutNetwork(NetworkRecord{NetworkName: "network-1"}); err != nil {
-			return err
+		if perr := tx.PutNetwork(NetworkRecord{NetworkName: testNetworkName}); perr != nil {
+			return perr
 		}
-		if err := tx.PutOrchestratorContext("context-1", []string{"nc-1"}); err != nil {
-			return err
+		if perr := tx.PutOrchestratorContext("context-1", []string{testNCID}); perr != nil {
+			return perr
 		}
-		return tx.PutPnPID("00:11:22:33:44:55", "pnp-1")
+		return tx.PutPnPID(testMACAddress, testPnPID)
 	}))
 	require.NoError(t, db.Close())
 
@@ -612,11 +620,11 @@ func TestDurableStateReopenRoundTrip(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, reopened.Close()) })
 	snapshot, err := reopened.Snapshot(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, map[string]NetworkContainerRecord{"nc-1": record}, snapshot.NetworkContainers)
-	assert.Equal(t, map[string]IPRecord{"ip-1": ips[0]}, snapshot.IPs)
-	assert.Equal(t, map[string]NetworkRecord{"network-1": {NetworkName: "network-1"}}, snapshot.Networks)
-	assert.Equal(t, map[string][]string{"context-1": {"nc-1"}}, snapshot.OrchestratorContexts)
-	assert.Equal(t, map[string]string{"00:11:22:33:44:55": "pnp-1"}, snapshot.PnPIDByMAC)
+	assert.Equal(t, map[string]NetworkContainerRecord{testNCID: record}, snapshot.NetworkContainers)
+	assert.Equal(t, map[string]IPRecord{testIPID1: ips[0]}, snapshot.IPs)
+	assert.Equal(t, map[string]NetworkRecord{testNetworkName: {NetworkName: testNetworkName}}, snapshot.Networks)
+	assert.Equal(t, map[string][]string{"context-1": {testNCID}}, snapshot.OrchestratorContexts)
+	assert.Equal(t, map[string]string{testMACAddress: testPnPID}, snapshot.PnPIDByMAC)
 	assert.Equal(t, uint64(2), snapshot.Metadata.Generation)
 }
 
@@ -638,11 +646,11 @@ func durableFromSnapshot(snapshot Snapshot) DurableState {
 
 func endpointOnlySnapshot() Snapshot {
 	snapshot := NewSnapshot()
-	snapshot.NetworkContainers["nc-1"] = testNetworkContainer("nc-1")
-	snapshot.IPs["ip-1"] = IPRecord{
-		ID:        "ip-1",
-		IPAddress: "10.0.0.4",
-		NCID:      "nc-1",
+	snapshot.NetworkContainers[testNCID] = testNetworkContainer(testNCID)
+	snapshot.IPs[testIPID1] = IPRecord{
+		ID:        testIPID1,
+		IPAddress: testIPv4Address,
+		NCID:      testNCID,
 	}
 	snapshot.Endpoints["container-1"] = completeEndpointRecord()
 	return snapshot

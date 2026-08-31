@@ -54,11 +54,11 @@ func (s *DB) ApplyNetworkContainer(
 		for id, ip := range inventory {
 			candidate.IPs[id] = ip
 		}
-		if err := validateInput(candidate); err != nil {
-			return false, err
+		if verr := validateInput(candidate); verr != nil {
+			return false, verr
 		}
-		if err := validateEndpointIPPreservation(current, candidate); err != nil {
-			return false, err
+		if verr := validateEndpointIPPreservation(current, candidate); verr != nil {
+			return false, verr
 		}
 
 		ncData, err := encodeJSONInput(normalized)
@@ -159,11 +159,11 @@ func (s *DB) ReplaceDurableState(
 		candidate.Networks = normalized.Networks
 		candidate.OrchestratorContexts = normalized.OrchestratorContexts
 		candidate.PnPIDByMAC = normalized.PnPIDByMAC
-		if err := validateInput(candidate); err != nil {
-			return false, err
+		if verr := validateInput(candidate); verr != nil {
+			return false, verr
 		}
-		if err := validateEndpointIPPreservation(current, candidate); err != nil {
-			return false, err
+		if verr := validateEndpointIPPreservation(current, candidate); verr != nil {
+			return false, verr
 		}
 
 		encoded, err := encodeDurableState(normalized)
@@ -205,8 +205,8 @@ func (s *DB) UpdateReadinessObservation(
 		record.HostVersion = observation.HostVersion
 		record.VFPUpdateComplete = observation.VFPUpdateComplete
 		candidate.NetworkContainers[id] = record
-		if err := validateInput(candidate); err != nil {
-			return false, err
+		if verr := validateInput(candidate); verr != nil {
+			return false, verr
 		}
 		data, err := encodeJSONInput(record)
 		if err != nil {
@@ -240,14 +240,15 @@ func (s *DB) ApplyBoot(ctx context.Context, bootID string, policy BootPolicy) (b
 			candidate.Endpoints = map[string]EndpointRecord{}
 		}
 		if policy.ResetReadiness {
-			for id, record := range candidate.NetworkContainers {
+			for id := range candidate.NetworkContainers {
+				record := candidate.NetworkContainers[id]
 				record.HostVersion = ""
 				record.VFPUpdateComplete = false
 				candidate.NetworkContainers[id] = record
 			}
 		}
-		if err := validateInput(candidate); err != nil {
-			return false, err
+		if verr := validateInput(candidate); verr != nil {
+			return false, verr
 		}
 
 		var ncData map[string][]byte
@@ -281,7 +282,8 @@ func (s *DB) ApplyBoot(ctx context.Context, bootID string, policy BootPolicy) (b
 
 func normalizeDurableState(input DurableState) (DurableState, error) {
 	normalized := NewDurableState()
-	for key, record := range input.NetworkContainers {
+	for key := range input.NetworkContainers {
+		record := input.NetworkContainers[key]
 		if key == "" || record.ID != key {
 			return DurableState{}, invalidInput(
 				fmt.Sprintf("network container key %q does not match record ID %q", key, record.ID),
@@ -367,7 +369,7 @@ func validateEndpointIPPreservation(current, candidate Snapshot) error {
 	}
 	candidateIPs, err := candidate.validateIPs()
 	if err != nil {
-		return fmt.Errorf("%w: candidate state: %v", ErrInvalidInput, err)
+		return fmt.Errorf("%w: candidate state: %w", ErrInvalidInput, err)
 	}
 	available := make(map[string]struct{}, len(candidateIPs))
 	for _, address := range candidateIPs {
@@ -432,7 +434,11 @@ func encodeJSONMap[T any](values map[string]T) (map[string][]byte, error) {
 }
 
 func encodeJSONInput[T any](value T) ([]byte, error) {
-	return json.Marshal(value)
+	data, err := json.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling value: %w", err)
+	}
+	return data, nil
 }
 
 func replaceJSONBucket(tx *bolt.Tx, name []byte, values map[string][]byte) error {
@@ -455,7 +461,7 @@ func clearBucket(bucket *bolt.Bucket) error {
 	cursor := bucket.Cursor()
 	for key, _ := cursor.First(); key != nil; key, _ = cursor.First() {
 		if err := cursor.Delete(); err != nil {
-			return err
+			return fmt.Errorf("deleting key %q: %w", key, err)
 		}
 	}
 	return nil
