@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -25,13 +26,32 @@ const (
 	envFaultWorkloadImage  = "MIGRATION_FAULT_WORKLOAD_IMAGE"
 	envValidateBackend     = "VALIDATE_STATE_BACKEND"
 
-	faultTokenEnv    = "CNS_TEST_FAULT_INJECTION_TOKEN"
-	faultTokenHeader = "X-CNS-Test-Fault-Token"
+	faultTokenEnv    = "CNS_TEST_FAULT_INJECTION_TOKEN" //nolint:gosec // This is an environment variable name, not a credential.
+	faultTokenHeader = "X-CNS-Test-Fault-Token"         //nolint:gosec // This is a header name, not a credential.
 	faultAPIPath     = "/debug/faultinjection"
 
 	defaultScaleReplicas = 20
 	defaultTimeout       = 45 * time.Minute
 	defaultWorkloadImage = "mcr.microsoft.com/oss/kubernetes/pause:3.6"
+	faultOSLinux         = "linux"
+	faultOSWindows       = "windows"
+	faultBackendBolt     = "bolt"
+	faultCNICilium       = "cilium"
+)
+
+var (
+	errUnsupportedFaultOS       = errors.New("unsupported migration fault OS")
+	errUnsupportedFaultCNI      = errors.New("unsupported migration fault CNI")
+	errFaultRunIDRequired       = errors.New("migration fault run ID (MIGRATION_FAULT_RUN_ID) is required")
+	errFaultArtifactDirRequired = errors.New("migration fault artifact directory (MIGRATION_FAULT_ARTIFACT_DIR) is required")
+	errFaultBackendRequired     = errors.New("validation backend (VALIDATE_STATE_BACKEND) must be bolt")
+	errFaultScaleInvalid        = errors.New("migration fault scale replicas (MIGRATION_FAULT_SCALE_REPLICAS) must be an integer greater than one")
+	errFaultTimeoutInvalid      = errors.New("migration fault timeout (MIGRATION_FAULT_TIMEOUT_MINUTES) must be a positive integer")
+	errUnsupportedFaultScenario = errors.New("unsupported migration fault scenario")
+	errStateBackendNotBolt      = errors.New("state store backend must be bolt")
+	errManagedEndpointDisabled  = errors.New("managed endpoint state must be enabled")
+	errCNSContainerNotFound     = errors.New("container exposing the CNS API was not found")
+	errReadyCNSPodNotFound      = errors.New("no ready CNS pod found")
 )
 
 type scenario string
@@ -75,8 +95,8 @@ type migrationCNSConfig struct {
 func loadFaultConfig(getenv func(string) string) (faultConfig, error) {
 	cfg := faultConfig{
 		Scenario:      scenario(valueOrDefault(getenv(envFaultScenario), string(scenarioAll))),
-		OS:            strings.ToLower(valueOrDefault(getenv(envFaultOS), "linux")),
-		CNI:           strings.ToLower(valueOrDefault(getenv(envFaultCNI), "cilium")),
+		OS:            strings.ToLower(valueOrDefault(getenv(envFaultOS), faultOSLinux)),
+		CNI:           strings.ToLower(valueOrDefault(getenv(envFaultCNI), faultCNICilium)),
 		RunID:         getenv(envFaultRunID),
 		ArtifactDir:   getenv(envFaultArtifactDir),
 		ScaleReplicas: defaultScaleReplicas,
@@ -86,33 +106,33 @@ func loadFaultConfig(getenv func(string) string) (faultConfig, error) {
 	if _, err := cfg.scenarios(); err != nil {
 		return faultConfig{}, err
 	}
-	if cfg.OS != "linux" && cfg.OS != "windows" {
-		return faultConfig{}, fmt.Errorf("unsupported migration fault OS %q", cfg.OS)
+	if cfg.OS != faultOSLinux && cfg.OS != faultOSWindows {
+		return faultConfig{}, fmt.Errorf("%w: %q", errUnsupportedFaultOS, cfg.OS)
 	}
 	if !supportedCNI(cfg.OS, cfg.CNI) {
-		return faultConfig{}, fmt.Errorf("unsupported migration fault CNI %q for OS %q", cfg.CNI, cfg.OS)
+		return faultConfig{}, fmt.Errorf("%w: %q for OS %q", errUnsupportedFaultCNI, cfg.CNI, cfg.OS)
 	}
 	if cfg.RunID == "" {
-		return faultConfig{}, fmt.Errorf("%s is required", envFaultRunID)
+		return faultConfig{}, errFaultRunIDRequired
 	}
 	if cfg.ArtifactDir == "" {
-		return faultConfig{}, fmt.Errorf("%s is required", envFaultArtifactDir)
+		return faultConfig{}, errFaultArtifactDirRequired
 	}
-	if strings.ToLower(getenv(envValidateBackend)) != "bolt" {
-		return faultConfig{}, fmt.Errorf("%s must be bolt", envValidateBackend)
+	if !strings.EqualFold(getenv(envValidateBackend), faultBackendBolt) {
+		return faultConfig{}, errFaultBackendRequired
 	}
 
 	if raw := getenv(envFaultScaleReplicas); raw != "" {
 		replicas, err := strconv.ParseInt(raw, 10, 32)
 		if err != nil || replicas < 2 {
-			return faultConfig{}, fmt.Errorf("%s must be an integer greater than one", envFaultScaleReplicas)
+			return faultConfig{}, errFaultScaleInvalid
 		}
 		cfg.ScaleReplicas = int32(replicas)
 	}
 	if raw := getenv(envFaultTimeoutMinutes); raw != "" {
 		minutes, err := strconv.Atoi(raw)
 		if err != nil || minutes <= 0 {
-			return faultConfig{}, fmt.Errorf("%s must be a positive integer", envFaultTimeoutMinutes)
+			return faultConfig{}, errFaultTimeoutInvalid
 		}
 		cfg.Timeout = time.Duration(minutes) * time.Minute
 	}
@@ -121,9 +141,9 @@ func loadFaultConfig(getenv func(string) string) (faultConfig, error) {
 
 func supportedCNI(osName, cni string) bool {
 	switch osName {
-	case "linux":
-		return cni == "cilium" || cni == "cniv1" || cni == "cniv2" || cni == "dualstack"
-	case "windows":
+	case faultOSLinux:
+		return cni == faultCNICilium || cni == "cniv1" || cni == "cniv2" || cni == "dualstack"
+	case faultOSWindows:
 		return cni == "cniv1" || cni == "cniv2" || cni == "stateless"
 	default:
 		return false
@@ -145,7 +165,7 @@ func (cfg faultConfig) scenarios() ([]scenario, error) {
 		scenarioRestartDuringScale:
 		return []scenario{cfg.Scenario}, nil
 	default:
-		return nil, fmt.Errorf("unsupported migration fault scenario %q", cfg.Scenario)
+		return nil, fmt.Errorf("%w: %q", errUnsupportedFaultScenario, cfg.Scenario)
 	}
 }
 
@@ -155,13 +175,15 @@ func faultPointForScenario(value scenario) string {
 		return faultPointDeleteAfterIntent
 	case scenarioEndpointPatch:
 		return faultPointPatchBeforeEndpoint
+	case scenarioAll, scenarioAddBeforeEndpointCommit, scenarioRestartDuringScale:
+		return faultPointAddBeforeEndpoint
 	default:
 		return faultPointAddBeforeEndpoint
 	}
 }
 
-func cnsDaemonSetForOS(osName string) (string, string) {
-	if osName == "windows" {
+func cnsDaemonSetForOS(osName string) (name, selector string) {
+	if osName == faultOSWindows {
 		return windowsCNSDaemonSet, windowsCNSLabelSelector
 	}
 	return linuxCNSDaemonSet, linuxCNSLabelSelector
@@ -204,11 +226,11 @@ func validateMigrationCNSConfig(raw []byte) error {
 	if err := json.Unmarshal(raw, &config); err != nil {
 		return fmt.Errorf("decoding CNS config: %w", err)
 	}
-	if strings.ToLower(config.StateStoreBackend) != "bolt" {
-		return fmt.Errorf("state store backend must be bolt, got %q", config.StateStoreBackend)
+	if !strings.EqualFold(config.StateStoreBackend, faultBackendBolt) {
+		return fmt.Errorf("%w: got %q", errStateBackendNotBolt, config.StateStoreBackend)
 	}
 	if !config.ManageEndpointState {
-		return fmt.Errorf("managed endpoint state must be enabled")
+		return errManagedEndpointDisabled
 	}
 	return nil
 }
@@ -228,7 +250,7 @@ func findCNSContainer(containers []corev1.Container) (int, error) {
 			}
 		}
 	}
-	return -1, fmt.Errorf("container exposing the CNS API was not found")
+	return -1, errCNSContainerNotFound
 }
 
 func setContainerEnv(container *corev1.Container, name, value string) envBackup {
@@ -274,7 +296,7 @@ func selectCNSTarget(pods []corev1.Pod, nodeName string) (corev1.Pod, error) {
 		}
 	}
 	if selected == nil {
-		return corev1.Pod{}, fmt.Errorf("no ready CNS pod found")
+		return corev1.Pod{}, errReadyCNSPodNotFound
 	}
 	return *selected.DeepCopy(), nil
 }

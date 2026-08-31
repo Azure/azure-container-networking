@@ -10,6 +10,11 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
+const (
+	testFaultRunID       = "build-123"
+	testFaultArtifactDir = "artifacts"
+)
+
 func TestLoadFaultConfig(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -19,61 +24,61 @@ func TestLoadFaultConfig(t *testing.T) {
 		{
 			name: "valid defaults",
 			env: map[string]string{
-				envFaultRunID:       "build-123",
-				envFaultArtifactDir: "artifacts",
-				envValidateBackend:  "bolt",
+				envFaultRunID:       testFaultRunID,
+				envFaultArtifactDir: testFaultArtifactDir,
+				envValidateBackend:  faultBackendBolt,
 			},
 		},
 		{
 			name: "specific scenario",
 			env: map[string]string{
 				envFaultScenario:       string(scenarioEndpointPatch),
-				envFaultOS:             "windows",
+				envFaultOS:             faultOSWindows,
 				envFaultCNI:            "stateless",
-				envFaultRunID:          "build-123",
-				envFaultArtifactDir:    "artifacts",
+				envFaultRunID:          testFaultRunID,
+				envFaultArtifactDir:    testFaultArtifactDir,
 				envFaultScaleReplicas:  "32",
 				envFaultTimeoutMinutes: "60",
-				envValidateBackend:     "bolt",
+				envValidateBackend:     faultBackendBolt,
 			},
 		},
 		{
 			name: "unsupported scenario",
 			env: map[string]string{
 				envFaultScenario:    "unknown",
-				envFaultRunID:       "build-123",
-				envFaultArtifactDir: "artifacts",
-				envValidateBackend:  "bolt",
+				envFaultRunID:       testFaultRunID,
+				envFaultArtifactDir: testFaultArtifactDir,
+				envValidateBackend:  faultBackendBolt,
 			},
 			wantErr: "unsupported migration fault scenario",
 		},
 		{
 			name: "unsupported OS and CNI combination",
 			env: map[string]string{
-				envFaultOS:          "windows",
-				envFaultCNI:         "cilium",
-				envFaultRunID:       "build-123",
-				envFaultArtifactDir: "artifacts",
-				envValidateBackend:  "bolt",
+				envFaultOS:          faultOSWindows,
+				envFaultCNI:         faultCNICilium,
+				envFaultRunID:       testFaultRunID,
+				envFaultArtifactDir: testFaultArtifactDir,
+				envValidateBackend:  faultBackendBolt,
 			},
 			wantErr: "unsupported migration fault CNI",
 		},
 		{
 			name: "non bolt backend",
 			env: map[string]string{
-				envFaultRunID:       "build-123",
-				envFaultArtifactDir: "artifacts",
+				envFaultRunID:       testFaultRunID,
+				envFaultArtifactDir: testFaultArtifactDir,
 				envValidateBackend:  "json",
 			},
-			wantErr: "VALIDATE_STATE_BACKEND must be bolt",
+			wantErr: "validation backend",
 		},
 		{
 			name: "unsafe scale",
 			env: map[string]string{
-				envFaultRunID:         "build-123",
-				envFaultArtifactDir:   "artifacts",
+				envFaultRunID:         testFaultRunID,
+				envFaultArtifactDir:   testFaultArtifactDir,
 				envFaultScaleReplicas: "1",
-				envValidateBackend:    "bolt",
+				envValidateBackend:    faultBackendBolt,
 			},
 			wantErr: "MIGRATION_FAULT_SCALE_REPLICAS",
 		},
@@ -94,7 +99,7 @@ func TestLoadFaultConfig(t *testing.T) {
 			if tt.name == "specific scenario" {
 				require.Equal(t, int32(32), cfg.ScaleReplicas)
 				require.Equal(t, 60*time.Minute, cfg.Timeout)
-				require.Equal(t, "windows", cfg.OS)
+				require.Equal(t, faultOSWindows, cfg.OS)
 			}
 		})
 	}
@@ -113,6 +118,77 @@ func TestScenarioContract(t *testing.T) {
 	require.Equal(t, faultPointAddBeforeEndpoint, faultPointForScenario(scenarioRestartDuringScale))
 	require.Equal(t, faultPointDeleteAfterIntent, faultPointForScenario(scenarioDeleteAfterIntentCommit))
 	require.Equal(t, faultPointPatchBeforeEndpoint, faultPointForScenario(scenarioEndpointPatch))
+}
+
+func TestCNSDaemonSetForOS(t *testing.T) {
+	tests := []struct {
+		name         string
+		osName       string
+		wantName     string
+		wantSelector string
+	}{
+		{
+			name:         "linux",
+			osName:       faultOSLinux,
+			wantName:     linuxCNSDaemonSet,
+			wantSelector: linuxCNSLabelSelector,
+		},
+		{
+			name:         "windows",
+			osName:       faultOSWindows,
+			wantName:     windowsCNSDaemonSet,
+			wantSelector: windowsCNSLabelSelector,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			name, selector := cnsDaemonSetForOS(tt.osName)
+			require.Equal(t, tt.wantName, name)
+			require.Equal(t, tt.wantSelector, selector)
+		})
+	}
+}
+
+func TestFindCNSContainer(t *testing.T) {
+	tests := []struct {
+		name       string
+		containers []corev1.Container
+		want       int
+		wantErr    error
+	}{
+		{
+			name: "api port",
+			containers: []corev1.Container{
+				{Name: "other"},
+				{Name: "cns", Ports: []corev1.ContainerPort{{ContainerPort: 10090}}},
+			},
+			want: 1,
+		},
+		{
+			name: "configuration environment",
+			containers: []corev1.Container{
+				{Name: "cns", Env: []corev1.EnvVar{{Name: "CNS_CONFIGURATION_PATH"}}},
+			},
+			want: 0,
+		},
+		{
+			name:       "missing",
+			containers: []corev1.Container{{Name: "other"}},
+			want:       -1,
+			wantErr:    errCNSContainerNotFound,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			index, err := findCNSContainer(tt.containers)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tt.want, index)
+		})
+	}
 }
 
 func TestSanitizeResourceName(t *testing.T) {
