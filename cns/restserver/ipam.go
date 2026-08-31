@@ -1265,7 +1265,7 @@ func (service *HTTPRestService) DeleteEndpointStateHandler(w http.ResponseWriter
 	logger.Printf("[DeleteEndpointStateHandler] DeleteEndpointState for %s", r.URL.Path) //nolint:staticcheck // reason: using deprecated call until migration to new API
 	endpointID := strings.TrimPrefix(r.URL.Path, cns.EndpointPath)
 
-	if service.EndpointStateStore == nil && service.unifiedStateAdapter == nil {
+	if service.EndpointStateStore == nil && service.selectedUnifiedStateAdapter() == nil {
 		response := cns.Response{
 			ReturnCode: types.NilEndpointStateStore,
 			Message:    "[DeleteEndpointStateHandler] EndpointStateStore is not initialized",
@@ -1325,7 +1325,7 @@ func (service *HTTPRestService) DeleteEndpointStateHelper(endpointID string) err
 }
 
 func (service *HTTPRestService) deleteEndpointState(ctx context.Context, endpointID string) error {
-	if adapter := service.unifiedStateAdapter; adapter != nil {
+	if adapter := service.selectedUnifiedStateAdapter(); adapter != nil {
 		return adapter.deleteEndpointRecord(ctx, endpointID)
 	}
 	return service.DeleteEndpointStateHelper(endpointID)
