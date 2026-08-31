@@ -79,6 +79,12 @@ func (a *durableStateAdapter) patchEndpoint(
 		return err
 	}
 
+	a.service.reachFaultPoint(
+		faultPointPatchBeforeEndpointCommit,
+		plan.pod.PodName,
+		plan.pod.PodNamespace,
+	)
+
 	var projection durableCacheProjection
 	changed, err := a.store.patchEndpoint(
 		ctx,

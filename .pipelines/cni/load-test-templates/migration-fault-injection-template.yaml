@@ -1,0 +1,56 @@
+parameters:
+  clusterName: ""
+  os: "linux"
+  # linux: cilium, cniv1, cniv2, dualstack; windows: cniv1, cniv2, stateless
+  cni: "cilium"
+  # all, add-before-endpoint-commit, delete-after-intent-commit, endpoint-patch, restart-during-scale
+  scenario: "all"
+  scaleReplicas: 20
+  # Keep the test and task timeouts larger so context cancellation can restore the CNS DaemonSet.
+  timeoutMinutes: 60
+  testTimeoutMinutes: 80
+  taskTimeoutMinutes: 95
+  runID: "$(Build.BuildId)-$(System.JobId)-$(System.JobAttempt)"
+  artifactName: "migration-fault-injection-$(System.JobId)"
+  workloadImage: "mcr.microsoft.com/oss/kubernetes/pause:3.6"
+
+steps:
+  - task: AzureCLI@2
+    displayName: "Run CNS migration fault injection"
+    timeoutInMinutes: ${{ parameters.taskTimeoutMinutes }}
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -euo pipefail
+
+        artifactDir="$(Build.ArtifactStagingDirectory)/migration-fault-injection"
+        mkdir -p "$artifactDir"
+        export KUBECONFIG="$(Build.ArtifactStagingDirectory)/migration-fault-injection-kubeconfig"
+        trap 'rm -f "$KUBECONFIG"' EXIT
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+
+        MIGRATION_FAULT_SCENARIO="${{ parameters.scenario }}" \
+        MIGRATION_FAULT_OS="${{ parameters.os }}" \
+        MIGRATION_FAULT_CNI="${{ parameters.cni }}" \
+        MIGRATION_FAULT_RUN_ID="${{ parameters.runID }}" \
+        MIGRATION_FAULT_ARTIFACT_DIR="$artifactDir" \
+        MIGRATION_FAULT_SCALE_REPLICAS="${{ parameters.scaleReplicas }}" \
+        MIGRATION_FAULT_TIMEOUT_MINUTES="${{ parameters.timeoutMinutes }}" \
+        MIGRATION_FAULT_WORKLOAD_IMAGE="${{ parameters.workloadImage }}" \
+        VALIDATE_STATE_BACKEND=bolt \
+        VALIDATE_CONVERGENCE_ATTEMPTS=12 \
+        VALIDATE_CONVERGENCE_INTERVAL_SECONDS=10 \
+          go test -mod=readonly -count=1 -timeout ${{ parameters.testTimeoutMinutes }}m -tags load \
+            ./test/integration/state -run '^TestMigrationFaultInjection$' -v \
+            -args -test-kubeconfig="$KUBECONFIG" 2>&1 |
+          tee "$artifactDir/go-test.log"
+
+  - task: PublishPipelineArtifact@1
+    displayName: "Publish migration fault artifacts"
+    condition: always()
+    inputs:
+      targetPath: "$(Build.ArtifactStagingDirectory)/migration-fault-injection"
+      artifact: "${{ parameters.artifactName }}"
