@@ -14,6 +14,11 @@ import (
 	"github.com/Azure/azure-container-networking/cns/state"
 )
 
+var (
+	errNilPersistentStateStatusProvider   = errors.New("persistent state status provider is nil")
+	errNilPersistentStateSnapshotProvider = errors.New("persistent state snapshot provider is nil")
+)
+
 type statusProvider func(context.Context) (state.Status, error)
 
 type snapshotProvider func(context.Context) (state.Snapshot, error)
@@ -26,7 +31,7 @@ func NewPersistentStateStatusHandler(
 	status func(context.Context) (state.Status, error),
 ) (*PersistentStateStatusHandler, error) {
 	if status == nil {
-		return nil, errors.New("persistent state status provider is nil")
+		return nil, errNilPersistentStateStatusProvider
 	}
 	return &PersistentStateStatusHandler{status: status}, nil
 }
@@ -53,7 +58,7 @@ func NewPersistentStateSnapshotHandler(
 	enabled bool,
 ) (*PersistentStateSnapshotHandler, error) {
 	if snapshot == nil {
-		return nil, errors.New("persistent state snapshot provider is nil")
+		return nil, errNilPersistentStateSnapshotProvider
 	}
 	return &PersistentStateSnapshotHandler{
 		snapshot: snapshot,
@@ -80,16 +85,20 @@ func (h *PersistentStateSnapshotHandler) ServeHTTP(w http.ResponseWriter, r *htt
 type persistentStateSnapshotResponse state.Snapshot
 
 func (r persistentStateSnapshotResponse) MarshalJSON() ([]byte, error) {
-	data, err := json.Marshal(state.Snapshot(r))
+	data, err := json.Marshal(state.Snapshot(r)) //nolint:musttag // Snapshot preserves its established debug JSON field names.
 	if err != nil {
 		return nil, fmt.Errorf("encoding persistent state snapshot: %w", err)
 	}
 	var document map[string]any
-	if err := json.Unmarshal(data, &document); err != nil {
-		return nil, fmt.Errorf("sanitizing persistent state snapshot: %w", err)
+	if decodeErr := json.Unmarshal(data, &document); decodeErr != nil {
+		return nil, fmt.Errorf("sanitizing persistent state snapshot: %w", decodeErr)
 	}
 	removeAuthorizationTokens(document)
-	return json.Marshal(document)
+	sanitized, err := json.Marshal(document)
+	if err != nil {
+		return nil, fmt.Errorf("encoding sanitized persistent state snapshot: %w", err)
+	}
+	return sanitized, nil
 }
 
 func removeAuthorizationTokens(value any) {

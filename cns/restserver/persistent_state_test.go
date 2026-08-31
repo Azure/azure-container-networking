@@ -17,6 +17,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	errPersistentStateProvider = errors.New("secret path /var/lib/state")
+	errSnapshotProvider        = errors.New("provider failure")
+)
+
 func TestPersistentStateHandlerConstructors(t *testing.T) {
 	statusHandler, err := NewPersistentStateStatusHandler(nil)
 	require.Error(t, err)
@@ -38,15 +43,15 @@ func TestPersistentStateStatusHandlerContract(t *testing.T) {
 		DatabaseBytes:   4096,
 		InvariantStatus: state.InvariantHealthy,
 	}
-	var gotContext context.Context
+	contexts := make(chan context.Context, 1)
 	handler, err := NewPersistentStateStatusHandler(func(ctx context.Context) (state.Status, error) {
-		gotContext = ctx
+		contexts <- ctx
 		return safeStatus, nil
 	})
 	require.NoError(t, err)
 
 	t.Run("safe JSON", func(t *testing.T) {
-		request := httptest.NewRequest(http.MethodGet, "/persistent-state", nil)
+		request := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/persistent-state", http.NoBody)
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, request)
 
@@ -73,7 +78,7 @@ func TestPersistentStateStatusHandlerContract(t *testing.T) {
 			"legacyImported":false,
 			"rollbackExported":false
 		}`, response.Body.String())
-		assert.Equal(t, request.Context(), gotContext)
+		assert.Equal(t, request.Context(), <-contexts)
 		assert.NotContains(t, response.Body.String(), "bootID")
 		assert.NotContains(t, response.Body.String(), "node")
 		assert.NotContains(t, response.Body.String(), "path")
@@ -88,7 +93,8 @@ func TestPersistentStateStatusHandlerContract(t *testing.T) {
 		})
 		require.NoError(t, handlerErr)
 		response := httptest.NewRecorder()
-		invalidHandler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/persistent-state", nil))
+		request := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/persistent-state", http.NoBody)
+		invalidHandler.ServeHTTP(response, request)
 		assert.Equal(t, http.StatusOK, response.Code)
 		assert.Contains(t, response.Body.String(), `"failedInvariant":"structural"`)
 	})
@@ -105,7 +111,7 @@ func TestPersistentStateHandlersProviderErrors(t *testing.T) {
 	}{
 		{name: "canceled", err: context.Canceled, status: http.StatusRequestTimeout, body: "request canceled\n"},
 		{name: "deadline", err: context.DeadlineExceeded, status: http.StatusRequestTimeout, body: "request canceled\n"},
-		{name: "provider", err: errors.New("secret path /var/lib/state"), status: http.StatusServiceUnavailable, body: "persistent state unavailable\n"},
+		{name: "provider", err: errPersistentStateProvider, status: http.StatusServiceUnavailable, body: "persistent state unavailable\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -114,7 +120,8 @@ func TestPersistentStateHandlersProviderErrors(t *testing.T) {
 			})
 			require.NoError(t, err)
 			response := httptest.NewRecorder()
-			handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/persistent-state", nil))
+			request := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/persistent-state", http.NoBody)
+			handler.ServeHTTP(response, request)
 			assert.Equal(t, tt.status, response.Code)
 			assert.Equal(t, tt.body, response.Body.String())
 			assert.NotContains(t, response.Body.String(), "/var/lib")
@@ -127,7 +134,7 @@ func TestPersistentStateHandlersProviderErrors(t *testing.T) {
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	request := httptest.NewRequest(http.MethodGet, "/persistent-state", nil).WithContext(ctx)
+	request := httptest.NewRequestWithContext(ctx, http.MethodGet, "/persistent-state", http.NoBody)
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	assert.Equal(t, http.StatusRequestTimeout, response.Code)
@@ -151,14 +158,16 @@ func TestPersistentStateSnapshotHandlerGateAndSanitization(t *testing.T) {
 	disabled, err := NewPersistentStateSnapshotHandler(provider, false)
 	require.NoError(t, err)
 	response := httptest.NewRecorder()
-	disabled.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/persistent-state/snapshot", nil))
+	request := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/persistent-state/snapshot", http.NoBody)
+	disabled.ServeHTTP(response, request)
 	assert.Equal(t, http.StatusNotFound, response.Code)
 	assert.Zero(t, calls)
 
 	enabled, err := NewPersistentStateSnapshotHandler(provider, true)
 	require.NoError(t, err)
 	response = httptest.NewRecorder()
-	enabled.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/persistent-state/snapshot", nil))
+	request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/persistent-state/snapshot", http.NoBody)
+	enabled.ServeHTTP(response, request)
 	assert.Equal(t, http.StatusOK, response.Code)
 	assert.Equal(t, "application/json", response.Header().Get("Content-Type"))
 	assert.Equal(t, 1, calls)
@@ -172,11 +181,12 @@ func TestPersistentStateSnapshotHandlerGateAndSanitization(t *testing.T) {
 func TestPersistentStateSnapshotHandlerErrors(t *testing.T) {
 	t.Run("provider", func(t *testing.T) {
 		handler, err := NewPersistentStateSnapshotHandler(func(context.Context) (state.Snapshot, error) {
-			return state.Snapshot{}, errors.New("provider failure")
+			return state.Snapshot{}, errSnapshotProvider
 		}, true)
 		require.NoError(t, err)
 		response := httptest.NewRecorder()
-		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/persistent-state/snapshot", nil))
+		request := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/persistent-state/snapshot", http.NoBody)
+		handler.ServeHTTP(response, request)
 		assert.Equal(t, http.StatusServiceUnavailable, response.Code)
 	})
 
@@ -191,7 +201,8 @@ func TestPersistentStateSnapshotHandlerErrors(t *testing.T) {
 		}, true)
 		require.NoError(t, err)
 		response := httptest.NewRecorder()
-		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/persistent-state/snapshot", nil))
+		request := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/persistent-state/snapshot", http.NoBody)
+		handler.ServeHTTP(response, request)
 		assert.Equal(t, http.StatusInternalServerError, response.Code)
 		assert.Equal(t, "encoding persistent state response\n", response.Body.String())
 	})
@@ -213,13 +224,20 @@ func assertCommonGETContract(t *testing.T, handler http.Handler) {
 	t.Helper()
 	t.Run("method mismatch", func(t *testing.T) {
 		response := httptest.NewRecorder()
-		handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/persistent-state", nil))
+		request := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/persistent-state", http.NoBody)
+		handler.ServeHTTP(response, request)
 		assert.Equal(t, http.StatusMethodNotAllowed, response.Code)
 		assert.Equal(t, http.MethodGet, response.Header().Get("Allow"))
 	})
 	t.Run("GET body rejected", func(t *testing.T) {
 		response := httptest.NewRecorder()
-		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/persistent-state", strings.NewReader("{}")))
+		request := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			"/persistent-state",
+			strings.NewReader("{}"),
+		)
+		handler.ServeHTTP(response, request)
 		assert.Equal(t, http.StatusBadRequest, response.Code)
 		assert.Equal(t, "request body is not allowed\n", response.Body.String())
 	})
