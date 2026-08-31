@@ -18,6 +18,7 @@
     },
     "ChannelMode": "Direct",
     "EnableBoltStateStore": false,
+    "EnablePersistentStateDebug": false,
     "InitializeFromCNI": false,
     "StateStoreBackend": "json",
     "StateStoreMode": "normal",

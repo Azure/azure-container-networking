@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/Azure/azure-container-networking/cns/state"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/processlock"
 	"github.com/Azure/azure-container-networking/store"
@@ -48,6 +49,10 @@ type persistentStateStartup struct {
 	start              func(context.Context) error
 	attachments        []persistentStateAttachment
 	locks              []processlock.Interface
+	status             func(context.Context) (state.Status, error)
+	snapshot           func(context.Context) (state.Snapshot, error)
+	restoreOnce        sync.Once
+	restoreErr         error
 	closeOnce          sync.Once
 	closeErr           error
 }
@@ -111,11 +116,21 @@ func newJSONPersistentStateStartup(
 	})
 }
 
-func (s *persistentStateStartup) Start(ctx context.Context) error {
-	for _, attachment := range s.attachments {
-		if err := attachment.restore(ctx); err != nil {
-			return errors.Join(err, s.Close())
+func (s *persistentStateStartup) Restore(ctx context.Context) error {
+	s.restoreOnce.Do(func() {
+		for _, attachment := range s.attachments {
+			if err := attachment.restore(ctx); err != nil {
+				s.restoreErr = errors.Join(err, s.Close())
+				return
+			}
 		}
+	})
+	return s.restoreErr
+}
+
+func (s *persistentStateStartup) Start(ctx context.Context) error {
+	if err := s.Restore(ctx); err != nil {
+		return err
 	}
 	if err := s.start(ctx); err != nil {
 		return errors.Join(err, s.Close())

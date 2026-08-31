@@ -48,6 +48,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller/multitenantoperator"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	restserverv2 "github.com/Azure/azure-container-networking/cns/restserver/v2"
+	"github.com/Azure/azure-container-networking/cns/state"
 	cnipodprovider "github.com/Azure/azure-container-networking/cns/stateprovider/cni"
 	cnspodprovider "github.com/Azure/azure-container-networking/cns/stateprovider/cns"
 	cnstypes "github.com/Azure/azure-container-networking/cns/types"
@@ -527,6 +528,7 @@ func main() {
 		config                common.ServiceConfig
 		endpointStateStore    store.KeyValueStore
 		httpRemoteRestService *restserver.HTTPRestService
+		persistentState       *persistentStateStartup
 	)
 
 	config.Version = version
@@ -693,7 +695,15 @@ func main() {
 		logger.Errorf("unable to initialize a healthz handler: %v", err)
 		return
 	}
-	go healthserver.Start(z, cnsconfig.MetricsBindAddress, healthzHandler, readyChecker)
+	gateHealthServerOnPersistentState := cnsconfig.EnableBoltStateStore &&
+		(cnsconfig.StateStoreBackend == configuration.StateStoreBackendBolt ||
+			cnsconfig.StateStoreMode == configuration.StateStoreModeRollbackToJSON)
+	startHealthServer := func() {
+		go healthserver.Start(z, cnsconfig.MetricsBindAddress, healthzHandler, readyChecker)
+	}
+	if !gateHealthServerOnPersistentState {
+		startHealthServer()
+	}
 
 	nmaConfig, err := nmagent.NewConfig(cnsconfig.WireserverIP)
 	if err != nil {
@@ -739,28 +749,62 @@ func main() {
 		logger.Printf("EndpointStoreState path is %s", endpointStorePath+endpointStoreName+".json") //nolint:staticcheck // main still uses the legacy global logger
 	}
 
-	persistentState, err := newEndpointStateStartup(
-		productionEndpointStateProvider,
-		func() (*persistentStateStartup, error) {
-			return newJSONPersistentStateStartup(
-				resolvePersistentStatePaths(storeFileLocation, endpointStorePath),
-				cnsconfig.ManageEndpointState,
-				func(context.Context) error {
-					return httpRemoteRestService.Start(&config)
-				},
-			)
-		},
-		nil,
-	)
-	if err != nil {
-		logger.Errorf("Failed to initialize persistent state: %v", err) //nolint:staticcheck // main still uses the legacy global logger
-		return
+	statePaths := resolvePersistentStatePaths(storeFileLocation, endpointStorePath)
+	persistentStateProvider := selectEndpointStateProvider(cnsconfig.StateStoreBackend, cnsconfig.StateStoreMode)
+	var persistentStateOptions state.Options
+	if cnsconfig.EnableBoltStateStore &&
+		(cnsconfig.StateStoreBackend == configuration.StateStoreBackendBolt ||
+			cnsconfig.StateStoreMode == configuration.StateStoreModeRollbackToJSON) {
+		persistentStateMetrics, metricsErr := getProductionPersistentStateMetrics()
+		if metricsErr != nil {
+			config.Logger.Error("failed to register persistent state metrics", zap.Error(metricsErr))
+			return
+		}
+		persistentStateOptions = state.Options{
+			Metrics: persistentStateMetrics,
+			Logger:  config.Logger,
+		}
 	}
-	defer func() {
-		_ = persistentState.Close()
-	}()
-	config.Store = persistentState.stateStore
-	endpointStateStore = persistentState.endpointStateStore
+	if persistentStateProvider == endpointStateProviderJSON {
+		persistentState, err = newEndpointStateStartup(
+			persistentStateProvider,
+			func() (*persistentStateStartup, error) {
+				if cnsconfig.StateStoreMode == configuration.StateStoreModeRollbackToJSON {
+					return newBoltPersistentStateStartup(
+						rootCtx,
+						boltPersistentStateConfig{
+							paths:               statePaths,
+							mode:                boltStartupRollback,
+							manageEndpointState: cnsconfig.ManageEndpointState,
+							options:             persistentStateOptions,
+						},
+						func(context.Context) error {
+							return httpRemoteRestService.Start(&config)
+						},
+						productionBoltPersistentStateDependencies(
+							nil,
+							nil,
+							func(context.Context, store.KeyValueStore, store.KeyValueStore) error { return nil },
+						),
+					)
+				}
+				return newJSONPersistentStateStartup(
+					statePaths,
+					cnsconfig.ManageEndpointState,
+					func(context.Context) error {
+						return httpRemoteRestService.Start(&config)
+					},
+				)
+			},
+			nil,
+		)
+		if err != nil {
+			config.Logger.Error("failed to initialize persistent state", zap.Error(err))
+			return
+		}
+		config.Store = persistentState.stateStore
+		endpointStateStore = persistentState.endpointStateStore
+	}
 
 	wsProxy := wireserver.Proxy{
 		Host:       cnsconfig.WireserverIP,
@@ -780,6 +824,45 @@ func main() {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)
 		return
 	}
+	if persistentStateProvider == endpointStateProviderUnified {
+		var cniStateProvider cns.CNIEndpointStateProvider
+		if cnsconfig.EnableStateMigration && cnsconfig.InitializeFromCNI {
+			cniStateProvider = cnipodprovider.NewEndpointStateProvider()
+		}
+		persistentState, err = newEndpointStateStartup(
+			persistentStateProvider,
+			nil,
+			func() (*persistentStateStartup, error) {
+				return newBoltPersistentStateStartup(
+					rootCtx,
+					boltPersistentStateConfig{
+						paths:               statePaths,
+						mode:                boltStartupNormal,
+						manageEndpointState: cnsconfig.ManageEndpointState,
+						options:             persistentStateOptions,
+					},
+					func(context.Context) error {
+						return httpRemoteRestService.Start(&config)
+					},
+					productionBoltPersistentStateDependencies(
+						httpRemoteRestService,
+						cniStateProvider,
+						func(context.Context, store.KeyValueStore, store.KeyValueStore) error { return nil },
+					),
+				)
+			},
+		)
+		if err != nil {
+			config.Logger.Error("failed to initialize persistent state", zap.Error(err))
+			return
+		}
+	}
+	persistentStateCloseHandled := false
+	defer func() {
+		if closeErr := persistentState.Close(); closeErr != nil && !persistentStateCloseHandled {
+			config.Logger.Error("failed to close persistent state", zap.Error(closeErr))
+		}
+	}()
 
 	// Set CNS options.
 	httpRemoteRestService.SetOption(acn.OptCnsURL, cnsURL)
@@ -791,7 +874,7 @@ func main() {
 	httpRemoteRestService.SetOption(acn.OptHttpResponseHeaderTimeout, httpResponseHeaderTimeout)
 	httpRemoteRestService.SetOption(acn.OptProgramSNATIPTables, cnsconfig.ProgramSNATIPTables)
 	httpRemoteRestService.SetOption(acn.OptManageEndpointState, cnsconfig.ManageEndpointState)
-	httpRemoteRestService.SetOption(acn.OptRestoreStateFromJSON, productionEndpointStateProvider.restoresStateFromJSON())
+	httpRemoteRestService.SetOption(acn.OptRestoreStateFromJSON, persistentStateProvider.restoresStateFromJSON())
 	httpRemoteRestService.SetOption(acn.OptEnableStaleHNSCleanupOnNCCreate, cnsconfig.EnableStaleHNSCleanupOnNCCreate)
 
 	// Create default ext network if commandline option is set
@@ -826,6 +909,24 @@ func main() {
 			logger.Errorf("Failed to init HTTPService, err:%v.\n", err)
 			return
 		}
+	}
+	if persistentStateProvider == endpointStateProviderUnified {
+		if routeErr := httpRemoteRestService.RegisterPersistentStateRoutes(
+			persistentState.status,
+			persistentState.snapshot,
+			cnsconfig.EnablePersistentStateDebug,
+		); routeErr != nil {
+			config.Logger.Error("failed to register persistent state routes", zap.Error(routeErr))
+			return
+		}
+	}
+	if restoreErr := persistentState.Restore(rootCtx); restoreErr != nil {
+		persistentStateCloseHandled = true
+		config.Logger.Error("failed to restore persistent state", zap.Error(restoreErr))
+		return
+	}
+	if gateHealthServerOnPersistentState {
+		startHealthServer()
 	}
 
 	// Setting the remote ARP MAC address to 12-34-56-78-9a-bc on windows for external traffic if HNS is enabled
@@ -1025,6 +1126,7 @@ func main() {
 
 		err = persistentState.Start(rootCtx)
 		if err != nil {
+			persistentStateCloseHandled = true
 			logger.Errorf("Failed to start CNS, err:%v.\n", err)
 			return
 		}
@@ -1428,7 +1530,9 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 	}
 
 	// perform state migration from CNI in case CNS is set to manage the endpoint state and has emty state
-	if cnsconfig.EnableStateMigration && !httpRestServiceImplementation.EndpointStateStore.Exists() {
+	if cnsconfig.EnableStateMigration &&
+		cnsconfig.StateStoreBackend != configuration.StateStoreBackendBolt &&
+		!httpRestServiceImplementation.EndpointStateStore.Exists() {
 		if err = PopulateCNSEndpointState(httpRestServiceImplementation.EndpointStateStore); err != nil {
 			return errors.Wrap(err, "failed to create CNS EndpointState From CNI")
 		}
@@ -1678,6 +1782,9 @@ func getPodInfoByIPProvider(
 	nodeName string,
 ) (podInfoByIPProvider cns.PodInfoByIPProvider, err error) {
 	switch {
+	case cnsconfig.StateStoreBackend == configuration.StateStoreBackendBolt:
+		logger.Printf("Initializing from unified endpoint state") //nolint:staticcheck // This function still uses the legacy package logger.
+		podInfoByIPProvider = httpRestServiceImplementation.UnifiedPodInfoByIPProvider()
 	case cnsconfig.ManageEndpointState:
 		logger.Printf("Initializing from self managed endpoint store")
 		podInfoByIPProvider, err = cnspodprovider.New(httpRestServiceImplementation.EndpointStateStore) // get reference to endpoint state store from rest server

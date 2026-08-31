@@ -14,6 +14,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/processlock"
 	"github.com/Azure/azure-container-networking/store"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -289,6 +290,44 @@ func TestPersistentStateStartup_AttachmentClosesOnceOnShutdown(t *testing.T) {
 	require.NoError(t, startup.Close())
 	require.Equal(t, 1, closeCalls)
 	require.Equal(t, 1, lock.unlockCalls)
+}
+
+func TestPersistentStateStartup_RestoreRunsExactlyOnceBeforeStart(t *testing.T) {
+	lock := &trackedFileLock{}
+	restoreCalls := 0
+	listenerCalls := 0
+	startup, err := newPersistentStateStartup(
+		testPersistentStatePaths(),
+		false,
+		func(context.Context) error {
+			listenerCalls++
+			return nil
+		},
+		persistentStateDependencies{
+			createDirectory: func(string) error { return nil },
+			newFileLock: func(string) (processlock.Interface, error) {
+				return lock, nil
+			},
+			openStore: func(path string, _ processlock.Interface) (store.KeyValueStore, error) {
+				return store.NewMockStore(path), nil
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.NoError(t, startup.attach(
+		func(context.Context) error {
+			restoreCalls++
+			return nil
+		},
+		func() error { return nil },
+	))
+
+	require.NoError(t, startup.Restore(context.Background()))
+	require.NoError(t, startup.Restore(context.Background()))
+	require.NoError(t, startup.Start(context.Background()))
+	assert.Equal(t, 1, restoreCalls)
+	assert.Equal(t, 1, listenerCalls)
+	require.NoError(t, startup.Close())
 }
 
 func TestPersistentStateStartup_AttachmentValidation(t *testing.T) {

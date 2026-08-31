@@ -15,6 +15,7 @@ data:
       "EnableK8sDevicePlugin": true,
       "EnableLoggerV2": true,
       "EnableBoltStateStore": false,
+      "EnablePersistentStateDebug": false,
       "EnableStateMigration": true,
       "EnableSubnetScarcity": false,
       "InitializeFromCNI": false,

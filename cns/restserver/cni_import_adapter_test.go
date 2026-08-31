@@ -20,6 +20,7 @@ import (
 var (
 	errCNIImportProjection = errors.New("projection failure")
 	errCNIImportStatus     = errors.New("status failure")
+	errCNIQuery            = errors.New("CNI query failure")
 )
 
 const (
@@ -44,6 +45,7 @@ func TestCNIEndpointImportLifecycleKeepsStatefulProviderAvailable(t *testing.T) 
 		if contextErr := ctx.Err(); contextErr != nil {
 			return nil, fmt.Errorf("reading CNI endpoint state: %w", contextErr)
 		}
+
 		return adapterImportRecords(t), nil
 	}
 	records, err := provider(context.Background())
@@ -72,6 +74,80 @@ func TestCNIEndpointImportLifecycleKeepsStatefulProviderAvailable(t *testing.T) 
 	_, err = provider(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, 2, providerCalls)
+}
+
+func TestDurableStateLifecycleImportsCNIBeforeSelection(t *testing.T) {
+	t.Run("success selects unified state and leaves provider callable", func(t *testing.T) {
+		db := openAdapterImportDB(t)
+		seedAdapterImportInventory(t, db)
+		service := newAdapterTestService()
+		providerCalls := 0
+		provider := cns.CNIEndpointStateProvider(func(ctx context.Context) ([]cns.CNIEndpointState, error) {
+			providerCalls++
+			if contextErr := ctx.Err(); contextErr != nil {
+				return nil, fmt.Errorf("reading CNI endpoint state: %w", contextErr)
+			}
+			return adapterImportRecords(t), nil
+		})
+		restore, closeState, err := NewDurableStateLifecycleWithCNIImport(service, db, true, provider)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, closeState()) })
+
+		require.Nil(t, service.selectedUnifiedStateAdapter())
+		require.NoError(t, restore(context.Background()))
+		require.NotNil(t, service.selectedUnifiedStateAdapter())
+		assert.Equal(t, 1, providerCalls)
+		assert.Contains(t, service.EndpointState, "container-a")
+
+		_, err = provider(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, 2, providerCalls)
+	})
+
+	t.Run("provider failure blocks unified selection", func(t *testing.T) {
+		db := openAdapterImportDB(t)
+		seedAdapterImportInventory(t, db)
+		service := newAdapterTestService()
+		before, err := cloneJSON(service.EndpointState)
+		require.NoError(t, err)
+		restore, closeState, err := NewDurableStateLifecycleWithCNIImport(
+			service,
+			db,
+			true,
+			func(context.Context) ([]cns.CNIEndpointState, error) {
+				return nil, errCNIQuery
+			},
+		)
+		require.NoError(t, err)
+		err = restore(context.Background())
+		require.ErrorIs(t, err, errCNIQuery)
+		assert.Nil(t, service.selectedUnifiedStateAdapter())
+		assert.Equal(t, before, service.EndpointState)
+		require.NoError(t, closeState())
+	})
+
+	t.Run("preflight failure blocks unified selection without cache projection", func(t *testing.T) {
+		db := openAdapterImportDB(t)
+		seedAdapterImportInventory(t, db)
+		service := newAdapterTestService()
+		before, err := cloneJSON(service.EndpointState)
+		require.NoError(t, err)
+		records := adapterImportRecords(t)
+		records[1].InterfaceKey = records[0].InterfaceKey
+		restore, closeState, err := NewDurableStateLifecycleWithCNIImport(
+			service,
+			db,
+			true,
+			func(context.Context) ([]cns.CNIEndpointState, error) {
+				return records, nil
+			},
+		)
+		require.NoError(t, err)
+		require.Error(t, restore(context.Background()))
+		assert.Nil(t, service.selectedUnifiedStateAdapter())
+		assert.Equal(t, before, service.EndpointState)
+		require.NoError(t, closeState())
+	})
 }
 
 func TestCNIEndpointImportAdapterProjectionFailures(t *testing.T) {

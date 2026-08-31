@@ -56,6 +56,7 @@ type CNSConfig struct {
 	EnableIPAMv2                    bool
 	EnableK8sDevicePlugin           bool
 	EnableLoggerV2                  bool
+	EnablePersistentStateDebug      bool
 	EnablePprof                     bool
 	EnableStateMigration            bool
 	EnableSubnetScarcity            bool
@@ -112,13 +113,38 @@ func (cnsconfig CNSConfig) ValidateStateStore() error {
 		return fmt.Errorf("%w: mode %q", ErrInvalidStateStoreConfig, mode)
 	}
 
-	boltEnabled := cnsconfig.EnableBoltStateStore
-	boltSelected := backend == StateStoreBackendBolt
-	rollbackSelected := mode == StateStoreModeRollbackToJSON
-	if boltEnabled || boltSelected || rollbackSelected {
-		return ErrStateStoreFeatureUnavailable
+	if !cnsconfig.EnableBoltStateStore {
+		if backend != StateStoreBackendJSON || mode != StateStoreModeNormal || cnsconfig.EnablePersistentStateDebug {
+			return fmt.Errorf("%w: Bolt state store master flag is disabled", ErrInvalidStateStoreConfig)
+		}
+		return nil
 	}
-	return nil
+
+	switch {
+	case backend == StateStoreBackendBolt && mode == StateStoreModeNormal:
+		if !cnsconfig.ManageEndpointState {
+			return fmt.Errorf("%w: Bolt state store requires CNS-managed endpoint state", ErrInvalidStateStoreConfig)
+		}
+		if cnsconfig.EnableStateMigration && !cnsconfig.InitializeFromCNI {
+			return fmt.Errorf("%w: Bolt CNI ownership import requires CNI initialization", ErrInvalidStateStoreConfig)
+		}
+		return nil
+	case backend == StateStoreBackendJSON && mode == StateStoreModeRollbackToJSON:
+		if !cnsconfig.ManageEndpointState {
+			return fmt.Errorf("%w: Bolt rollback requires CNS-managed endpoint state", ErrInvalidStateStoreConfig)
+		}
+		if cnsconfig.EnablePersistentStateDebug {
+			return fmt.Errorf("%w: persistent state debug requires normal Bolt mode", ErrInvalidStateStoreConfig)
+		}
+		return nil
+	case backend == StateStoreBackendJSON && mode == StateStoreModeNormal:
+		if cnsconfig.EnablePersistentStateDebug {
+			return fmt.Errorf("%w: persistent state debug requires normal Bolt mode", ErrInvalidStateStoreConfig)
+		}
+		return nil
+	default:
+		return fmt.Errorf("%w: backend %q does not support mode %q", ErrInvalidStateStoreConfig, backend, mode)
+	}
 }
 
 type TelemetrySettings struct {

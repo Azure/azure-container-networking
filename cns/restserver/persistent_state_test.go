@@ -8,11 +8,13 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/state"
+	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,6 +27,7 @@ var (
 const (
 	persistentStateTestNetwork   = "network"
 	persistentStateTestNestedKey = "nested"
+	persistentStateTestScheme    = "tcp"
 )
 
 func TestPersistentStateHandlerConstructors(t *testing.T) {
@@ -35,6 +38,59 @@ func TestPersistentStateHandlerConstructors(t *testing.T) {
 	snapshotHandler, err := NewPersistentStateSnapshotHandler(nil, false)
 	require.Error(t, err)
 	assert.Nil(t, snapshotHandler)
+}
+
+func TestRegisterPersistentStateRoutes(t *testing.T) {
+	newService := func(t *testing.T) *HTTPRestService {
+		t.Helper()
+		listener, err := acn.NewListener(&url.URL{Scheme: persistentStateTestScheme, Host: "127.0.0.1:0"})
+		require.NoError(t, err)
+		return &HTTPRestService{
+			Service: &cns.Service{Listener: listener},
+		}
+	}
+	status := func(context.Context) (state.Status, error) {
+		return state.Status{Backend: state.BackendBolt, InvariantStatus: state.InvariantHealthy}, nil
+	}
+	snapshot := func(context.Context) (state.Snapshot, error) {
+		return state.NewSnapshot(), nil
+	}
+
+	t.Run("safe only", func(t *testing.T) {
+		service := newService(t)
+		require.NoError(t, service.RegisterPersistentStateRoutes(status, snapshot, false))
+		require.NoError(t, service.RegisterPersistentStateRoutes(status, snapshot, false))
+
+		response := httptest.NewRecorder()
+		service.Listener.GetMux().ServeHTTP(
+			response,
+			httptest.NewRequestWithContext(t.Context(), http.MethodGet, PersistentStateStatusPath, http.NoBody),
+		)
+		assert.Equal(t, http.StatusOK, response.Code)
+
+		response = httptest.NewRecorder()
+		service.Listener.GetMux().ServeHTTP(
+			response,
+			httptest.NewRequestWithContext(t.Context(), http.MethodGet, PersistentStateSnapshotPath, http.NoBody),
+		)
+		assert.Equal(t, http.StatusNotFound, response.Code)
+	})
+
+	t.Run("debug snapshot", func(t *testing.T) {
+		service := newService(t)
+		require.NoError(t, service.RegisterPersistentStateRoutes(status, snapshot, true))
+		response := httptest.NewRecorder()
+		service.Listener.GetMux().ServeHTTP(
+			response,
+			httptest.NewRequestWithContext(t.Context(), http.MethodGet, PersistentStateSnapshotPath, http.NoBody),
+		)
+		assert.Equal(t, http.StatusOK, response.Code)
+	})
+
+	t.Run("listener required", func(t *testing.T) {
+		service := &HTTPRestService{}
+		require.Error(t, service.RegisterPersistentStateRoutes(status, snapshot, false))
+	})
 }
 
 func TestPersistentStateStatusHandlerContract(t *testing.T) {

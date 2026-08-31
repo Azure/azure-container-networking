@@ -186,6 +186,7 @@ data:
       },
       "ChannelMode": "CRD",
       "EnableBoltStateStore": false,
+      "EnablePersistentStateDebug": false,
       "InitializeFromCNI": true,
       "StateStoreBackend": "json",
       "StateStoreMode": "normal",
