@@ -189,9 +189,14 @@ func TestPersistentFaultPointPatchBeforeEndpointCommit(t *testing.T) {
 	require.NoError(t, service.faultInjector.arm(faultPointPatchBeforeEndpointCommit, faultTargetForPod(testPod1Info)))
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- service.updateEndpoint(context.Background(), testPod1Info.InfraContainerID(), map[string]*IPInfo{
-			InfraInterfaceName: {HnsEndpointID: "hns-endpoint"},
-		})
+		errCh <- service.updateEndpoint(
+			context.Background(),
+			testPod1Info.InfraContainerID(),
+			map[string]*IPInfo{
+				InfraInterfaceName: {HnsEndpointID: "hns-endpoint"},
+			},
+			service.selectedUnifiedStateAdapter(),
+		)
 	}()
 	waitForFaultPoint(t, service.faultInjector, faultPointPatchBeforeEndpointCommit)
 
