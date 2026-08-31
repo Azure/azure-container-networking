@@ -465,6 +465,12 @@ func TestSnapshotRejectsLogicalInconsistencies(t *testing.T) {
 				snapshot.Endpoints[testContainerID].IfnameToIPMap[testEth0].NetworkContainerID = testMissingID
 			},
 		},
+		{
+			name: "delete intent zero creation time",
+			mutate: func(snapshot *Snapshot) {
+				snapshot.DeleteIntents["nc-old"] = DeleteIntent{}
+			},
+		},
 	}
 
 	for _, tt := range tests {

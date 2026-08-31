@@ -187,7 +187,7 @@ func (s Snapshot) Validate() error {
 	if err := s.validateAssignmentEndpoints(ipAddresses, endpointIPs); err != nil {
 		return err
 	}
-	return validateNonemptyKeys(bucketDeleteIntents, s.DeleteIntents)
+	return s.validateDeleteIntents()
 }
 
 func (s Snapshot) validate() error {
@@ -555,10 +555,13 @@ func (s Snapshot) validateAssignmentEndpoints(
 	return nil
 }
 
-func validateNonemptyKeys[T any](bucket []byte, values map[string]T) error {
-	for _, key := range sortedKeys(values) {
-		if key == "" {
-			return inconsistent("bucket %q contains an empty key", bucket)
+func (s Snapshot) validateDeleteIntents() error {
+	for _, key := range sortedKeys(s.DeleteIntents) {
+		switch {
+		case key == "":
+			return inconsistent("delete intent key is empty")
+		case s.DeleteIntents[key].CreatedAt.IsZero():
+			return inconsistent("delete intent %q has zero creation time", key)
 		}
 	}
 	return nil

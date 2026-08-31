@@ -232,6 +232,13 @@ func (s *DB) update(ctx context.Context, fn func(*WriteTx) (bool, error)) (bool,
 		if err != nil || !changed {
 			return err
 		}
+		candidate, err := snapshotFromTx(ctx, &ReadTx{tx: tx, ctx: ctx})
+		if err != nil {
+			return err
+		}
+		if validationErr := validateInput(candidate); validationErr != nil {
+			return validationErr
+		}
 		meta := tx.Bucket(bucketMetadata)
 		generation, err := decodeUint64(meta.Get(metaKeyGeneration))
 		if err != nil {

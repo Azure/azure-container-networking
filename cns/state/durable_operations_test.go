@@ -477,8 +477,23 @@ func TestApplyBoot(t *testing.T) {
 			got, err := db.Snapshot(context.Background())
 			require.NoError(t, err)
 			assert.Equal(t, "boot-1", got.Metadata.BootID)
-			assert.Empty(t, got.Assignments)
-			assert.Empty(t, got.IPOwners)
+			if tt.wantEndpoints {
+				assert.Equal(t, initial.Assignments, got.Assignments)
+				assert.Equal(t, initial.IPOwners, got.IPOwners)
+
+				replayChanged, replayErr := db.AssignEndpoint(
+					context.Background(),
+					initial.Assignments["iface-primary"],
+					initial.Endpoints["container-1"],
+					testNow,
+					testDeleteIntentTTL,
+				)
+				require.NoError(t, replayErr)
+				assert.False(t, replayChanged)
+			} else {
+				assert.Empty(t, got.Assignments)
+				assert.Empty(t, got.IPOwners)
+			}
 			assert.Empty(t, got.DeleteIntents)
 			assert.Equal(t, tt.wantEndpoints, len(got.Endpoints) != 0)
 			assert.Equal(t, initial.IPs, got.IPs)
