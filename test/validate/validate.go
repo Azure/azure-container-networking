@@ -187,7 +187,7 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 			}
 			if err := validateLivePodsHaveState(len(filePodIps), len(podIps)); err != nil {
 				comparisonErr = errors.Wrapf(err, "invalid state on node %s", node.Name)
-				return false, nil
+				return retryValidationAttempt()
 			}
 
 			state := make(map[string]string, len(filePodIps))
@@ -196,7 +196,7 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 			}
 			comparisonErr = compareIPs(filePodIps, podIps)
 			if comparisonErr != nil {
-				return false, nil
+				return retryValidationAttempt()
 			}
 			observedState = state
 			livePodIPs = podIps
@@ -228,6 +228,10 @@ func validateLivePodsHaveState(stateIPCount, livePodIPCount int) error {
 		return errors.Errorf("state is empty with %d live pod IPs", livePodIPCount)
 	}
 	return nil
+}
+
+func retryValidationAttempt() (bool, error) {
+	return false, nil
 }
 
 func runValidationAttempts(

@@ -7,6 +7,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testCapturedIP1 = "10.0.0.2"
+	testCapturedIP2 = "10.0.0.3"
+)
+
 func TestBuildValidationCheckSummary(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -17,21 +22,21 @@ func TestBuildValidationCheckSummary(t *testing.T) {
 		{
 			name: "captures sorted exact identities",
 			state: map[string]string{
-				"10.0.0.3": "namespace/pod-b",
-				"10.0.0.2": "namespace/pod-a",
+				testCapturedIP2: "namespace/pod-b",
+				testCapturedIP1: "namespace/pod-a",
 			},
-			actualIPs: []string{"10.0.0.3", "10.0.0.2"},
+			actualIPs: []string{testCapturedIP2, testCapturedIP1},
 		},
 		{
 			name:      "rejects malformed state IP",
 			state:     map[string]string{"bad": "namespace/pod"},
-			actualIPs: []string{"10.0.0.2"},
+			actualIPs: []string{testCapturedIP1},
 			wantErr:   "invalid state IP",
 		},
 		{
 			name:      "rejects unowned live IP",
-			state:     map[string]string{"10.0.0.2": "namespace/pod"},
-			actualIPs: []string{"10.0.0.3"},
+			state:     map[string]string{testCapturedIP1: "namespace/pod"},
+			actualIPs: []string{testCapturedIP2},
 			wantErr:   "has no validated state owner",
 		},
 	}
@@ -46,8 +51,8 @@ func TestBuildValidationCheckSummary(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, 2, summary.LivePodCount)
 			require.Equal(t, []PodIPIdentity{
-				{PodID: "namespace/pod-a", IP: netip.MustParseAddr("10.0.0.2")},
-				{PodID: "namespace/pod-b", IP: netip.MustParseAddr("10.0.0.3")},
+				{PodID: "namespace/pod-a", IP: netip.MustParseAddr(testCapturedIP1)},
+				{PodID: "namespace/pod-b", IP: netip.MustParseAddr(testCapturedIP2)},
 			}, summary.Expected)
 			require.Equal(t, summary.Expected, summary.Actual)
 		})

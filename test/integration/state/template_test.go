@@ -13,7 +13,13 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-const repositoryRoot = "../../.."
+const (
+	repositoryRoot       = "../../.."
+	testBackendBolt      = "bolt"
+	testOSWindows        = "windows"
+	stateRelationNone    = "none"
+	stateRelationChanged = "changed"
+)
 
 type handoffTransition struct {
 	Job                  string `json:"job"`
@@ -47,7 +53,7 @@ func TestOwnershipHandoffTemplateContract(t *testing.T) {
 			require.Equal(t, transitions[index-1].Name, transition.BaselineTransition)
 		}
 
-		if transition.Backend == "bolt" {
+		if transition.Backend == testBackendBolt {
 			require.Equal(t, "true", transition.ManageEndpointState,
 				"supported Bolt runtime must always be CNS-owned")
 			if transition.EnableStateMigration == "true" {
@@ -227,12 +233,12 @@ func TestMigrationTemplateSafetyContract(t *testing.T) {
 }
 
 func TestStateMigrationValidatorRetry(t *testing.T) {
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == testOSWindows {
 		t.Skip("bash validation runs on Linux pipeline agents")
 	}
 
 	runner := filepath.Join(repositoryRoot, "hack", "scripts", "run-state-migration-validator.sh")
-	require.NoError(t, exec.Command("bash", "-n", runner).Run())
+	require.NoError(t, exec.CommandContext(t.Context(), "bash", "-n", runner).Run())
 
 	tests := []struct {
 		name         string
@@ -293,9 +299,11 @@ case "$mode" in
 		exit 9
 		;;
 esac
-`), 0o700))
+`), 0o600))
+			require.NoError(t, os.Chmod(fixture, 0o700))
 
-			command := exec.Command(
+			command := exec.CommandContext(
+				t.Context(),
 				"bash",
 				runner,
 				"3",
@@ -412,7 +420,7 @@ func requireTemplateParameters(t *testing.T, targetPath string, passed map[strin
 }
 
 func TestCompareStateMigrationSummariesPodIdentity(t *testing.T) {
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == testOSWindows {
 		t.Skip("bash validation runs on Linux pipeline agents")
 	}
 
@@ -474,7 +482,7 @@ func TestCompareStateMigrationSummariesPodIdentity(t *testing.T) {
 }
 
 func TestCompareStateMigrationSummariesRejectsInvalidState(t *testing.T) {
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == testOSWindows {
 		t.Skip("bash validation runs on Linux pipeline agents")
 	}
 
@@ -483,8 +491,8 @@ func TestCompareStateMigrationSummariesRejectsInvalidState(t *testing.T) {
 		candidate string
 		relation  string
 	}{
-		{name: "malformed", candidate: `{`, relation: "none"},
-		{name: "empty checks", candidate: `{"stateBackend":"json","checks":[]}`, relation: "none"},
+		{name: "malformed", candidate: `{`, relation: stateRelationNone},
+		{name: "empty checks", candidate: `{"stateBackend":"json","checks":[]}`, relation: stateRelationNone},
 		{
 			name: "malformed IP",
 			candidate: `{"stateBackend":"json","checks":[{
@@ -492,7 +500,7 @@ func TestCompareStateMigrationSummariesRejectsInvalidState(t *testing.T) {
 				"expected":[{"podID":"pod-1","ip":"not-an-ip"}],
 				"actual":[{"podID":"pod-1","ip":"not-an-ip"}]
 			}]}`,
-			relation: "none",
+			relation: stateRelationNone,
 		},
 		{
 			name: "unknown field",
@@ -501,7 +509,7 @@ func TestCompareStateMigrationSummariesRejectsInvalidState(t *testing.T) {
 				"expected":[{"podID":"pod-1","ip":"10.0.0.2"}],
 				"actual":[{"podID":"pod-1","ip":"10.0.0.2"}]
 			}]}`,
-			relation: "none",
+			relation: stateRelationNone,
 		},
 		{
 			name: "duplicate check",
@@ -509,7 +517,7 @@ func TestCompareStateMigrationSummariesRejectsInvalidState(t *testing.T) {
 				{"checkName":"state","nodeName":"node-1","livePodCount":1,"expected":[{"podID":"pod-1","ip":"10.0.0.2"}],"actual":[{"podID":"pod-1","ip":"10.0.0.2"}]},
 				{"checkName":"state","nodeName":"node-1","livePodCount":1,"expected":[{"podID":"pod-1","ip":"10.0.0.2"}],"actual":[{"podID":"pod-1","ip":"10.0.0.2"}]}
 			]}`,
-			relation: "none",
+			relation: stateRelationNone,
 		},
 		{
 			name: "duplicate identity",
@@ -518,7 +526,7 @@ func TestCompareStateMigrationSummariesRejectsInvalidState(t *testing.T) {
 				"expected":[{"podID":"pod-1","ip":"10.0.0.2"},{"podID":"pod-1","ip":"10.0.0.2"}],
 				"actual":[{"podID":"pod-1","ip":"10.0.0.2"},{"podID":"pod-1","ip":"10.0.0.2"}]
 			}]}`,
-			relation: "none",
+			relation: stateRelationNone,
 		},
 		{
 			name: "reduced exact results",
@@ -536,7 +544,7 @@ func TestCompareStateMigrationSummariesRejectsInvalidState(t *testing.T) {
 				"expected":[{"podID":"pod-1","ip":"10.0.0.2"},{"podID":"pod-2","ip":"10.0.0.3"}],
 				"actual":[{"podID":"pod-1","ip":"10.0.0.2"},{"podID":"pod-2","ip":"10.0.0.3"}]
 			}]}`,
-			relation: "changed",
+			relation: stateRelationChanged,
 		},
 	}
 
@@ -551,7 +559,7 @@ func TestCompareStateMigrationSummariesRejectsInvalidState(t *testing.T) {
 }
 
 func TestCompareStateMigrationSummariesBootRelations(t *testing.T) {
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == testOSWindows {
 		t.Skip("bash validation runs on Linux pipeline agents")
 	}
 
@@ -562,8 +570,8 @@ func TestCompareStateMigrationSummariesBootRelations(t *testing.T) {
 		wantErr       bool
 	}{
 		{name: "same boot", candidateBoot: "boot-1", relation: "same"},
-		{name: "changed boot", candidateBoot: "boot-2", relation: "changed"},
-		{name: "unchanged rejected", candidateBoot: "boot-1", relation: "changed", wantErr: true},
+		{name: "changed boot", candidateBoot: "boot-2", relation: stateRelationChanged},
+		{name: "unchanged rejected", candidateBoot: "boot-1", relation: stateRelationChanged, wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -675,7 +683,8 @@ func (f compareFixture) path(name string) string {
 func (f compareFixture) run(backend, stateRelation, bootRelation, podRelation string) (string, error) {
 	f.t.Helper()
 	script := filepath.Join(repositoryRoot, "hack", "scripts", "compare-state-migration-summaries.sh")
-	command := exec.Command(
+	command := exec.CommandContext(
+		f.t.Context(),
 		"bash",
 		script,
 		filepath.Join(f.baselineDir, "summary.json"),
