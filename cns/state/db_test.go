@@ -6,6 +6,7 @@ package state
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -371,10 +372,12 @@ func TestOpenAcceptsKnownAuthorities(t *testing.T) {
 			mutateDatabase(t, path, func(tx *bolt.Tx) error {
 				metadata := tx.Bucket(bucketMetadata)
 				if err := metadata.Put(metaKeyAuthority, []byte(authority)); err != nil {
-					return err
+					return fmt.Errorf("putting authority: %w", err)
 				}
 				if authority == AuthorityJSON {
-					return metadata.Put(metaKeyRollbackExport, []byte(rollbackExportMarker))
+					if err := metadata.Put(metaKeyRollbackExport, []byte(rollbackExportMarker)); err != nil {
+						return fmt.Errorf("putting rollback marker: %w", err)
+					}
 				}
 				return nil
 			})

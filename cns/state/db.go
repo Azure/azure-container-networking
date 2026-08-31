@@ -233,7 +233,7 @@ func (s *DB) acquireWriteGate(ctx context.Context) error {
 	case s.writeGate <- struct{}{}:
 		return nil
 	case <-ctx.Done():
-		return ctx.Err()
+		return fmt.Errorf("acquiring write gate: %w", ctx.Err())
 	}
 }
 
@@ -261,8 +261,9 @@ func (s *DB) updateLocked(ctx context.Context, fn func(*WriteTx) (bool, error)) 
 			return validationErr
 		}
 		meta := tx.Bucket(bucketMetadata)
-		if err := validateMigrationMetadata(meta); err != nil {
-			return err
+		migrationErr := validateMigrationMetadata(meta)
+		if migrationErr != nil {
+			return migrationErr
 		}
 		generation, err := decodeUint64(meta.Get(metaKeyGeneration))
 		if err != nil {
@@ -271,8 +272,9 @@ func (s *DB) updateLocked(ctx context.Context, fn func(*WriteTx) (bool, error)) 
 		if generation == math.MaxUint64 {
 			return corrupt("generation overflow", nil)
 		}
-		if err := meta.Put(metaKeyGeneration, encodeUint64(generation+1)); err != nil {
-			return fmt.Errorf("writing state generation: %w", err)
+		writeErr := meta.Put(metaKeyGeneration, encodeUint64(generation+1))
+		if writeErr != nil {
+			return fmt.Errorf("writing state generation: %w", writeErr)
 		}
 		return nil
 	}); err != nil {
