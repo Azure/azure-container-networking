@@ -19,6 +19,16 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 )
 
+var (
+	errNilEndpointPatchOperation = errors.New("durable state endpoint patch operation is nil")
+	errDuplicatePatchPrefix      = errors.New("duplicate endpoint patch prefix")
+	errInvalidPatchIP            = errors.New("invalid endpoint patch IP")
+	errInvalidPatchMaskSize      = errors.New("invalid endpoint patch mask size")
+	errIPv6InIPv4Patch           = errors.New("ipv6 address in ipv4 endpoint patch")
+	errIPv4InIPv6Patch           = errors.New("ipv4 address in ipv6 endpoint patch")
+	errInvalidPatchPrefixLength  = errors.New("invalid endpoint patch prefix length")
+)
+
 type unifiedPatchPlan struct {
 	pod      state.PodIdentity
 	endpoint state.EndpointRecord
@@ -42,7 +52,7 @@ func (a *durableStateAdapter) patchEndpoint(
 	request map[string]*IPInfo,
 ) error {
 	if a.store.patchEndpoint == nil {
-		return errors.New("durable state endpoint patch operation is nil")
+		return errNilEndpointPatchOperation
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -58,8 +68,11 @@ func (a *durableStateAdapter) patchEndpoint(
 		now.Before(intent.CreatedAt.Add(unifiedDeleteIntentTTL)) {
 		return fmt.Errorf("%w: infra container %q", state.ErrDeleteIntent, strings.TrimSpace(infraContainerID))
 	}
-	if err := a.service.validateUnifiedPatchProjectionLocked(snapshot, strings.TrimSpace(infraContainerID)); err != nil {
-		return err
+	if projectionErr := a.service.validateUnifiedPatchProjectionLocked(
+		snapshot,
+		strings.TrimSpace(infraContainerID),
+	); projectionErr != nil {
+		return projectionErr
 	}
 	plan, err := buildUnifiedPatchPlan(ctx, infraContainerID, request, snapshot)
 	if err != nil {
@@ -114,7 +127,7 @@ func (a *durableStateAdapter) restoreCommittedPatchProjectionLocked(
 	committed durableCacheProjection,
 	applyErr error,
 ) error {
-	restoreErr := error(nil)
+	var restoreErr error
 	snapshot, err := a.store.snapshot(context.WithoutCancel(ctx))
 	if err != nil {
 		restoreErr = fmt.Errorf("reading committed endpoint patch: %w", err)
@@ -140,19 +153,19 @@ func (service *HTTPRestService) validateUnifiedPatchProjectionLocked(
 	}
 	projected, err := projectEndpoint(record)
 	if err != nil {
-		return fmt.Errorf("%w: projecting endpoint cache: %v", state.ErrInvalidInput, err)
+		return fmt.Errorf("%w: projecting endpoint cache: %w", state.ErrInvalidInput, err)
 	}
 	cached, ok := service.EndpointState[infraContainerID]
 	if !ok {
 		return fmt.Errorf("%w: projected endpoint is missing from cache", state.ErrStaleGeneration)
 	}
-	projectedData, err := json.Marshal(projected)
+	projectedData, err := json.Marshal(projected) //nolint:musttag // EndpointInfo is the existing endpoint API wire type.
 	if err != nil {
-		return fmt.Errorf("%w: encoding projected endpoint cache: %v", state.ErrInvalidInput, err)
+		return fmt.Errorf("%w: encoding projected endpoint cache: %w", state.ErrInvalidInput, err)
 	}
-	cachedData, err := json.Marshal(cached)
+	cachedData, err := json.Marshal(cached) //nolint:musttag // EndpointInfo is the existing endpoint API wire type.
 	if err != nil {
-		return fmt.Errorf("%w: encoding endpoint cache: %v", state.ErrInvalidInput, err)
+		return fmt.Errorf("%w: encoding endpoint cache: %w", state.ErrInvalidInput, err)
 	}
 	if !bytes.Equal(projectedData, cachedData) {
 		return fmt.Errorf("%w: projected endpoint cache does not match database", state.ErrStaleGeneration)
@@ -167,7 +180,7 @@ func buildUnifiedPatchPlan(
 	snapshot state.Snapshot,
 ) (unifiedPatchPlan, error) {
 	if err := ctx.Err(); err != nil {
-		return unifiedPatchPlan{}, err
+		return unifiedPatchPlan{}, fmt.Errorf("planning endpoint patch: %w", err)
 	}
 	infraContainerID = strings.TrimSpace(infraContainerID)
 	if infraContainerID == "" {
@@ -182,7 +195,7 @@ func buildUnifiedPatchPlan(
 	}
 	candidate, err := cloneJSON(existing)
 	if err != nil {
-		return unifiedPatchPlan{}, fmt.Errorf("%w: cloning endpoint: %v", state.ErrInvalidInput, err)
+		return unifiedPatchPlan{}, fmt.Errorf("%w: cloning endpoint: %w", state.ErrInvalidInput, err)
 	}
 
 	ifnames := make([]string, 0, len(request))
@@ -193,7 +206,7 @@ func buildUnifiedPatchPlan(
 	var pod state.PodIdentity
 	for _, rawIfname := range ifnames {
 		if err := ctx.Err(); err != nil {
-			return unifiedPatchPlan{}, err
+			return unifiedPatchPlan{}, fmt.Errorf("planning endpoint interface %q patch: %w", rawIfname, err)
 		}
 		ifname := strings.TrimSpace(rawIfname)
 		if ifname == "" || ifname != rawIfname {
@@ -302,7 +315,7 @@ func applyUnifiedIPInfoPatch(
 ) (state.IPInfoRecord, error) {
 	updated, err := cloneJSON(current)
 	if err != nil {
-		return state.IPInfoRecord{}, fmt.Errorf("%w: cloning interface %q: %v", state.ErrInvalidInput, ifname, err)
+		return state.IPInfoRecord{}, fmt.Errorf("%w: cloning interface %q: %w", state.ErrInvalidInput, ifname, err)
 	}
 	for _, family := range []struct {
 		name     string
@@ -316,14 +329,14 @@ func applyUnifiedIPInfoPatch(
 		if len(family.request) == 0 {
 			continue
 		}
-		equal, err := equalUnifiedPatchPrefixes(family.request, family.existing, family.bits)
-		if err != nil {
+		equal, compareErr := equalUnifiedPatchPrefixes(family.request, family.existing, family.bits)
+		if compareErr != nil {
 			return state.IPInfoRecord{}, fmt.Errorf(
-				"%w: interface %q %s prefixes are invalid: %v",
+				"%w: interface %q %s prefixes are invalid: %w",
 				state.ErrInvalidInput,
 				ifname,
 				family.name,
-				err,
+				compareErr,
 			)
 		}
 		if !equal {
@@ -443,7 +456,7 @@ func unifiedPatchPrefixSet(values []net.IPNet, expectedBits int) (map[unifiedPat
 		}
 		prefix := unifiedPatchPrefix{address: address, bits: bits}
 		if _, ok := result[prefix]; ok {
-			return nil, errors.New("duplicate prefix")
+			return nil, errDuplicatePatchPrefix
 		}
 		result[prefix] = struct{}{}
 	}
@@ -453,27 +466,26 @@ func unifiedPatchPrefixSet(values []net.IPNet, expectedBits int) (map[unifiedPat
 func parseUnifiedPatchPrefix(value net.IPNet, expectedBits int) (netip.Addr, int, error) {
 	address, ok := netip.AddrFromSlice(value.IP)
 	if !ok {
-		return netip.Addr{}, 0, errors.New("invalid IP")
+		return netip.Addr{}, 0, errInvalidPatchIP
 	}
 	address = address.Unmap()
 	ones, bits := value.Mask.Size()
 	if bits != expectedBits {
-		return netip.Addr{}, 0, fmt.Errorf("mask has %d bits, expected %d", bits, expectedBits)
+		return netip.Addr{}, 0, fmt.Errorf("%w: got %d bits, expected %d", errInvalidPatchMaskSize, bits, expectedBits)
 	}
 	if expectedBits == 32 && !address.Is4() {
-		return netip.Addr{}, 0, errors.New("IPv6 address in IPv4 prefixes")
+		return netip.Addr{}, 0, errIPv6InIPv4Patch
 	}
 	if expectedBits == 128 && !address.Is6() {
-		return netip.Addr{}, 0, errors.New("IPv4 address in IPv6 prefixes")
+		return netip.Addr{}, 0, errIPv4InIPv6Patch
 	}
 	if !netip.PrefixFrom(address, ones).IsValid() {
-		return netip.Addr{}, 0, errors.New("invalid prefix length")
+		return netip.Addr{}, 0, errInvalidPatchPrefixLength
 	}
 	return address, ones, nil
 }
 
 func unifiedPatchResponseCode(err error) types.ResponseCode {
-	var committedErr *unifiedPatchCommittedError
 	switch {
 	case errors.Is(err, state.ErrNotFound):
 		return types.NotFound
@@ -481,11 +493,6 @@ func unifiedPatchResponseCode(err error) types.ResponseCode {
 		return types.InconsistentIPConfigState
 	case errors.Is(err, state.ErrInvalidInput):
 		return types.InvalidRequest
-	case errors.Is(err, state.ErrDeleteIntent),
-		errors.Is(err, context.Canceled),
-		errors.Is(err, context.DeadlineExceeded),
-		errors.As(err, &committedErr):
-		return types.UnexpectedError
 	default:
 		return types.UnexpectedError
 	}
