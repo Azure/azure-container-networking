@@ -12,8 +12,8 @@ import (
 
 const (
 	faultInjectionPath           = "/debug/faultinjection"
-	faultInjectionTokenHeader    = "X-CNS-Test-Fault-Token"
-	faultInjectionTokenEnv       = "CNS_TEST_FAULT_INJECTION_TOKEN"
+	faultInjectionTokenHeader    = "X-CNS-Test-Fault-Token"         //nolint:gosec // This is a header name, not a credential.
+	faultInjectionTokenEnv       = "CNS_TEST_FAULT_INJECTION_TOKEN" //nolint:gosec // This is an environment variable name, not a credential.
 	defaultFaultInjectionTimeout = 10 * time.Minute
 )
 

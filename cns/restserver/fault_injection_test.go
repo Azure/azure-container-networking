@@ -105,32 +105,32 @@ func TestFaultInjectorCheckpointTimeout(t *testing.T) {
 }
 
 func TestPersistentFaultPointAddBeforeEndpointCommit(t *testing.T) {
-	svc, _, db, _ := newUnifiedAddFixture(t, map[string][]state.IPRecord{
-		"nc-v4": {{ID: testIPID1, IPAddress: testIP1, NCID: "nc-v4", NCVersion: 1}},
+	service, _, db, _ := newUnifiedAddFixture(t, map[string][]state.IPRecord{
+		unifiedTestNCIPv4: {{ID: testIPID1, IPAddress: testIP1, NCID: unifiedTestNCIPv4, NCVersion: 1}},
 	}, nil)
-	svc.faultInjector = newFaultInjector("test-token", time.Minute)
-	t.Cleanup(svc.faultInjector.disarm)
-	require.NoError(t, svc.faultInjector.arm(faultPointAddBeforeEndpointCommit, faultTargetForPod(testPod1Info)))
+	service.faultInjector = newFaultInjector("test-token", time.Minute)
+	t.Cleanup(service.faultInjector.disarm)
+	require.NoError(t, service.faultInjector.arm(faultPointAddBeforeEndpointCommit, faultTargetForPod(testPod1Info)))
 
 	req := newTestIPConfigsRequest(t, testPod1Info)
 	errCh := make(chan error, 1)
 	go func() {
-		response, err := svc.requestIPConfigHandlerHelper(context.Background(), req)
+		response, err := service.requestIPConfigHandlerHelper(context.Background(), req)
 		if err == nil && response.Response.ReturnCode != types.Success {
 			err = errUnexpectedResponseCode
 		}
 		errCh <- err
 	}()
-	waitForFaultPoint(t, svc.faultInjector, faultPointAddBeforeEndpointCommit)
+	waitForFaultPoint(t, service.faultInjector, faultPointAddBeforeEndpointCommit)
 
 	snapshot, err := db.Snapshot(context.Background())
 	require.NoError(t, err)
 	require.Empty(t, snapshot.Assignments)
 	require.Empty(t, snapshot.Endpoints)
-	ipState := svc.PodIPConfigState[testIPID1]
+	ipState := service.PodIPConfigState[testIPID1]
 	require.Equal(t, types.Available, ipState.GetState())
 
-	svc.faultInjector.disarm()
+	service.faultInjector.disarm()
 	require.NoError(t, <-errCh)
 	snapshot, err = db.Snapshot(context.Background())
 	require.NoError(t, err)
@@ -139,67 +139,67 @@ func TestPersistentFaultPointAddBeforeEndpointCommit(t *testing.T) {
 }
 
 func TestPersistentFaultPointDeleteAfterIntentCommit(t *testing.T) {
-	svc, _, db, _ := newUnifiedAddFixture(t, map[string][]state.IPRecord{
-		"nc-v4": {{ID: testIPID1, IPAddress: testIP1, NCID: "nc-v4", NCVersion: 1}},
+	service, _, db, _ := newUnifiedAddFixture(t, map[string][]state.IPRecord{
+		unifiedTestNCIPv4: {{ID: testIPID1, IPAddress: testIP1, NCID: unifiedTestNCIPv4, NCVersion: 1}},
 	}, nil)
 
 	req := newTestIPConfigsRequest(t, testPod1Info)
-	response, err := svc.requestIPConfigHandlerHelper(context.Background(), req)
+	response, err := service.requestIPConfigHandlerHelper(context.Background(), req)
 	require.NoError(t, err)
 	require.Equal(t, types.Success, response.Response.ReturnCode)
 
-	svc.faultInjector = newFaultInjector("test-token", time.Minute)
-	t.Cleanup(svc.faultInjector.disarm)
-	require.NoError(t, svc.faultInjector.arm(faultPointDeleteAfterIntentCommit, faultTargetForPod(testPod1Info)))
+	service.faultInjector = newFaultInjector("test-token", time.Minute)
+	t.Cleanup(service.faultInjector.disarm)
+	require.NoError(t, service.faultInjector.arm(faultPointDeleteAfterIntentCommit, faultTargetForPod(testPod1Info)))
 	errCh := make(chan error, 1)
 	go func() {
-		_, releaseErr := svc.ReleaseIPConfigHandlerHelper(context.Background(), req)
+		_, releaseErr := service.ReleaseIPConfigHandlerHelper(context.Background(), req)
 		errCh <- releaseErr
 	}()
-	waitForFaultPoint(t, svc.faultInjector, faultPointDeleteAfterIntentCommit)
+	waitForFaultPoint(t, service.faultInjector, faultPointDeleteAfterIntentCommit)
 
 	snapshot, err := db.Snapshot(context.Background())
 	require.NoError(t, err)
 	require.Contains(t, snapshot.DeleteIntents, testPod1Info.InfraContainerID())
 	require.Empty(t, snapshot.Assignments)
 	require.Contains(t, snapshot.Endpoints, testPod1Info.InfraContainerID())
-	require.Contains(t, svc.EndpointState, testPod1Info.InfraContainerID())
-	ipState := svc.PodIPConfigState[testIPID1]
+	require.Contains(t, service.EndpointState, testPod1Info.InfraContainerID())
+	ipState := service.PodIPConfigState[testIPID1]
 	require.Equal(t, types.Assigned, ipState.GetState())
 
-	svc.faultInjector.disarm()
+	service.faultInjector.disarm()
 	require.NoError(t, <-errCh)
-	require.Contains(t, svc.EndpointState, testPod1Info.InfraContainerID())
-	ipState = svc.PodIPConfigState[testIPID1]
+	require.Contains(t, service.EndpointState, testPod1Info.InfraContainerID())
+	ipState = service.PodIPConfigState[testIPID1]
 	require.Equal(t, types.Available, ipState.GetState())
 }
 
 func TestPersistentFaultPointPatchBeforeEndpointCommit(t *testing.T) {
-	svc, _, db, _ := newUnifiedAddFixture(t, map[string][]state.IPRecord{
-		"nc-v4": {{ID: testIPID1, IPAddress: testIP1, NCID: "nc-v4", NCVersion: 1}},
+	service, _, db, _ := newUnifiedAddFixture(t, map[string][]state.IPRecord{
+		unifiedTestNCIPv4: {{ID: testIPID1, IPAddress: testIP1, NCID: unifiedTestNCIPv4, NCVersion: 1}},
 	}, nil)
 
 	req := newTestIPConfigsRequest(t, testPod1Info)
-	response, err := svc.requestIPConfigHandlerHelper(context.Background(), req)
+	response, err := service.requestIPConfigHandlerHelper(context.Background(), req)
 	require.NoError(t, err)
 	require.Equal(t, types.Success, response.Response.ReturnCode)
 
-	svc.faultInjector = newFaultInjector("test-token", time.Minute)
-	t.Cleanup(svc.faultInjector.disarm)
-	require.NoError(t, svc.faultInjector.arm(faultPointPatchBeforeEndpointCommit, faultTargetForPod(testPod1Info)))
+	service.faultInjector = newFaultInjector("test-token", time.Minute)
+	t.Cleanup(service.faultInjector.disarm)
+	require.NoError(t, service.faultInjector.arm(faultPointPatchBeforeEndpointCommit, faultTargetForPod(testPod1Info)))
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- svc.updateEndpoint(context.Background(), testPod1Info.InfraContainerID(), map[string]*IPInfo{
+		errCh <- service.updateEndpoint(context.Background(), testPod1Info.InfraContainerID(), map[string]*IPInfo{
 			InfraInterfaceName: {HnsEndpointID: "hns-endpoint"},
 		})
 	}()
-	waitForFaultPoint(t, svc.faultInjector, faultPointPatchBeforeEndpointCommit)
+	waitForFaultPoint(t, service.faultInjector, faultPointPatchBeforeEndpointCommit)
 
 	snapshot, err := db.Snapshot(context.Background())
 	require.NoError(t, err)
 	require.Empty(t, snapshot.Endpoints[testPod1Info.InfraContainerID()].IfnameToIPMap[InfraInterfaceName].HNSEndpointID)
 
-	svc.faultInjector.disarm()
+	service.faultInjector.disarm()
 	require.NoError(t, <-errCh)
 	snapshot, err = db.Snapshot(context.Background())
 	require.NoError(t, err)
