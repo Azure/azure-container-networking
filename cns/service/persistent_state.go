@@ -19,9 +19,12 @@ var (
 	errNilPersistentStateCloseCallback   = errors.New("persistent state close callback is nil")
 )
 
+const persistentStateLockExtension = store.LockExtension
+
 type persistentStatePaths struct {
 	stateDirectory    string
 	stateFile         string
+	databaseFile      string
 	stateLockFile     string
 	endpointDirectory string
 	endpointFile      string
@@ -145,8 +148,8 @@ func (s *persistentStateStartup) Close() error {
 				closeErrs = append(closeErrs, err)
 			}
 		}
-		for _, lock := range s.locks {
-			if err := lock.Unlock(); err != nil && !errors.Is(err, processlock.ErrInvalidFile) {
+		for i := len(s.locks) - 1; i >= 0; i-- {
+			if err := s.locks[i].Unlock(); err != nil && !errors.Is(err, processlock.ErrInvalidFile) {
 				closeErrs = append(closeErrs, err)
 			}
 		}

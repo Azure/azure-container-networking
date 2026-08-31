@@ -26,6 +26,8 @@ var (
 	ErrLegacyImportTargetNotEmpty = errors.New("cns state: legacy import target is not empty")
 	// ErrLegacyImportSource indicates that a legacy source is malformed or inconsistent.
 	ErrLegacyImportSource = errors.New("cns state: invalid legacy import source")
+	// ErrLegacyReimportState indicates that the database is not in the completed rollback state.
+	ErrLegacyReimportState = errors.New("cns state: legacy reimport requires JSON authority")
 )
 
 // Legacy network container/IP validation sentinels. These are static
@@ -133,26 +135,9 @@ func (s *DB) importLegacyWithCommitHook(
 		return false, nil
 	}
 
-	cnsData, err := readLegacyFile(ctx, readFile, opts.CNSPath, "CNS")
+	snapshot, err := readLegacySnapshot(ctx, opts, readFile)
 	if err != nil {
 		return false, err
-	}
-	snapshot, err := parseLegacyCNS(cnsData, opts.BootID)
-	if err != nil {
-		return false, err
-	}
-	if opts.ManageEndpointState {
-		var endpointData []byte
-		endpointData, err = readLegacyFile(ctx, readFile, opts.EndpointPath, "endpoint")
-		if err != nil {
-			return false, err
-		}
-		if endpointErr := addLegacyEndpoints(&snapshot, endpointData); endpointErr != nil {
-			return false, endpointErr
-		}
-	}
-	if err = snapshot.Validate(); err != nil {
-		return false, fmt.Errorf("%w: validating imported snapshot: %w", ErrLegacyImportSource, err)
 	}
 	encoded, err := encodeImportedSnapshot(snapshot)
 	if err != nil {
@@ -195,6 +180,161 @@ func (s *DB) importLegacyWithCommitHook(
 		}
 		return true, nil
 	})
+}
+
+// ReimportLegacy atomically replaces a completed rollback database from the
+// authoritative legacy JSON pair and returns authority to Bolt.
+func (s *DB) ReimportLegacy(
+	ctx context.Context,
+	opts ImportOptions,
+	policy BootPolicy,
+) (changed bool, returnErr error) {
+	if s.metrics != nil || s.logger != nil {
+		started := metricNow(s.metrics)
+		defer func() {
+			result := classifyResult(changed, returnErr)
+			duration := metricDuration(s.metrics, started)
+			_ = s.metrics.ObserveLifecycle(LifecycleImport, result, duration)
+			if returnErr == nil {
+				s.observeLifecycle(ctx, LifecycleImport, result, duration)
+			}
+		}()
+	}
+	return s.reimportLegacy(ctx, opts, policy, os.ReadFile)
+}
+
+func (s *DB) reimportLegacy(
+	ctx context.Context,
+	opts ImportOptions,
+	policy BootPolicy,
+	readFile readFileFunc,
+) (bool, error) {
+	return s.reimportLegacyWithCommitHook(ctx, opts, policy, readFile, nil)
+}
+
+func (s *DB) reimportLegacyWithCommitHook(
+	ctx context.Context,
+	opts ImportOptions,
+	policy BootPolicy,
+	readFile readFileFunc,
+	beforeCommit func() error,
+) (bool, error) {
+	opts.ManageEndpointState = true
+	if err := validateImportOptions(opts); err != nil {
+		return false, err
+	}
+	if readFile == nil {
+		return false, invalidInput("legacy state reader is nil", nil)
+	}
+	if err := ctx.Err(); err != nil {
+		return false, fmt.Errorf("reimporting legacy state: %w", err)
+	}
+
+	var eligible bool
+	if err := s.View(ctx, func(tx *ReadTx) error {
+		meta, err := tx.Metadata()
+		if err != nil {
+			return err
+		}
+		eligible = meta.Authority == AuthorityJSON && meta.RollbackExportComplete
+		return nil
+	}); err != nil {
+		return false, fmt.Errorf("checking legacy reimport state: %w", err)
+	}
+	if !eligible {
+		return false, ErrLegacyReimportState
+	}
+
+	snapshot, err := readLegacySnapshot(ctx, opts, readFile)
+	if err != nil {
+		return false, err
+	}
+	applyImportedBootPolicy(&snapshot, policy)
+	if validationErr := snapshot.Validate(); validationErr != nil {
+		return false, fmt.Errorf("%w: validating reimported snapshot: %w", ErrLegacyImportSource, validationErr)
+	}
+	encoded, err := encodeImportedSnapshot(snapshot)
+	if err != nil {
+		return false, err
+	}
+
+	return s.update(ctx, func(tx *WriteTx) (bool, error) {
+		meta, err := tx.Metadata()
+		if err != nil {
+			return false, err
+		}
+		if meta.Authority != AuthorityJSON || !meta.RollbackExportComplete {
+			return false, ErrLegacyReimportState
+		}
+		for _, replacement := range encoded.buckets {
+			if err := replaceJSONBucket(tx.tx, replacement.name, replacement.values); err != nil {
+				return false, err
+			}
+		}
+		metadata := tx.tx.Bucket(bucketMetadata)
+		if err := metadata.Put(metaKeyBootID, []byte(snapshot.Metadata.BootID)); err != nil {
+			return false, fmt.Errorf("writing reimport boot ID: %w", err)
+		}
+		if err := metadata.Put(metaKeyAuthority, []byte(AuthorityBolt)); err != nil {
+			return false, fmt.Errorf("writing reimport authority: %w", err)
+		}
+		if err := metadata.Put(metaKeyService, encoded.serviceMetadata); err != nil {
+			return false, fmt.Errorf("writing reimported service metadata: %w", err)
+		}
+		if err := metadata.Put(metaKeyLegacyImport, []byte(legacyImportMarker)); err != nil {
+			return false, fmt.Errorf("writing legacy import marker: %w", err)
+		}
+		if err := metadata.Delete(metaKeyRollbackExport); err != nil {
+			return false, fmt.Errorf("clearing rollback export marker: %w", err)
+		}
+		if beforeCommit != nil {
+			if err := beforeCommit(); err != nil {
+				return false, fmt.Errorf("finishing legacy reimport: %w", err)
+			}
+		}
+		return true, nil
+	})
+}
+
+func readLegacySnapshot(ctx context.Context, opts ImportOptions, readFile readFileFunc) (Snapshot, error) {
+	cnsData, err := readLegacyFile(ctx, readFile, opts.CNSPath, "CNS")
+	if err != nil {
+		return Snapshot{}, err
+	}
+	snapshot, err := parseLegacyCNS(cnsData, opts.BootID)
+	if err != nil {
+		return Snapshot{}, err
+	}
+	if opts.ManageEndpointState {
+		endpointData, err := readLegacyFile(ctx, readFile, opts.EndpointPath, "endpoint")
+		if err != nil {
+			return Snapshot{}, err
+		}
+		if err := addLegacyEndpoints(&snapshot, endpointData); err != nil {
+			return Snapshot{}, err
+		}
+	}
+	if err := snapshot.Validate(); err != nil {
+		return Snapshot{}, fmt.Errorf("%w: validating imported snapshot: %w", ErrLegacyImportSource, err)
+	}
+	return snapshot, nil
+}
+
+func applyImportedBootPolicy(snapshot *Snapshot, policy BootPolicy) {
+	snapshot.DeleteIntents = map[string]DeleteIntent{}
+	if policy.ClearEndpoints {
+		snapshot.Endpoints = map[string]EndpointRecord{}
+		snapshot.Assignments = map[string]AssignmentRecord{}
+		snapshot.IPOwners = map[string]string{}
+	}
+	if policy.ResetReadiness {
+		for id := range snapshot.NetworkContainers {
+			record := snapshot.NetworkContainers[id]
+			record.HostVersion = ""
+			record.VFPUpdateComplete = false
+			snapshot.NetworkContainers[id] = record
+		}
+	}
 }
 
 func validateImportOptions(opts ImportOptions) error {

@@ -396,6 +396,25 @@ func TestOpenRejectsNonBoltFile(t *testing.T) {
 	require.ErrorIs(t, err, ErrCorrupt)
 }
 
+func TestOpenContextCancellation(t *testing.T) {
+	t.Run("nil context", func(t *testing.T) {
+		db, err := OpenContext(nil, filepath.Join(t.TempDir(), "state.db"), Options{}) //nolint:staticcheck // Verifies the fail-closed nil-context guard.
+		require.Error(t, err)
+		require.Nil(t, db)
+	})
+
+	t.Run("canceled before open", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "state.db")
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		db, err := OpenContext(ctx, path, Options{})
+		require.ErrorIs(t, err, context.Canceled)
+		require.Nil(t, db)
+		_, statErr := os.Stat(path)
+		require.ErrorIs(t, statErr, os.ErrNotExist)
+	})
+}
+
 func createValidClosedDB(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "azure-cns.db")

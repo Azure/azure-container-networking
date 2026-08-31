@@ -24,6 +24,7 @@ var (
 	errUnknownAuthority = errors.New("unknown authority")
 	errInvalidUint32    = errors.New("invalid uint32 encoding length")
 	errInvalidUint64    = errors.New("invalid uint64 encoding length")
+	errNilOpenContext   = errors.New("opening cns state database: context is nil")
 )
 
 const defaultOpenTimeout = 5 * time.Second
@@ -80,6 +81,18 @@ type DB struct {
 }
 
 func Open(path string, opts Options) (store *DB, returnErr error) {
+	return OpenContext(context.TODO(), path, opts)
+}
+
+// OpenContext opens and validates a persistent state database while preserving
+// startup cancellation through observability and bounded lock waits.
+func OpenContext(ctx context.Context, path string, opts Options) (store *DB, returnErr error) {
+	if ctx == nil {
+		return nil, errNilOpenContext
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("opening cns state database: %w", err)
+	}
 	if opts.Metrics != nil || opts.Logger != nil {
 		started := metricNow(opts.Metrics)
 		defer func() {
@@ -87,7 +100,7 @@ func Open(path string, opts Options) (store *DB, returnErr error) {
 			duration := metricDuration(opts.Metrics, started)
 			_ = opts.Metrics.ObserveLifecycle(LifecycleStartup, result, duration)
 			if returnErr == nil {
-				store.observeLifecycle(context.TODO(), LifecycleStartup, result, duration)
+				store.observeLifecycle(ctx, LifecycleStartup, result, duration)
 			}
 		}()
 	}
@@ -108,10 +121,20 @@ func Open(path string, opts Options) (store *DB, returnErr error) {
 		NoSync:   opts.NoSync,
 	})
 	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, fmt.Errorf("opening cns state database: %w", ctxErr)
+		}
 		if isBoltCorruption(err) {
 			return nil, corrupt("opening cns state database", err)
 		}
 		return nil, fmt.Errorf("opening cns state database: %w", err)
+	}
+	if contextErr := ctx.Err(); contextErr != nil {
+		_ = db.Close()
+		if !exists && !opts.ReadOnly {
+			_ = os.Remove(path)
+		}
+		return nil, fmt.Errorf("opening cns state database: %w", contextErr)
 	}
 
 	store = &DB{
@@ -127,6 +150,11 @@ func Open(path string, opts Options) (store *DB, returnErr error) {
 		err = store.initialize()
 	} else {
 		err = store.validate()
+	}
+	if err == nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			err = fmt.Errorf("opening cns state database: %w", ctxErr)
+		}
 	}
 	if err != nil {
 		_ = db.Close()

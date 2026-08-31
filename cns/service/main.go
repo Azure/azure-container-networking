@@ -740,14 +740,7 @@ func main() {
 	}
 
 	persistentState, err := newJSONPersistentStateStartup(
-		persistentStatePaths{
-			stateDirectory:    storeFileLocation,
-			stateFile:         storeFileLocation + name + ".json",
-			stateLockFile:     platform.CNILockPath + name + store.LockExtension,
-			endpointDirectory: endpointStorePath,
-			endpointFile:      endpointStorePath + endpointStoreName + ".json",
-			endpointLockFile:  platform.CNILockPath + endpointStoreName + store.LockExtension,
-		},
+		resolvePersistentStatePaths(storeFileLocation, endpointStorePath),
 		cnsconfig.ManageEndpointState,
 		func(context.Context) error {
 			return httpRemoteRestService.Start(&config)
