@@ -18,7 +18,7 @@ import (
 
 // These fixtures mirror restserver's unexported persisted types so json.Marshal
 // emits the capitalized Go-default keys used by the legacy files.
-type capitalizedCNSStateFixture struct { //nolint:musttag
+type capitalizedCNSStateFixture struct { //nolint:musttag // Go-default field names reproduce the capitalized legacy wire format.
 	Location                         string
 	NetworkType                      string
 	OrchestratorType                 string
@@ -33,7 +33,7 @@ type capitalizedCNSStateFixture struct { //nolint:musttag
 
 type capitalizedNCListFixture string
 
-type capitalizedContainerStatusFixture struct { //nolint:musttag
+type capitalizedContainerStatusFixture struct { //nolint:musttag // Go-default field names reproduce the capitalized legacy wire format.
 	ID                            string
 	VMVersion                     string
 	HostVersion                   string
@@ -41,19 +41,19 @@ type capitalizedContainerStatusFixture struct { //nolint:musttag
 	VfpUpdateComplete             bool
 }
 
-type capitalizedNetworkInfoFixture struct { //nolint:musttag
+type capitalizedNetworkInfoFixture struct { //nolint:musttag // Go-default field names reproduce the capitalized legacy wire format.
 	NetworkName string
 	NicInfo     *wireserver.InterfaceInfo
 	Options     map[string]any
 }
 
-type capitalizedEndpointFixture struct { //nolint:musttag
+type capitalizedEndpointFixture struct { //nolint:musttag // Go-default field names reproduce the capitalized legacy wire format.
 	PodName       string
 	PodNamespace  string
 	IfnameToIPMap map[string]*capitalizedIPInfoFixture
 }
 
-type capitalizedIPInfoFixture struct { //nolint:musttag
+type capitalizedIPInfoFixture struct { //nolint:musttag // Go-default field names reproduce the capitalized legacy wire format.
 	IPv4               []net.IPNet
 	IPv6               []net.IPNet `json:",omitempty"`
 	HnsEndpointID      string      `json:",omitempty"`
@@ -70,15 +70,15 @@ func TestImportLegacyCapitalizedRestserverKeys(t *testing.T) {
 	request.Version = "17"
 	request.AuthorizationToken = "legacy-secret"
 	request.SecondaryIPConfigs = map[string]cns.SecondaryIPConfig{
-		importIPv4: {IPAddress: "10.0.0.4", NCVersion: 17},
-		importIPv6: {IPAddress: "fd00::4", NCVersion: 17},
+		importIPv4: {IPAddress: importIPv4Address, NCVersion: 17},
+		importIPv6: {IPAddress: importIPv6Address, NCVersion: 17},
 	}
 	ncList := capitalizedNCListFixture(importNC1)
 	cnsData, err := json.Marshal(map[string]any{
 		"ContainerNetworkService": capitalizedCNSStateFixture{
-			Location:         "westus2",
-			NetworkType:      "azure",
-			OrchestratorType: "KubernetesCRD",
+			Location:         importLocation,
+			NetworkType:      importNetworkType,
+			OrchestratorType: importOrchestratorType,
 			NodeID:           "capitalized-node",
 			Initialized:      true,
 			ContainerIDByOrchestratorContext: map[string]*capitalizedNCListFixture{
@@ -97,8 +97,8 @@ func TestImportLegacyCapitalizedRestserverKeys(t *testing.T) {
 				"capitalized-network": {
 					NetworkName: "capitalized-network",
 					NicInfo: &wireserver.InterfaceInfo{
-						Subnet:       "10.0.0.0/24",
-						Gateway:      "10.0.0.1",
+						Subnet:       importSubnetCIDR,
+						Gateway:      importGatewayIP,
 						PrimaryIP:    "10.0.0.2",
 						SecondaryIPs: []string{"10.0.0.3"},
 						IsPrimary:    true,
@@ -108,7 +108,7 @@ func TestImportLegacyCapitalizedRestserverKeys(t *testing.T) {
 			},
 			TimeStamp: testNow,
 			PnpIDByMacAddress: map[string]string{
-				"00-11-22-33-44-55": "PCI\\VEN_CAPITALIZED",
+				importPnPMAC: "PCI\\VEN_CAPITALIZED",
 			},
 		},
 	})
@@ -120,13 +120,13 @@ func TestImportLegacyCapitalizedRestserverKeys(t *testing.T) {
 				PodName:      "pod-capitalized",
 				PodNamespace: "ns-capitalized",
 				IfnameToIPMap: map[string]*capitalizedIPInfoFixture{
-					"eth0": {
-						IPv4:               []net.IPNet{mustIPNet(t, "10.0.0.4/24")},
-						IPv6:               []net.IPNet{mustIPNet(t, "fd00::4/64")},
+					importIfname: {
+						IPv4:               []net.IPNet{mustIPNet(t, importIPv4Address+"/24")},
+						IPv6:               []net.IPNet{mustIPNet(t, importIPv6Address+"/64")},
 						HnsEndpointID:      "hns-endpoint-capitalized",
 						HnsNetworkID:       "hns-network-capitalized",
 						HostVethName:       "veth-capitalized",
-						MacAddress:         "00:11:22:33:44:55",
+						MacAddress:         importMAC,
 						NetworkContainerID: importNC1,
 						NICType:            cns.InfraNIC,
 					},
@@ -157,8 +157,8 @@ func TestImportLegacyCapitalizedRestserverKeys(t *testing.T) {
 		"PodName",
 		"PodNamespace",
 		"IfnameToIPMap",
-		"IPv4",
-		"IPv6",
+		importIPv4Key,
+		importIPv6Key,
 		"HnsEndpointID",
 		"HnsNetworkID",
 		"HostVethName",
@@ -194,7 +194,7 @@ func TestImportLegacyCapitalizedRestserverKeys(t *testing.T) {
 	assert.Equal(t, expectedRequest, record.Request)
 	assert.Equal(t, map[string]IPRecord{
 		importIPv4: {ID: importIPv4, IPAddress: "10.0.0.4", NCID: importNC1, NCVersion: 17},
-		importIPv6: {ID: importIPv6, IPAddress: "fd00::4", NCID: importNC1, NCVersion: 17},
+		importIPv6: {ID: importIPv6, IPAddress: importIPv6Address, NCID: importNC1, NCVersion: 17},
 	}, snapshot.IPs)
 
 	assert.Equal(t, []string{importNC1}, snapshot.OrchestratorContexts["pod-capitalizedns-capitalized"])

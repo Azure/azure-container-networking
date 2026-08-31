@@ -28,6 +28,30 @@ var (
 	ErrLegacyImportSource = errors.New("cns state: invalid legacy import source")
 )
 
+// Legacy network container/IP validation sentinels. These are static
+// building blocks wrapped with contextual detail (index, field name) by
+// their callers rather than being constructed dynamically.
+var (
+	errLegacyRouteInvalidDestination     = errors.New("route has invalid destination")
+	errLegacyInvalidNetworkInterfaceMAC  = errors.New("invalid network interface MAC")
+	errLegacySubnetPrefixWithoutAddress  = errors.New("prefix length is set without an address")
+	errLegacyInvalidSubnetAddress        = errors.New("invalid subnet address")
+	errLegacySubnetAddressFamilyMismatch = errors.New("subnet address family does not match")
+	errLegacyInvalidSubnetPrefixLength   = errors.New("invalid subnet prefix length")
+	errLegacyInvalidIPAddress            = errors.New("invalid IP address")
+	errLegacyInvalidIPAddressOrPrefix    = errors.New("invalid IP address or prefix")
+)
+
+// JSON decoding sentinels shared by the legacy-import strict JSON decoder.
+var (
+	errJSONEnvelopeMissing     = errors.New("envelope is missing")
+	errJSONValueEmpty          = errors.New("json value is empty")
+	errJSONMultipleValues      = errors.New("multiple json values")
+	errJSONObjectKeyNotString  = errors.New("object key is not a string")
+	errJSONDuplicateKey        = errors.New("duplicate json key")
+	errJSONUnexpectedDelimiter = errors.New("unexpected JSON delimiter")
+)
+
 // ImportOptions identifies the legacy JSON sources and imported boot identity.
 type ImportOptions struct {
 	CNSPath             string
@@ -107,15 +131,16 @@ func (s *DB) importLegacyWithCommitHook(
 		return false, err
 	}
 	if opts.ManageEndpointState {
-		endpointData, err := readLegacyFile(ctx, readFile, opts.EndpointPath, "endpoint")
+		var endpointData []byte
+		endpointData, err = readLegacyFile(ctx, readFile, opts.EndpointPath, "endpoint")
 		if err != nil {
 			return false, err
 		}
-		if err := addLegacyEndpoints(&snapshot, endpointData); err != nil {
-			return false, err
+		if endpointErr := addLegacyEndpoints(&snapshot, endpointData); endpointErr != nil {
+			return false, endpointErr
 		}
 	}
-	if err := snapshot.Validate(); err != nil {
+	if err = snapshot.Validate(); err != nil {
 		return false, fmt.Errorf("%w: validating imported snapshot: %w", ErrLegacyImportSource, err)
 	}
 	encoded, err := encodeImportedSnapshot(snapshot)
@@ -196,20 +221,8 @@ func parseLegacyCNS(data []byte, bootID string) (Snapshot, error) {
 	if err := decodeLegacyEnvelope(data, "ContainerNetworkService", &source); err != nil {
 		return Snapshot{}, fmt.Errorf("%w: decoding legacy CNS state: %w", ErrLegacyImportSource, err)
 	}
-	if source.ContainerStatus == nil {
-		return Snapshot{}, fmt.Errorf("%w: legacy CNS container status is null", ErrLegacyImportSource)
-	}
-	if source.ContainerIDByOrchestratorContext == nil {
-		return Snapshot{}, fmt.Errorf("%w: legacy CNS orchestrator contexts are null", ErrLegacyImportSource)
-	}
-	if source.Networks == nil {
-		return Snapshot{}, fmt.Errorf("%w: legacy CNS networks are null", ErrLegacyImportSource)
-	}
-	if source.PnpIDByMacAddress == nil {
-		return Snapshot{}, fmt.Errorf("%w: legacy CNS PnP mappings are null", ErrLegacyImportSource)
-	}
-	if source.TimeStamp.IsZero() {
-		return Snapshot{}, fmt.Errorf("%w: legacy CNS timestamp is zero", ErrLegacyImportSource)
+	if err := validateLegacyCNSStatePresence(source); err != nil {
+		return Snapshot{}, err
 	}
 
 	snapshot := NewSnapshot()
@@ -226,11 +239,48 @@ func parseLegacyCNS(data []byte, bootID string) (Snapshot, error) {
 		LegacyImportComplete: true,
 	}
 
+	if err := parseLegacyContainerStatuses(&snapshot, source.ContainerStatus); err != nil {
+		return Snapshot{}, err
+	}
+	if err := parseLegacyOrchestratorContexts(&snapshot, source.ContainerIDByOrchestratorContext); err != nil {
+		return Snapshot{}, err
+	}
+	if err := parseLegacyNetworks(&snapshot, source.Networks); err != nil {
+		return Snapshot{}, err
+	}
+	if err := parseLegacyPnPMappings(&snapshot, source.PnpIDByMacAddress); err != nil {
+		return Snapshot{}, err
+	}
+	return snapshot, nil
+}
+
+// validateLegacyCNSStatePresence rejects a decoded legacy CNS document whose
+// required top-level collections were absent (JSON null) rather than empty.
+func validateLegacyCNSStatePresence(source legacyCNSState) error {
+	switch {
+	case source.ContainerStatus == nil:
+		return fmt.Errorf("%w: legacy CNS container status is null", ErrLegacyImportSource)
+	case source.ContainerIDByOrchestratorContext == nil:
+		return fmt.Errorf("%w: legacy CNS orchestrator contexts are null", ErrLegacyImportSource)
+	case source.Networks == nil:
+		return fmt.Errorf("%w: legacy CNS networks are null", ErrLegacyImportSource)
+	case source.PnpIDByMacAddress == nil:
+		return fmt.Errorf("%w: legacy CNS PnP mappings are null", ErrLegacyImportSource)
+	case source.TimeStamp.IsZero():
+		return fmt.Errorf("%w: legacy CNS timestamp is zero", ErrLegacyImportSource)
+	default:
+		return nil
+	}
+}
+
+// parseLegacyContainerStatuses validates and copies legacy network container
+// state, along with the secondary IPs each container owns, into snapshot.
+func parseLegacyContainerStatuses(snapshot *Snapshot, containerStatus map[string]legacyContainerStatus) error {
 	seenUUIDs := map[string]string{}
-	for _, ncID := range sortedKeys(source.ContainerStatus) {
-		status := source.ContainerStatus[ncID]
+	for _, ncID := range sortedKeys(containerStatus) {
+		status := containerStatus[ncID]
 		if ncID == "" || status.ID == "" || status.ID != ncID {
-			return Snapshot{}, fmt.Errorf(
+			return fmt.Errorf(
 				"%w: network container key %q does not match ID %q",
 				ErrLegacyImportSource,
 				ncID,
@@ -238,45 +288,17 @@ func parseLegacyCNS(data []byte, bootID string) (Snapshot, error) {
 			)
 		}
 		if status.CreateNetworkContainerRequest.NetworkContainerid != ncID {
-			return Snapshot{}, fmt.Errorf(
+			return fmt.Errorf(
 				"%w: network container %q request ID does not match",
 				ErrLegacyImportSource,
 				ncID,
 			)
 		}
 		if err := validateLegacyNetworkContainerRequest(status.CreateNetworkContainerRequest); err != nil {
-			return Snapshot{}, fmt.Errorf("%w: network container %q: %w", ErrLegacyImportSource, ncID, err)
+			return fmt.Errorf("%w: network container %q: %w", ErrLegacyImportSource, ncID, err)
 		}
-		for _, ipID := range sortedKeys(status.CreateNetworkContainerRequest.SecondaryIPConfigs) {
-			config := status.CreateNetworkContainerRequest.SecondaryIPConfigs[ipID]
-			parsedID, err := uuid.Parse(ipID)
-			if err != nil {
-				return Snapshot{}, fmt.Errorf("%w: network container %q has invalid IP UUID", ErrLegacyImportSource, ncID)
-			}
-			canonicalID := parsedID.String()
-			if other, ok := seenUUIDs[canonicalID]; ok {
-				return Snapshot{}, fmt.Errorf(
-					"%w: network containers %q and %q contain duplicate IP UUID",
-					ErrLegacyImportSource,
-					other,
-					ncID,
-				)
-			}
-			if _, err := netip.ParseAddr(config.IPAddress); err != nil {
-				return Snapshot{}, fmt.Errorf(
-					"%w: network container %q IP %q has invalid address",
-					ErrLegacyImportSource,
-					ncID,
-					ipID,
-				)
-			}
-			seenUUIDs[canonicalID] = ncID
-			snapshot.IPs[ipID] = IPRecord{
-				ID:        ipID,
-				IPAddress: config.IPAddress,
-				NCID:      ncID,
-				NCVersion: config.NCVersion,
-			}
+		if err := parseLegacySecondaryIPs(snapshot, ncID, status.CreateNetworkContainerRequest.SecondaryIPConfigs, seenUUIDs); err != nil {
+			return err
 		}
 		snapshot.NetworkContainers[ncID] = NewNetworkContainerRecord(
 			status.ID,
@@ -286,29 +308,84 @@ func parseLegacyCNS(data []byte, bootID string) (Snapshot, error) {
 			status.CreateNetworkContainerRequest,
 		)
 	}
+	return nil
+}
 
-	for _, contextID := range sortedKeys(source.ContainerIDByOrchestratorContext) {
-		value := source.ContainerIDByOrchestratorContext[contextID]
+// parseLegacySecondaryIPs validates the secondary IP configurations owned by
+// a single legacy network container and records them as snapshot IP records.
+// seenUUIDs tracks canonical IP UUIDs across all network containers so
+// duplicates are rejected regardless of which container declared them first.
+func parseLegacySecondaryIPs(
+	snapshot *Snapshot,
+	ncID string,
+	configs map[string]cns.SecondaryIPConfig,
+	seenUUIDs map[string]string,
+) error {
+	for _, ipID := range sortedKeys(configs) {
+		config := configs[ipID]
+		parsedID, err := uuid.Parse(ipID)
+		if err != nil {
+			return fmt.Errorf("%w: network container %q has invalid IP UUID", ErrLegacyImportSource, ncID)
+		}
+		canonicalID := parsedID.String()
+		if other, ok := seenUUIDs[canonicalID]; ok {
+			return fmt.Errorf(
+				"%w: network containers %q and %q contain duplicate IP UUID",
+				ErrLegacyImportSource,
+				other,
+				ncID,
+			)
+		}
+		if _, err := netip.ParseAddr(config.IPAddress); err != nil {
+			return fmt.Errorf(
+				"%w: network container %q IP %q has invalid address",
+				ErrLegacyImportSource,
+				ncID,
+				ipID,
+			)
+		}
+		seenUUIDs[canonicalID] = ncID
+		snapshot.IPs[ipID] = IPRecord{
+			ID:        ipID,
+			IPAddress: config.IPAddress,
+			NCID:      ncID,
+			NCVersion: config.NCVersion,
+		}
+	}
+	return nil
+}
+
+// parseLegacyOrchestratorContexts validates and copies the orchestrator
+// context to network-container-ID-list mapping into snapshot.
+func parseLegacyOrchestratorContexts(snapshot *Snapshot, contexts map[string]*string) error {
+	for _, contextID := range sortedKeys(contexts) {
+		value := contexts[contextID]
 		if contextID == "" || value == nil || *value == "" {
-			return Snapshot{}, fmt.Errorf("%w: malformed orchestrator NC list %q", ErrLegacyImportSource, contextID)
+			return fmt.Errorf("%w: malformed orchestrator NC list %q", ErrLegacyImportSource, contextID)
 		}
 		ids := strings.Split(*value, ",")
 		seen := map[string]struct{}{}
 		for _, id := range ids {
 			if id == "" || strings.TrimSpace(id) != id {
-				return Snapshot{}, fmt.Errorf("%w: malformed orchestrator NC list %q", ErrLegacyImportSource, contextID)
+				return fmt.Errorf("%w: malformed orchestrator NC list %q", ErrLegacyImportSource, contextID)
 			}
 			if _, ok := seen[id]; ok {
-				return Snapshot{}, fmt.Errorf("%w: orchestrator NC list %q contains a duplicate", ErrLegacyImportSource, contextID)
+				return fmt.Errorf("%w: orchestrator NC list %q contains a duplicate", ErrLegacyImportSource, contextID)
 			}
 			seen[id] = struct{}{}
 		}
 		snapshot.OrchestratorContexts[contextID] = ids
 	}
-	for _, name := range sortedKeys(source.Networks) {
-		record := source.Networks[name]
+	return nil
+}
+
+// parseLegacyNetworks validates and copies legacy network records, cloning
+// each network's NIC info so the snapshot does not alias the decoded source.
+func parseLegacyNetworks(snapshot *Snapshot, networks map[string]*legacyNetworkInfo) error {
+	for _, name := range sortedKeys(networks) {
+		record := networks[name]
 		if record == nil {
-			return Snapshot{}, fmt.Errorf("%w: network %q is null", ErrLegacyImportSource, name)
+			return fmt.Errorf("%w: network %q is null", ErrLegacyImportSource, name)
 		}
 		var nicInfo *wireserver.InterfaceInfo
 		if record.NicInfo != nil {
@@ -326,17 +403,24 @@ func parseLegacyCNS(data []byte, bootID string) (Snapshot, error) {
 			Options:     record.Options,
 		}
 	}
-	for _, rawMAC := range sortedKeys(source.PnpIDByMacAddress) {
+	return nil
+}
+
+// parseLegacyPnPMappings validates and copies the PnP-ID-by-MAC-address
+// mapping into snapshot, rejecting MAC addresses that canonicalize to the
+// same value.
+func parseLegacyPnPMappings(snapshot *Snapshot, mappings map[string]string) error {
+	for _, rawMAC := range sortedKeys(mappings) {
 		mac, err := canonicalMAC(rawMAC)
 		if err != nil {
-			return Snapshot{}, fmt.Errorf("%w: PnP mapping: %w", ErrLegacyImportSource, err)
+			return fmt.Errorf("%w: PnP mapping: %w", ErrLegacyImportSource, err)
 		}
 		if _, ok := snapshot.PnPIDByMAC[mac]; ok {
-			return Snapshot{}, fmt.Errorf("%w: duplicate canonical PnP MAC", ErrLegacyImportSource)
+			return fmt.Errorf("%w: duplicate canonical PnP MAC", ErrLegacyImportSource)
 		}
-		snapshot.PnPIDByMAC[mac] = source.PnpIDByMacAddress[rawMAC]
+		snapshot.PnPIDByMAC[mac] = mappings[rawMAC]
 	}
-	return snapshot, nil
+	return nil
 }
 
 func addLegacyEndpoints(snapshot *Snapshot, data []byte) error {
@@ -427,7 +511,7 @@ func validateLegacyNetworkContainerRequest(request cns.CreateNetworkContainerReq
 		if route.IPAddress != "" {
 			if _, err := netip.ParsePrefix(route.IPAddress); err != nil {
 				if _, addrErr := netip.ParseAddr(route.IPAddress); addrErr != nil {
-					return fmt.Errorf("route %d has invalid destination", index)
+					return fmt.Errorf("%w: route %d", errLegacyRouteInvalidDestination, index)
 				}
 			}
 		}
@@ -437,7 +521,7 @@ func validateLegacyNetworkContainerRequest(request cns.CreateNetworkContainerReq
 	}
 	if request.NetworkInterfaceInfo.MACAddress != "" {
 		if _, err := net.ParseMAC(request.NetworkInterfaceInfo.MACAddress); err != nil {
-			return fmt.Errorf("invalid network interface MAC")
+			return errLegacyInvalidNetworkInterfaceMAC
 		}
 	}
 	return nil
@@ -466,13 +550,13 @@ func validateLegacyIPConfiguration(config cns.IPConfiguration) error {
 func validateLegacySubnet(subnet cns.IPSubnet, expectedBits int) error {
 	if subnet.IPAddress == "" {
 		if subnet.PrefixLength != 0 {
-			return errors.New("prefix length is set without an address")
+			return errLegacySubnetPrefixWithoutAddress
 		}
 		return nil
 	}
 	address, err := netip.ParseAddr(subnet.IPAddress)
 	if err != nil {
-		return errors.New("invalid subnet address")
+		return errLegacyInvalidSubnetAddress
 	}
 	address = address.Unmap()
 	bits := 128
@@ -480,10 +564,10 @@ func validateLegacySubnet(subnet cns.IPSubnet, expectedBits int) error {
 		bits = 32
 	}
 	if expectedBits != 0 && bits != expectedBits {
-		return errors.New("subnet address family does not match")
+		return errLegacySubnetAddressFamilyMismatch
 	}
 	if int(subnet.PrefixLength) > bits {
-		return errors.New("invalid subnet prefix length")
+		return errLegacyInvalidSubnetPrefixLength
 	}
 	return nil
 }
@@ -493,7 +577,7 @@ func validateOptionalAddress(value string) error {
 		return nil
 	}
 	if _, err := netip.ParseAddr(value); err != nil {
-		return errors.New("invalid IP address")
+		return errLegacyInvalidIPAddress
 	}
 	return nil
 }
@@ -506,7 +590,7 @@ func validateOptionalIPValue(value string) error {
 		return nil
 	}
 	if _, err := netip.ParsePrefix(value); err != nil {
-		return errors.New("invalid IP address or prefix")
+		return errLegacyInvalidIPAddressOrPrefix
 	}
 	return nil
 }
@@ -612,7 +696,7 @@ func decodeLegacyEnvelope(data []byte, key string, destination any) error {
 	}
 	raw, ok := envelope[key]
 	if !ok {
-		return fmt.Errorf("missing %q envelope", key)
+		return fmt.Errorf("%w: %q", errJSONEnvelopeMissing, key)
 	}
 	return decodeStrictJSON(raw, destination)
 }
@@ -626,21 +710,21 @@ func decodeJSONDocument(data []byte, destination any) error {
 
 func decodeStrictJSON(data []byte, destination any) error {
 	if len(bytes.TrimSpace(data)) == 0 {
-		return errors.New("json value is empty")
+		return errJSONValueEmpty
 	}
 	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
-		return errors.New("json value is null")
+		return errJSONValueNull
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(destination); err != nil {
-		return err
+		return fmt.Errorf("decoding json value: %w", err)
 	}
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		if err == nil {
-			return errors.New("multiple json values")
+			return errJSONMultipleValues
 		}
-		return err
+		return fmt.Errorf("decoding trailing json value: %w", err)
 	}
 	return nil
 }
@@ -653,17 +737,21 @@ func rejectDuplicateJSONKeys(data []byte) error {
 	}
 	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
 		if err == nil {
-			return errors.New("multiple json values")
+			return errJSONMultipleValues
 		}
-		return err
+		return fmt.Errorf("decoding trailing json token: %w", err)
 	}
 	return nil
 }
 
+// scanJSONValue walks a single JSON value, recursing into objects and arrays,
+// solely to detect duplicate object keys (case-insensitively) ahead of the
+// strict decode pass. It reports the underlying decoder error wrapped, or one
+// of the static JSON sentinels, without ever constructing a dynamic error.
 func scanJSONValue(decoder *json.Decoder) error {
 	token, err := decoder.Token()
 	if err != nil {
-		return err
+		return fmt.Errorf("decoding json token: %w", err)
 	}
 	delim, ok := token.(json.Delim)
 	if !ok {
@@ -671,36 +759,51 @@ func scanJSONValue(decoder *json.Decoder) error {
 	}
 	switch delim {
 	case '{':
-		keys := map[string]struct{}{}
-		for decoder.More() {
-			keyToken, err := decoder.Token()
-			if err != nil {
-				return err
-			}
-			key, ok := keyToken.(string)
-			if !ok {
-				return errors.New("object key is not a string")
-			}
-			canonical := strings.ToLower(key)
-			if _, ok := keys[canonical]; ok {
-				return fmt.Errorf("duplicate json key %q", key)
-			}
-			keys[canonical] = struct{}{}
-			if err := scanJSONValue(decoder); err != nil {
-				return err
-			}
-		}
-		_, err = decoder.Token()
-		return err
+		return scanJSONObject(decoder)
 	case '[':
-		for decoder.More() {
-			if err := scanJSONValue(decoder); err != nil {
-				return err
-			}
-		}
-		_, err = decoder.Token()
-		return err
+		return scanJSONArray(decoder)
 	default:
-		return errors.New("unexpected JSON delimiter")
+		return errJSONUnexpectedDelimiter
 	}
+}
+
+// scanJSONObject scans the keys and values of a JSON object opened by the
+// caller, rejecting keys that duplicate a prior key case-insensitively.
+func scanJSONObject(decoder *json.Decoder) error {
+	keys := map[string]struct{}{}
+	for decoder.More() {
+		keyToken, err := decoder.Token()
+		if err != nil {
+			return fmt.Errorf("decoding json object key: %w", err)
+		}
+		key, ok := keyToken.(string)
+		if !ok {
+			return errJSONObjectKeyNotString
+		}
+		canonical := strings.ToLower(key)
+		if _, ok := keys[canonical]; ok {
+			return fmt.Errorf("%w: %q", errJSONDuplicateKey, key)
+		}
+		keys[canonical] = struct{}{}
+		if err := scanJSONValue(decoder); err != nil {
+			return err
+		}
+	}
+	if _, err := decoder.Token(); err != nil {
+		return fmt.Errorf("decoding json object closing token: %w", err)
+	}
+	return nil
+}
+
+// scanJSONArray scans the elements of a JSON array opened by the caller.
+func scanJSONArray(decoder *json.Decoder) error {
+	for decoder.More() {
+		if err := scanJSONValue(decoder); err != nil {
+			return err
+		}
+	}
+	if _, err := decoder.Token(); err != nil {
+		return fmt.Errorf("decoding json array closing token: %w", err)
+	}
+	return nil
 }
