@@ -215,6 +215,7 @@ func (plugin *NetPlugin) GetAllEndpointState(networkid string) (*api.AzureCNISta
 			PodNamespace:  ep.PODNameSpace,
 			PodEndpointId: ep.EndpointID,
 			ContainerID:   ep.ContainerID,
+			IfName:        ep.IfName,
 			IPAddresses:   ep.IPAddresses,
 		}
 
