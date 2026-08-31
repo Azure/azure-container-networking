@@ -98,6 +98,15 @@ func (service *HTTPRestService) saveState() error {
 
 // restoreState restores CNS state from persistent store.
 func (service *HTTPRestService) restoreState() {
+	restoreLogger := service.stateRestoreLogger
+	if restoreLogger == nil {
+		restoreLogger = logger.Log
+	}
+	if restoreFromJSON, ok := service.Options[acn.OptRestoreStateFromJSON].(bool); ok && !restoreFromJSON {
+		restoreLogger.Printf("persistent state JSON restore skipped")
+		return
+	}
+
 	logger.Printf("[Azure CNS] restoreState")
 
 	// Skip if a store is not provided.
@@ -122,8 +131,7 @@ func (service *HTTPRestService) restoreState() {
 
 	if service.Options[acn.OptManageEndpointState] == true {
 		if service.EndpointStateStore == nil {
-			//nolint:staticcheck // TODO: migrate to zap
-			logger.Errorf("[Azure CNS]  OptManageEndpointState is enabled but EndpointStateStore is not initialized; endpoint state persistence/restoration is disabled.")
+			restoreLogger.Errorf("[Azure CNS]  OptManageEndpointState is enabled but EndpointStateStore is not initialized; endpoint state persistence/restoration is disabled.")
 			return
 		}
 		err := service.EndpointStateStore.Read(EndpointStoreKey, &service.EndpointState)

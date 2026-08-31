@@ -104,6 +104,9 @@ const (
 	// Enable CNS to manage endpoint state
 	OptManageEndpointState = "manage-endpoint-state"
 
+	// Restore CNS state from legacy JSON stores
+	OptRestoreStateFromJSON = "restore-state-from-json"
+
 	// Enable CNS to clean up stale HNS resources when a NIC/MAC is reused by a new NC
 	OptEnableStaleHNSCleanupOnNCCreate = "enable-stale-hns-cleanup-on-nc-create"
 

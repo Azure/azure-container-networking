@@ -31,12 +31,21 @@ var (
 
 const (
 	adapterTestNCID        = "nc-1"
+	adapterTestNCID2       = "nc-2"
 	adapterTestIPv4        = "10.0.0.4"
 	adapterTestSubnet      = "10.0.0.0/24"
 	adapterTestLocation    = "azure"
 	adapterTestNetworkType = "underlay"
 	adapterTestNetwork     = "10.0.0.0"
 	adapterTestDNS         = "10.0.0.10"
+	adapterTestContainerB  = "container-b"
+	adapterTestPrimaryIPID = "11111111-1111-1111-1111-111111111111"
+	adapterTestIPv6ID      = "22222222-2222-2222-2222-222222222222"
+	adapterTestThirdIPID   = "33333333-3333-3333-3333-333333333333"
+	adapterTestSecondaryIF = "net1"
+	adapterTestPodKeyA     = "if-a"
+	adapterTestMAC         = "00:11:22:33:44:55"
+	adapterTestContainerID = "container-1"
 )
 
 type adapterTestStore struct {
@@ -137,7 +146,7 @@ func TestDurableStateAdapterProjection(t *testing.T) {
 	service := newAdapterTestService()
 	originalEndpoint := service.EndpointState["existing-endpoint"]
 	originalAssignments := append([]string{}, service.PodIPIDByPodInterfaceKey["existing-pod"]...)
-	adapter, err := newDurableStateAdapterWithOperations(service, store.operations())
+	adapter, err := newDurableStateAdapterWithOperations(service, store.operations(), true)
 	require.NoError(t, err)
 
 	require.NoError(t, adapter.restore(context.Background()))
@@ -145,14 +154,18 @@ func TestDurableStateAdapterProjection(t *testing.T) {
 	generation, projected := adapter.cacheGeneration()
 	assert.True(t, projected)
 	assert.Equal(t, uint64(7), generation)
-	assert.Same(t, originalEndpoint, service.EndpointState["existing-endpoint"])
-	assert.Equal(t, originalAssignments, service.PodIPIDByPodInterfaceKey["existing-pod"])
-	assert.NotContains(t, service.EndpointState, "persisted-endpoint")
+	assert.NotSame(t, originalEndpoint, service.EndpointState["container-a"])
+	assert.NotEqual(t, originalAssignments, service.PodIPIDByPodInterfaceKey["if-a"])
+	assert.NotContains(t, service.EndpointState, "existing-endpoint")
 
 	snapshot.NetworkContainers[adapterTestNCID] = state.NetworkContainerRecord{}
 	snapshot.Networks["network-1"].Options["nested"].(map[string]any)["key"] = "mutated"
+	snapshot.Assignments["if-a"].IPIDs[0] = "mutated"
+	snapshot.Endpoints["container-a"].IfnameToIPMap[InfraInterfaceName].IPv4[0].IP[0] = 192
 	assert.Equal(t, adapterTestNCID, service.state.ContainerStatus[adapterTestNCID].ID)
 	assert.Equal(t, "value", service.state.Networks["network-1"].Options["nested"].(map[string]any)["key"])
+	assert.Equal(t, adapterTestPrimaryIPID, service.PodIPIDByPodInterfaceKey["if-a"][0])
+	assert.Equal(t, adapterTestIPv4, service.EndpointState["container-a"].IfnameToIPMap[InfraInterfaceName].IPv4[0].IP.String())
 
 	service.state.Location = "same-generation-no-op"
 	require.NoError(t, adapter.restore(context.Background()))
@@ -197,6 +210,50 @@ func TestDurableStateAdapterProjectionFailureIsAtomic(t *testing.T) {
 			},
 		},
 		{
+			name: "malformed endpoint prefix",
+			mutate: func(snapshot *state.Snapshot) {
+				snapshot.Endpoints["container-a"].IfnameToIPMap[InfraInterfaceName].IPv4[0].Mask = net.IPMask{0xff, 0}
+			},
+		},
+		{
+			name: "malformed endpoint MAC",
+			mutate: func(snapshot *state.Snapshot) {
+				snapshot.Endpoints["container-a"].IfnameToIPMap[InfraInterfaceName].MACAddress = "not-a-mac"
+			},
+		},
+		{
+			name: "nil endpoint interface",
+			mutate: func(snapshot *state.Snapshot) {
+				snapshot.Endpoints["container-a"].IfnameToIPMap[InfraInterfaceName] = nil
+			},
+		},
+		{
+			name: "missing endpoint",
+			mutate: func(snapshot *state.Snapshot) {
+				delete(snapshot.Endpoints, "container-a")
+			},
+		},
+		{
+			name: "missing assignment IP",
+			mutate: func(snapshot *state.Snapshot) {
+				delete(snapshot.IPs, adapterTestPrimaryIPID)
+			},
+		},
+		{
+			name: "missing owner",
+			mutate: func(snapshot *state.Snapshot) {
+				delete(snapshot.IPOwners, adapterTestPrimaryIPID)
+			},
+		},
+		{
+			name: "duplicate assignment ownership",
+			mutate: func(snapshot *state.Snapshot) {
+				assignment := snapshot.Assignments["if-a"]
+				assignment.IPIDs = append(assignment.IPIDs, "44444444-4444-4444-4444-444444444444")
+				snapshot.Assignments["if-a"] = assignment
+			},
+		},
+		{
 			name: "missing projection metadata",
 			mutate: func(snapshot *state.Snapshot) {
 				snapshot.Metadata.Authority = ""
@@ -209,7 +266,7 @@ func TestDurableStateAdapterProjectionFailureIsAtomic(t *testing.T) {
 			service := newAdapterTestService()
 			initial := completeAdapterSnapshot(1)
 			store := newAdapterTestStore(initial)
-			adapter, err := newDurableStateAdapterWithOperations(service, store.operations())
+			adapter, err := newDurableStateAdapterWithOperations(service, store.operations(), true)
 			require.NoError(t, err)
 			require.NoError(t, adapter.restore(context.Background()))
 			before := durableCacheFingerprint(service, adapter)
@@ -225,11 +282,63 @@ func TestDurableStateAdapterProjectionFailureIsAtomic(t *testing.T) {
 	}
 }
 
+func TestDurableStateAdapterEndpointProjectionDisabled(t *testing.T) {
+	service := newAdapterTestService()
+	originalEndpoint := service.EndpointState["existing-endpoint"]
+	originalAssignments := append([]string(nil), service.PodIPIDByPodInterfaceKey["existing-pod"]...)
+	store := newAdapterTestStore(completeAdapterSnapshot(1))
+	adapter, err := newDurableStateAdapterWithOperations(service, store.operations(), false)
+	require.NoError(t, err)
+
+	require.NoError(t, adapter.restore(context.Background()))
+	assert.Len(t, service.state.ContainerStatus, 2)
+	assert.Len(t, service.PodIPConfigState, 4)
+	pending := service.PodIPConfigState[adapterTestPrimaryIPID]
+	assert.Equal(
+		t,
+		types.PendingProgramming,
+		pending.GetState(),
+	)
+	assert.Nil(t, pending.PodInfo)
+	available := service.PodIPConfigState[adapterTestThirdIPID]
+	assert.Equal(
+		t,
+		types.Available,
+		available.GetState(),
+	)
+	assert.Same(t, originalEndpoint, service.EndpointState["existing-endpoint"])
+	assert.Equal(t, originalAssignments, service.PodIPIDByPodInterfaceKey["existing-pod"])
+	assert.Len(t, service.EndpointState, 1)
+	assert.Len(t, service.PodIPIDByPodInterfaceKey, 1)
+}
+
+func TestDurableStateAdapterPreflightsEndpointProjectionBeforeDurableMutation(t *testing.T) {
+	service := newAdapterTestService()
+	store := newAdapterTestStore(completeAdapterSnapshot(1))
+	adapter, err := newDurableStateAdapterWithOperations(service, store.operations(), true)
+	require.NoError(t, err)
+	require.NoError(t, adapter.restore(context.Background()))
+	before := durableCacheFingerprint(service, adapter)
+
+	store.mu.Lock()
+	store.snapshot.Endpoints["container-a"].IfnameToIPMap[InfraInterfaceName].MACAddress = "invalid"
+	generation := store.snapshot.Metadata.Generation
+	store.mu.Unlock()
+
+	err = adapter.putNetwork(context.Background(), state.NetworkRecord{NetworkName: "must-not-commit"})
+	require.Error(t, err)
+	assert.Equal(t, before, durableCacheFingerprint(service, adapter))
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	assert.Equal(t, generation, store.snapshot.Metadata.Generation)
+	assert.NotContains(t, store.snapshot.Networks, "must-not-commit")
+}
+
 func TestDurableStateAdapterCommitOrderingAndFailures(t *testing.T) {
 	snapshot := completeAdapterSnapshot(3)
 	service := newAdapterTestService()
 	store := newAdapterTestStore(snapshot)
-	adapter, err := newDurableStateAdapterWithOperations(service, store.operations())
+	adapter, err := newDurableStateAdapterWithOperations(service, store.operations(), true)
 	require.NoError(t, err)
 	require.NoError(t, adapter.restore(context.Background()))
 
@@ -237,12 +346,18 @@ func TestDurableStateAdapterCommitOrderingAndFailures(t *testing.T) {
 	record.VMVersion = "9"
 	record.HostVersion = "9"
 	record.Request.Version = "9"
-	ips := []state.IPRecord{{
+	ips := make([]state.IPRecord, 0, 3)
+	for _, ip := range snapshot.IPs {
+		if ip.NCID == adapterTestNCID {
+			ips = append(ips, ip)
+		}
+	}
+	ips = append(ips, state.IPRecord{
 		ID:        "ip-new",
 		IPAddress: "10.0.0.99",
 		NCID:      adapterTestNCID,
 		NCVersion: 9,
-	}}
+	})
 	store.beforeReplace = func() {
 		assert.Equal(t, "2", service.state.ContainerStatus[adapterTestNCID].VMVersion)
 		assert.NotContains(t, service.PodIPConfigState, "ip-new")
@@ -304,7 +419,7 @@ func TestDurableStateAdapterCommitOrderingAndFailures(t *testing.T) {
 func TestDurableStateAdapterDurableOperations(t *testing.T) {
 	service := newAdapterTestService()
 	store := newAdapterTestStore(emptyAdapterSnapshot(0))
-	adapter, err := newDurableStateAdapterWithOperations(service, store.operations())
+	adapter, err := newDurableStateAdapterWithOperations(service, store.operations(), true)
 	require.NoError(t, err)
 	require.NoError(t, adapter.restore(context.Background()))
 
@@ -332,12 +447,12 @@ func TestDurableStateAdapterDurableOperations(t *testing.T) {
 	assert.Contains(t, service.PodIPConfigState, "ip")
 	assert.Contains(t, service.state.Networks, "network")
 	assert.Equal(t, ncList("nc"), *service.state.ContainerIDByOrchestratorContext["pod"])
-	assert.Equal(t, "pnp", service.state.PnpIDByMacAddress["00:11:22:33:44:55"])
+	assert.Equal(t, "pnp", service.state.PnpIDByMacAddress[adapterTestMAC])
 	assert.Equal(t, "node", service.state.NodeID)
 	assert.Equal(t, uint64(5), adapter.generation)
 
 	require.NoError(t, adapter.deleteOrchestratorContext(context.Background(), "pod"))
-	require.NoError(t, adapter.deletePnPID(context.Background(), "00:11:22:33:44:55"))
+	require.NoError(t, adapter.deletePnPID(context.Background(), adapterTestMAC))
 	require.NoError(t, adapter.deleteNetwork(context.Background(), "network"))
 	require.NoError(t, adapter.deleteNetworkContainer(context.Background(), "nc"))
 	assert.Empty(t, service.state.ContainerStatus)
@@ -354,9 +469,9 @@ func TestDurableStateAdapterStaleWritersDoNotLoseState(t *testing.T) {
 
 	db, err := state.Open(filepath.Join(baseDir, "state.db"), state.Options{})
 	require.NoError(t, err)
-	first, err := newDurableStateAdapter(newAdapterTestService(), db)
+	first, err := newDurableStateAdapter(newAdapterTestService(), db, true)
 	require.NoError(t, err)
-	second, err := newDurableStateAdapter(newAdapterTestService(), db)
+	second, err := newDurableStateAdapter(newAdapterTestService(), db, true)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = first.Close() })
 
@@ -398,6 +513,7 @@ func TestDurableStateAdapterStaleWritersDoNotLoseState(t *testing.T) {
 		name    string
 		adapter *durableStateAdapter
 	}
+
 	successes := 0
 	for result := range results {
 		if result.err == nil {
@@ -427,6 +543,45 @@ func TestDurableStateAdapterStaleWritersDoNotLoseState(t *testing.T) {
 	assert.Contains(t, snapshot.Networks, "second")
 }
 
+func TestDurableStateAdapterConcurrentRestore(t *testing.T) {
+	store := newAdapterTestStore(completeAdapterSnapshot(1))
+	service := newAdapterTestService()
+	adapter, err := newDurableStateAdapterWithOperations(service, store.operations(), true)
+	require.NoError(t, err)
+	require.NoError(t, adapter.restore(context.Background()))
+
+	newer := completeAdapterSnapshot(2)
+	newer.Metadata.Location = "new-location"
+	newer.Endpoints["container-a"].IfnameToIPMap[InfraInterfaceName].HostVethName = "new-veth"
+	store.mu.Lock()
+	store.snapshot = newer
+	store.mu.Unlock()
+
+	const restoreCount = 8
+	start := make(chan struct{})
+	errs := make(chan error, restoreCount)
+	var restores sync.WaitGroup
+	restores.Add(restoreCount)
+	for range restoreCount {
+		go func() {
+			defer restores.Done()
+			<-start
+			errs <- adapter.restore(context.Background())
+		}()
+	}
+	close(start)
+	restores.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+
+	assert.Equal(t, uint64(2), adapter.generation)
+	assert.Equal(t, "new-location", service.state.Location)
+	assert.Equal(t, "new-veth", service.EndpointState["container-a"].IfnameToIPMap[InfraInterfaceName].HostVethName)
+	assertAdapterProjection(t, service, newer)
+}
+
 func TestDurableStateAdapterRestartRestoreAndClose(t *testing.T) {
 	baseDir, err := os.MkdirTemp(".", ".durable-adapter-restart-*")
 	require.NoError(t, err)
@@ -436,21 +591,43 @@ func TestDurableStateAdapterRestartRestoreAndClose(t *testing.T) {
 	db, err := state.Open(path, state.Options{})
 	require.NoError(t, err)
 	firstService := newAdapterTestService()
-	first, err := newDurableStateAdapter(firstService, db)
+	first, err := newDurableStateAdapter(firstService, db, true)
 	require.NoError(t, err)
 	require.NoError(t, first.restore(context.Background()))
-	record := adapterNetworkContainer("nc")
-	record.Request.AuthorizationToken = "must-not-persist"
-	record.Request.SecondaryIPConfigs = map[string]cns.SecondaryIPConfig{"embedded": {IPAddress: "10.0.0.8"}}
-	require.NoError(t, first.applyNetworkContainer(context.Background(), record, []state.IPRecord{{
-		ID: "ip", IPAddress: adapterTestIPv4, NCID: "nc", NCVersion: 2,
-	}}))
+	session := completeAdapterSnapshot(0)
+	for _, ncID := range []string{adapterTestNCID, adapterTestNCID2} {
+		record := session.NetworkContainers[ncID]
+		record.Request.AuthorizationToken = "must-not-persist"
+		record.Request.SecondaryIPConfigs = map[string]cns.SecondaryIPConfig{
+			"embedded": {IPAddress: "10.0.0.8"},
+		}
+		var ips []state.IPRecord
+		for _, ip := range session.IPs {
+			if ip.NCID == ncID {
+				ips = append(ips, ip)
+			}
+		}
+		require.NoError(t, first.applyNetworkContainer(context.Background(), record, ips))
+	}
+	for _, podKey := range []string{adapterTestPodKeyA, adapterTestContainerB} {
+		assignment := session.Assignments[podKey]
+		changed, assignErr := db.AssignEndpoint(
+			context.Background(),
+			assignment,
+			session.Endpoints[assignment.Pod.InfraContainerID],
+			time.Unix(200, 0).UTC(),
+			time.Hour,
+		)
+		require.NoError(t, assignErr)
+		require.True(t, changed)
+	}
+	require.NoError(t, first.restore(context.Background()))
 	require.NoError(t, first.putNetwork(context.Background(), state.NetworkRecord{
 		NetworkName: "network",
 		NicInfo:     &wireserver.InterfaceInfo{Subnet: adapterTestSubnet},
 		Options:     map[string]any{"nested": map[string]any{"enabled": true}},
 	}))
-	require.NoError(t, first.putOrchestratorContext(context.Background(), "pod", []string{"nc"}))
+	require.NoError(t, first.putOrchestratorContext(context.Background(), "pod", []string{adapterTestNCID, adapterTestNCID2}))
 	require.NoError(t, first.putPnPID(context.Background(), "00-11-22-33-44-55", "pnp"))
 	require.NoError(t, first.putServiceMetadata(context.Background(), durableServiceMetadata{
 		OrchestratorType: cns.KubernetesCRD,
@@ -460,6 +637,14 @@ func TestDurableStateAdapterRestartRestoreAndClose(t *testing.T) {
 		Initialized:      true,
 		TimeStamp:        time.Unix(100, 0).UTC(),
 	}))
+	require.NoError(t, db.Update(context.Background(), func(tx *state.WriteTx) error {
+		return tx.PutDeleteIntent("delete-only", state.DeleteIntent{CreatedAt: time.Unix(300, 0).UTC()})
+	}))
+	require.NoError(t, first.restore(context.Background()))
+	require.NoError(t, first.putNetwork(context.Background(), state.NetworkRecord{NetworkName: "intent-preserving"}))
+	snapshotBeforeRestart, err := db.Snapshot(context.Background())
+	require.NoError(t, err)
+	assert.Contains(t, snapshotBeforeRestart.DeleteIntents, "delete-only")
 	want := durableCacheFingerprint(firstService, first)
 	require.NoError(t, first.Close())
 	require.NoError(t, first.Close())
@@ -467,23 +652,26 @@ func TestDurableStateAdapterRestartRestoreAndClose(t *testing.T) {
 	reopened, err := state.Open(path, state.Options{})
 	require.NoError(t, err)
 	secondService := newAdapterTestService()
-	second, err := newDurableStateAdapter(secondService, reopened)
+	second, err := newDurableStateAdapter(secondService, reopened, true)
 	require.NoError(t, err)
 	require.NoError(t, second.restore(context.Background()))
 	assert.Equal(t, want, durableCacheFingerprint(secondService, second))
-	assert.Empty(t, secondService.state.ContainerStatus["nc"].CreateNetworkContainerRequest.AuthorizationToken)
+	assert.Empty(t, secondService.state.ContainerStatus[adapterTestNCID].CreateNetworkContainerRequest.AuthorizationToken)
 	assert.NotContains(
 		t,
-		secondService.state.ContainerStatus["nc"].CreateNetworkContainerRequest.SecondaryIPConfigs,
+		secondService.state.ContainerStatus[adapterTestNCID].CreateNetworkContainerRequest.SecondaryIPConfigs,
 		"embedded",
 	)
+	restartedSnapshot, err := reopened.Snapshot(context.Background())
+	require.NoError(t, err)
+	assert.Contains(t, restartedSnapshot.DeleteIntents, "delete-only")
 	require.NoError(t, second.Close())
 }
 
 func TestDurableStateAdapterCloseErrorIsStable(t *testing.T) {
 	store := newAdapterTestStore(emptyAdapterSnapshot(0))
 	store.closeErr = errAdapterCloseFailure
-	adapter, err := newDurableStateAdapterWithOperations(newAdapterTestService(), store.operations())
+	adapter, err := newDurableStateAdapterWithOperations(newAdapterTestService(), store.operations(), true)
 	require.NoError(t, err)
 	require.ErrorIs(t, adapter.Close(), errAdapterCloseFailure)
 	require.ErrorIs(t, adapter.Close(), errAdapterCloseFailure)
@@ -495,10 +683,10 @@ func TestDurableStateAdapterConstructorValidation(t *testing.T) {
 	store := newAdapterTestStore(emptyAdapterSnapshot(0))
 	operations := store.operations()
 
-	adapter, err := newDurableStateAdapterWithOperations(nil, operations)
+	adapter, err := newDurableStateAdapterWithOperations(nil, operations, true)
 	require.Error(t, err)
 	assert.Nil(t, adapter)
-	adapter, err = newDurableStateAdapter(service, nil)
+	adapter, err = newDurableStateAdapter(service, nil, true)
 	require.Error(t, err)
 	assert.Nil(t, adapter)
 
@@ -516,7 +704,7 @@ func TestDurableStateAdapterConstructorValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			invalid := operations
 			tt.mutate(&invalid)
-			adapter, err := newDurableStateAdapterWithOperations(service, invalid)
+			adapter, err := newDurableStateAdapterWithOperations(service, invalid, true)
 			require.Error(t, err)
 			assert.Nil(t, adapter)
 		})
@@ -551,19 +739,31 @@ func completeAdapterSnapshot(generation uint64) state.Snapshot {
 	snapshot.Metadata.Initialized = true
 	snapshot.Metadata.TimeStamp = time.Unix(50, 0).UTC()
 	snapshot.NetworkContainers[adapterTestNCID] = adapterNetworkContainer(adapterTestNCID)
-	second := adapterNetworkContainer("nc-2")
+	second := adapterNetworkContainer(adapterTestNCID2)
 	second.HostVersion = "3"
-	snapshot.NetworkContainers["nc-2"] = second
-	snapshot.IPs["11111111-1111-1111-1111-111111111111"] = state.IPRecord{
-		ID:        "11111111-1111-1111-1111-111111111111",
+	snapshot.NetworkContainers[adapterTestNCID2] = second
+	snapshot.IPs[adapterTestPrimaryIPID] = state.IPRecord{
+		ID:        adapterTestPrimaryIPID,
 		IPAddress: adapterTestIPv4,
 		NCID:      adapterTestNCID,
 		NCVersion: 2,
 	}
-	snapshot.IPs["22222222-2222-2222-2222-222222222222"] = state.IPRecord{
-		ID:        "22222222-2222-2222-2222-222222222222",
+	snapshot.IPs[adapterTestIPv6ID] = state.IPRecord{
+		ID:        adapterTestIPv6ID,
+		IPAddress: "2001:db8::4",
+		NCID:      adapterTestNCID,
+		NCVersion: 2,
+	}
+	snapshot.IPs[adapterTestThirdIPID] = state.IPRecord{
+		ID:        adapterTestThirdIPID,
 		IPAddress: "10.0.1.4",
-		NCID:      "nc-2",
+		NCID:      adapterTestNCID2,
+		NCVersion: 2,
+	}
+	snapshot.IPs["44444444-4444-4444-4444-444444444444"] = state.IPRecord{
+		ID:        "44444444-4444-4444-4444-444444444444",
+		IPAddress: "10.0.1.5",
+		NCID:      adapterTestNCID2,
 		NCVersion: 2,
 	}
 	snapshot.Networks["network-1"] = state.NetworkRecord{
@@ -576,13 +776,82 @@ func completeAdapterSnapshot(generation uint64) state.Snapshot {
 		},
 		Options: map[string]any{"nested": map[string]any{"key": "value"}},
 	}
-	snapshot.OrchestratorContexts["pod-a"] = []string{"nc-1", "nc-2"}
-	snapshot.PnPIDByMAC["00:11:22:33:44:55"] = "pnp-1"
-	snapshot.Endpoints["persisted-endpoint"] = state.EndpointRecord{
-		PodName:       "must-not-project",
-		IfnameToIPMap: map[string]*state.IPInfoRecord{},
+	snapshot.OrchestratorContexts["pod-a"] = []string{adapterTestNCID, adapterTestNCID2}
+	snapshot.PnPIDByMAC[adapterTestMAC] = "pnp-1"
+	snapshot.Endpoints["container-a"] = state.EndpointRecord{
+		PodName:      "pod-a",
+		PodNamespace: "namespace-a",
+		IfnameToIPMap: map[string]*state.IPInfoRecord{
+			InfraInterfaceName: {
+				IPv4:               []net.IPNet{testIPNet("10.0.0.4/24")},
+				IPv6:               []net.IPNet{testIPNet("2001:db8::4/64")},
+				HNSEndpointID:      "hns-endpoint-a",
+				HNSNetworkID:       "hns-network-a",
+				HostVethName:       "veth-a",
+				MACAddress:         adapterTestMAC,
+				NetworkContainerID: adapterTestNCID,
+				NICType:            cns.InfraNIC,
+			},
+			adapterTestSecondaryIF: {
+				IPv4:               []net.IPNet{testIPNet("10.0.1.4/32")},
+				HNSEndpointID:      "hns-endpoint-b",
+				HNSNetworkID:       "hns-network-b",
+				HostVethName:       "veth-b",
+				MACAddress:         "00:11:22:33:44:66",
+				NetworkContainerID: adapterTestNCID2,
+				NICType:            cns.DelegatedVMNIC,
+			},
+		},
+	}
+	snapshot.Assignments["if-a"] = state.AssignmentRecord{
+		Pod: state.PodIdentity{
+			PodKey:           "if-a",
+			InfraContainerID: "container-a",
+			InterfaceID:      "if-a",
+			PodName:          "pod-a",
+			PodNamespace:     "namespace-a",
+		},
+		IPIDs: []string{
+			adapterTestPrimaryIPID,
+			adapterTestIPv6ID,
+			adapterTestThirdIPID,
+		},
+	}
+	snapshot.Endpoints[adapterTestContainerB] = state.EndpointRecord{
+		PodName:      "pod-b",
+		PodNamespace: "namespace-b",
+		IfnameToIPMap: map[string]*state.IPInfoRecord{
+			InfraInterfaceName: {
+				IPv4:               []net.IPNet{testIPNet("10.0.1.5/24")},
+				NetworkContainerID: adapterTestNCID2,
+				NICType:            cns.InfraNIC,
+			},
+		},
+	}
+	snapshot.Assignments[adapterTestContainerB] = state.AssignmentRecord{
+		Pod: state.PodIdentity{
+			PodKey:           adapterTestContainerB,
+			InfraContainerID: adapterTestContainerB,
+			PodName:          "pod-b",
+			PodNamespace:     "namespace-b",
+		},
+		IPIDs: []string{"44444444-4444-4444-4444-444444444444"},
+	}
+	for podKey, assignment := range snapshot.Assignments {
+		for _, ipID := range assignment.IPIDs {
+			snapshot.IPOwners[ipID] = podKey
+		}
 	}
 	return snapshot
+}
+
+func testIPNet(prefix string) net.IPNet {
+	ip, network, err := net.ParseCIDR(prefix)
+	if err != nil {
+		panic(err)
+	}
+	network.IP = ip
+	return *network
 }
 
 func emptyAdapterSnapshot(generation uint64) state.Snapshot {
@@ -630,21 +899,49 @@ func assertAdapterProjection(t *testing.T, service *HTTPRestService, snapshot st
 		service.state.ContainerStatus[adapterTestNCID].CreateNetworkContainerRequest.Routes,
 	)
 	assert.Empty(t, service.state.ContainerStatus[adapterTestNCID].CreateNetworkContainerRequest.AuthorizationToken)
-	require.Len(t, service.PodIPConfigState, 2)
-	pending := service.PodIPConfigState["11111111-1111-1111-1111-111111111111"]
-	available := service.PodIPConfigState["22222222-2222-2222-2222-222222222222"]
-	assert.Equal(t, types.PendingProgramming, pending.GetState())
-	assert.Equal(t, types.Available, available.GetState())
+	require.Len(t, service.PodIPConfigState, 4)
+	for id := range service.PodIPConfigState {
+		status := service.PodIPConfigState[id]
+		assert.Equal(t, types.Assigned, status.GetState(), id)
+		require.NotNil(t, status.PodInfo, id)
+	}
+	assert.Equal(t, adapterTestPodKeyA, service.PodIPConfigState[adapterTestPrimaryIPID].PodInfo.Key())
+	assert.Equal(t, "container-a", service.PodIPConfigState[adapterTestPrimaryIPID].PodInfo.InfraContainerID())
+	assert.Equal(t, adapterTestPodKeyA, service.PodIPConfigState[adapterTestPrimaryIPID].PodInfo.InterfaceID())
+	assert.True(t, service.PodIPConfigState[adapterTestPrimaryIPID].PodInfo.SecondaryInterfacesExist())
+	assert.Equal(t, adapterTestContainerB, service.PodIPConfigState["44444444-4444-4444-4444-444444444444"].PodInfo.Key())
+	assert.False(t, service.PodIPConfigState["44444444-4444-4444-4444-444444444444"].PodInfo.SecondaryInterfacesExist())
 	assert.Equal(
 		t,
 		adapterTestIPv4,
 		service.state.ContainerStatus[adapterTestNCID].CreateNetworkContainerRequest.
-			SecondaryIPConfigs["11111111-1111-1111-1111-111111111111"].IPAddress,
+			SecondaryIPConfigs[adapterTestPrimaryIPID].IPAddress,
 	)
 	assert.Equal(t, snapshot.Networks["network-1"].NicInfo, service.state.Networks["network-1"].NicInfo)
 	assert.Equal(t, snapshot.Networks["network-1"].Options, service.state.Networks["network-1"].Options)
 	assert.Equal(t, ncList("nc-1,nc-2"), *service.state.ContainerIDByOrchestratorContext["pod-a"])
-	assert.Equal(t, "pnp-1", service.state.PnpIDByMacAddress["00:11:22:33:44:55"])
+	assert.Equal(t, "pnp-1", service.state.PnpIDByMacAddress[adapterTestMAC])
+	assert.Equal(
+		t,
+		[]string{
+			adapterTestPrimaryIPID,
+			adapterTestIPv6ID,
+			adapterTestThirdIPID,
+		},
+		service.PodIPIDByPodInterfaceKey["if-a"],
+	)
+	require.Len(t, service.EndpointState, 2)
+	eth0 := service.EndpointState["container-a"].IfnameToIPMap[InfraInterfaceName]
+	wantEth0 := snapshot.Endpoints["container-a"].IfnameToIPMap[InfraInterfaceName]
+	assert.Equal(t, wantEth0.IPv4, eth0.IPv4)
+	assert.Equal(t, wantEth0.IPv6, eth0.IPv6)
+	assert.Equal(t, wantEth0.HNSEndpointID, eth0.HnsEndpointID)
+	assert.Equal(t, wantEth0.HNSNetworkID, eth0.HnsNetworkID)
+	assert.Equal(t, wantEth0.HostVethName, eth0.HostVethName)
+	assert.Equal(t, wantEth0.MACAddress, eth0.MacAddress)
+	assert.Equal(t, wantEth0.NetworkContainerID, eth0.NetworkContainerID)
+	assert.Equal(t, wantEth0.NICType, eth0.NICType)
+	assert.Equal(t, cns.DelegatedVMNIC, service.EndpointState["container-a"].IfnameToIPMap[adapterTestSecondaryIF].NICType)
 }
 
 type adapterCacheFingerprint struct {
@@ -656,6 +953,8 @@ type adapterCacheFingerprint struct {
 	Networks        map[string]state.NetworkRecord
 	OrchestratorNCs map[string]string
 	PnPIDs          map[string]string
+	Assignments     map[string][]string
+	Endpoints       map[string]*EndpointInfo
 }
 
 type adapterIPFingerprint struct {
@@ -663,6 +962,10 @@ type adapterIPFingerprint struct {
 	IPAddress string
 	NCID      string
 	State     types.IPState
+	PodKey    string
+	InfraID   string
+	Interface string
+	Secondary bool
 }
 
 func durableCacheFingerprint(service *HTTPRestService, adapter *durableStateAdapter) adapterCacheFingerprint {
@@ -687,12 +990,24 @@ func durableCacheFingerprint(service *HTTPRestService, adapter *durableStateAdap
 		Networks:        make(map[string]state.NetworkRecord, len(service.state.Networks)),
 		OrchestratorNCs: make(map[string]string, len(service.state.ContainerIDByOrchestratorContext)),
 		PnPIDs:          make(map[string]string, len(service.state.PnpIDByMacAddress)),
+		Assignments:     make(map[string][]string, len(service.PodIPIDByPodInterfaceKey)),
+	}
+	fingerprint.Endpoints, err = cloneJSON(service.EndpointState)
+	if err != nil {
+		panic(err)
 	}
 	for id := range service.PodIPConfigState {
 		status := service.PodIPConfigState[id]
-		fingerprint.IPs[id] = adapterIPFingerprint{
+		value := adapterIPFingerprint{
 			ID: status.ID, IPAddress: status.IPAddress, NCID: status.NCID, State: status.GetState(),
 		}
+		if status.PodInfo != nil {
+			value.PodKey = status.PodInfo.Key()
+			value.InfraID = status.PodInfo.InfraContainerID()
+			value.Interface = status.PodInfo.InterfaceID()
+			value.Secondary = status.PodInfo.SecondaryInterfacesExist()
+		}
+		fingerprint.IPs[id] = value
 	}
 	for name, network := range service.state.Networks {
 		record, err := cloneJSON(state.NetworkRecord{
@@ -711,13 +1026,16 @@ func durableCacheFingerprint(service *HTTPRestService, adapter *durableStateAdap
 	for macAddress, pnpID := range service.state.PnpIDByMacAddress {
 		fingerprint.PnPIDs[macAddress] = pnpID
 	}
+	for podKey, ipIDs := range service.PodIPIDByPodInterfaceKey {
+		fingerprint.Assignments[podKey] = append([]string(nil), ipIDs...)
+	}
 	return fingerprint
 }
 
 func TestBuildDurableCacheProjectionRejectsInvalidIPFamily(t *testing.T) {
 	snapshot := completeAdapterSnapshot(1)
-	snapshot.IPs["11111111-1111-1111-1111-111111111111"] = state.IPRecord{
-		ID: "11111111-1111-1111-1111-111111111111", IPAddress: net.IP{}.String(), NCID: adapterTestNCID,
+	snapshot.IPs[adapterTestPrimaryIPID] = state.IPRecord{
+		ID: adapterTestPrimaryIPID, IPAddress: net.IP{}.String(), NCID: adapterTestNCID,
 	}
 	_, err := buildDurableCacheProjection(snapshot)
 	require.Error(t, err)

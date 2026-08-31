@@ -253,7 +253,7 @@ func TestBoltPersistentStateStartupFailuresGateListenerAndReleaseLocks(t *testin
 		{
 			name: "adapter",
 			mutate: func(deps *boltPersistentStateDependencies, _ *boltPersistentStateConfig) {
-				deps.attachBolt = func(*state.DB) (persistentStateAttachment, error) {
+				deps.attachBolt = func(*state.DB, bool) (persistentStateAttachment, error) {
 					return persistentStateAttachment{}, errBoltAdapter
 				}
 			},
@@ -303,7 +303,9 @@ func TestBoltPersistentStateStartupRestoreFailureClosesDatabase(t *testing.T) {
 	paths := writeStartupLegacyState(t, "node-1")
 	var events []string
 	deps, locks, _, closeCount := startupTestDependencies(t, &events)
-	deps.attachBolt = func(db *state.DB) (persistentStateAttachment, error) {
+	var projectEndpointState bool
+	deps.attachBolt = func(db *state.DB, project bool) (persistentStateAttachment, error) {
+		projectEndpointState = project
 		return persistentStateAttachment{
 			restore: func(context.Context) error { return errBoltProjection },
 			close: func() error {
@@ -322,6 +324,7 @@ func TestBoltPersistentStateStartupRestoreFailureClosesDatabase(t *testing.T) {
 		return nil
 	}, deps)
 	require.NoError(t, err)
+	require.True(t, projectEndpointState)
 	err = startup.Start(context.Background())
 	require.ErrorIs(t, err, errBoltProjection)
 	require.Zero(t, listenerCount)
@@ -487,7 +490,7 @@ func startupTestDependencies(
 		},
 		openDB:        state.OpenContext,
 		currentBootID: func() (string, error) { return "boot-1", nil },
-		attachBolt: func(db *state.DB) (persistentStateAttachment, error) {
+		attachBolt: func(db *state.DB, _ bool) (persistentStateAttachment, error) {
 			return persistentStateAttachment{
 				restore: func(ctx context.Context) error {
 					restoreCount++
