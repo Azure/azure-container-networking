@@ -2,6 +2,7 @@ package restserver
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -117,6 +118,7 @@ type HTTPRestService struct {
 	dncPartitionKey            string
 	EndpointState              map[string]*EndpointInfo // key : container id
 	EndpointStateStore         store.KeyValueStore
+	EndpointDeleteIntents      map[string]EndpointDeleteIntent // key : container id
 	cniConflistGenerator       CNIConflistGenerator
 	generateCNIConflistOnce    sync.Once
 	IPConfigsHandlerMiddleware cns.IPConfigsHandlerMiddleware
@@ -150,6 +152,10 @@ type EndpointInfo struct {
 	PodName       string
 	PodNamespace  string
 	IfnameToIPMap map[string]*IPInfo // key : interface name, value : IPInfo
+}
+
+type EndpointDeleteIntent struct {
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 type IPInfo struct {
@@ -276,6 +282,7 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 		podsPendingIPAssignment:  bounded.NewTimedSet(250), // nolint:gomnd // maxpods
 		EndpointStateStore:       endpointStateStore,
 		EndpointState:            make(map[string]*EndpointInfo),
+		EndpointDeleteIntents:    make(map[string]EndpointDeleteIntent),
 		homeAzMonitor:            homeAzMonitor,
 		cniConflistGenerator:     gen,
 		imdsClient:               imdsClient,
@@ -291,7 +298,9 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 		return err
 	}
 
-	service.restoreState()
+	if err = service.restoreState(); err != nil {
+		return fmt.Errorf("restoring state: %w", err)
+	}
 	err = service.restoreNetworkState()
 	if err != nil {
 		logger.Errorf("[Azure CNS]  Failed to restore network state, err:%v.", err)
