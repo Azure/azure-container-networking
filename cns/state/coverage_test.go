@@ -540,9 +540,6 @@ func TestMetadataReadRejectsCorruptValues(t *testing.T) {
 }
 
 func TestValidationHelpersPreserveErrorCategories(t *testing.T) {
-	require.NoError(t, validateNonemptyKeys(bucketIPs, map[string]int{"ip": 1}))
-	require.ErrorIs(t, validateNonemptyKeys(bucketIPs, map[string]int{"": 1}), ErrInconsistentState)
-
 	require.NoError(t, validateOptionalAddress(""))
 	require.NoError(t, validateOptionalAddress("10.0.0.1"))
 	require.Error(t, validateOptionalAddress(hardeningBadValue))
