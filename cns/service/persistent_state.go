@@ -14,6 +14,11 @@ import (
 	"github.com/Azure/azure-container-networking/store"
 )
 
+var (
+	errNilPersistentStateRestoreCallback = errors.New("persistent state restore callback is nil")
+	errNilPersistentStateCloseCallback   = errors.New("persistent state close callback is nil")
+)
+
 type persistentStatePaths struct {
 	stateDirectory    string
 	stateFile         string
@@ -29,10 +34,16 @@ type persistentStateDependencies struct {
 	openStore       func(string, processlock.Interface) (store.KeyValueStore, error)
 }
 
+type persistentStateAttachment struct {
+	restore func(context.Context) error
+	close   func() error
+}
+
 type persistentStateStartup struct {
 	stateStore         store.KeyValueStore
 	endpointStateStore store.KeyValueStore
 	start              func(context.Context) error
+	attachments        []persistentStateAttachment
 	locks              []processlock.Interface
 	closeOnce          sync.Once
 	closeErr           error
@@ -98,15 +109,42 @@ func newJSONPersistentStateStartup(
 }
 
 func (s *persistentStateStartup) Start(ctx context.Context) error {
+	for _, attachment := range s.attachments {
+		if err := attachment.restore(ctx); err != nil {
+			return errors.Join(err, s.Close())
+		}
+	}
 	if err := s.start(ctx); err != nil {
 		return errors.Join(err, s.Close())
 	}
 	return nil
 }
 
+func (s *persistentStateStartup) attach(
+	restore func(context.Context) error,
+	closeFn func() error,
+) error {
+	switch {
+	case restore == nil:
+		return errNilPersistentStateRestoreCallback
+	case closeFn == nil:
+		return errNilPersistentStateCloseCallback
+	}
+	s.attachments = append(s.attachments, persistentStateAttachment{
+		restore: restore,
+		close:   closeFn,
+	})
+	return nil
+}
+
 func (s *persistentStateStartup) Close() error {
 	s.closeOnce.Do(func() {
 		var closeErrs []error
+		for i := len(s.attachments) - 1; i >= 0; i-- {
+			if err := s.attachments[i].close(); err != nil {
+				closeErrs = append(closeErrs, err)
+			}
+		}
 		for _, lock := range s.locks {
 			if err := lock.Unlock(); err != nil && !errors.Is(err, processlock.ErrInvalidFile) {
 				closeErrs = append(closeErrs, err)
