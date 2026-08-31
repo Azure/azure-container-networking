@@ -115,7 +115,7 @@ func TestImportLegacyCapitalizedRestserverKeys(t *testing.T) {
 	require.NoError(t, err)
 
 	endpointData, err := json.Marshal(map[string]any{
-		"Endpoints": map[string]*capitalizedEndpointFixture{
+		testEndpointsKey: map[string]*capitalizedEndpointFixture{
 			"capitalized-container": {
 				PodName:      "pod-capitalized",
 				PodNamespace: "ns-capitalized",

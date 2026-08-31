@@ -48,6 +48,7 @@ const (
 	exportPodName       = "pod-1"
 	exportPodNamespace  = "ns-1"
 	exportNetworkType   = "azure"
+	testEndpointsKey    = "Endpoints"
 )
 
 type rollbackFailureStage string
@@ -115,7 +116,7 @@ func TestExportLegacySuccess(t *testing.T) {
 		assert.Contains(t, string(cnsData), `"`+key+`"`)
 	}
 	for _, key := range []string{
-		"Endpoints",
+		testEndpointsKey,
 		"DeleteIntents",
 		"PodName",
 		"IfnameToIPMap",
@@ -168,10 +169,14 @@ func TestExportLegacySuccess(t *testing.T) {
 	var endpointEnvelope map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal(endpointData, &endpointEnvelope))
 	var endpoints map[string]*rollbackEndpointInfo
-	require.NoError(t, json.Unmarshal(endpointEnvelope["Endpoints"], &endpoints))
+	require.NoError(t, json.Unmarshal(endpointEnvelope[testEndpointsKey], &endpoints))
 	assert.Equal(t, exportPodName, endpoints[exportContainerID].PodName)
 	assert.Equal(t, exportPodNamespace, endpoints[exportContainerID].PodNamespace)
-	assert.ElementsMatch(t, []string{exportIfnameEth0, "net1"}, sortedKeys(endpoints[exportContainerID].IfnameToIPMap))
+	assert.ElementsMatch(
+		t,
+		[]string{exportIfnameEth0, cniImportTestSecondaryInterface},
+		sortedKeys(endpoints[exportContainerID].IfnameToIPMap),
+	)
 	info := endpoints[exportContainerID].IfnameToIPMap[exportIfnameEth0]
 	require.Len(t, info.IPv4, 1)
 	assert.Equal(t, net.ParseIP(exportIPv4Address), info.IPv4[0].IP)
@@ -183,7 +188,7 @@ func TestExportLegacySuccess(t *testing.T) {
 	assert.Equal(t, "00:11:22:33:44:55", info.MacAddress)
 	assert.Equal(t, exportNC1, info.NetworkContainerID)
 	assert.Equal(t, cns.InfraNIC, info.NICType)
-	delegated := endpoints[exportContainerID].IfnameToIPMap["net1"]
+	delegated := endpoints[exportContainerID].IfnameToIPMap[cniImportTestSecondaryInterface]
 	require.Len(t, delegated.IPv4, 1)
 	assert.Equal(t, net.ParseIP("10.1.0.4"), delegated.IPv4[0].IP)
 	assert.Equal(t, exportNC2, delegated.NetworkContainerID)
@@ -684,7 +689,7 @@ func openPopulatedExportDB(t *testing.T) (db *DB, path string) {
 
 	endpoint := completeEndpointRecord()
 	endpoint.IfnameToIPMap[exportIfnameEth0].NetworkContainerID = exportNC1
-	endpoint.IfnameToIPMap["net1"].NetworkContainerID = exportNC2
+	endpoint.IfnameToIPMap[cniImportTestSecondaryInterface].NetworkContainerID = exportNC2
 	changed, err = db.AssignEndpoint(
 		context.Background(),
 		AssignmentRecord{
