@@ -250,8 +250,8 @@ func (s *DB) reimportLegacyWithCommitHook(
 		return false, err
 	}
 	applyImportedBootPolicy(&snapshot, policy)
-	if err := snapshot.Validate(); err != nil {
-		return false, fmt.Errorf("%w: validating reimported snapshot: %w", ErrLegacyImportSource, err)
+	if validationErr := snapshot.Validate(); validationErr != nil {
+		return false, fmt.Errorf("%w: validating reimported snapshot: %w", ErrLegacyImportSource, validationErr)
 	}
 	encoded, err := encodeImportedSnapshot(snapshot)
 	if err != nil {
@@ -328,7 +328,8 @@ func applyImportedBootPolicy(snapshot *Snapshot, policy BootPolicy) {
 		snapshot.IPOwners = map[string]string{}
 	}
 	if policy.ResetReadiness {
-		for id, record := range snapshot.NetworkContainers {
+		for id := range snapshot.NetworkContainers {
+			record := snapshot.NetworkContainers[id]
 			record.HostVersion = ""
 			record.VFPUpdateComplete = false
 			snapshot.NetworkContainers[id] = record

@@ -15,6 +15,10 @@ import (
 	"go.uber.org/zap"
 )
 
+var errInjectedReimport = errors.New("injected reimport failure")
+
+const reimportTestNewBoot = "new-boot"
+
 func TestReimportLegacyReplacesRolledBackState(t *testing.T) {
 	ctx := context.Background()
 	db, _ := openPopulatedExportDB(t)
@@ -80,7 +84,7 @@ func TestReimportLegacyClearsEndpointsByBootPolicy(t *testing.T) {
 		CNSPath:             paths.CNSJSONPath,
 		EndpointPath:        paths.EndpointJSONPath,
 		ManageEndpointState: true,
-		BootID:              "new-boot",
+		BootID:              reimportTestNewBoot,
 	}, BootPolicy{ClearEndpoints: true})
 	require.NoError(t, err)
 	require.True(t, changed)
@@ -105,7 +109,7 @@ func TestReimportLegacyFailuresAreAtomic(t *testing.T) {
 			CNSPath:             paths.CNSJSONPath,
 			EndpointPath:        paths.EndpointJSONPath,
 			ManageEndpointState: true,
-			BootID:              "new-boot",
+			BootID:              reimportTestNewBoot,
 		}, BootPolicy{})
 		require.ErrorIs(t, err, ErrLegacyImportSource)
 		assert.False(t, changed)
@@ -119,21 +123,19 @@ func TestReimportLegacyFailuresAreAtomic(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, changed)
 		before := requireValidSnapshot(t, db)
-		injected := errors.New("injected reimport failure")
-
 		changed, err = db.reimportLegacyWithCommitHook(
 			context.Background(),
 			ImportOptions{
 				CNSPath:             paths.CNSJSONPath,
 				EndpointPath:        paths.EndpointJSONPath,
 				ManageEndpointState: true,
-				BootID:              "new-boot",
+				BootID:              reimportTestNewBoot,
 			},
 			BootPolicy{},
 			os.ReadFile,
-			func() error { return injected },
+			func() error { return errInjectedReimport },
 		)
-		require.ErrorIs(t, err, injected)
+		require.ErrorIs(t, err, errInjectedReimport)
 		assert.False(t, changed)
 		assert.Equal(t, before, requireValidSnapshot(t, db))
 	})
@@ -144,7 +146,7 @@ func TestReimportLegacyFailuresAreAtomic(t *testing.T) {
 			CNSPath:             "unused-cns.json",
 			EndpointPath:        "unused-endpoints.json",
 			ManageEndpointState: true,
-			BootID:              "new-boot",
+			BootID:              reimportTestNewBoot,
 		}, BootPolicy{})
 		require.ErrorIs(t, err, ErrLegacyReimportState)
 		assert.False(t, changed)

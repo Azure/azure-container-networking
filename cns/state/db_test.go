@@ -398,7 +398,7 @@ func TestOpenRejectsNonBoltFile(t *testing.T) {
 
 func TestOpenContextCancellation(t *testing.T) {
 	t.Run("nil context", func(t *testing.T) {
-		db, err := OpenContext(nil, filepath.Join(t.TempDir(), "state.db"), Options{})
+		db, err := OpenContext(nil, filepath.Join(t.TempDir(), "state.db"), Options{}) //nolint:staticcheck // Verifies the fail-closed nil-context guard.
 		require.Error(t, err)
 		require.Nil(t, db)
 	})

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -19,12 +20,36 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	errBoltBootProvider = errors.New("boot provider failure")
+	errBoltAdapter      = errors.New("adapter failure")
+	errBoltOpen         = errors.New("open failure")
+	errBoltProjection   = errors.New("projection failure")
+	errBoltLegacyLock   = errors.New("legacy lock failure")
+)
+
+const startupEndpointLockFile = "endpoint.lock"
+
 type startupTestLock struct {
 	name        string
 	events      *[]string
 	lockCalls   int
 	unlockCalls int
 	lockErr     error
+}
+
+func TestProductionBoltPersistentStateDependencies(t *testing.T) {
+	deps := productionBoltPersistentStateDependencies(
+		nil,
+		func(context.Context, store.KeyValueStore, store.KeyValueStore) error { return nil },
+	)
+	assert.NotNil(t, deps.createDirectory)
+	assert.NotNil(t, deps.newFileLock)
+	assert.NotNil(t, deps.openStore)
+	assert.NotNil(t, deps.openDB)
+	assert.NotNil(t, deps.currentBootID)
+	assert.NotNil(t, deps.attachBolt)
+	assert.NotNil(t, deps.restoreJSON)
 }
 
 func (l *startupTestLock) Lock() error {
@@ -147,12 +172,12 @@ func TestBoltPersistentStateStartupRollbackAndReupgrade(t *testing.T) {
 		var cnsState struct {
 			NodeID string
 		}
-		if err := stateStore.Read("ContainerNetworkService", &cnsState); err != nil {
-			return err
+		if readErr := stateStore.Read("ContainerNetworkService", &cnsState); readErr != nil {
+			return fmt.Errorf("reading rollback CNS state: %w", readErr)
 		}
 		var endpoints map[string]any
-		if err := endpointStore.Read("Endpoints", &endpoints); err != nil {
-			return err
+		if readErr := endpointStore.Read("Endpoints", &endpoints); readErr != nil {
+			return fmt.Errorf("reading rollback endpoint state: %w", readErr)
 		}
 		restoredNode = cnsState.NodeID
 		events = append(events, "json-restore")
@@ -204,9 +229,6 @@ func TestBoltPersistentStateStartupRollbackAndReupgrade(t *testing.T) {
 }
 
 func TestBoltPersistentStateStartupFailuresGateListenerAndReleaseLocks(t *testing.T) {
-	bootErr := errors.New("boot provider failure")
-	attachErr := errors.New("adapter failure")
-	openErr := errors.New("open failure")
 	tests := []struct {
 		name   string
 		mutate func(*boltPersistentStateDependencies, *boltPersistentStateConfig)
@@ -215,25 +237,27 @@ func TestBoltPersistentStateStartupFailuresGateListenerAndReleaseLocks(t *testin
 		{
 			name: "open",
 			mutate: func(deps *boltPersistentStateDependencies, _ *boltPersistentStateConfig) {
-				deps.openDB = func(context.Context, string, state.Options) (*state.DB, error) { return nil, openErr }
+				deps.openDB = func(context.Context, string, state.Options) (*state.DB, error) {
+					return nil, errBoltOpen
+				}
 			},
-			want: openErr,
+			want: errBoltOpen,
 		},
 		{
 			name: "boot identity",
 			mutate: func(deps *boltPersistentStateDependencies, _ *boltPersistentStateConfig) {
-				deps.currentBootID = func() (string, error) { return "", bootErr }
+				deps.currentBootID = func() (string, error) { return "", errBoltBootProvider }
 			},
-			want: bootErr,
+			want: errBoltBootProvider,
 		},
 		{
 			name: "adapter",
 			mutate: func(deps *boltPersistentStateDependencies, _ *boltPersistentStateConfig) {
 				deps.attachBolt = func(*state.DB) (persistentStateAttachment, error) {
-					return persistentStateAttachment{}, attachErr
+					return persistentStateAttachment{}, errBoltAdapter
 				}
 			},
-			want: attachErr,
+			want: errBoltAdapter,
 		},
 		{
 			name: "malformed import",
@@ -266,7 +290,7 @@ func TestBoltPersistentStateStartupFailuresGateListenerAndReleaseLocks(t *testin
 			for _, lock := range *locks {
 				require.Equal(t, 1, lock.unlockCalls)
 			}
-			if !errors.Is(tt.want, openErr) {
+			if !errors.Is(tt.want, errBoltOpen) {
 				db, reopenErr := state.Open(paths.databaseFile, state.Options{Timeout: 50 * time.Millisecond})
 				require.NoError(t, reopenErr)
 				require.NoError(t, db.Close())
@@ -279,10 +303,9 @@ func TestBoltPersistentStateStartupRestoreFailureClosesDatabase(t *testing.T) {
 	paths := writeStartupLegacyState(t, "node-1")
 	var events []string
 	deps, locks, _, closeCount := startupTestDependencies(t, &events)
-	restoreErr := errors.New("projection failure")
 	deps.attachBolt = func(db *state.DB) (persistentStateAttachment, error) {
 		return persistentStateAttachment{
-			restore: func(context.Context) error { return restoreErr },
+			restore: func(context.Context) error { return errBoltProjection },
 			close: func() error {
 				*closeCount++
 				return db.Close()
@@ -300,7 +323,7 @@ func TestBoltPersistentStateStartupRestoreFailureClosesDatabase(t *testing.T) {
 	}, deps)
 	require.NoError(t, err)
 	err = startup.Start(context.Background())
-	require.ErrorIs(t, err, restoreErr)
+	require.ErrorIs(t, err, errBoltProjection)
 	require.Zero(t, listenerCount)
 	require.Equal(t, 1, *closeCount)
 	for _, lock := range *locks {
@@ -312,7 +335,6 @@ func TestBoltPersistentStateStartupRestoreFailureClosesDatabase(t *testing.T) {
 }
 
 func TestBoltPersistentStateStartupLockFailures(t *testing.T) {
-	lockErr := errors.New("legacy lock failure")
 	for _, tt := range []struct {
 		name     string
 		failCall int
@@ -328,12 +350,12 @@ func TestBoltPersistentStateStartupLockFailures(t *testing.T) {
 			deps.newFileLock = func(path string) (processlock.Interface, error) {
 				lockCalls++
 				name := "state"
-				if filepath.Base(path) == "endpoint.lock" {
+				if filepath.Base(path) == startupEndpointLockFile {
 					name = "endpoint"
 				}
 				lock := &startupTestLock{name: name, events: &events}
 				if lockCalls == tt.failCall {
-					lock.lockErr = lockErr
+					lock.lockErr = errBoltLegacyLock
 				}
 				*locks = append(*locks, lock)
 				return lock, nil
@@ -347,7 +369,7 @@ func TestBoltPersistentStateStartupLockFailures(t *testing.T) {
 				listenerCount++
 				return nil
 			}, deps)
-			require.ErrorIs(t, err, lockErr)
+			require.ErrorIs(t, err, errBoltLegacyLock)
 			require.Nil(t, startup)
 			require.Zero(t, listenerCount)
 			require.NoFileExists(t, paths.databaseFile)
@@ -414,7 +436,7 @@ func TestBoltPersistentStateStartupCancellationAndDBLockTimeout(t *testing.T) {
 		deps, locks, _, _ := startupTestDependencies(t, &events)
 		deps.openDB = func(ctx context.Context, _ string, _ state.Options) (*state.DB, error) {
 			<-ctx.Done()
-			return nil, ctx.Err()
+			return nil, fmt.Errorf("waiting for startup cancellation: %w", ctx.Err())
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 		defer cancel()
@@ -439,16 +461,21 @@ func TestBoltPersistentStateStartupCancellationAndDBLockTimeout(t *testing.T) {
 func startupTestDependencies(
 	t *testing.T,
 	events *[]string,
-) (boltPersistentStateDependencies, *[]*startupTestLock, *int, *int) {
+) (
+	deps boltPersistentStateDependencies,
+	locksOut *[]*startupTestLock,
+	restoreCountOut *int,
+	closeCountOut *int,
+) {
 	t.Helper()
 	var locks []*startupTestLock
 	restoreCount := 0
 	closeCount := 0
-	deps := boltPersistentStateDependencies{
+	deps = boltPersistentStateDependencies{
 		createDirectory: func(path string) error { return os.MkdirAll(path, 0o755) },
 		newFileLock: func(path string) (processlock.Interface, error) {
 			name := "state"
-			if filepath.Base(path) == "endpoint.lock" {
+			if filepath.Base(path) == startupEndpointLockFile {
 				name = "endpoint"
 			}
 			lock := &startupTestLock{name: name, events: events}
@@ -465,7 +492,7 @@ func startupTestDependencies(
 				restore: func(ctx context.Context) error {
 					restoreCount++
 					if _, err := db.Snapshot(ctx); err != nil {
-						return err
+						return fmt.Errorf("reading startup test snapshot: %w", err)
 					}
 					*events = append(*events, "restore")
 					return nil
@@ -495,7 +522,7 @@ func writeStartupLegacyState(t *testing.T, nodeID string) persistentStatePaths {
 		stateLockFile:     filepath.Join(base, "state.lock"),
 		endpointDirectory: endpointDirectory,
 		endpointFile:      filepath.Join(endpointDirectory, "azure-endpoints.json"),
-		endpointLockFile:  filepath.Join(base, "endpoint.lock"),
+		endpointLockFile:  filepath.Join(base, startupEndpointLockFile),
 	}
 	cnsData, err := json.Marshal(map[string]any{
 		"ContainerNetworkService": map[string]any{

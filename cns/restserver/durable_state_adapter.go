@@ -85,7 +85,7 @@ type durableCacheProjection struct {
 func NewDurableStateLifecycle(
 	service *HTTPRestService,
 	db *state.DB,
-) (restore func(context.Context) error, close func() error, err error) {
+) (restore func(context.Context) error, closeFn func() error, err error) {
 	adapter, err := newDurableStateAdapter(service, db)
 	if err != nil {
 		return nil, nil, err

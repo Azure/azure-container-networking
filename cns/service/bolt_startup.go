@@ -15,6 +15,27 @@ import (
 	"github.com/Azure/azure-container-networking/store"
 )
 
+var (
+	errPersistentInvariantFailed    = errors.New("persistent state invariant failed")
+	errRollbackJSONAuthorityMissing = errors.New("rollback export did not establish JSON authority")
+	errUnsupportedStateAuthority    = errors.New("unsupported persistent state authority")
+	errNilStateStartCallback        = errors.New("persistent state start callback is nil")
+	errInvalidStateStartupMode      = errors.New("persistent state startup mode is invalid")
+	errEmptyStateDirectory          = errors.New("persistent state directory is empty")
+	errEmptyStateDatabasePath       = errors.New("persistent state database path is empty")
+	errEmptyLegacyCNSPath           = errors.New("legacy CNS state path is empty")
+	errEmptyLegacyCNSLockPath       = errors.New("legacy CNS lock path is empty")
+	errEmptyLegacyEndpointPath      = errors.New("legacy endpoint state path is empty")
+	errEmptyLegacyEndpointLockPath  = errors.New("legacy endpoint lock path is empty")
+	errNilStateDirectoryCreator     = errors.New("persistent state directory creator is nil")
+	errNilStateLockFactory          = errors.New("persistent state lock factory is nil")
+	errNilStateDatabaseOpener       = errors.New("persistent state database opener is nil")
+	errNilStateBootIDProvider       = errors.New("persistent state boot ID provider is nil")
+	errNilStateBoltAttachment       = errors.New("persistent state Bolt attachment is nil")
+	errNilStateJSONOpener           = errors.New("persistent state JSON opener is nil")
+	errNilStateJSONRestoreCallback  = errors.New("persistent state JSON restore callback is nil")
+)
+
 type boltStartupMode uint8
 
 const (
@@ -53,11 +74,11 @@ func productionBoltPersistentStateDependencies(
 		openDB:        state.OpenContext,
 		currentBootID: platform.BootID,
 		attachBolt: func(db *state.DB) (persistentStateAttachment, error) {
-			restore, close, err := restserver.NewDurableStateLifecycle(service, db)
+			restore, closeFn, err := restserver.NewDurableStateLifecycle(service, db)
 			if err != nil {
-				return persistentStateAttachment{}, err
+				return persistentStateAttachment{}, fmt.Errorf("creating durable state lifecycle: %w", err)
 			}
-			return persistentStateAttachment{restore: restore, close: close}, nil
+			return persistentStateAttachment{restore: restore, close: closeFn}, nil
 		},
 		restoreJSON: restoreJSON,
 	}
@@ -69,16 +90,16 @@ func newBoltPersistentStateStartup(
 	start func(context.Context) error,
 	deps boltPersistentStateDependencies,
 ) (*persistentStateStartup, error) {
-	if err := validateBoltStartup(config, start, deps); err != nil {
-		return nil, err
+	if validationErr := validateBoltStartup(config, start, deps); validationErr != nil {
+		return nil, validationErr
 	}
-	if err := ctx.Err(); err != nil {
-		return nil, fmt.Errorf("initializing Bolt persistent state: %w", err)
+	if contextErr := ctx.Err(); contextErr != nil {
+		return nil, fmt.Errorf("initializing Bolt persistent state: %w", contextErr)
 	}
 
 	startup := &persistentStateStartup{start: start}
-	if err := deps.createDirectory(config.paths.stateDirectory); err != nil {
-		return nil, fmt.Errorf("creating state store directory: %w", err)
+	if directoryErr := deps.createDirectory(config.paths.stateDirectory); directoryErr != nil {
+		return nil, fmt.Errorf("creating state store directory: %w", directoryErr)
 	}
 
 	stateLock, err := acquireLegacyLock(ctx, config.paths.stateLockFile, deps.newFileLock)
@@ -93,50 +114,50 @@ func newBoltPersistentStateStartup(
 	}
 	startup.locks = append(startup.locks, endpointLock)
 
-	db, err := deps.openDB(ctx, config.paths.databaseFile, config.options)
-	if err != nil {
-		return nil, startup.closeAfterError(err)
+	db, openErr := deps.openDB(ctx, config.paths.databaseFile, config.options)
+	if openErr != nil {
+		return nil, startup.closeAfterError(openErr)
 	}
 	closeDBAfterError := func(startupErr error) error {
 		return errors.Join(startupErr, db.Close(), startup.Close())
 	}
-	if err := ctx.Err(); err != nil {
-		return nil, closeDBAfterError(fmt.Errorf("opening Bolt persistent state: %w", err))
+	if contextErr := ctx.Err(); contextErr != nil {
+		return nil, closeDBAfterError(fmt.Errorf("opening Bolt persistent state: %w", contextErr))
 	}
-	status, err := db.Status(ctx)
-	if err != nil {
-		return nil, closeDBAfterError(err)
+	status, statusErr := db.Status(ctx)
+	if statusErr != nil {
+		return nil, closeDBAfterError(statusErr)
 	}
 	if status.InvariantStatus != state.InvariantHealthy {
-		return nil, closeDBAfterError(fmt.Errorf("persistent state invariant %q failed", status.FailedInvariant))
+		return nil, closeDBAfterError(fmt.Errorf("%w: %q", errPersistentInvariantFailed, status.FailedInvariant))
 	}
 
 	if config.mode == boltStartupRollback {
-		if _, err := db.ExportLegacy(ctx, state.ExportOptions{
+		if _, exportErr := db.ExportLegacy(ctx, state.ExportOptions{
 			CNSJSONPath:      config.paths.stateFile,
 			EndpointJSONPath: config.paths.endpointFile,
-		}); err != nil {
-			return nil, closeDBAfterError(err)
+		}); exportErr != nil {
+			return nil, closeDBAfterError(exportErr)
 		}
-		status, err := db.Status(ctx)
-		if err != nil {
-			return nil, closeDBAfterError(err)
+		rollbackStatus, rollbackStatusErr := db.Status(ctx)
+		if rollbackStatusErr != nil {
+			return nil, closeDBAfterError(rollbackStatusErr)
 		}
-		if status.Authority != state.AuthorityJSON || !status.RollbackExported {
-			return nil, closeDBAfterError(errors.New("rollback export did not establish JSON authority"))
+		if rollbackStatus.Authority != state.AuthorityJSON || !rollbackStatus.RollbackExported {
+			return nil, closeDBAfterError(errRollbackJSONAuthorityMissing)
 		}
-		if err := db.Close(); err != nil {
-			return nil, errors.Join(err, startup.Close())
+		if closeErr := db.Close(); closeErr != nil {
+			return nil, errors.Join(closeErr, startup.Close())
 		}
-		if err := initializeRollbackJSON(ctx, startup, config, deps); err != nil {
-			return nil, startup.closeAfterError(err)
+		if initializeErr := initializeRollbackJSON(ctx, startup, config, deps); initializeErr != nil {
+			return nil, startup.closeAfterError(initializeErr)
 		}
 		return startup, nil
 	}
 
-	bootID, err := deps.currentBootID()
-	if err != nil {
-		return nil, closeDBAfterError(fmt.Errorf("getting current boot ID: %w", err))
+	bootID, bootIDErr := deps.currentBootID()
+	if bootIDErr != nil {
+		return nil, closeDBAfterError(fmt.Errorf("getting current boot ID: %w", bootIDErr))
 	}
 	importOptions := state.ImportOptions{
 		CNSPath:             config.paths.stateFile,
@@ -146,25 +167,25 @@ func newBoltPersistentStateStartup(
 	}
 	switch status.Authority {
 	case state.AuthorityBolt:
-		if _, err := db.ImportLegacy(ctx, importOptions); err != nil {
-			return nil, closeDBAfterError(err)
+		if _, importErr := db.ImportLegacy(ctx, importOptions); importErr != nil {
+			return nil, closeDBAfterError(importErr)
 		}
 	case state.AuthorityJSON:
-		if _, err := db.ReimportLegacy(ctx, importOptions, config.bootPolicy); err != nil {
-			return nil, closeDBAfterError(err)
+		if _, reimportErr := db.ReimportLegacy(ctx, importOptions, config.bootPolicy); reimportErr != nil {
+			return nil, closeDBAfterError(reimportErr)
 		}
 	default:
-		return nil, closeDBAfterError(fmt.Errorf("unsupported persistent state authority %q", status.Authority))
+		return nil, closeDBAfterError(fmt.Errorf("%w: %q", errUnsupportedStateAuthority, status.Authority))
 	}
-	if _, err := db.ApplyBoot(ctx, bootID, config.bootPolicy); err != nil {
-		return nil, closeDBAfterError(err)
+	if _, bootErr := db.ApplyBoot(ctx, bootID, config.bootPolicy); bootErr != nil {
+		return nil, closeDBAfterError(bootErr)
 	}
-	if _, err := db.RefreshMetrics(ctx); err != nil {
-		return nil, closeDBAfterError(err)
+	if _, metricsErr := db.RefreshMetrics(ctx); metricsErr != nil {
+		return nil, closeDBAfterError(metricsErr)
 	}
-	attachment, err := deps.attachBolt(db)
-	if err != nil {
-		return nil, closeDBAfterError(fmt.Errorf("attaching Bolt persistent state: %w", err))
+	attachment, attachmentErr := deps.attachBolt(db)
+	if attachmentErr != nil {
+		return nil, closeDBAfterError(fmt.Errorf("attaching Bolt persistent state: %w", attachmentErr))
 	}
 	startup.attachments = append(startup.attachments, attachment)
 	return startup, nil
@@ -207,17 +228,17 @@ func acquireLegacyLock(
 	newLock func(string) (processlock.Interface, error),
 ) (processlock.Interface, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("acquiring legacy state lock: %w", err)
 	}
 	lock, err := newLock(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("creating legacy state lock: %w", err)
 	}
-	if err := lock.Lock(); err != nil {
-		return nil, err
+	if lockErr := lock.Lock(); lockErr != nil {
+		return nil, fmt.Errorf("locking legacy state: %w", lockErr)
 	}
-	if err := ctx.Err(); err != nil {
-		return nil, errors.Join(err, lock.Unlock())
+	if contextErr := ctx.Err(); contextErr != nil {
+		return nil, errors.Join(contextErr, lock.Unlock())
 	}
 	return lock, nil
 }
@@ -229,35 +250,35 @@ func validateBoltStartup(
 ) error {
 	switch {
 	case start == nil:
-		return errors.New("persistent state start callback is nil")
+		return errNilStateStartCallback
 	case config.mode != boltStartupNormal && config.mode != boltStartupRollback:
-		return errors.New("persistent state startup mode is invalid")
+		return errInvalidStateStartupMode
 	case config.paths.stateDirectory == "":
-		return errors.New("persistent state directory is empty")
+		return errEmptyStateDirectory
 	case config.paths.databaseFile == "":
-		return errors.New("persistent state database path is empty")
+		return errEmptyStateDatabasePath
 	case config.paths.stateFile == "":
-		return errors.New("legacy CNS state path is empty")
+		return errEmptyLegacyCNSPath
 	case config.paths.stateLockFile == "":
-		return errors.New("legacy CNS lock path is empty")
+		return errEmptyLegacyCNSLockPath
 	case config.paths.endpointFile == "":
-		return errors.New("legacy endpoint state path is empty")
+		return errEmptyLegacyEndpointPath
 	case config.paths.endpointLockFile == "":
-		return errors.New("legacy endpoint lock path is empty")
+		return errEmptyLegacyEndpointLockPath
 	case deps.createDirectory == nil:
-		return errors.New("persistent state directory creator is nil")
+		return errNilStateDirectoryCreator
 	case deps.newFileLock == nil:
-		return errors.New("persistent state lock factory is nil")
+		return errNilStateLockFactory
 	case deps.openDB == nil:
-		return errors.New("persistent state database opener is nil")
+		return errNilStateDatabaseOpener
 	case config.mode == boltStartupNormal && deps.currentBootID == nil:
-		return errors.New("persistent state boot ID provider is nil")
+		return errNilStateBootIDProvider
 	case config.mode == boltStartupNormal && deps.attachBolt == nil:
-		return errors.New("persistent state Bolt attachment is nil")
+		return errNilStateBoltAttachment
 	case config.mode == boltStartupRollback && deps.openStore == nil:
-		return errors.New("persistent state JSON opener is nil")
+		return errNilStateJSONOpener
 	case config.mode == boltStartupRollback && deps.restoreJSON == nil:
-		return errors.New("persistent state JSON restore callback is nil")
+		return errNilStateJSONRestoreCallback
 	}
 	return nil
 }

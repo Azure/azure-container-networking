@@ -24,6 +24,7 @@ var (
 	errUnknownAuthority = errors.New("unknown authority")
 	errInvalidUint32    = errors.New("invalid uint32 encoding length")
 	errInvalidUint64    = errors.New("invalid uint64 encoding length")
+	errNilOpenContext   = errors.New("opening cns state database: context is nil")
 )
 
 const defaultOpenTimeout = 5 * time.Second
@@ -87,7 +88,7 @@ func Open(path string, opts Options) (store *DB, returnErr error) {
 // startup cancellation through observability and bounded lock waits.
 func OpenContext(ctx context.Context, path string, opts Options) (store *DB, returnErr error) {
 	if ctx == nil {
-		return nil, errors.New("opening cns state database: context is nil")
+		return nil, errNilOpenContext
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("opening cns state database: %w", err)
@@ -128,12 +129,12 @@ func OpenContext(ctx context.Context, path string, opts Options) (store *DB, ret
 		}
 		return nil, fmt.Errorf("opening cns state database: %w", err)
 	}
-	if err := ctx.Err(); err != nil {
+	if contextErr := ctx.Err(); contextErr != nil {
 		_ = db.Close()
 		if !exists && !opts.ReadOnly {
 			_ = os.Remove(path)
 		}
-		return nil, fmt.Errorf("opening cns state database: %w", err)
+		return nil, fmt.Errorf("opening cns state database: %w", contextErr)
 	}
 
 	store = &DB{
