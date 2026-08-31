@@ -25,10 +25,6 @@ stages:
               echo "Setting up environment"
               go version
               echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(Build.BuildId))"
-              echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]$(CNS_VERSION)"
-              echo "##vso[task.setvariable variable=cniVersion;isOutput=true]$(CNI_VERSION)"
-              echo "##vso[task.setvariable variable=ipamVersion;isOutput=true]$(IPAM_VERSION)"
-              echo "##vso[task.setvariable variable=ciliumVersion;isOutput=true]$(CILIUM_VERSION_TAG)"
 
               echo "------"
               echo Queued by $(Build.QueuedBy)
@@ -38,12 +34,42 @@ stages:
               echo "KernelVersion : $(KernelVersion)"
               echo "ProposedRepoVersion : $(ProposedRepoVersion)"
               echo "CNS_VERSION : $(CNS_VERSION)"
+              echo "CNI_VERSION : $(CNI_VERSION)"
               echo "IPAM_VERSION : $(IPAM_VERSION)"
               echo "CILIUM_VERSION_TAG : $(CILIUM_VERSION_TAG)"
               echo "------"
 
               DISTRO=$(echo "$(DistroVersion)" | tr '[:upper:]' '[:lower:]')
+              CNS_VERSION_VALUE="$(CNS_VERSION)"
+              CNI_VERSION_VALUE="$(CNI_VERSION)"
+              IPAM_VERSION_VALUE="$(IPAM_VERSION)"
+              CILIUM_VERSION_VALUE="$(CILIUM_VERSION_TAG)"
+              CNS_IMAGE_REPO_VALUE="$(CNS_IMAGE_REPO)"
+              CNI_IMAGE_REPO_VALUE="$(CNI_IMAGE_REPO)"
+              IPAM_IMAGE_REPO_VALUE="$(IPAM_IMAGE_REPO)"
+              CILIUM_IMAGE_REGISTRY_VALUE="$(CILIUM_IMAGE_REGISTRY)"
+              K8S_MINOR=latest
+              ENABLE_FIPS=false
+              LTS=false
+              CILIUM_IMAGE_NAME=cilium-distroless
+              CILIUM_INIT_IMAGE_NAME=cilium-distroless-init
               case "$DISTRO" in
+                focal)
+                  OS_SKU=Ubuntu
+                  K8S_MINOR=1.33
+                  ENABLE_FIPS=true
+                  LTS=true
+                  CNS_VERSION_VALUE=v1.7.16-0
+                  CNI_VERSION_VALUE=v1.7.16-0
+                  IPAM_VERSION_VALUE=v0.4.0-0
+                  CILIUM_VERSION_VALUE=v1.17.18-260811
+                  CNS_IMAGE_REPO_VALUE=MCR
+                  CNI_IMAGE_REPO_VALUE=MCR
+                  IPAM_IMAGE_REPO_VALUE=MCR
+                  CILIUM_IMAGE_REGISTRY_VALUE=mcr.microsoft.com/containernetworking
+                  CILIUM_IMAGE_NAME=cilium
+                  CILIUM_INIT_IMAGE_NAME=cilium
+                  ;;
                 jammy)
                   OS_SKU=Ubuntu2204
                   if [[ "$(KernelType)" == *"lts-24.04"* ]]; then
@@ -57,13 +83,30 @@ stages:
                   fi
                   ;;
                 *)
-                  echo "DistroVersion must be either jammy or noble, got: $(DistroVersion)"
+                  echo "DistroVersion must be focal, jammy, or noble; got: $(DistroVersion)"
                   exit 1
                   ;;
               esac
               echo "Resolved OS SKU : $OS_SKU"
+              echo "Effective CNS_VERSION : $CNS_VERSION_VALUE"
+              echo "Effective CNI_VERSION : $CNI_VERSION_VALUE"
+              echo "Effective IPAM_VERSION : $IPAM_VERSION_VALUE"
+              echo "Effective CILIUM_VERSION_TAG : $CILIUM_VERSION_VALUE"
               echo "##vso[task.setvariable variable=resolvedDistro;isOutput=true]$DISTRO"
               echo "##vso[task.setvariable variable=osSKU;isOutput=true]$OS_SKU"
+              echo "##vso[task.setvariable variable=k8sMinor;isOutput=true]$K8S_MINOR"
+              echo "##vso[task.setvariable variable=enableFips;isOutput=true]$ENABLE_FIPS"
+              echo "##vso[task.setvariable variable=lts;isOutput=true]$LTS"
+              echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]$CNS_VERSION_VALUE"
+              echo "##vso[task.setvariable variable=cniVersion;isOutput=true]$CNI_VERSION_VALUE"
+              echo "##vso[task.setvariable variable=ipamVersion;isOutput=true]$IPAM_VERSION_VALUE"
+              echo "##vso[task.setvariable variable=ciliumVersion;isOutput=true]$CILIUM_VERSION_VALUE"
+              echo "##vso[task.setvariable variable=cnsImageRepo;isOutput=true]$CNS_IMAGE_REPO_VALUE"
+              echo "##vso[task.setvariable variable=cniImageRepo;isOutput=true]$CNI_IMAGE_REPO_VALUE"
+              echo "##vso[task.setvariable variable=ipamImageRepo;isOutput=true]$IPAM_IMAGE_REPO_VALUE"
+              echo "##vso[task.setvariable variable=ciliumImageRegistry;isOutput=true]$CILIUM_IMAGE_REGISTRY_VALUE"
+              echo "##vso[task.setvariable variable=ciliumImageName;isOutput=true]$CILIUM_IMAGE_NAME"
+              echo "##vso[task.setvariable variable=ciliumInitImageName;isOutput=true]$CILIUM_INIT_IMAGE_NAME"
 
               echo "KernelType Check"
               Kernel=$(KernelType)

@@ -31,6 +31,7 @@ KUBE_PROXY_JSON_PATH ?= ./kube-proxy.json
 LTS					 ?= auto
 ACNS				 ?= false
 GATEWAYAPI			 ?= false
+ENABLE_FIPS         ?= false
 
 
 # overrideable variables
@@ -70,6 +71,12 @@ else
 	GATEWAYAPI_ARGS=
 endif
 
+ifeq ($(ENABLE_FIPS),true)
+	FIPS_ARGS=--enable-fips-image
+else
+	FIPS_ARGS=
+endif
+
 # Common az aks create fields
 COMMON_AKS_FIELDS = $(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 	--auto-upgrade-channel $(AUTOUPGRADE) \
@@ -79,7 +86,7 @@ COMMON_AKS_FIELDS = $(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 	--node-vm-size $(VM_SIZE) \
 	--no-ssh-key \
 	--os-sku $(OS_SKU) \
-	$(LTS_ARGS) $(ACNS_ARGS) $(GATEWAYAPI_ARGS)
+	$(LTS_ARGS) $(ACNS_ARGS) $(GATEWAYAPI_ARGS) $(FIPS_ARGS)
 POD_CIDR = 192.168.0.0/16
 
 ##@ Help

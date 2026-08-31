@@ -21,6 +21,15 @@ stages:
       ciliumVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.ciliumVersion'] ]
       resolvedDistro: $[ stagedependencies.setup.env.outputs['SetEnvVars.resolvedDistro'] ]
       osSKU: $[ stagedependencies.setup.env.outputs['SetEnvVars.osSKU'] ]
+      k8sMinor: $[ stagedependencies.setup.env.outputs['SetEnvVars.k8sMinor'] ]
+      enableFips: $[ stagedependencies.setup.env.outputs['SetEnvVars.enableFips'] ]
+      lts: $[ stagedependencies.setup.env.outputs['SetEnvVars.lts'] ]
+      CNS_IMAGE_REPO: $[ stagedependencies.setup.env.outputs['SetEnvVars.cnsImageRepo'] ]
+      CNI_IMAGE_REPO: $[ stagedependencies.setup.env.outputs['SetEnvVars.cniImageRepo'] ]
+      IPAM_IMAGE_REPO: $[ stagedependencies.setup.env.outputs['SetEnvVars.ipamImageRepo'] ]
+      ciliumImageRegistry: $[ stagedependencies.setup.env.outputs['SetEnvVars.ciliumImageRegistry'] ]
+      ciliumImageName: $[ stagedependencies.setup.env.outputs['SetEnvVars.ciliumImageName'] ]
+      ciliumInitImageName: $[ stagedependencies.setup.env.outputs['SetEnvVars.ciliumInitImageName'] ]
       CNS_IMAGE_NAME_OVERRIDE: azure-cns
       IPAM_IMAGE_NAME_OVERRIDE: azure-ipam
       CNI_IMAGE_NAME_OVERRIDE: azure-cni
@@ -43,16 +52,32 @@ stages:
 
                 REGION="${{ parameters.region }}"
                 CLUSTER="${{ parameters.clusterName }}-$(commitID)"
-                K8S_VERSION=$(az aks get-versions --location "$REGION" --output json |
-                  jq -r '[
-                    .values[]
-                    | select(.isPreview != true)
-                    | select((.capabilities.supportPlan // []) | index("KubernetesOfficial"))
-                    | .patchVersions
-                    | keys[]
-                  ] | sort_by(split(".") | map(tonumber)) | last')
+                K8S_MINOR="$(k8sMinor)"
+                if [ "$K8S_MINOR" != "latest" ]; then
+                  K8S_VERSION=$(az aks get-versions --location "$REGION" --output json |
+                    jq -r --arg minor "$K8S_MINOR" '[
+                      .values[]
+                      | select(.version == $minor)
+                      | select(.isPreview != true)
+                      | select(
+                          ((.capabilities.supportPlan // []) | index("AKSLongTermSupport")) or
+                          ((.capabilities.supportPlan // []) | index("KubernetesOfficial"))
+                        )
+                      | .patchVersions
+                      | keys[]
+                    ] | sort_by(split(".") | map(tonumber)) | last')
+                else
+                  K8S_VERSION=$(az aks get-versions --location "$REGION" --output json |
+                    jq -r '[
+                      .values[]
+                      | select(.isPreview != true)
+                      | select((.capabilities.supportPlan // []) | index("KubernetesOfficial"))
+                      | .patchVersions
+                      | keys[]
+                    ] | sort_by(split(".") | map(tonumber)) | last')
+                fi
                 if [ -z "$K8S_VERSION" ] || [ "$K8S_VERSION" = "null" ]; then
-                  echo "No GA KubernetesOfficial version is available in $REGION"
+                  echo "No compatible Kubernetes version is available in $REGION for $(resolvedDistro)"
                   exit 1
                 fi
 
@@ -61,7 +86,8 @@ stages:
                 make -C ./hack/aks ${{ parameters.clusterType }} \
                   AZCLI=az REGION="$REGION" SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \
                   CLUSTER="$CLUSTER" NODE_COUNT=${{ parameters.nodeCount }} \
-                  VM_SIZE=${{ parameters.vmSize }} AUTOUPGRADE=none LTS=false \
+                  VM_SIZE=${{ parameters.vmSize }} AUTOUPGRADE=none LTS=$(lts) \
+                  ENABLE_FIPS=$(enableFips) \
                   K8S_VER="$K8S_VERSION" OS_SKU=$(osSKU)
                 make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER="$CLUSTER"
 
@@ -69,6 +95,7 @@ stages:
                 POOL_JSON=$(az aks nodepool show --resource-group "$CLUSTER" --cluster-name "$CLUSTER" --name "$POOL_NAME" -o json)
                 ACTUAL_OS_SKU=$(jq -r '.osSku // .properties.osSKU // empty' <<< "$POOL_JSON")
                 ACTUAL_K8S_VERSION=$(jq -r '.orchestratorVersion // .properties.orchestratorVersion // empty' <<< "$POOL_JSON")
+                ACTUAL_FIPS=$(jq -r '.enableFips // .properties.enableFIPS // false' <<< "$POOL_JSON")
                 NODE_IMAGE_VERSION=$(jq -r '.nodeImageVersion // .properties.nodeImageVersion // empty' <<< "$POOL_JSON")
                 if [ -z "$ACTUAL_OS_SKU" ] || [ -z "$ACTUAL_K8S_VERSION" ]; then
                   echo "Failed to read nodepool OS SKU / Kubernetes version from az aks nodepool show output"
@@ -79,6 +106,7 @@ stages:
                 echo "Requested distro: $(resolvedDistro)"
                 echo "Actual OS SKU: $ACTUAL_OS_SKU"
                 echo "Actual Kubernetes version: $ACTUAL_K8S_VERSION"
+                echo "FIPS enabled: $ACTUAL_FIPS"
                 echo "Node image version: $NODE_IMAGE_VERSION"
                 echo "Node OS images:"
                 echo "$NODE_OS_IMAGES"
@@ -96,6 +124,13 @@ stages:
                   exit 1
                 }
                 case "$(resolvedDistro)" in
+                  focal)
+                    EXPECTED_OS_IMAGE="Ubuntu 20.04"
+                    [ "$ACTUAL_FIPS" = "true" ] || {
+                      echo "Expected FIPS to be enabled for Focal"
+                      exit 1
+                    }
+                    ;;
                   jammy)
                     EXPECTED_OS_IMAGE="Ubuntu 22.04"
                     ;;
@@ -104,7 +139,10 @@ stages:
                     ;;
                 esac
                 if grep -Fqv "$EXPECTED_OS_IMAGE" <<< "$NODE_OS_IMAGES"; then
-                  echo "Expected every node to use $EXPECTED_OS_IMAGE"
+                  echo "Expected every node to use $EXPECTED_OS_IMAGE; actual OS SKU: $ACTUAL_OS_SKU; node image: $NODE_IMAGE_VERSION"
+                  if [ "$(resolvedDistro)" = "focal" ]; then
+                    echo "AKS may no longer map Ubuntu with FIPS on Kubernetes $K8S_VERSION to Ubuntu 20.04"
+                  fi
                   exit 1
                 fi
             name: "CreateAksCluster"
@@ -119,7 +157,7 @@ stages:
               cniVersion: $(cniVersion)
               installFlag: ${{ parameters.installFlag }}
               ciliumVersionTag: $(ciliumVersion)
-              ciliumImageRegistry: $(CILIUM_IMAGE_REGISTRY)
+              ciliumImageRegistry: $(ciliumImageRegistry)
               useMakefileLogCollectorDefaults: true
 
           - template: verify-network-images.yaml
@@ -129,7 +167,9 @@ stages:
               cniVersion: $(cniVersion)
               azureIpamVersion: $(ipamVersion)
               ciliumVersionTag: $(ciliumVersion)
-              ciliumImageRegistry: $(CILIUM_IMAGE_REGISTRY)
+              ciliumImageRegistry: $(ciliumImageRegistry)
+              ciliumImageName: $(ciliumImageName)
+              ciliumInitImageName: $(ciliumInitImageName)
 
   - stage: ${{ parameters.name }}
     variables:

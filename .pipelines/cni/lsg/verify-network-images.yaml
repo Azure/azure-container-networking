@@ -5,6 +5,8 @@ parameters:
   azureIpamVersion: ""
   ciliumVersionTag: ""
   ciliumImageRegistry: ""
+  ciliumImageName: cilium-distroless
+  ciliumInitImageName: cilium-distroless-init
 
 steps:
   - bash: |
@@ -41,8 +43,8 @@ steps:
   - ${{ if startsWith(parameters.networkType, 'cilium') }}:
     - bash: |
         set -e
-        EXPECTED_AGENT="${{ parameters.ciliumImageRegistry }}/cilium/cilium-distroless:${{ parameters.ciliumVersionTag }}"
-        EXPECTED_INIT="${{ parameters.ciliumImageRegistry }}/cilium/cilium-distroless-init:${{ parameters.ciliumVersionTag }}"
+        EXPECTED_AGENT="${{ parameters.ciliumImageRegistry }}/cilium/${{ parameters.ciliumImageName }}:${{ parameters.ciliumVersionTag }}"
+        EXPECTED_INIT="${{ parameters.ciliumImageRegistry }}/cilium/${{ parameters.ciliumInitImageName }}:${{ parameters.ciliumVersionTag }}"
         EXPECTED_OPERATOR="${{ parameters.ciliumImageRegistry }}/cilium/operator-generic:${{ parameters.ciliumVersionTag }}"
 
         ACTUAL_AGENT=$(kubectl get daemonset cilium -n kube-system -o jsonpath='{.spec.template.spec.containers[?(@.name=="cilium-agent")].image}')
@@ -59,7 +61,7 @@ steps:
         }
         CILIUM_INIT_COUNT=0
         for image in "${INIT_IMAGES[@]}"; do
-          if [[ "$image" == */cilium/cilium-distroless-init:* ]]; then
+          if [[ "$image" == */cilium/${{ parameters.ciliumInitImageName }}:* ]]; then
             CILIUM_INIT_COUNT=$((CILIUM_INIT_COUNT + 1))
             [ "$image" = "$EXPECTED_INIT" ] || {
               echo "Expected Cilium init image $EXPECTED_INIT, got $image"
@@ -68,7 +70,7 @@ steps:
           fi
         done
         [ "$CILIUM_INIT_COUNT" -gt 0 ] || {
-          echo "No distroless Cilium init containers were found"
+          echo "No ${{ parameters.ciliumInitImageName }} Cilium init containers were found"
           exit 1
         }
-      displayName: "Verify distroless Cilium images"
+      displayName: "Verify Cilium images"
