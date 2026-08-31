@@ -567,15 +567,6 @@ func (s Snapshot) validateDeleteIntents() error {
 	return nil
 }
 
-func validateNonemptyKeys[T any](bucket []byte, values map[string]T) error {
-	for _, key := range sortedKeys(values) {
-		if key == "" {
-			return inconsistent("bucket %q contains an empty key", bucket)
-		}
-	}
-	return nil
-}
-
 func sortedKeys[T any](values map[string]T) []string {
 	keys := make([]string, 0, len(values))
 	for key := range values {
