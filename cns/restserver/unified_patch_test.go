@@ -591,18 +591,18 @@ func TestUnifiedPatchReadOnlyClosedAndRestart(t *testing.T) {
 func TestUnifiedPatchImportedEndpointPreservesOwnership(t *testing.T) {
 	db, err := state.Open(filepath.Join(t.TempDir(), "state.db"), state.Options{})
 	require.NoError(t, err)
-	_, err = db.ApplyNetworkContainer(context.Background(), r18NetworkContainer("nc-v4"), []state.IPRecord{{
-		ID: "ip-1", IPAddress: "10.0.0.4", NCID: "nc-v4", NCVersion: 1,
+	_, err = db.ApplyNetworkContainer(context.Background(), r18NetworkContainer(unifiedTestNCIPv4), []state.IPRecord{{
+		ID: unifiedTestIPID1, IPAddress: adapterTestIPv4, NCID: unifiedTestNCIPv4, NCVersion: 1,
 	}})
 	require.NoError(t, err)
 	records := []cns.CNIEndpointState{{
-		InfraContainerID: "container-1",
-		PodEndpointID:    "interface-1",
-		PodName:          "pod-1",
-		PodNamespace:     "namespace-1",
+		InfraContainerID: adapterTestContainerID,
+		PodEndpointID:    delTestInterfaceID,
+		PodName:          delTestPodName,
+		PodNamespace:     delTestNamespace,
 		InterfaceKey:     "container-1-eth0",
-		InterfaceName:    "eth0",
-		IPAddresses:      []net.IPNet{testIPNet("10.0.0.4/24")},
+		InterfaceName:    InfraInterfaceName,
+		IPAddresses:      []net.IPNet{testIPNet(adapterTestIPv4 + "/24")},
 	}}
 	plan, err := db.PreflightCNIEndpointImport(context.Background(), records, false)
 	require.NoError(t, err)
@@ -616,24 +616,28 @@ func TestUnifiedPatchImportedEndpointPreservesOwnership(t *testing.T) {
 	require.NoError(t, restore(context.Background()))
 	t.Cleanup(func() { require.NoError(t, closeState()) })
 
-	response, _ := invokeEndpointPatch(
-		t,
-		service,
+	response, _, err := invokeEndpointPatch(
 		context.Background(),
-		"container-1",
-		map[string]*IPInfo{"eth0": {
+		service,
+		adapterTestContainerID,
+		map[string]*IPInfo{InfraInterfaceName: {
 			HnsEndpointID:      "imported-hns",
-			NetworkContainerID: "nc-v4",
+			NetworkContainerID: unifiedTestNCIPv4,
 			NICType:            cns.InfraNIC,
 		}},
 	)
+	require.NoError(t, err)
 	require.Equal(t, types.Success, response.ReturnCode)
 	after := requireUnifiedSnapshot(t, db)
 	assert.Equal(t, before.Assignments, after.Assignments)
 	assert.Equal(t, before.IPOwners, after.IPOwners)
 	assert.Equal(t, before.DeleteIntents, after.DeleteIntents)
-	assert.Equal(t, "imported-hns", after.Endpoints["container-1"].IfnameToIPMap["eth0"].HNSEndpointID)
-	assert.Equal(t, "nc-v4", after.Endpoints["container-1"].IfnameToIPMap["eth0"].NetworkContainerID)
+	assert.Equal(t, "imported-hns", after.Endpoints[adapterTestContainerID].IfnameToIPMap[InfraInterfaceName].HNSEndpointID)
+	assert.Equal(
+		t,
+		unifiedTestNCIPv4,
+		after.Endpoints[adapterTestContainerID].IfnameToIPMap[InfraInterfaceName].NetworkContainerID,
+	)
 }
 
 func TestJSONPatchPathRemainsIsolated(t *testing.T) {
