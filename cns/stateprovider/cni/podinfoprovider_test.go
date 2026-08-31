@@ -1,12 +1,15 @@
 package cni
 
 import (
+	"net"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/cni/api"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/platform"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"k8s.io/utils/exec"
 )
 
@@ -79,9 +82,63 @@ func TestNewCNIPodInfoProvider(t *testing.T) {
 				assert.Error(t, err)
 				return
 			}
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			podInfoByIP, _ := got.PodInfoByIP()
 			assert.Equal(t, tt.want, podInfoByIP)
 		})
 	}
+}
+
+func TestCNIStateToPodInfoByIPLegacyTolerance(t *testing.T) {
+	state := &api.AzureCNIState{ContainerInterfaces: map[string]api.PodNetworkInterfaceInfo{
+		"healthy": {
+			PodName:       cniProviderTestPod,
+			PodNamespace:  cniProviderTestNamespace,
+			PodEndpointId: "interface",
+			ContainerID:   cniProviderTestContainer,
+			IPAddresses: []net.IPNet{{
+				IP:   net.ParseIP("10.0.0.4"),
+				Mask: net.CIDRMask(24, 32),
+			}},
+		},
+		"zero-ip-degenerate": {},
+		"mismatched-mask-degenerate": {
+			IPAddresses: []net.IPNet{{
+				IP:   net.ParseIP("2001:db8::4"),
+				Mask: net.CIDRMask(24, 32),
+			}},
+		},
+	}}
+
+	got, err := cniStateToPodInfoByIP(state)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]cns.PodInfo{
+		"10.0.0.4":    cns.NewPodInfo(cniProviderTestContainer, "interface", cniProviderTestPod, cniProviderTestNamespace),
+		"2001:db8::4": cns.NewPodInfo("", "", "", ""),
+	}, got)
+}
+
+func TestCNIStateToPodInfoByIPDuplicateStillErrors(t *testing.T) {
+	duplicate := net.IPNet{IP: net.ParseIP("10.0.0.4"), Mask: net.CIDRMask(24, 32)}
+	state := &api.AzureCNIState{ContainerInterfaces: map[string]api.PodNetworkInterfaceInfo{
+		"first": {
+			PodName:       "pod-a",
+			PodNamespace:  "namespace",
+			PodEndpointId: "interface-a",
+			ContainerID:   "container-a",
+			IPAddresses:   []net.IPNet{duplicate},
+		},
+		"second": {
+			PodName:       "pod-b",
+			PodNamespace:  "namespace",
+			PodEndpointId: "interface-b",
+			ContainerID:   "container-b",
+			IPAddresses:   []net.IPNet{duplicate},
+		},
+	}}
+
+	got, err := cniStateToPodInfoByIP(state)
+	assert.Nil(t, got)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, cns.ErrDuplicateIP)
 }
