@@ -291,6 +291,19 @@ swift-cilium-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT Cilium cluster
 		--yes
 	@$(MAKE) set-kubeconf
 
+ebpf-swift-cilium-up: rg-up ipv4 swift-net-up ## Brings up an EBPF Podsubnet Cilium cluster
+	$(COMMON_AKS_FIELDS) \
+		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
+		--network-plugin azure \
+		--network-dataplane cilium \
+		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AdvancedNetworkingPerformancePreview \
+		--enable-acns \
+		--acns-datapath-acceleration-mode BpfVeth \
+		--yes
+	@$(MAKE) set-kubeconf
+
 swift-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT AzCNI cluster
 	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
