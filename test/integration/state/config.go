@@ -69,6 +69,8 @@ const (
 	windowsCNSDaemonSet                      = "azure-cns-win"
 	linuxCNSLabelSelector                    = "k8s-app=azure-cns"
 	windowsCNSLabelSelector                  = "k8s-app=azure-cns-win"
+	linuxCNSConfigMap                        = "cns-config"
+	windowsCNSConfigMap                      = "cns-win-config"
 )
 
 type faultConfig struct {
@@ -187,6 +189,13 @@ func cnsDaemonSetForOS(osName string) (name, selector string) {
 		return windowsCNSDaemonSet, windowsCNSLabelSelector
 	}
 	return linuxCNSDaemonSet, linuxCNSLabelSelector
+}
+
+func cnsConfigMapForOS(osName string) string {
+	if osName == "windows" {
+		return windowsCNSConfigMap
+	}
+	return linuxCNSConfigMap
 }
 
 func sanitizeResourceName(value string, maxLength int) string {

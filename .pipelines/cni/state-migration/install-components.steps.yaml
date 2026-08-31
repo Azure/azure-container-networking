@@ -1,0 +1,115 @@
+parameters:
+  - name: clusterName
+    type: string
+  - name: scenario
+    type: string
+  - name: os
+    type: string
+  - name: region
+    type: string
+  - name: configMapName
+    type: string
+  - name: daemonsetName
+    type: string
+  - name: manageEndpointState
+    type: string
+  - name: initializeFromCNI
+    type: string
+
+steps:
+  - task: AzureCLI@2
+    displayName: Install migration lane components
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -euo pipefail
+
+        make -C ./hack/aks azcfg AZCLI=az REGION=${{ parameters.region }}
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+
+        cnsVersion=$(make cns-version)
+        cniVersion=$(make cni-version)
+        ipamVersion=$(make azure-ipam-version)
+
+        case "${{ parameters.scenario }}" in
+          cilium-overlay)
+            make -C ./hack/aks deploy-cilium
+            sudo -E env "PATH=$PATH" make test-integration \
+              AZURE_IPAM_VERSION="$ipamVersion" \
+              CNS_VERSION="$cnsVersion" \
+              INSTALL_CNS=true \
+              INSTALL_OVERLAY=true \
+              CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) \
+              IPAM_IMAGE_REPO=$(IPAM_IMAGE_REPO)
+            ;;
+          azure-cni-pod-subnet)
+            if [[ "${{ parameters.os }}" == "windows" ]]; then
+              sudo -E env "PATH=$PATH" make test-load \
+                CNS_ONLY=true \
+                CNS_VERSION="$cnsVersion" \
+                CNI_VERSION="$cniVersion" \
+                INSTALL_CNS=true \
+                INSTALL_AZURE_VNET=true \
+                CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) \
+                CNI_IMAGE_REPO=$(CNI_IMAGE_REPO)
+            else
+              sudo -E env "PATH=$PATH" make test-integration \
+                CNS_VERSION="$cnsVersion" \
+                CNI_VERSION="$cniVersion" \
+                INSTALL_CNS=true \
+                INSTALL_AZURE_VNET=true \
+                CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) \
+                CNI_IMAGE_REPO=$(CNI_IMAGE_REPO)
+            fi
+            ;;
+          azure-cni-overlay)
+            sudo -E env "PATH=$PATH" make test-integration \
+              CNS_VERSION="$cnsVersion" \
+              CNI_VERSION="$cniVersion" \
+              INSTALL_CNS=true \
+              INSTALL_AZURE_CNI_OVERLAY=true \
+              CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) \
+              CNI_IMAGE_REPO=$(CNI_IMAGE_REPO)
+            ;;
+          azure-cni-stateless-overlay)
+            sudo -E env "PATH=$PATH" make test-load \
+              CNS_ONLY=true \
+              CNS_VERSION="$cnsVersion" \
+              CNI_VERSION="$cniVersion" \
+              INSTALL_CNS=true \
+              INSTALL_AZURE_VNET_STATELESS=true \
+              CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) \
+              CNI_IMAGE_REPO=$(CNI_IMAGE_REPO)
+            ;;
+          *)
+            echo "unsupported migration lane scenario: ${{ parameters.scenario }}"
+            exit 1
+            ;;
+        esac
+
+        if [[ "${{ parameters.os }}" == "windows" ]]; then
+          while read -r node; do
+            nodeName=${node#node/}
+            if kubectl describe node "$nodeName" | grep -q 'node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule'; then
+              kubectl taint node "$nodeName" node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule-
+            fi
+          done < <(kubectl get nodes -l kubernetes.io/os=windows -o name)
+        fi
+
+        kubectl rollout status daemonset/${{ parameters.daemonsetName }} \
+          -n kube-system --timeout=20m
+
+        config=$(kubectl get configmap/${{ parameters.configMapName }} \
+          -n kube-system -o jsonpath='{.data.cns_config\.json}')
+        jq -e \
+          --argjson manage "${{ parameters.manageEndpointState }}" \
+          --argjson initialize "${{ parameters.initializeFromCNI }}" \
+          '.ManageEndpointState == $manage and .InitializeFromCNI == $initialize' \
+          <<<"$config"
+
+        kubectl get pods -A -o wide
+        jq '{ManageEndpointState, InitializeFromCNI, EnableStateMigration, StateStoreBackend, StateStoreMode}' \
+          <<<"$config"
