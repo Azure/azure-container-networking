@@ -65,6 +65,35 @@ type IPRecord struct {
 	NCVersion int    `json:"ncVersion"`
 }
 
+type DurableState struct {
+	NetworkContainers    map[string]NetworkContainerRecord
+	IPs                  map[string]IPRecord
+	Networks             map[string]NetworkRecord
+	OrchestratorContexts map[string][]string
+	PnPIDByMAC           map[string]string
+}
+
+func NewDurableState() DurableState {
+	return DurableState{
+		NetworkContainers:    map[string]NetworkContainerRecord{},
+		IPs:                  map[string]IPRecord{},
+		Networks:             map[string]NetworkRecord{},
+		OrchestratorContexts: map[string][]string{},
+		PnPIDByMAC:           map[string]string{},
+	}
+}
+
+type ReadinessObservation struct {
+	VMVersion         string
+	HostVersion       string
+	VFPUpdateComplete bool
+}
+
+type BootPolicy struct {
+	ClearEndpoints bool
+	ResetReadiness bool
+}
+
 type NetworkRecord struct {
 	NetworkName string                    `json:"networkName"`
 	NicInfo     *wireserver.InterfaceInfo `json:"nicInfo,omitempty"`

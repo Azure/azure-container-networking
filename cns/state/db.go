@@ -194,7 +194,7 @@ func (s *DB) View(ctx context.Context, fn func(*ReadTx) error) error {
 		return fmt.Errorf("viewing cns state: %w", err)
 	}
 	if err := s.db.View(func(tx *bolt.Tx) error {
-		return fn(&ReadTx{tx: tx})
+		return fn(&ReadTx{tx: tx, ctx: ctx})
 	}); err != nil {
 		return fmt.Errorf("viewing cns state: %w", err)
 	}
@@ -228,7 +228,7 @@ func (s *DB) update(ctx context.Context, fn func(*WriteTx) (bool, error)) (bool,
 	changed := false
 	if err := s.db.Update(func(tx *bolt.Tx) error {
 		var err error
-		changed, err = fn(&WriteTx{ReadTx: ReadTx{tx: tx}})
+		changed, err = fn(&WriteTx{ReadTx: ReadTx{tx: tx, ctx: ctx}})
 		if err != nil || !changed {
 			return err
 		}
