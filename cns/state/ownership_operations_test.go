@@ -5,6 +5,7 @@ package state
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net"
 	"sync"
@@ -21,7 +22,12 @@ const testDeleteIntentTTL = 10 * time.Minute
 
 var testNow = time.Date(2026, time.July, 24, 0, 0, 0, 0, time.UTC)
 
-const testIPv4Address2 = "10.0.0.5"
+var errAssignmentCandidate = errors.New("injected candidate failure")
+
+const (
+	testIPv4Address2 = "10.0.0.5"
+	testContainerID2 = "container-2"
+)
 
 func TestOwnershipTransactions(t *testing.T) {
 	db, _ := openTestDB(t)
@@ -239,6 +245,181 @@ func TestAssignEndpoint(t *testing.T) {
 		require.ErrorIs(t, err, ErrInvalidInput)
 		assert.Empty(t, requireValidSnapshot(t, db).Assignments)
 	})
+}
+
+func TestAssignEndpointIfGenerationPrecommitAndCancellation(t *testing.T) {
+	t.Run("candidate callback failure rolls back", func(t *testing.T) {
+		db, _ := openTestDB(t)
+		assignment, endpoint := seedOwnershipInventory(t, db)
+		before := requireValidSnapshot(t, db)
+		callbackCalled := false
+
+		changed, err := db.AssignEndpointIfGeneration(
+			context.Background(),
+			before.Metadata.Generation,
+			assignment,
+			endpoint,
+			testNow,
+			testDeleteIntentTTL,
+			func(candidate Snapshot) error {
+				callbackCalled = true
+				assert.Equal(t, before.Metadata.Generation+1, candidate.Metadata.Generation)
+				assert.Contains(t, candidate.Assignments, assignment.Pod.PodKey)
+				assert.Contains(t, candidate.Endpoints, assignment.Pod.InfraContainerID)
+				assert.Len(t, candidate.IPOwners, len(assignment.IPIDs))
+				return errAssignmentCandidate
+			},
+		)
+		require.ErrorIs(t, err, errAssignmentCandidate)
+		assert.False(t, changed)
+		assert.True(t, callbackCalled)
+		assert.Equal(t, before, requireValidSnapshot(t, db))
+	})
+
+	t.Run("stale generation does not invoke callback", func(t *testing.T) {
+		db, _ := openTestDB(t)
+		assignment, endpoint := seedOwnershipInventory(t, db)
+		before := requireValidSnapshot(t, db)
+
+		changed, err := db.AssignEndpointIfGeneration(
+			context.Background(),
+			before.Metadata.Generation+1,
+			assignment,
+			endpoint,
+			testNow,
+			testDeleteIntentTTL,
+			func(Snapshot) error {
+				t.Fatal("stale generation invoked candidate callback")
+				return nil
+			},
+		)
+		require.ErrorIs(t, err, ErrStaleGeneration)
+		assert.False(t, changed)
+		assert.Equal(t, before, requireValidSnapshot(t, db))
+	})
+
+	t.Run("canceled while waiting for writer gate", func(t *testing.T) {
+		db, _ := openTestDB(t)
+		assignment, endpoint := seedOwnershipInventory(t, db)
+		before := requireValidSnapshot(t, db)
+		db.writeGate <- struct{}{}
+		t.Cleanup(func() {
+			select {
+			case <-db.writeGate:
+			default:
+			}
+		})
+		ctx, cancel := context.WithCancel(context.Background())
+		started := make(chan struct{})
+		result := make(chan error, 1)
+		go func() {
+			close(started)
+			_, err := db.AssignEndpointIfGeneration(
+				ctx,
+				before.Metadata.Generation,
+				assignment,
+				endpoint,
+				testNow,
+				testDeleteIntentTTL,
+				nil,
+			)
+			result <- err
+		}()
+		<-started
+		cancel()
+		require.ErrorIs(t, <-result, context.Canceled)
+		<-db.writeGate
+		assert.Equal(t, before, requireValidSnapshot(t, db))
+	})
+
+	t.Run("read only", func(t *testing.T) {
+		db, path := openTestDB(t)
+		assignment, endpoint := seedOwnershipInventory(t, db)
+		before := requireValidSnapshot(t, db)
+		require.NoError(t, db.Close())
+		readOnly, err := Open(path, Options{ReadOnly: true})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, readOnly.Close()) })
+
+		changed, err := readOnly.AssignEndpointIfGeneration(
+			context.Background(),
+			before.Metadata.Generation,
+			assignment,
+			endpoint,
+			testNow,
+			testDeleteIntentTTL,
+			nil,
+		)
+		require.ErrorIs(t, err, bolterrors.ErrDatabaseReadOnly)
+		assert.False(t, changed)
+		assert.Equal(t, before, requireValidSnapshot(t, readOnly))
+	})
+}
+
+func TestAssignEndpointRejectsIdentityConflicts(t *testing.T) {
+	tests := []struct {
+		name          string
+		retainFirst   bool
+		changeRequest func(*AssignmentRecord, *EndpointRecord)
+	}{
+		{
+			name: "container already belongs to another pod",
+			changeRequest: func(assignment *AssignmentRecord, endpoint *EndpointRecord) {
+				assignment.Pod.PodName = "other-pod"
+				endpoint.PodName = "other-pod"
+			},
+		},
+		{
+			name: "pod changes containers before release",
+			changeRequest: func(assignment *AssignmentRecord, _ *EndpointRecord) {
+				assignment.Pod.PodKey = testContainerID2
+				assignment.Pod.InfraContainerID = testContainerID2
+			},
+		},
+		{
+			name:        "pod changes containers while endpoint retained",
+			retainFirst: true,
+			changeRequest: func(assignment *AssignmentRecord, _ *EndpointRecord) {
+				assignment.Pod.PodKey = testContainerID2
+				assignment.Pod.InfraContainerID = testContainerID2
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, _ := openTestDB(t)
+			assignment, endpoint := seedOwnershipInventory(t, db)
+			changed, err := db.AssignEndpoint(
+				context.Background(),
+				assignment,
+				endpoint,
+				testNow,
+				testDeleteIntentTTL,
+			)
+			require.NoError(t, err)
+			require.True(t, changed)
+
+			if tt.retainFirst {
+				changed, err = db.ReleaseEndpoint(context.Background(), assignment.Pod, testNow)
+				require.NoError(t, err)
+				require.True(t, changed)
+			}
+			before := readMetadata(t, db).Generation
+			requestedEndpoint := deepCloneEndpoint(t, endpoint)
+			tt.changeRequest(&assignment, &requestedEndpoint)
+
+			_, err = db.AssignEndpoint(
+				context.Background(),
+				assignment,
+				requestedEndpoint,
+				testNow,
+				testDeleteIntentTTL,
+			)
+			require.ErrorIs(t, err, ErrInvalidInput)
+			assert.Equal(t, before, readMetadata(t, db).Generation)
+			requireValidSnapshot(t, db)
+		})
+	}
 }
 
 func TestConcurrentDuplicateOwnership(t *testing.T) {
@@ -902,6 +1083,15 @@ func testEndpoint(podName, address string) EndpointRecord {
 			},
 		},
 	}
+}
+
+func deepCloneEndpoint(t *testing.T, endpoint EndpointRecord) EndpointRecord {
+	t.Helper()
+	data, err := json.Marshal(endpoint)
+	require.NoError(t, err)
+	var cloned EndpointRecord
+	require.NoError(t, json.Unmarshal(data, &cloned))
+	return cloned
 }
 
 func requireValidSnapshot(t *testing.T, db *DB) Snapshot {
