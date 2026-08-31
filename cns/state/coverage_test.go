@@ -28,10 +28,30 @@ const (
 	hardeningContainerID2      = "container-2"
 	hardeningMultipleValues    = "multiple values"
 	hardeningUnsupportedOption = "unsupported"
+	coverageEmptyPodName       = "empty pod name"
+	coverageEmptyPodNamespace  = "empty pod namespace"
 	hardeningLocation          = "eastus"
 	hardeningStateNamespace    = "state-machine"
 	hardeningNet1              = "net1"
 )
+
+func TestBoundedInvariantClassification(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want InvariantName
+	}{
+		{name: "schema", err: ErrSchemaMismatch, want: InvariantSchema},
+		{name: "corrupt", err: ErrCorrupt, want: InvariantStructural},
+		{name: "inconsistent", err: ErrInconsistentState, want: InvariantStructural},
+		{name: "unclassified error", err: errAbort, want: InvariantStructural},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, boundedInvariant(tt.err))
+		})
+	}
+}
 
 func TestOwnershipNormalizationRejectsMalformedRecords(t *testing.T) {
 	validPod := PodIdentity{
@@ -48,8 +68,8 @@ func TestOwnershipNormalizationRejectsMalformedRecords(t *testing.T) {
 		{name: "empty infra container", mutate: func(pod *PodIdentity) { pod.InfraContainerID = "" }},
 		{name: "pod key differs without interface", mutate: func(pod *PodIdentity) { pod.PodKey = testMismatchValue }},
 		{name: "interface differs from pod key", mutate: func(pod *PodIdentity) { pod.InterfaceID = testMismatchValue }},
-		{name: "empty pod name", mutate: func(pod *PodIdentity) { pod.PodName = "" }},
-		{name: "empty pod namespace", mutate: func(pod *PodIdentity) { pod.PodNamespace = "" }},
+		{name: coverageEmptyPodName, mutate: func(pod *PodIdentity) { pod.PodName = "" }},
+		{name: coverageEmptyPodNamespace, mutate: func(pod *PodIdentity) { pod.PodNamespace = "" }},
 	}
 	for _, tt := range podTests {
 		t.Run("pod/"+tt.name, func(t *testing.T) {
@@ -102,7 +122,7 @@ func TestOwnershipNormalizationRejectsMalformedRecords(t *testing.T) {
 	}{
 		{name: "empty container", record: validEndpoint},
 		{
-			name:        "empty pod name",
+			name:        coverageEmptyPodName,
 			containerID: hardeningContainerID,
 			record: EndpointRecord{
 				PodNamespace:  hardeningNamespace,
@@ -110,7 +130,7 @@ func TestOwnershipNormalizationRejectsMalformedRecords(t *testing.T) {
 			},
 		},
 		{
-			name:        "empty pod namespace",
+			name:        coverageEmptyPodNamespace,
 			containerID: hardeningContainerID,
 			record: EndpointRecord{
 				PodName:       importOrchestratorContextKey,
@@ -570,7 +590,7 @@ func TestReleaseIdentityRejectsConflictingOwnership(t *testing.T) {
 			name: "retained endpoint pod mismatch",
 			pod: PodIdentity{
 				PodKey:           testIfacePrimary,
-				InfraContainerID: "container-1",
+				InfraContainerID: exportContainerID,
 				InterfaceID:      testIfacePrimary,
 				PodName:          testMismatchValue,
 				PodNamespace:     exportPodNamespace,
@@ -582,23 +602,23 @@ func TestReleaseIdentityRejectsConflictingOwnership(t *testing.T) {
 				PodKey:           testIfacePrimary,
 				InfraContainerID: hardeningOtherContainerID,
 				InterfaceID:      testIfacePrimary,
-				PodName:          "pod-1",
+				PodName:          exportPodName,
 				PodNamespace:     exportPodNamespace,
 			},
 		},
 		{
 			name: "container assignment pod mismatch",
 			mutate: func(value *Snapshot) {
-				delete(value.Endpoints, "container-1")
+				delete(value.Endpoints, exportContainerID)
 				record := value.Assignments[testIfacePrimary]
 				record.Pod.PodName = testMismatchValue
 				value.Assignments[testIfacePrimary] = record
 			},
 			pod: PodIdentity{
 				PodKey:           "unknown-interface",
-				InfraContainerID: "container-1",
+				InfraContainerID: exportContainerID,
 				InterfaceID:      "unknown-interface",
-				PodName:          "pod-1",
+				PodName:          exportPodName,
 				PodNamespace:     exportPodNamespace,
 			},
 		},

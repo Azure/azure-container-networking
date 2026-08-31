@@ -702,7 +702,7 @@ func completeLegacyImportData(t testing.TB) (cnsData, endpointData []byte) {
 				NetworkContainerID: importNC1,
 				NICType:            cns.InfraNIC,
 			},
-			"net1": {
+			cniImportTestSecondaryInterface: {
 				IPv4:               []net.IPNet{mustIPNet(t, importNet1Address+"/24")},
 				HNSEndpointID:      "hns-endpoint-2",
 				HNSNetworkID:       "hns-network-2",
@@ -714,7 +714,7 @@ func completeLegacyImportData(t testing.TB) (cnsData, endpointData []byte) {
 		},
 	}
 	endpointData, err = json.Marshal(map[string]any{
-		"Endpoints": map[string]*EndpointRecord{importContainerID: &endpoint},
+		testEndpointsKey: map[string]*EndpointRecord{importContainerID: &endpoint},
 		"DeleteIntents": map[string]DeleteIntent{
 			"deleted-container": {CreatedAt: testNow.Add(-time.Minute)},
 		},

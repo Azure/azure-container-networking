@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"net"
 	"sort"
 	"sync"
@@ -21,6 +22,11 @@ import (
 var errInjectedCNIImport = errors.New("injected commit failure")
 
 const cniImportTestSecondaryInterface = "net1"
+
+func TestCNIImportCountsRejectOverflow(t *testing.T) {
+	_, err := cniImportCounts(NewSnapshot(), math.MaxInt)
+	require.ErrorIs(t, err, ErrInvalidInput)
+}
 
 func TestCNIEndpointImportPreflightAndAtomicImport(t *testing.T) {
 	db, _ := openTestDB(t)

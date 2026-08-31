@@ -176,7 +176,7 @@ func completeEndpointRecord() EndpointRecord {
 				NetworkContainerID: testNCID,
 				NICType:            cns.InfraNIC,
 			},
-			"net1": {
+			cniImportTestSecondaryInterface: {
 				IPv4: []net.IPNet{{
 					IP:   net.ParseIP("10.1.0.4"),
 					Mask: net.CIDRMask(24, 32),

@@ -22,6 +22,11 @@ var (
 	errSnapshotProvider        = errors.New("provider failure")
 )
 
+const (
+	persistentStateTestNetwork   = "network"
+	persistentStateTestNestedKey = "nested"
+)
+
 func TestPersistentStateHandlerConstructors(t *testing.T) {
 	statusHandler, err := NewPersistentStateStatusHandler(nil)
 	require.Error(t, err)
@@ -109,7 +114,7 @@ func TestPersistentStateHandlersProviderErrors(t *testing.T) {
 		status int
 		body   string
 	}{
-		{name: "canceled", err: context.Canceled, status: http.StatusRequestTimeout, body: "request canceled\n"},
+		{name: delTestCanceled, err: context.Canceled, status: http.StatusRequestTimeout, body: "request canceled\n"},
 		{name: "deadline", err: context.DeadlineExceeded, status: http.StatusRequestTimeout, body: "request canceled\n"},
 		{name: "provider", err: errPersistentStateProvider, status: http.StatusServiceUnavailable, body: "persistent state unavailable\n"},
 	}
@@ -192,8 +197,8 @@ func TestPersistentStateSnapshotHandlerErrors(t *testing.T) {
 
 	t.Run("encoding", func(t *testing.T) {
 		snapshot := state.NewSnapshot()
-		snapshot.Networks["network"] = state.NetworkRecord{
-			NetworkName: "network",
+		snapshot.Networks[persistentStateTestNetwork] = state.NetworkRecord{
+			NetworkName: persistentStateTestNetwork,
 			Options:     map[string]any{"unsupported": make(chan struct{})},
 		}
 		handler, err := NewPersistentStateSnapshotHandler(func(context.Context) (state.Snapshot, error) {
@@ -210,13 +215,17 @@ func TestPersistentStateSnapshotHandlerErrors(t *testing.T) {
 	t.Run("recursive sanitizer", func(t *testing.T) {
 		document := map[string]any{
 			"AuthorizationToken": "secret",
-			"nested": []any{
+			persistentStateTestNestedKey: []any{
 				map[string]any{"authorizationtoken": "another"},
 			},
 		}
 		removeAuthorizationTokens(document)
 		assert.NotContains(t, document, "AuthorizationToken")
-		assert.NotContains(t, document["nested"].([]any)[0].(map[string]any), "authorizationtoken")
+		assert.NotContains(
+			t,
+			document[persistentStateTestNestedKey].([]any)[0].(map[string]any),
+			"authorizationtoken",
+		)
 	})
 }
 
