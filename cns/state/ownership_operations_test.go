@@ -26,7 +26,6 @@ var errAssignmentCandidate = errors.New("injected candidate failure")
 
 const (
 	testIPv4Address2 = "10.0.0.5"
-	testContainerID2 = "container-2"
 	testPatchedVeth  = "patched-veth"
 )
 
@@ -183,6 +182,19 @@ func TestAssignEndpoint(t *testing.T) {
 		)
 		require.NoError(t, err)
 		assert.False(t, changed)
+		assert.Equal(t, before+1, readMetadata(t, db).Generation)
+
+		changedEndpoint := deepCloneEndpoint(t, endpoint)
+		changedEndpoint.IfnameToIPMap["eth0"].HostVethName = "changed-veth"
+		_, err = db.AssignEndpoint(
+			context.Background(),
+			assignment,
+			changedEndpoint,
+			testNow,
+			testDeleteIntentTTL,
+		)
+		require.ErrorIs(t, err, ErrInvalidInput)
+		assert.Contains(t, err.Error(), "PatchEndpoint")
 		assert.Equal(t, before+1, readMetadata(t, db).Generation)
 
 		changedAssignment := assignment
@@ -366,23 +378,23 @@ func TestAssignEndpointRejectsIdentityConflicts(t *testing.T) {
 		{
 			name: "container already belongs to another pod",
 			changeRequest: func(assignment *AssignmentRecord, endpoint *EndpointRecord) {
-				assignment.Pod.PodName = "other-pod"
-				endpoint.PodName = "other-pod"
+				assignment.Pod.PodName = hardeningOtherPodName
+				endpoint.PodName = hardeningOtherPodName
 			},
 		},
 		{
 			name: "pod changes containers before release",
 			changeRequest: func(assignment *AssignmentRecord, _ *EndpointRecord) {
-				assignment.Pod.PodKey = testContainerID2
-				assignment.Pod.InfraContainerID = testContainerID2
+				assignment.Pod.PodKey = hardeningContainerID2
+				assignment.Pod.InfraContainerID = hardeningContainerID2
 			},
 		},
 		{
 			name:        "pod changes containers while endpoint retained",
 			retainFirst: true,
 			changeRequest: func(assignment *AssignmentRecord, _ *EndpointRecord) {
-				assignment.Pod.PodKey = testContainerID2
-				assignment.Pod.InfraContainerID = testContainerID2
+				assignment.Pod.PodKey = hardeningContainerID2
+				assignment.Pod.InfraContainerID = hardeningContainerID2
 			},
 		},
 	}
@@ -441,7 +453,7 @@ func TestConcurrentDuplicateOwnership(t *testing.T) {
 			endpoint:   testEndpoint("pod-1", testIPv4Address),
 		},
 		{
-			assignment: testAssignment("container-2", "pod-2", testIPID1),
+			assignment: testAssignment(hardeningContainerID2, "pod-2", testIPID1),
 			endpoint:   testEndpoint("pod-2", testIPv4Address),
 		},
 	}
@@ -584,7 +596,7 @@ func TestAssignRequiresRetainedEndpointCleanupBeforeContainerChange(t *testing.T
 
 	_, err = db.AssignEndpoint(
 		context.Background(),
-		testAssignment("container-2", "pod-1", testIPID2),
+		testAssignment(hardeningContainerID2, "pod-1", testIPID2),
 		testEndpoint("pod-1", testIPv4Address2),
 		testNow.Add(testDeleteIntentTTL),
 		testDeleteIntentTTL,
@@ -1130,6 +1142,24 @@ func TestOwnershipFailuresRollback(t *testing.T) {
 		)
 		require.ErrorIs(t, err, ErrInvalidInput)
 		assert.Equal(t, before, requireValidSnapshot(t, db))
+	})
+
+	t.Run("corrupt inventory preflight", func(t *testing.T) {
+		db, _ := openTestDB(t)
+		assignment, endpoint := seedOwnershipInventory(t, db)
+		beforeGeneration := readMetadata(t, db).Generation
+		putRaw(t, db, bucketIPs, []byte("ip-v4"), []byte(`{"id":`))
+
+		_, err := db.AssignEndpoint(
+			context.Background(),
+			assignment,
+			endpoint,
+			testNow,
+			testDeleteIntentTTL,
+		)
+		require.ErrorIs(t, err, ErrCorrupt)
+		assert.Equal(t, beforeGeneration, readMetadata(t, db).Generation)
+		assert.Nil(t, rawValue(t, db, bucketAssignments, []byte(assignment.Pod.PodKey)))
 	})
 
 	t.Run("callback failure", func(t *testing.T) {

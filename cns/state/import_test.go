@@ -618,7 +618,7 @@ func TestImportLegacyDeterministicErrors(t *testing.T) {
 	}
 }
 
-func completeLegacyImportData(t *testing.T) (cnsData, endpointData []byte) {
+func completeLegacyImportData(t testing.TB) (cnsData, endpointData []byte) {
 	t.Helper()
 	request1 := completeNetworkContainerRequest()
 	request1.NetworkContainerid = importNC1
@@ -783,7 +783,7 @@ func encodeIPNets(t *testing.T, prefixes ...string) any {
 	return result
 }
 
-func mustIPNet(t *testing.T, value string) net.IPNet {
+func mustIPNet(t testing.TB, value string) net.IPNet {
 	t.Helper()
 	ip, network, err := net.ParseCIDR(value)
 	require.NoError(t, err)
