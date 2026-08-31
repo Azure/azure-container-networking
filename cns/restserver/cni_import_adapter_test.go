@@ -23,8 +23,6 @@ var (
 )
 
 const (
-	cniImportPrimaryIPID = "11111111-1111-1111-1111-111111111111"
-	cniImportIPv6ID      = "22222222-2222-2222-2222-222222222222"
 	cniImportContainerA  = "container-a"
 	cniImportPodA        = "pod-a"
 	cniImportNamespaceA  = "namespace-a"
@@ -56,19 +54,19 @@ func TestCNIEndpointImportLifecycleKeepsStatefulProviderAvailable(t *testing.T) 
 
 	snapshot, err := db.Snapshot(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, adapterTestPodKeyA, snapshot.IPOwners[cniImportPrimaryIPID])
+	assert.Equal(t, adapterTestPodKeyA, snapshot.IPOwners[adapterTestPrimaryIPID])
 	assert.Equal(t, "if-b", snapshot.IPOwners["33333333-3333-3333-3333-333333333333"])
 	assert.Equal(t, []string{
-		cniImportPrimaryIPID,
-		cniImportIPv6ID,
+		adapterTestPrimaryIPID,
+		adapterTestIPv6ID,
 	}, snapshot.Assignments[adapterTestPodKeyA].IPIDs)
 	assert.Equal(t, adapterTestIPv4, service.EndpointState[cniImportContainerA].IfnameToIPMap[InfraInterfaceName].IPv4[0].IP.String())
 	assert.Equal(t, "2001:db8::4", service.EndpointState[cniImportContainerA].IfnameToIPMap[InfraInterfaceName].IPv6[0].IP.String())
 	assert.Equal(t, []string{
-		cniImportPrimaryIPID,
-		cniImportIPv6ID,
+		adapterTestPrimaryIPID,
+		adapterTestIPv6ID,
 	}, service.PodIPIDByPodInterfaceKey[adapterTestPodKeyA])
-	assert.Equal(t, adapterTestNCID, snapshot.IPs[cniImportPrimaryIPID].NCID)
+	assert.Equal(t, adapterTestNCID, snapshot.IPs[adapterTestPrimaryIPID].NCID)
 	assert.Contains(t, snapshot.Networks, "network-1")
 
 	_, err = provider(context.Background())

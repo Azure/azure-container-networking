@@ -16,6 +16,23 @@ import (
 	kexec "k8s.io/utils/exec"
 )
 
+var (
+	errNilCNIEndpointContext       = errors.New("reading CNI endpoint state: context is nil")
+	errCNIEndpointQueryFailed      = errors.New("reading CNI endpoint state: CNI query failed")
+	errNilCNIEndpointState         = errors.New("CNI endpoint state is nil")
+	errEmptyCNIInterfaceKey        = errors.New("CNI interface key is empty")
+	errEmptyCNIContainerID         = errors.New("CNI interface container ID is empty")
+	errEmptyCNIPodEndpointID       = errors.New("CNI interface pod endpoint ID is empty")
+	errEmptyCNIPodName             = errors.New("CNI interface pod name is empty")
+	errEmptyCNIPodNamespace        = errors.New("CNI interface pod namespace is empty")
+	errEmptyCNIInterfaceName       = errors.New("CNI interface name is empty")
+	errEmptyCNIIPAddresses         = errors.New("CNI interface has no IP addresses")
+	errDuplicateCNIPodEndpointID   = errors.New("duplicate CNI pod endpoint ID")
+	errDuplicateCNIInterface       = errors.New("duplicate CNI interface identity")
+	errInvalidCNIProviderIPAddress = errors.New("invalid CNI IP address")
+	errInvalidCNIProviderIPMask    = errors.New("invalid CNI IP mask")
+)
+
 // New returns an implementation of cns.PodInfoByIPProvider
 // that execs out to the CNI and uses the response to build the PodInfo map.
 func New() (cns.PodInfoByIPProvider, error) {
@@ -44,14 +61,14 @@ func endpointStateProvider(exec kexec.Interface) cns.CNIEndpointStateProvider {
 	cli := client.New(exec)
 	return func(ctx context.Context) ([]cns.CNIEndpointState, error) {
 		if ctx == nil {
-			return nil, errors.New("reading CNI endpoint state: context is nil")
+			return nil, errNilCNIEndpointContext
 		}
 		if err := ctx.Err(); err != nil {
 			return nil, fmt.Errorf("reading CNI endpoint state: %w", err)
 		}
 		state, err := cli.GetEndpointState()
 		if err != nil {
-			return nil, errors.New("reading CNI endpoint state: CNI query failed")
+			return nil, errCNIEndpointQueryFailed
 		}
 		if err := ctx.Err(); err != nil {
 			return nil, fmt.Errorf("reading CNI endpoint state: %w", err)
@@ -83,7 +100,7 @@ func cniStateToPodInfoByIP(state *api.AzureCNIState) (map[string]cns.PodInfo, er
 
 func translateEndpointState(state *api.AzureCNIState) ([]cns.CNIEndpointState, error) {
 	if state == nil {
-		return nil, errors.New("CNI endpoint state is nil")
+		return nil, errNilCNIEndpointState
 	}
 	keys := make([]string, 0, len(state.ContainerInterfaces))
 	for key := range state.ContainerInterfaces {
@@ -108,26 +125,26 @@ func translateEndpointState(state *api.AzureCNIState) ([]cns.CNIEndpointState, e
 		}
 		switch {
 		case key == "":
-			return nil, errors.New("CNI interface key is empty")
+			return nil, errEmptyCNIInterfaceKey
 		case containerID == "":
-			return nil, fmt.Errorf("CNI interface %q has empty container ID", key)
+			return nil, fmt.Errorf("%w: %q", errEmptyCNIContainerID, key)
 		case endpointID == "":
-			return nil, fmt.Errorf("CNI interface %q has empty pod endpoint ID", key)
+			return nil, fmt.Errorf("%w: %q", errEmptyCNIPodEndpointID, key)
 		case podName == "":
-			return nil, fmt.Errorf("CNI interface %q has empty pod name", key)
+			return nil, fmt.Errorf("%w: %q", errEmptyCNIPodName, key)
 		case podNamespace == "":
-			return nil, fmt.Errorf("CNI interface %q has empty pod namespace", key)
+			return nil, fmt.Errorf("%w: %q", errEmptyCNIPodNamespace, key)
 		case ifName == "":
-			return nil, fmt.Errorf("CNI interface %q has empty interface name", key)
+			return nil, fmt.Errorf("%w: %q", errEmptyCNIInterfaceName, key)
 		case len(endpoint.IPAddresses) == 0:
-			return nil, fmt.Errorf("CNI interface %q has no IP addresses", key)
+			return nil, fmt.Errorf("%w: %q", errEmptyCNIIPAddresses, key)
 		}
 		if other, ok := seenEndpointIDs[endpointID]; ok {
-			return nil, fmt.Errorf("CNI interfaces %q and %q have duplicate pod endpoint ID", other, key)
+			return nil, fmt.Errorf("%w: %q and %q", errDuplicateCNIPodEndpointID, other, key)
 		}
 		identity := containerID + "\x00" + ifName
 		if other, ok := seenInterfaces[identity]; ok {
-			return nil, fmt.Errorf("CNI interfaces %q and %q have duplicate interface identity", other, key)
+			return nil, fmt.Errorf("%w: %q and %q", errDuplicateCNIInterface, other, key)
 		}
 
 		ipAddresses := make([]net.IPNet, 0, len(endpoint.IPAddresses))
@@ -170,7 +187,7 @@ func translateEndpointState(state *api.AzureCNIState) ([]cns.CNIEndpointState, e
 func parseIPNet(value net.IPNet) (netip.Addr, net.IPNet, error) {
 	address, ok := netip.AddrFromSlice(value.IP)
 	if !ok {
-		return netip.Addr{}, net.IPNet{}, errors.New("invalid IP address")
+		return netip.Addr{}, net.IPNet{}, errInvalidCNIProviderIPAddress
 	}
 	address = address.Unmap()
 	ones, bits := value.Mask.Size()
@@ -179,7 +196,7 @@ func parseIPNet(value net.IPNet) (netip.Addr, net.IPNet, error) {
 		expectedBits = 32
 	}
 	if bits != expectedBits || ones < 0 {
-		return netip.Addr{}, net.IPNet{}, fmt.Errorf("invalid mask for %d-bit address", address.BitLen())
+		return netip.Addr{}, net.IPNet{}, fmt.Errorf("%w: %d-bit address", errInvalidCNIProviderIPMask, address.BitLen())
 	}
 	return address, net.IPNet{
 		IP:   net.IP(address.AsSlice()),

@@ -5,7 +5,6 @@ package cni
 
 import (
 	"context"
-	"errors"
 	"net"
 	"testing"
 
@@ -19,25 +18,32 @@ import (
 	fakeexec "k8s.io/utils/exec/testing"
 )
 
+const (
+	cniProviderTestPod       = "pod"
+	cniProviderTestContainer = "container"
+	cniProviderTestInterface = "if-a"
+	cniProviderTestNamespace = "namespace"
+)
+
 func TestTranslateEndpointState(t *testing.T) {
 	valid := func() *api.AzureCNIState {
 		return &api.AzureCNIState{ContainerInterfaces: map[string]api.PodNetworkInterfaceInfo{
 			"if-b": {
-				PodName:       "pod",
+				PodName:       cniProviderTestPod,
 				PodNamespace:  "ns",
 				PodEndpointId: "if-b",
-				ContainerID:   "container",
+				ContainerID:   cniProviderTestContainer,
 				IfName:        "eth1",
 				IPAddresses: []net.IPNet{
 					mustIPNet(t, "2001:db8::4/64"),
 					mustIPNet(t, "10.0.1.4/24"),
 				},
 			},
-			"if-a": {
-				PodName:       "pod",
+			cniProviderTestInterface: {
+				PodName:       cniProviderTestPod,
 				PodNamespace:  "ns",
-				PodEndpointId: "if-a",
-				ContainerID:   "container",
+				PodEndpointId: cniProviderTestInterface,
+				ContainerID:   cniProviderTestContainer,
 				IfName:        "eth0",
 				IPAddresses:   []net.IPNet{mustIPNet(t, "10.0.0.4/24")},
 			},
@@ -47,7 +53,7 @@ func TestTranslateEndpointState(t *testing.T) {
 	records, err := translateEndpointState(valid())
 	require.NoError(t, err)
 	require.Len(t, records, 2)
-	assert.Equal(t, "if-a", records[0].InterfaceKey)
+	assert.Equal(t, cniProviderTestInterface, records[0].InterfaceKey)
 	assert.Equal(t, "if-b", records[1].InterfaceKey)
 	assert.Equal(t, "10.0.1.4", records[1].IPAddresses[0].IP.String())
 	assert.Equal(t, "2001:db8::4", records[1].IPAddresses[1].IP.String())
@@ -65,24 +71,24 @@ func TestTranslateEndpointState(t *testing.T) {
 	}{
 		{name: "nil state", mutate: func(state *api.AzureCNIState) { *state = api.AzureCNIState{} }},
 		{name: "empty container", mutate: func(state *api.AzureCNIState) {
-			value := state.ContainerInterfaces["if-a"]
+			value := state.ContainerInterfaces[cniProviderTestInterface]
 			value.ContainerID = ""
-			state.ContainerInterfaces["if-a"] = value
+			state.ContainerInterfaces[cniProviderTestInterface] = value
 		}},
 		{name: "empty endpoint", mutate: func(state *api.AzureCNIState) {
-			value := state.ContainerInterfaces["if-a"]
+			value := state.ContainerInterfaces[cniProviderTestInterface]
 			value.PodEndpointId = ""
-			state.ContainerInterfaces["if-a"] = value
+			state.ContainerInterfaces[cniProviderTestInterface] = value
 		}},
 		{name: "malformed IP", mutate: func(state *api.AzureCNIState) {
-			value := state.ContainerInterfaces["if-a"]
+			value := state.ContainerInterfaces[cniProviderTestInterface]
 			value.IPAddresses[0].IP = net.IP{1, 2}
-			state.ContainerInterfaces["if-a"] = value
+			state.ContainerInterfaces[cniProviderTestInterface] = value
 		}},
 		{name: "malformed prefix", mutate: func(state *api.AzureCNIState) {
-			value := state.ContainerInterfaces["if-a"]
+			value := state.ContainerInterfaces[cniProviderTestInterface]
 			value.IPAddresses[0].Mask = net.CIDRMask(64, 128)
-			state.ContainerInterfaces["if-a"] = value
+			state.ContainerInterfaces[cniProviderTestInterface] = value
 		}},
 		{name: "duplicate IP", mutate: func(state *api.AzureCNIState) {
 			value := state.ContainerInterfaces["if-b"]
@@ -91,7 +97,7 @@ func TestTranslateEndpointState(t *testing.T) {
 		}},
 		{name: "duplicate endpoint", mutate: func(state *api.AzureCNIState) {
 			value := state.ContainerInterfaces["if-b"]
-			value.PodEndpointId = "if-a"
+			value.PodEndpointId = cniProviderTestInterface
 			state.ContainerInterfaces["if-b"] = value
 		}},
 		{name: "duplicate interface", mutate: func(state *api.AzureCNIState) {
@@ -147,7 +153,7 @@ func TestEndpointStateProviderContextAndRepeatedReads(t *testing.T) {
 
 	_, err = provider(nil)
 	require.Error(t, err)
-	assert.False(t, errors.Is(err, cns.ErrDuplicateIP))
+	require.NotErrorIs(t, err, cns.ErrDuplicateIP)
 
 	t.Run("canceled after non-cancelable exec", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
