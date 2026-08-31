@@ -81,7 +81,7 @@ stages:
 
               BUILD_NUMBER=$(Build.BuildNumber)
               echo "##vso[task.setvariable variable=StorageID;isOutput=true]$(echo ${BUILD_NUMBER//./-})"
-              echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(Build.BuildId))"
+              echo "##vso[task.setvariable variable=commitID;isOutput=true]$(Build.BuildId)"
               echo "##vso[task.setvariable variable=Tag;isOutput=true]$(make version)"
               echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
               echo "##vso[task.setvariable variable=imageRepositoryPath;isOutput=true]acnpublic.azurecr.io"
