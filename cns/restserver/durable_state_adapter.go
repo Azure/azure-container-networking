@@ -46,6 +46,8 @@ var (
 	errMissingProjectedAssignment   = errors.New("missing projected assignment")
 	errProjectedAssignmentMissingIP = errors.New("projected assignment does not contain owned IP")
 	errNilProjectedInterface        = errors.New("projected endpoint interface is nil")
+	errNilCNIEndpointPreflight      = errors.New("CNI endpoint preflight operation is nil")
+	errNilCNIEndpointImport         = errors.New("CNI endpoint import operation is nil")
 )
 
 type durableStateOperations struct {
@@ -120,7 +122,7 @@ func NewCNIEndpointImportLifecycle(
 	restore func(context.Context) error,
 	preflight func(context.Context, []cns.CNIEndpointState) (state.CNIImportPreflight, error),
 	importState func(context.Context, []cns.CNIEndpointState, state.CNIImportPreflight) error,
-	close func() error,
+	closeFn func() error,
 	err error,
 ) {
 	adapter, err := newDurableStateAdapter(service, db, true)
@@ -210,7 +212,7 @@ func (a *durableStateAdapter) preflightCNIEndpointImport(
 	defer a.mu.Unlock()
 
 	if a.store.preflightCNI == nil {
-		return state.CNIImportPreflight{}, errors.New("CNI endpoint preflight operation is nil")
+		return state.CNIImportPreflight{}, errNilCNIEndpointPreflight
 	}
 	current, err := a.currentSnapshot(ctx)
 	if err != nil {
@@ -222,7 +224,7 @@ func (a *durableStateAdapter) preflightCNIEndpointImport(
 	}
 	candidate, err := plan.SnapshotForProjection(current)
 	if err != nil {
-		return state.CNIImportPreflight{}, err
+		return state.CNIImportPreflight{}, fmt.Errorf("building CNI endpoint preflight projection: %w", err)
 	}
 	if _, err := a.buildProjection(candidate); err != nil {
 		return state.CNIImportPreflight{}, err
@@ -239,7 +241,7 @@ func (a *durableStateAdapter) importCNIEndpointState(
 	defer a.mu.Unlock()
 
 	if a.store.importCNI == nil {
-		return errors.New("CNI endpoint import operation is nil")
+		return errNilCNIEndpointImport
 	}
 	current, err := a.currentSnapshot(ctx)
 	if err != nil {
@@ -247,7 +249,7 @@ func (a *durableStateAdapter) importCNIEndpointState(
 	}
 	candidate, err := plan.SnapshotForProjection(current)
 	if err != nil {
-		return err
+		return fmt.Errorf("building CNI endpoint import projection: %w", err)
 	}
 	projection, err := a.buildProjection(candidate)
 	if err != nil {

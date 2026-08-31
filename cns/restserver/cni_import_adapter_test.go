@@ -6,6 +6,7 @@ package restserver
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"path/filepath"
 	"testing"
@@ -14,6 +15,20 @@ import (
 	"github.com/Azure/azure-container-networking/cns/state"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+)
+
+var (
+	errCNIImportProjection = errors.New("projection failure")
+	errCNIImportStatus     = errors.New("status failure")
+)
+
+const (
+	cniImportPrimaryIPID = "11111111-1111-1111-1111-111111111111"
+	cniImportIPv6ID      = "22222222-2222-2222-2222-222222222222"
+	cniImportContainerA  = "container-a"
+	cniImportPodA        = "pod-a"
+	cniImportNamespaceA  = "namespace-a"
+	cniImportSecondaryIF = "eth1"
 )
 
 func TestCNIEndpointImportLifecycleKeepsStatefulProviderAvailable(t *testing.T) {
@@ -28,8 +43,8 @@ func TestCNIEndpointImportLifecycleKeepsStatefulProviderAvailable(t *testing.T) 
 	providerCalls := 0
 	var provider cns.CNIEndpointStateProvider = func(ctx context.Context) ([]cns.CNIEndpointState, error) {
 		providerCalls++
-		if err := ctx.Err(); err != nil {
-			return nil, err
+		if contextErr := ctx.Err(); contextErr != nil {
+			return nil, fmt.Errorf("reading CNI endpoint state: %w", contextErr)
 		}
 		return adapterImportRecords(t), nil
 	}
@@ -41,19 +56,19 @@ func TestCNIEndpointImportLifecycleKeepsStatefulProviderAvailable(t *testing.T) 
 
 	snapshot, err := db.Snapshot(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, "if-a", snapshot.IPOwners["11111111-1111-1111-1111-111111111111"])
+	assert.Equal(t, adapterTestPodKeyA, snapshot.IPOwners[cniImportPrimaryIPID])
 	assert.Equal(t, "if-b", snapshot.IPOwners["33333333-3333-3333-3333-333333333333"])
 	assert.Equal(t, []string{
-		"11111111-1111-1111-1111-111111111111",
-		"22222222-2222-2222-2222-222222222222",
-	}, snapshot.Assignments["if-a"].IPIDs)
-	assert.Equal(t, "10.0.0.4", service.EndpointState["container-a"].IfnameToIPMap["eth0"].IPv4[0].IP.String())
-	assert.Equal(t, "2001:db8::4", service.EndpointState["container-a"].IfnameToIPMap["eth0"].IPv6[0].IP.String())
+		cniImportPrimaryIPID,
+		cniImportIPv6ID,
+	}, snapshot.Assignments[adapterTestPodKeyA].IPIDs)
+	assert.Equal(t, adapterTestIPv4, service.EndpointState[cniImportContainerA].IfnameToIPMap[InfraInterfaceName].IPv4[0].IP.String())
+	assert.Equal(t, "2001:db8::4", service.EndpointState[cniImportContainerA].IfnameToIPMap[InfraInterfaceName].IPv6[0].IP.String())
 	assert.Equal(t, []string{
-		"11111111-1111-1111-1111-111111111111",
-		"22222222-2222-2222-2222-222222222222",
-	}, service.PodIPIDByPodInterfaceKey["if-a"])
-	assert.Equal(t, "nc-1", snapshot.IPs["11111111-1111-1111-1111-111111111111"].NCID)
+		cniImportPrimaryIPID,
+		cniImportIPv6ID,
+	}, service.PodIPIDByPodInterfaceKey[adapterTestPodKeyA])
+	assert.Equal(t, adapterTestNCID, snapshot.IPs[cniImportPrimaryIPID].NCID)
 	assert.Contains(t, snapshot.Networks, "network-1")
 
 	_, err = provider(context.Background())
@@ -75,13 +90,12 @@ func TestCNIEndpointImportAdapterProjectionFailures(t *testing.T) {
 		beforeSnapshot, err := db.Snapshot(context.Background())
 		require.NoError(t, err)
 		beforeCache := durableCacheFingerprint(service, adapter)
-		injected := errors.New("projection failure")
 		adapter.buildProjection = func(state.Snapshot) (durableCacheProjection, error) {
-			return durableCacheProjection{}, injected
+			return durableCacheProjection{}, errCNIImportProjection
 		}
 
 		err = adapter.importCNIEndpointState(context.Background(), records, plan)
-		require.ErrorIs(t, err, injected)
+		require.ErrorIs(t, err, errCNIImportProjection)
 		afterSnapshot, snapshotErr := db.Snapshot(context.Background())
 		require.NoError(t, snapshotErr)
 		assert.Equal(t, beforeSnapshot, afterSnapshot)
@@ -100,14 +114,13 @@ func TestCNIEndpointImportAdapterProjectionFailures(t *testing.T) {
 		plan, err := adapter.preflightCNIEndpointImport(context.Background(), records)
 		require.NoError(t, err)
 		originalStatus := adapter.store.status
-		injected := errors.New("status failure")
 		adapter.store.status = func(context.Context) (state.Status, error) {
-			return state.Status{}, injected
+			return state.Status{}, errCNIImportStatus
 		}
 
 		err = adapter.importCNIEndpointState(context.Background(), records, plan)
-		require.ErrorIs(t, err, injected)
-		assert.Contains(t, service.EndpointState, "container-a")
+		require.ErrorIs(t, err, errCNIImportStatus)
+		assert.Contains(t, service.EndpointState, cniImportContainerA)
 		snapshot, snapshotErr := db.Snapshot(context.Background())
 		require.NoError(t, snapshotErr)
 		generation, projected := adapter.cacheGeneration()
@@ -128,7 +141,7 @@ func openAdapterImportDB(t *testing.T) *state.DB {
 func seedAdapterImportInventory(t *testing.T, db *state.DB) {
 	t.Helper()
 	snapshot := completeAdapterSnapshot(0)
-	for _, ncID := range []string{"nc-1", "nc-2"} {
+	for _, ncID := range []string{adapterTestNCID, adapterTestNCID2} {
 		ips := make([]state.IPRecord, 0)
 		for _, ip := range snapshot.IPs {
 			if ip.NCID == ncID {
@@ -152,24 +165,24 @@ func adapterImportRecords(t *testing.T) []cns.CNIEndpointState {
 	t.Helper()
 	return []cns.CNIEndpointState{
 		{
-			InfraContainerID: "container-a",
-			PodEndpointID:    "if-a",
-			PodName:          "pod-a",
-			PodNamespace:     "namespace-a",
+			InfraContainerID: cniImportContainerA,
+			PodEndpointID:    adapterTestPodKeyA,
+			PodName:          cniImportPodA,
+			PodNamespace:     cniImportNamespaceA,
 			InterfaceKey:     "container-a-eth0",
-			InterfaceName:    "eth0",
+			InterfaceName:    InfraInterfaceName,
 			IPAddresses: []net.IPNet{
 				testIPNet("10.0.0.4/24"),
 				testIPNet("2001:db8::4/64"),
 			},
 		},
 		{
-			InfraContainerID: "container-a",
+			InfraContainerID: cniImportContainerA,
 			PodEndpointID:    "if-b",
-			PodName:          "pod-a",
-			PodNamespace:     "namespace-a",
+			PodName:          cniImportPodA,
+			PodNamespace:     cniImportNamespaceA,
 			InterfaceKey:     "container-a-eth1",
-			InterfaceName:    "eth1",
+			InterfaceName:    cniImportSecondaryIF,
 			IPAddresses:      []net.IPNet{testIPNet("10.0.1.4/32")},
 		},
 	}

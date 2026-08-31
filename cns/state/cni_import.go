@@ -22,13 +22,21 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 )
 
-var ErrCNIImportConflict = errors.New("cns state: CNI import conflicts with session state")
+var (
+	ErrCNIImportConflict = errors.New("cns state: CNI import conflicts with session state")
+
+	errNilCNIPreflightContext = errors.New("preflighting CNI endpoint import: context is nil")
+	errNilCNIImportContext    = errors.New("importing CNI endpoint state: context is nil")
+	errInvalidCNIIPAddress    = errors.New("invalid CNI IP address")
+	errInvalidCNIIPMask       = errors.New("invalid CNI IP mask")
+	errInvalidCNIIPPrefix     = errors.New("invalid CNI IP prefix")
+)
 
 type CNIImportCounts struct {
-	Containers  uint32
-	Interfaces  uint32
-	Assignments uint32
-	IPs         uint32
+	Containers  uint32 `json:"Containers"`
+	Interfaces  uint32 `json:"Interfaces"`
+	Assignments uint32 `json:"Assignments"`
+	IPs         uint32 `json:"IPs"`
 }
 
 // CNIImportPreflight is an immutable plan for importing live stateful CNI
@@ -68,7 +76,7 @@ func (s *DB) PreflightCNIEndpointImport(
 	allowSessionReplacement bool,
 ) (CNIImportPreflight, error) {
 	if ctx == nil {
-		return CNIImportPreflight{}, errors.New("preflighting CNI endpoint import: context is nil")
+		return CNIImportPreflight{}, errNilCNIPreflightContext
 	}
 	snapshot, err := s.Snapshot(ctx)
 	if err != nil {
@@ -96,7 +104,7 @@ func (s *DB) importCNIEndpointState(
 	beforeCommit func() error,
 ) (bool, error) {
 	if ctx == nil {
-		return false, errors.New("importing CNI endpoint state: context is nil")
+		return false, errNilCNIImportContext
 	}
 	if err := validateCNIImportPlan(plan); err != nil {
 		return false, fmt.Errorf("importing CNI endpoint state: %w", err)
@@ -205,8 +213,8 @@ func buildCNIImportPreflight(
 	pods := make(map[string]string)
 
 	for _, record := range normalized {
-		if err := ctx.Err(); err != nil {
-			return CNIImportPreflight{}, Snapshot{}, err
+		if contextErr := ctx.Err(); contextErr != nil {
+			return CNIImportPreflight{}, Snapshot{}, fmt.Errorf("building CNI endpoint import preflight: %w", contextErr)
 		}
 		podIdentity := record.PodNamespace + "\x00" + record.PodName
 		if other, ok := pods[podIdentity]; ok && other != record.InfraContainerID {
@@ -300,14 +308,18 @@ func buildCNIImportPreflight(
 			}
 			candidate.IPOwners[ipID] = record.PodEndpointID
 		}
-		identity, err := json.Marshal(record)
-		if err != nil {
-			return CNIImportPreflight{}, Snapshot{}, invalidInput("encoding CNI identity", err)
+		identity, identityErr := json.Marshal(record)
+		if identityErr != nil {
+			return CNIImportPreflight{}, Snapshot{}, invalidInput("encoding CNI identity", identityErr)
 		}
 		identities = append(identities, string(identity))
 	}
-	if err := candidate.Validate(); err != nil {
-		return CNIImportPreflight{}, Snapshot{}, fmt.Errorf("%w: candidate CNI import: %v", ErrInvalidInput, err)
+	if validationErr := candidate.Validate(); validationErr != nil {
+		return CNIImportPreflight{}, Snapshot{}, fmt.Errorf(
+			"%w: candidate CNI import: %w",
+			ErrInvalidInput,
+			validationErr,
+		)
 	}
 	if !allowReplacement && !sessionEmpty(snapshot) && !sessionEqual(snapshot, candidate) {
 		return CNIImportPreflight{}, Snapshot{}, ErrCNIImportConflict
@@ -330,7 +342,11 @@ func buildCNIImportPreflight(
 		assignments:        cloneCNIAssignments(candidate.Assignments),
 		owners:             cloneMap(candidate.IPOwners),
 	}
-	plan.seal = sealCNIImportPlan(plan)
+	seal, err := sealCNIImportPlan(plan)
+	if err != nil {
+		return CNIImportPreflight{}, Snapshot{}, err
+	}
+	plan.seal = seal
 	return plan, candidate, nil
 }
 
@@ -345,7 +361,7 @@ func normalizeCNIEndpointRecords(
 	seenInterfaces := make(map[string]string)
 	for index, input := range records {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("normalizing CNI endpoint record %d: %w", index, err)
 		}
 		record := normalizedCNIEndpoint{
 			InfraContainerID: strings.TrimSpace(input.InfraContainerID),
@@ -433,16 +449,16 @@ func normalizeCNIEndpointRecords(
 func canonicalCNIIPNet(value net.IPNet) (netip.Addr, netip.Prefix, error) {
 	address, ok := netip.AddrFromSlice(value.IP)
 	if !ok {
-		return netip.Addr{}, netip.Prefix{}, errors.New("invalid IP address")
+		return netip.Addr{}, netip.Prefix{}, errInvalidCNIIPAddress
 	}
 	address = address.Unmap()
 	ones, bits := value.Mask.Size()
 	if bits != address.BitLen() || ones < 0 {
-		return netip.Addr{}, netip.Prefix{}, errors.New("invalid IP mask")
+		return netip.Addr{}, netip.Prefix{}, errInvalidCNIIPMask
 	}
 	prefix := netip.PrefixFrom(address, ones)
 	if !prefix.IsValid() {
-		return netip.Addr{}, netip.Prefix{}, errors.New("invalid IP prefix")
+		return netip.Addr{}, netip.Prefix{}, errInvalidCNIIPPrefix
 	}
 	return address, prefix, nil
 }
@@ -475,15 +491,15 @@ func cniImportCounts(candidate Snapshot, interfaceCount int) (CNIImportCounts, e
 		len(candidate.IPOwners),
 	}
 	for _, value := range values {
-		if uint64(value) > math.MaxUint32 {
+		if value < 0 || int64(value) > int64(math.MaxUint32) {
 			return CNIImportCounts{}, invalidInput("CNI import count exceeds uint32", nil)
 		}
 	}
 	return CNIImportCounts{
-		Containers:  uint32(values[0]),
-		Interfaces:  uint32(values[1]),
-		Assignments: uint32(values[2]),
-		IPs:         uint32(values[3]),
+		Containers:  uint32(values[0]), //nolint:gosec // All values are bounds checked above.
+		Interfaces:  uint32(values[1]), //nolint:gosec // All values are bounds checked above.
+		Assignments: uint32(values[2]), //nolint:gosec // All values are bounds checked above.
+		IPs:         uint32(values[3]), //nolint:gosec // All values are bounds checked above.
 	}, nil
 }
 
@@ -506,8 +522,9 @@ func cniImportDigest(records []normalizedCNIEndpoint, candidate Snapshot) (strin
 	return hex.EncodeToString(sum[:]), nil
 }
 
-func sealCNIImportPlan(plan CNIImportPreflight) [sha256.Size]byte {
+func sealCNIImportPlan(plan CNIImportPreflight) ([sha256.Size]byte, error) {
 	hash := sha256.New()
+	var seal [sha256.Size]byte
 	var generation [8]byte
 	binary.LittleEndian.PutUint64(generation[:], plan.ExpectedGeneration)
 	_, _ = hash.Write(generation[:])
@@ -517,26 +534,37 @@ func sealCNIImportPlan(plan CNIImportPreflight) [sha256.Size]byte {
 	} else {
 		_, _ = hash.Write([]byte{0})
 	}
-	countData, _ := json.Marshal(plan.Counts)
+	countData, err := json.Marshal(plan.Counts)
+	if err != nil {
+		return seal, fmt.Errorf("encoding CNI import counts: %w", err)
+	}
 	_, _ = hash.Write(countData)
-	identityData, _ := json.Marshal(plan.identities)
+	identityData, err := json.Marshal(plan.identities)
+	if err != nil {
+		return seal, fmt.Errorf("encoding CNI import identities: %w", err)
+	}
 	_, _ = hash.Write(identityData)
-	sessionData, _ := json.Marshal(cniImportSession{
+	sessionData, err := json.Marshal(cniImportSession{
 		Endpoints:   plan.endpoints,
 		Assignments: plan.assignments,
 		Owners:      plan.owners,
 	})
+	if err != nil {
+		return seal, fmt.Errorf("encoding CNI import session: %w", err)
+	}
 	_, _ = hash.Write(sessionData)
-	var seal [sha256.Size]byte
 	copy(seal[:], hash.Sum(nil))
-	return seal
+	return seal, nil
 }
 
 func validateCNIImportPlan(plan CNIImportPreflight) error {
 	if plan.IdentityDigest == "" {
 		return invalidInput("CNI import preflight digest is empty", nil)
 	}
-	expectedSeal := sealCNIImportPlan(plan)
+	expectedSeal, err := sealCNIImportPlan(plan)
+	if err != nil {
+		return invalidInput("sealing CNI import preflight", err)
+	}
 	if !bytes.Equal(plan.seal[:], expectedSeal[:]) {
 		return invalidInput("CNI import preflight was modified", nil)
 	}

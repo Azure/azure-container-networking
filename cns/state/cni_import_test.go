@@ -18,6 +18,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var errInjectedCNIImport = errors.New("injected commit failure")
+
+const cniImportTestSecondaryInterface = "net1"
+
 func TestCNIEndpointImportPreflightAndAtomicImport(t *testing.T) {
 	db, _ := openTestDB(t)
 	seedCNIImportInventory(t, db)
@@ -34,7 +38,7 @@ func TestCNIEndpointImportPreflightAndAtomicImport(t *testing.T) {
 	}, plan.Counts)
 	require.Len(t, plan.IdentityDigest, 64)
 	assert.True(t, sort.StringsAreSorted(plan.identities))
-	publicPlan, err := json.Marshal(plan)
+	publicPlan, err := json.Marshal(plan) //nolint:musttag // The public preflight intentionally exposes only its exported summary fields.
 	require.NoError(t, err)
 	assert.NotContains(t, string(publicPlan), "10.0.0.4")
 	assert.NotContains(t, string(publicPlan), "pod-1")
@@ -161,9 +165,9 @@ func TestCNIEndpointImportInputErrors(t *testing.T) {
 	db, _ := openTestDB(t)
 	seedCNIImportInventory(t, db)
 	records := cniImportRecords(t)
-	_, err := db.PreflightCNIEndpointImport(nil, records, false)
+	_, err := db.PreflightCNIEndpointImport(nil, records, false) //nolint:staticcheck // Verifies the fail-closed nil-context guard.
 	require.Error(t, err)
-	_, err = db.ImportCNIEndpointState(nil, records, CNIImportPreflight{})
+	_, err = db.ImportCNIEndpointState(nil, records, CNIImportPreflight{}) //nolint:staticcheck // Verifies the fail-closed nil-context guard.
 	require.Error(t, err)
 	_, err = (CNIImportPreflight{}).SnapshotForProjection(NewSnapshot())
 	require.ErrorIs(t, err, ErrInvalidInput)
@@ -237,7 +241,7 @@ func TestCNIEndpointImportReplacementStaleTamperedAndCommitFailure(t *testing.T)
 		require.NoError(t, err)
 
 		changedRecords := cniImportRecords(t)
-		changedRecords[1].InterfaceName = "net1"
+		changedRecords[1].InterfaceName = cniImportTestSecondaryInterface
 		_, err = db.PreflightCNIEndpointImport(context.Background(), changedRecords, false)
 		require.ErrorIs(t, err, ErrCNIImportConflict)
 		fresh, err := db.PreflightCNIEndpointImport(context.Background(), changedRecords, true)
@@ -245,7 +249,11 @@ func TestCNIEndpointImportReplacementStaleTamperedAndCommitFailure(t *testing.T)
 		changed, err := db.ImportCNIEndpointState(context.Background(), changedRecords, fresh)
 		require.NoError(t, err)
 		assert.True(t, changed)
-		assert.Contains(t, requireValidSnapshot(t, db).Endpoints["container-1"].IfnameToIPMap, "net1")
+		assert.Contains(
+			t,
+			requireValidSnapshot(t, db).Endpoints["container-1"].IfnameToIPMap,
+			cniImportTestSecondaryInterface,
+		)
 	})
 
 	t.Run("stale and tampered", func(t *testing.T) {
@@ -260,9 +268,9 @@ func TestCNIEndpointImportReplacementStaleTamperedAndCommitFailure(t *testing.T)
 		require.ErrorIs(t, err, ErrInvalidInput)
 
 		require.NoError(t, db.Update(context.Background(), func(tx *WriteTx) error {
-			meta, err := tx.Metadata()
-			if err != nil {
-				return err
+			meta, metadataErr := tx.Metadata()
+			if metadataErr != nil {
+				return metadataErr
 			}
 			meta.NodeID = "changed"
 			return tx.PutMetadata(meta)
@@ -278,14 +286,13 @@ func TestCNIEndpointImportReplacementStaleTamperedAndCommitFailure(t *testing.T)
 		plan, err := db.PreflightCNIEndpointImport(context.Background(), records, false)
 		require.NoError(t, err)
 		before := requireValidSnapshot(t, db)
-		injected := errors.New("injected commit failure")
 		changed, err := db.importCNIEndpointState(
 			context.Background(),
 			records,
 			plan,
-			func() error { return injected },
+			func() error { return errInjectedCNIImport },
 		)
-		require.ErrorIs(t, err, injected)
+		require.ErrorIs(t, err, errInjectedCNIImport)
 		assert.False(t, changed)
 		assert.Equal(t, before, requireValidSnapshot(t, db))
 	})
@@ -349,8 +356,8 @@ func TestCNIEndpointImportConcurrentCloseReadOnlyCancelAndReopen(t *testing.T) {
 			errs <- importErr
 		}()
 		select {
-		case err := <-errs:
-			t.Fatalf("import returned while writer gate was held: %v", err)
+		case earlyErr := <-errs:
+			t.Fatalf("import returned while writer gate was held: %v", earlyErr)
 		case <-time.After(10 * time.Millisecond):
 		}
 		cancel()
