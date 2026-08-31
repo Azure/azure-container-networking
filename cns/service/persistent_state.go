@@ -14,6 +14,11 @@ import (
 	"github.com/Azure/azure-container-networking/store"
 )
 
+var (
+	errNilPersistentStateRestoreCallback = errors.New("persistent state restore callback is nil")
+	errNilPersistentStateCloseCallback   = errors.New("persistent state close callback is nil")
+)
+
 type persistentStatePaths struct {
 	stateDirectory    string
 	stateFile         string
@@ -117,17 +122,17 @@ func (s *persistentStateStartup) Start(ctx context.Context) error {
 
 func (s *persistentStateStartup) attach(
 	restore func(context.Context) error,
-	close func() error,
+	closeFn func() error,
 ) error {
 	switch {
 	case restore == nil:
-		return errors.New("persistent state restore callback is nil")
-	case close == nil:
-		return errors.New("persistent state close callback is nil")
+		return errNilPersistentStateRestoreCallback
+	case closeFn == nil:
+		return errNilPersistentStateCloseCallback
 	}
 	s.attachments = append(s.attachments, persistentStateAttachment{
 		restore: restore,
-		close:   close,
+		close:   closeFn,
 	})
 	return nil
 }

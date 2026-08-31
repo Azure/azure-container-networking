@@ -19,6 +19,27 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 )
 
+var (
+	errNilDurableStateDB           = errors.New("durable state database is nil")
+	errNilDurableRestService       = errors.New("rest service is nil")
+	errNilDurableRestServiceState  = errors.New("rest service state is nil")
+	errNilDurableSnapshotOperation = errors.New("durable state snapshot operation is nil")
+	errNilDurableReplaceOperation  = errors.New("durable state replace operation is nil")
+	errNilDurableMetadataOperation = errors.New("durable state metadata operation is nil")
+	errNilDurableStatusOperation   = errors.New("durable state status operation is nil")
+	errNilDurableCloseOperation    = errors.New("durable state close operation is nil")
+	errDurableStateNotProjected    = errors.New("durable state has not been projected")
+	errUnexpectedDurableBackend    = errors.New("unexpected durable state backend")
+	errUnexpectedDurableAuthority  = errors.New("unexpected durable state authority")
+	errUnexpectedDurableSchema     = errors.New("unexpected durable state schema version")
+	errDurableInvariantFailed      = errors.New("durable state invariant failed")
+	errInvalidProjectionSchema     = errors.New("durable state projection schema version is invalid")
+	errInvalidProjectionAuthority  = errors.New("durable state projection authority is invalid")
+	errMissingProjectedNC          = errors.New("missing projected network container")
+	errEmptyProjectedNCHostVersion = errors.New("projected network container host version is empty")
+	errProjectedNCIDContainsComma  = errors.New("projected network container ID contains a comma")
+)
+
 type durableStateOperations struct {
 	snapshot       func(context.Context) (state.Snapshot, error)
 	replace        func(context.Context, uint64, state.DurableState) (bool, error)
@@ -61,7 +82,7 @@ type durableCacheProjection struct {
 
 func newDurableStateAdapter(service *HTTPRestService, db *state.DB) (*durableStateAdapter, error) {
 	if db == nil {
-		return nil, errors.New("durable state database is nil")
+		return nil, errNilDurableStateDB
 	}
 	return newDurableStateAdapterWithOperations(service, durableStateOperations{
 		snapshot: db.Snapshot,
@@ -70,7 +91,7 @@ func newDurableStateAdapter(service *HTTPRestService, db *state.DB) (*durableSta
 			err := db.Update(ctx, func(tx *state.WriteTx) error {
 				current, err := tx.Metadata()
 				if err != nil {
-					return err
+					return fmt.Errorf("reading durable state metadata: %w", err)
 				}
 				if current.Generation != expectedGeneration {
 					return fmt.Errorf(
@@ -82,7 +103,10 @@ func newDurableStateAdapter(service *HTTPRestService, db *state.DB) (*durableSta
 				}
 				return tx.PutMetadata(metadata)
 			})
-			return err == nil, err
+			if err != nil {
+				return false, fmt.Errorf("updating durable state metadata: %w", err)
+			}
+			return true, nil
 		},
 		status: db.Status,
 		close:  db.Close,
@@ -95,19 +119,19 @@ func newDurableStateAdapterWithOperations(
 ) (*durableStateAdapter, error) {
 	switch {
 	case service == nil:
-		return nil, errors.New("rest service is nil")
+		return nil, errNilDurableRestService
 	case service.state == nil:
-		return nil, errors.New("rest service state is nil")
+		return nil, errNilDurableRestServiceState
 	case operations.snapshot == nil:
-		return nil, errors.New("durable state snapshot operation is nil")
+		return nil, errNilDurableSnapshotOperation
 	case operations.replace == nil:
-		return nil, errors.New("durable state replace operation is nil")
+		return nil, errNilDurableReplaceOperation
 	case operations.updateMetadata == nil:
-		return nil, errors.New("durable state metadata operation is nil")
+		return nil, errNilDurableMetadataOperation
 	case operations.status == nil:
-		return nil, errors.New("durable state status operation is nil")
+		return nil, errNilDurableStatusOperation
 	case operations.close == nil:
-		return nil, errors.New("durable state close operation is nil")
+		return nil, errNilDurableCloseOperation
 	}
 	return &durableStateAdapter{service: service, store: operations}, nil
 }
@@ -169,7 +193,7 @@ func (a *durableStateAdapter) applyNetworkContainer(
 	}
 	normalized, err := cloneJSON(normalized)
 	if err != nil {
-		return fmt.Errorf("%w: cloning network container %q: %v", state.ErrInvalidInput, record.ID, err)
+		return fmt.Errorf("%w: cloning network container %q: %w", state.ErrInvalidInput, record.ID, err)
 	}
 	inventory := make(map[string]state.IPRecord, len(ips))
 	for _, ip := range ips {
@@ -225,7 +249,7 @@ func (a *durableStateAdapter) putNetwork(ctx context.Context, record state.Netwo
 	}
 	cloned, err := cloneJSON(record)
 	if err != nil {
-		return fmt.Errorf("%w: cloning network %q: %v", state.ErrInvalidInput, record.NetworkName, err)
+		return fmt.Errorf("%w: cloning network %q: %w", state.ErrInvalidInput, record.NetworkName, err)
 	}
 	return a.updateDurable(ctx, func(candidate *state.DurableState) error {
 		candidate.Networks[record.NetworkName] = cloned
@@ -267,7 +291,7 @@ func (a *durableStateAdapter) deleteOrchestratorContext(ctx context.Context, id 
 func (a *durableStateAdapter) putPnPID(ctx context.Context, macAddress, pnpID string) error {
 	mac, err := net.ParseMAC(macAddress)
 	if err != nil {
-		return fmt.Errorf("%w: invalid MAC address %q: %v", state.ErrInvalidInput, macAddress, err)
+		return fmt.Errorf("%w: invalid MAC address %q: %w", state.ErrInvalidInput, macAddress, err)
 	}
 	if pnpID == "" {
 		return fmt.Errorf("%w: PnP ID is empty", state.ErrInvalidInput)
@@ -281,7 +305,7 @@ func (a *durableStateAdapter) putPnPID(ctx context.Context, macAddress, pnpID st
 func (a *durableStateAdapter) deletePnPID(ctx context.Context, macAddress string) error {
 	mac, err := net.ParseMAC(macAddress)
 	if err != nil {
-		return fmt.Errorf("%w: invalid MAC address %q: %v", state.ErrInvalidInput, macAddress, err)
+		return fmt.Errorf("%w: invalid MAC address %q: %w", state.ErrInvalidInput, macAddress, err)
 	}
 	return a.updateDurable(ctx, func(candidate *state.DurableState) error {
 		delete(candidate.PnPIDByMAC, mac.String())
@@ -340,10 +364,10 @@ func (a *durableStateAdapter) updateDurable(
 		PnPIDByMAC:           snapshot.PnPIDByMAC,
 	})
 	if err != nil {
-		return fmt.Errorf("%w: cloning durable state: %v", state.ErrInvalidInput, err)
+		return fmt.Errorf("%w: cloning durable state: %w", state.ErrInvalidInput, err)
 	}
-	if err := mutate(&durable); err != nil {
-		return err
+	if mutateErr := mutate(&durable); mutateErr != nil {
+		return mutateErr
 	}
 	candidate := snapshot
 	candidate.NetworkContainers = durable.NetworkContainers
@@ -370,7 +394,7 @@ func (a *durableStateAdapter) updateDurable(
 
 func (a *durableStateAdapter) currentSnapshot(ctx context.Context) (state.Snapshot, error) {
 	if !a.projected {
-		return state.Snapshot{}, errors.New("durable state has not been projected")
+		return state.Snapshot{}, errDurableStateNotProjected
 	}
 	snapshot, err := a.store.snapshot(ctx)
 	if err != nil {
@@ -405,13 +429,13 @@ func (a *durableStateAdapter) verifyStatus(ctx context.Context, expectedGenerati
 	}
 	switch {
 	case status.Backend != state.BackendBolt:
-		return fmt.Errorf("unexpected durable state backend %q", status.Backend)
+		return fmt.Errorf("%w: %q", errUnexpectedDurableBackend, status.Backend)
 	case status.Authority != state.AuthorityBolt:
-		return fmt.Errorf("unexpected durable state authority %q", status.Authority)
+		return fmt.Errorf("%w: %q", errUnexpectedDurableAuthority, status.Authority)
 	case status.SchemaVersion != state.SchemaVersion:
-		return fmt.Errorf("unexpected durable state schema version %d", status.SchemaVersion)
+		return fmt.Errorf("%w: %d", errUnexpectedDurableSchema, status.SchemaVersion)
 	case status.InvariantStatus != state.InvariantHealthy:
-		return fmt.Errorf("durable state invariant %q failed", status.FailedInvariant)
+		return fmt.Errorf("%w: %q", errDurableInvariantFailed, status.FailedInvariant)
 	case status.Generation != expectedGeneration:
 		return fmt.Errorf(
 			"%w: expected=%d actual=%d",
@@ -463,15 +487,9 @@ func buildDurableCacheProjection(snapshot state.Snapshot) (durableCacheProjectio
 	}
 	switch {
 	case snapshot.Metadata.SchemaVersion != state.SchemaVersion:
-		return durableCacheProjection{}, fmt.Errorf(
-			"durable state projection schema version %d is invalid",
-			snapshot.Metadata.SchemaVersion,
-		)
+		return durableCacheProjection{}, fmt.Errorf("%w: %d", errInvalidProjectionSchema, snapshot.Metadata.SchemaVersion)
 	case snapshot.Metadata.Authority != state.AuthorityBolt:
-		return durableCacheProjection{}, fmt.Errorf(
-			"durable state projection authority %q is invalid",
-			snapshot.Metadata.Authority,
-		)
+		return durableCacheProjection{}, fmt.Errorf("%w: %q", errInvalidProjectionAuthority, snapshot.Metadata.Authority)
 	}
 
 	projection := durableCacheProjection{
@@ -492,7 +510,8 @@ func buildDurableCacheProjection(snapshot state.Snapshot) (durableCacheProjectio
 	}
 
 	hostVersions := make(map[string]int, len(snapshot.NetworkContainers))
-	for id, record := range snapshot.NetworkContainers {
+	for id := range snapshot.NetworkContainers {
+		record := snapshot.NetworkContainers[id]
 		request, err := cloneJSON(record.Request)
 		if err != nil {
 			return durableCacheProjection{}, fmt.Errorf("cloning network container %q request: %w", id, err)
@@ -522,12 +541,13 @@ func buildDurableCacheProjection(snapshot state.Snapshot) (durableCacheProjectio
 	for id, record := range snapshot.IPs {
 		nc, ok := projection.containerStatus[record.NCID]
 		if !ok {
-			return durableCacheProjection{}, fmt.Errorf("ip %q references missing projected network container %q", id, record.NCID)
+			return durableCacheProjection{}, fmt.Errorf("%w: IP %q network container %q", errMissingProjectedNC, id, record.NCID)
 		}
 		hostVersion, ok := hostVersions[record.NCID]
 		if !ok {
 			return durableCacheProjection{}, fmt.Errorf(
-				"ip %q network container %q has an empty host version",
+				"%w: IP %q network container %q",
+				errEmptyProjectedNCHostVersion,
 				id,
 				record.NCID,
 			)
@@ -567,7 +587,8 @@ func buildDurableCacheProjection(snapshot state.Snapshot) (durableCacheProjectio
 		for _, ncID := range ncIDs {
 			if strings.Contains(ncID, ",") {
 				return durableCacheProjection{}, fmt.Errorf(
-					"orchestrator context %q network container %q contains a comma",
+					"%w: orchestrator context %q network container %q",
+					errProjectedNCIDContainsComma,
 					id,
 					ncID,
 				)
@@ -590,10 +611,10 @@ func cloneJSON[T any](input T) (T, error) {
 	var output T
 	data, err := json.Marshal(input)
 	if err != nil {
-		return output, err
+		return output, fmt.Errorf("marshaling cloned value: %w", err)
 	}
 	if err := json.Unmarshal(data, &output); err != nil {
-		return output, err
+		return output, fmt.Errorf("unmarshaling cloned value: %w", err)
 	}
 	return output, nil
 }

@@ -21,6 +21,7 @@ var (
 	errPersistentStateStartup = errors.New("startup failure")
 	errPersistentStateStart   = errors.New("listener failure")
 	errPersistentStateCleanup = errors.New("cleanup failure")
+	errPersistentStateRestore = errors.New("restore failure")
 )
 
 type trackedFileLock struct {
@@ -176,8 +177,6 @@ func TestPersistentStateStartup_StartPropagatesContextAndCleansUpFailure(t *test
 }
 
 func TestPersistentStateStartup_AttachmentRestoreGatesListenerAndOwnsClose(t *testing.T) {
-	restoreErr := errors.New("restore failure")
-	closeErr := errors.New("adapter close failure")
 	lock := &trackedFileLock{}
 	listenerStarted := false
 	closeCalls := 0
@@ -201,28 +200,26 @@ func TestPersistentStateStartup_AttachmentRestoreGatesListenerAndOwnsClose(t *te
 	)
 	require.NoError(t, err)
 	require.NoError(t, startup.attach(
-		func(context.Context) error { return restoreErr },
+		func(context.Context) error { return errPersistentStateRestore },
 		func() error {
 			closeCalls++
-			return closeErr
+			return errPersistentStateCleanup
 		},
 	))
 
 	err = startup.Start(context.Background())
-	require.ErrorIs(t, err, restoreErr)
-	require.ErrorIs(t, err, closeErr)
+	require.ErrorIs(t, err, errPersistentStateRestore)
+	require.ErrorIs(t, err, errPersistentStateCleanup)
 	require.False(t, listenerStarted)
 	require.Equal(t, 1, closeCalls)
 	require.Equal(t, 1, lock.unlockCalls)
 
-	require.ErrorIs(t, startup.Close(), closeErr)
+	require.ErrorIs(t, startup.Close(), errPersistentStateCleanup)
 	require.Equal(t, 1, closeCalls)
 	require.Equal(t, 1, lock.unlockCalls)
 }
 
 func TestPersistentStateStartup_AttachmentClosesOnListenerFailure(t *testing.T) {
-	listenerErr := errors.New("listener failure")
-	closeErr := errors.New("adapter close failure")
 	lock := &trackedFileLock{}
 	restored := false
 	closeCalls := 0
@@ -230,7 +227,7 @@ func TestPersistentStateStartup_AttachmentClosesOnListenerFailure(t *testing.T) 
 	startup, err := newPersistentStateStartup(
 		testPersistentStatePaths(),
 		false,
-		func(context.Context) error { return listenerErr },
+		func(context.Context) error { return errPersistentStateStart },
 		persistentStateDependencies{
 			createDirectory: func(string) error { return nil },
 			newFileLock: func(string) (processlock.Interface, error) {
@@ -249,13 +246,13 @@ func TestPersistentStateStartup_AttachmentClosesOnListenerFailure(t *testing.T) 
 		},
 		func() error {
 			closeCalls++
-			return closeErr
+			return errPersistentStateCleanup
 		},
 	))
 
 	err = startup.Start(context.Background())
-	require.ErrorIs(t, err, listenerErr)
-	require.ErrorIs(t, err, closeErr)
+	require.ErrorIs(t, err, errPersistentStateStart)
+	require.ErrorIs(t, err, errPersistentStateCleanup)
 	require.True(t, restored)
 	require.Equal(t, 1, closeCalls)
 	require.Equal(t, 1, lock.unlockCalls)
