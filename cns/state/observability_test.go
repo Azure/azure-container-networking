@@ -30,6 +30,13 @@ const (
 	metricTestDeleteIntent = "delete intent"
 )
 
+func TestNilMetricsClock(t *testing.T) {
+	started := time.Now()
+	duration := metricDuration(nil, started)
+	assert.GreaterOrEqual(t, duration, time.Duration(0))
+	assert.Less(t, duration, time.Second)
+}
+
 func TestNewMetricsRegistration(t *testing.T) {
 	t.Run("descriptors", func(t *testing.T) {
 		registry := prometheus.NewRegistry()
