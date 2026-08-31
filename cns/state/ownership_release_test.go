@@ -14,6 +14,13 @@ import (
 	bolterrors "go.etcd.io/bbolt/errors"
 )
 
+var (
+	errReleaseCandidateFailure = errors.New("injected release candidate failure")
+	errDeleteNoopFailure       = errors.New("injected no-op callback failure")
+	errDeleteCandidateFailure  = errors.New("injected endpoint delete candidate failure")
+	errPruneCandidateFailure   = errors.New("injected prune candidate failure")
+)
+
 func TestReleaseEndpointIfGenerationPrecommitAndFailures(t *testing.T) {
 	t.Run("candidate callback failure rolls back", func(t *testing.T) {
 		db, _ := openTestDB(t)
@@ -21,7 +28,6 @@ func TestReleaseEndpointIfGenerationPrecommitAndFailures(t *testing.T) {
 		_, err := db.AssignEndpoint(context.Background(), assignment, endpoint, testNow, testDeleteIntentTTL)
 		require.NoError(t, err)
 		before := requireValidSnapshot(t, db)
-		injected := errors.New("injected release candidate failure")
 		callbackCalled := false
 
 		changed, err := db.ReleaseEndpointIfGeneration(
@@ -36,10 +42,10 @@ func TestReleaseEndpointIfGenerationPrecommitAndFailures(t *testing.T) {
 				assert.Empty(t, candidate.IPOwners)
 				assert.Contains(t, candidate.Endpoints, assignment.Pod.InfraContainerID)
 				assert.Equal(t, testNow.Add(time.Minute), candidate.DeleteIntents[assignment.Pod.InfraContainerID].CreatedAt)
-				return injected
+				return errReleaseCandidateFailure
 			},
 		)
-		require.ErrorIs(t, err, injected)
+		require.ErrorIs(t, err, errReleaseCandidateFailure)
 		assert.False(t, changed)
 		assert.True(t, callbackCalled)
 		assert.Equal(t, before, requireValidSnapshot(t, db))
@@ -212,14 +218,13 @@ func TestDeleteAndPruneIfGenerationPrecommit(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, changed)
 		assert.Equal(t, 2, callbacks)
-		injected := errors.New("injected no-op callback failure")
 		changed, err = db.DeleteEndpointRecordIfGeneration(
 			context.Background(),
 			after.Metadata.Generation,
 			assignment.Pod.InfraContainerID,
-			func(Snapshot) error { return injected },
+			func(Snapshot) error { return errDeleteNoopFailure },
 		)
-		require.ErrorIs(t, err, injected)
+		require.ErrorIs(t, err, errDeleteNoopFailure)
 		assert.False(t, changed)
 	})
 
@@ -231,8 +236,6 @@ func TestDeleteAndPruneIfGenerationPrecommit(t *testing.T) {
 		_, err = db.ReleaseEndpoint(context.Background(), assignment.Pod, testNow)
 		require.NoError(t, err)
 		before := requireValidSnapshot(t, db)
-		injected := errors.New("injected endpoint delete candidate failure")
-
 		changed, err := db.DeleteEndpointRecordIfGeneration(
 			context.Background(),
 			before.Metadata.Generation,
@@ -240,10 +243,10 @@ func TestDeleteAndPruneIfGenerationPrecommit(t *testing.T) {
 			func(candidate Snapshot) error {
 				assert.NotContains(t, candidate.Endpoints, assignment.Pod.InfraContainerID)
 				assert.Contains(t, candidate.DeleteIntents, assignment.Pod.InfraContainerID)
-				return injected
+				return errDeleteCandidateFailure
 			},
 		)
-		require.ErrorIs(t, err, injected)
+		require.ErrorIs(t, err, errDeleteCandidateFailure)
 		assert.False(t, changed)
 		assert.Equal(t, before, requireValidSnapshot(t, db))
 	})
@@ -256,8 +259,6 @@ func TestDeleteAndPruneIfGenerationPrecommit(t *testing.T) {
 			})
 		}))
 		before := requireValidSnapshot(t, db)
-		injected := errors.New("injected prune candidate failure")
-
 		count, err := db.PruneDeleteIntentsIfGeneration(
 			context.Background(),
 			before.Metadata.Generation,
@@ -265,10 +266,10 @@ func TestDeleteAndPruneIfGenerationPrecommit(t *testing.T) {
 			testDeleteIntentTTL,
 			func(candidate Snapshot) error {
 				assert.NotContains(t, candidate.DeleteIntents, "container-1")
-				return injected
+				return errPruneCandidateFailure
 			},
 		)
-		require.ErrorIs(t, err, injected)
+		require.ErrorIs(t, err, errPruneCandidateFailure)
 		assert.Zero(t, count)
 		assert.Equal(t, before, requireValidSnapshot(t, db))
 	})

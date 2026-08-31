@@ -26,6 +26,12 @@ type unifiedDeleteCommittedError struct {
 	err error
 }
 
+var (
+	errUnifiedReleaseOperationNil = errors.New("unified DEL: endpoint release operation is nil")
+	errUnifiedDeleteOperationNil  = errors.New("unified DEL: endpoint deletion operation is nil")
+	errUnifiedPruneOperationNil   = errors.New("unified DEL: delete intent prune operation is nil")
+)
+
 func (e *unifiedDeleteCommittedError) Error() string {
 	return fmt.Sprintf("unified DEL committed but cache projection failed: %v", e.err)
 }
@@ -40,7 +46,7 @@ func (a *durableStateAdapter) releaseIPConfigs(
 	podInfo cns.PodInfo,
 ) error {
 	if a.store.releaseEndpoint == nil {
-		return errors.New("durable state endpoint release operation is nil")
+		return errUnifiedReleaseOperationNil
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -90,7 +96,7 @@ func (service *HTTPRestService) releaseIPConfigsUnifiedLocked(
 	snapshot state.Snapshot,
 ) (unifiedReleasePlan, error) {
 	if err := ctx.Err(); err != nil {
-		return unifiedReleasePlan{}, err
+		return unifiedReleasePlan{}, fmt.Errorf("preflighting unified endpoint release: %w", err)
 	}
 	requestedPod := state.PodIdentity{
 		PodKey:           strings.TrimSpace(podInfo.Key()),
@@ -248,7 +254,7 @@ func parseUnifiedReleaseAddresses(values []string) (map[netip.Addr]struct{}, err
 
 func (a *durableStateAdapter) deleteEndpointRecord(ctx context.Context, infraContainerID string) error {
 	if a.store.deleteEndpoint == nil {
-		return errors.New("durable state endpoint deletion operation is nil")
+		return errUnifiedDeleteOperationNil
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -284,7 +290,7 @@ func (a *durableStateAdapter) deleteEndpointRecord(ctx context.Context, infraCon
 
 func (a *durableStateAdapter) pruneDeleteIntents(ctx context.Context, now time.Time) (int, error) {
 	if a.store.pruneDeleteIntents == nil {
-		return 0, errors.New("durable state delete intent prune operation is nil")
+		return 0, errUnifiedPruneOperationNil
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()

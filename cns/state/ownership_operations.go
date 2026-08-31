@@ -334,7 +334,7 @@ func (s *DB) releaseEndpoint(
 			}
 		}
 		if err := ctx.Err(); err != nil {
-			return false, err
+			return false, fmt.Errorf("committing endpoint release: %w", err)
 		}
 
 		if !intentExists {
@@ -492,7 +492,7 @@ func (s *DB) deleteEndpointRecord(
 			}
 		}
 		if err := ctx.Err(); err != nil {
-			return false, err
+			return false, fmt.Errorf("committing endpoint deletion: %w", err)
 		}
 		if deleteErr := tx.tx.Bucket(bucketEndpoints).Delete([]byte(infraContainerID)); deleteErr != nil {
 			return false, fmt.Errorf("deleting endpoint %q: %w", infraContainerID, deleteErr)
@@ -577,7 +577,7 @@ func (s *DB) pruneDeleteIntents(
 			}
 		}
 		if err := ctx.Err(); err != nil {
-			return false, err
+			return false, fmt.Errorf("committing delete intent prune: %w", err)
 		}
 		bucket := tx.tx.Bucket(bucketDeleteIntents)
 		for _, containerID := range expired {
