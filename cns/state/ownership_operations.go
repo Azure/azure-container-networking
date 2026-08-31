@@ -554,8 +554,8 @@ func (s *DB) pruneDeleteIntents(
 		}
 		if len(expired) == 0 {
 			if beforeCommit != nil {
-				if err := beforeCommit(current); err != nil {
-					return false, fmt.Errorf("validating delete intent prune candidate: %w", err)
+				if callbackErr := beforeCommit(current); callbackErr != nil {
+					return false, fmt.Errorf("validating delete intent prune candidate: %w", callbackErr)
 				}
 			}
 			return false, nil
@@ -572,12 +572,12 @@ func (s *DB) pruneDeleteIntents(
 		}
 		candidate.Metadata.Generation++
 		if beforeCommit != nil {
-			if err := beforeCommit(candidate); err != nil {
-				return false, fmt.Errorf("validating delete intent prune candidate: %w", err)
+			if callbackErr := beforeCommit(candidate); callbackErr != nil {
+				return false, fmt.Errorf("validating delete intent prune candidate: %w", callbackErr)
 			}
 		}
-		if err := ctx.Err(); err != nil {
-			return false, fmt.Errorf("committing delete intent prune: %w", err)
+		if contextErr := ctx.Err(); contextErr != nil {
+			return false, fmt.Errorf("committing delete intent prune: %w", contextErr)
 		}
 		bucket := tx.tx.Bucket(bucketDeleteIntents)
 		for _, containerID := range expired {
