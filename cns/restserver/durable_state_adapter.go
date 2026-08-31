@@ -61,6 +61,26 @@ type durableStateOperations struct {
 		time.Duration,
 		func(state.Snapshot) error,
 	) (bool, error)
+	releaseEndpoint func(
+		context.Context,
+		uint64,
+		state.PodIdentity,
+		time.Time,
+		func(state.Snapshot) error,
+	) (bool, error)
+	deleteEndpoint func(
+		context.Context,
+		uint64,
+		string,
+		func(state.Snapshot) error,
+	) (bool, error)
+	pruneDeleteIntents func(
+		context.Context,
+		uint64,
+		time.Time,
+		time.Duration,
+		func(state.Snapshot) error,
+	) (int, error)
 	refreshMetrics func(context.Context) (state.Status, error)
 	status         func(context.Context) (state.Status, error)
 	close          func() error
@@ -72,15 +92,16 @@ type durableStateAdapter struct {
 
 	// mu is acquired before the HTTPRestService lock. Callers must not hold the
 	// service lock; the adapter applies complete projections under that lock.
-	mu                   sync.Mutex
-	projectEndpointState bool
-	buildProjection      func(state.Snapshot) (durableCacheProjection, error)
-	applyAddProjection   func(durableCacheProjection) error
-	now                  func() time.Time
-	projected            bool
-	generation           uint64
-	closeOnce            sync.Once
-	closeErr             error
+	mu                    sync.Mutex
+	projectEndpointState  bool
+	buildProjection       func(state.Snapshot) (durableCacheProjection, error)
+	applyAddProjection    func(durableCacheProjection) error
+	applyDeleteProjection func(durableCacheProjection) error
+	now                   func() time.Time
+	projected             bool
+	generation            uint64
+	closeOnce             sync.Once
+	closeErr              error
 }
 
 type durableServiceMetadata struct {
@@ -137,10 +158,13 @@ func newDurableStateAdapter(
 		return nil, errNilDurableStateDB
 	}
 	return newDurableStateAdapterWithOperations(service, durableStateOperations{
-		snapshot:       db.Snapshot,
-		replace:        db.ReplaceDurableState,
-		assignEndpoint: db.AssignEndpointIfGeneration,
-		refreshMetrics: db.RefreshMetrics,
+		snapshot:           db.Snapshot,
+		replace:            db.ReplaceDurableState,
+		assignEndpoint:     db.AssignEndpointIfGeneration,
+		releaseEndpoint:    db.ReleaseEndpointIfGeneration,
+		deleteEndpoint:     db.DeleteEndpointRecordIfGeneration,
+		pruneDeleteIntents: db.PruneDeleteIntentsIfGeneration,
+		refreshMetrics:     db.RefreshMetrics,
 		updateMetadata: func(ctx context.Context, expectedGeneration uint64, metadata state.Metadata) (bool, error) {
 			err := db.Update(ctx, func(tx *state.WriteTx) error {
 				current, err := tx.Metadata()
