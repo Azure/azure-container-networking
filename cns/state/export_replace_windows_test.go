@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var errReplaceFailure = errors.New("replace failure")
+
 func TestDurableReplaceWindowsUsesWriteThroughReplacement(t *testing.T) {
 	var source, destination string
 	err := durableReplaceWith("source", "destination", func(gotSource, gotDestination string) error {
@@ -22,9 +24,8 @@ func TestDurableReplaceWindowsUsesWriteThroughReplacement(t *testing.T) {
 	assert.Equal(t, "source", source)
 	assert.Equal(t, "destination", destination)
 
-	injected := errors.New("replace failure")
 	err = durableReplaceWith("source", "destination", func(string, string) error {
-		return injected
+		return errReplaceFailure
 	})
-	require.ErrorIs(t, err, injected)
+	require.ErrorIs(t, err, errReplaceFailure)
 }

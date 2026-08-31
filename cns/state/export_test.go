@@ -47,6 +47,7 @@ const (
 	exportContainerID   = "container-1"
 	exportPodName       = "pod-1"
 	exportPodNamespace  = "ns-1"
+	exportNetworkType   = "azure"
 )
 
 type rollbackFailureStage string
@@ -654,7 +655,7 @@ func openPopulatedExportDB(t *testing.T) (db *DB, path string) {
 		}
 		meta.BootID = "export-boot"
 		meta.Location = "eastus"
-		meta.NetworkType = "azure"
+		meta.NetworkType = exportNetworkType
 		meta.OrchestratorType = "kubernetes"
 		meta.NodeID = exportNodeID
 		meta.Initialized = true
