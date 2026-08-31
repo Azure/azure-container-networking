@@ -39,6 +39,8 @@ const (
 	adapterTestNetwork     = "10.0.0.0"
 	adapterTestDNS         = "10.0.0.10"
 	adapterTestContainerB  = "container-b"
+	adapterTestPrimaryIPID = "11111111-1111-1111-1111-111111111111"
+	adapterTestIPv6ID      = "22222222-2222-2222-2222-222222222222"
 	adapterTestThirdIPID   = "33333333-3333-3333-3333-333333333333"
 	adapterTestSecondaryIF = "net1"
 	adapterTestPodKeyA     = "if-a"
@@ -162,7 +164,7 @@ func TestDurableStateAdapterProjection(t *testing.T) {
 	snapshot.Endpoints["container-a"].IfnameToIPMap[InfraInterfaceName].IPv4[0].IP[0] = 192
 	assert.Equal(t, adapterTestNCID, service.state.ContainerStatus[adapterTestNCID].ID)
 	assert.Equal(t, "value", service.state.Networks["network-1"].Options["nested"].(map[string]any)["key"])
-	assert.Equal(t, "11111111-1111-1111-1111-111111111111", service.PodIPIDByPodInterfaceKey["if-a"][0])
+	assert.Equal(t, adapterTestPrimaryIPID, service.PodIPIDByPodInterfaceKey["if-a"][0])
 	assert.Equal(t, adapterTestIPv4, service.EndpointState["container-a"].IfnameToIPMap[InfraInterfaceName].IPv4[0].IP.String())
 
 	service.state.Location = "same-generation-no-op"
@@ -234,13 +236,13 @@ func TestDurableStateAdapterProjectionFailureIsAtomic(t *testing.T) {
 		{
 			name: "missing assignment IP",
 			mutate: func(snapshot *state.Snapshot) {
-				delete(snapshot.IPs, "11111111-1111-1111-1111-111111111111")
+				delete(snapshot.IPs, adapterTestPrimaryIPID)
 			},
 		},
 		{
 			name: "missing owner",
 			mutate: func(snapshot *state.Snapshot) {
-				delete(snapshot.IPOwners, "11111111-1111-1111-1111-111111111111")
+				delete(snapshot.IPOwners, adapterTestPrimaryIPID)
 			},
 		},
 		{
@@ -291,7 +293,7 @@ func TestDurableStateAdapterEndpointProjectionDisabled(t *testing.T) {
 	require.NoError(t, adapter.restore(context.Background()))
 	assert.Len(t, service.state.ContainerStatus, 2)
 	assert.Len(t, service.PodIPConfigState, 4)
-	pending := service.PodIPConfigState["11111111-1111-1111-1111-111111111111"]
+	pending := service.PodIPConfigState[adapterTestPrimaryIPID]
 	assert.Equal(
 		t,
 		types.PendingProgramming,
@@ -740,14 +742,14 @@ func completeAdapterSnapshot(generation uint64) state.Snapshot {
 	second := adapterNetworkContainer(adapterTestNCID2)
 	second.HostVersion = "3"
 	snapshot.NetworkContainers[adapterTestNCID2] = second
-	snapshot.IPs["11111111-1111-1111-1111-111111111111"] = state.IPRecord{
-		ID:        "11111111-1111-1111-1111-111111111111",
+	snapshot.IPs[adapterTestPrimaryIPID] = state.IPRecord{
+		ID:        adapterTestPrimaryIPID,
 		IPAddress: adapterTestIPv4,
 		NCID:      adapterTestNCID,
 		NCVersion: 2,
 	}
-	snapshot.IPs["22222222-2222-2222-2222-222222222222"] = state.IPRecord{
-		ID:        "22222222-2222-2222-2222-222222222222",
+	snapshot.IPs[adapterTestIPv6ID] = state.IPRecord{
+		ID:        adapterTestIPv6ID,
 		IPAddress: "2001:db8::4",
 		NCID:      adapterTestNCID,
 		NCVersion: 2,
@@ -810,8 +812,8 @@ func completeAdapterSnapshot(generation uint64) state.Snapshot {
 			PodNamespace:     "namespace-a",
 		},
 		IPIDs: []string{
-			"11111111-1111-1111-1111-111111111111",
-			"22222222-2222-2222-2222-222222222222",
+			adapterTestPrimaryIPID,
+			adapterTestIPv6ID,
 			adapterTestThirdIPID,
 		},
 	}
@@ -903,17 +905,17 @@ func assertAdapterProjection(t *testing.T, service *HTTPRestService, snapshot st
 		assert.Equal(t, types.Assigned, status.GetState(), id)
 		require.NotNil(t, status.PodInfo, id)
 	}
-	assert.Equal(t, "if-a", service.PodIPConfigState["11111111-1111-1111-1111-111111111111"].PodInfo.Key())
-	assert.Equal(t, "container-a", service.PodIPConfigState["11111111-1111-1111-1111-111111111111"].PodInfo.InfraContainerID())
-	assert.Equal(t, "if-a", service.PodIPConfigState["11111111-1111-1111-1111-111111111111"].PodInfo.InterfaceID())
-	assert.True(t, service.PodIPConfigState["11111111-1111-1111-1111-111111111111"].PodInfo.SecondaryInterfacesExist())
+	assert.Equal(t, adapterTestPodKeyA, service.PodIPConfigState[adapterTestPrimaryIPID].PodInfo.Key())
+	assert.Equal(t, "container-a", service.PodIPConfigState[adapterTestPrimaryIPID].PodInfo.InfraContainerID())
+	assert.Equal(t, adapterTestPodKeyA, service.PodIPConfigState[adapterTestPrimaryIPID].PodInfo.InterfaceID())
+	assert.True(t, service.PodIPConfigState[adapterTestPrimaryIPID].PodInfo.SecondaryInterfacesExist())
 	assert.Equal(t, adapterTestContainerB, service.PodIPConfigState["44444444-4444-4444-4444-444444444444"].PodInfo.Key())
 	assert.False(t, service.PodIPConfigState["44444444-4444-4444-4444-444444444444"].PodInfo.SecondaryInterfacesExist())
 	assert.Equal(
 		t,
 		adapterTestIPv4,
 		service.state.ContainerStatus[adapterTestNCID].CreateNetworkContainerRequest.
-			SecondaryIPConfigs["11111111-1111-1111-1111-111111111111"].IPAddress,
+			SecondaryIPConfigs[adapterTestPrimaryIPID].IPAddress,
 	)
 	assert.Equal(t, snapshot.Networks["network-1"].NicInfo, service.state.Networks["network-1"].NicInfo)
 	assert.Equal(t, snapshot.Networks["network-1"].Options, service.state.Networks["network-1"].Options)
@@ -922,8 +924,8 @@ func assertAdapterProjection(t *testing.T, service *HTTPRestService, snapshot st
 	assert.Equal(
 		t,
 		[]string{
-			"11111111-1111-1111-1111-111111111111",
-			"22222222-2222-2222-2222-222222222222",
+			adapterTestPrimaryIPID,
+			adapterTestIPv6ID,
 			adapterTestThirdIPID,
 		},
 		service.PodIPIDByPodInterfaceKey["if-a"],
@@ -1032,8 +1034,8 @@ func durableCacheFingerprint(service *HTTPRestService, adapter *durableStateAdap
 
 func TestBuildDurableCacheProjectionRejectsInvalidIPFamily(t *testing.T) {
 	snapshot := completeAdapterSnapshot(1)
-	snapshot.IPs["11111111-1111-1111-1111-111111111111"] = state.IPRecord{
-		ID: "11111111-1111-1111-1111-111111111111", IPAddress: net.IP{}.String(), NCID: adapterTestNCID,
+	snapshot.IPs[adapterTestPrimaryIPID] = state.IPRecord{
+		ID: adapterTestPrimaryIPID, IPAddress: net.IP{}.String(), NCID: adapterTestNCID,
 	}
 	_, err := buildDurableCacheProjection(snapshot)
 	require.Error(t, err)

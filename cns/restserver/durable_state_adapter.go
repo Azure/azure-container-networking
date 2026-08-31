@@ -650,16 +650,27 @@ func buildDurableCacheProjection(snapshot state.Snapshot) (durableCacheProjectio
 		}
 		projection.pnpIDByMACAddress[mac.String()] = pnpID
 	}
+	if err := projectDurableSessionState(snapshot, &projection, unassignedIPStates); err != nil {
+		return durableCacheProjection{}, err
+	}
+	return projection, nil
+}
+
+func projectDurableSessionState(
+	snapshot state.Snapshot,
+	projection *durableCacheProjection,
+	unassignedIPStates map[string]types.IPState,
+) error {
 	for containerID, record := range snapshot.Endpoints {
 		endpoint, err := projectEndpoint(record)
 		if err != nil {
-			return durableCacheProjection{}, fmt.Errorf("projecting endpoint %q: %w", containerID, err)
+			return fmt.Errorf("projecting endpoint %q: %w", containerID, err)
 		}
 		projection.endpointState[containerID] = endpoint
 	}
 	for podKey, assignment := range snapshot.Assignments {
 		if assignment.Pod.PodKey != podKey {
-			return durableCacheProjection{}, fmt.Errorf(
+			return fmt.Errorf(
 				"%w: assignment=%q pod=%q",
 				errProjectedAssignmentKey,
 				podKey,
@@ -668,7 +679,7 @@ func buildDurableCacheProjection(snapshot state.Snapshot) (durableCacheProjectio
 		}
 		endpoint, ok := snapshot.Endpoints[assignment.Pod.InfraContainerID]
 		if !ok {
-			return durableCacheProjection{}, fmt.Errorf(
+			return fmt.Errorf(
 				"%w: assignment=%q endpoint=%q",
 				errMissingProjectedEndpoint,
 				podKey,
@@ -680,7 +691,7 @@ func buildDurableCacheProjection(snapshot state.Snapshot) (durableCacheProjectio
 		for _, ipID := range ipIDs {
 			ipStatus, ok := projection.ipConfigState[ipID]
 			if !ok {
-				return durableCacheProjection{}, fmt.Errorf(
+				return fmt.Errorf(
 					"%w: assignment=%q ip=%q",
 					errMissingProjectedIP,
 					podKey,
@@ -689,7 +700,7 @@ func buildDurableCacheProjection(snapshot state.Snapshot) (durableCacheProjectio
 			}
 			owner, ok := snapshot.IPOwners[ipID]
 			if !ok {
-				return durableCacheProjection{}, fmt.Errorf(
+				return fmt.Errorf(
 					"%w: assignment=%q ip=%q",
 					errMissingProjectedOwner,
 					podKey,
@@ -697,7 +708,7 @@ func buildDurableCacheProjection(snapshot state.Snapshot) (durableCacheProjectio
 				)
 			}
 			if owner != podKey {
-				return durableCacheProjection{}, fmt.Errorf(
+				return fmt.Errorf(
 					"%w: assignment=%q ip=%q owner=%q",
 					errMismatchedProjectedOwner,
 					podKey,
@@ -715,7 +726,7 @@ func buildDurableCacheProjection(snapshot state.Snapshot) (durableCacheProjectio
 	for ipID, owner := range snapshot.IPOwners {
 		assignment, ok := snapshot.Assignments[owner]
 		if !ok {
-			return durableCacheProjection{}, fmt.Errorf(
+			return fmt.Errorf(
 				"%w: ip=%q assignment=%q",
 				errMissingProjectedAssignment,
 				ipID,
@@ -723,7 +734,7 @@ func buildDurableCacheProjection(snapshot state.Snapshot) (durableCacheProjectio
 			)
 		}
 		if !containsString(assignment.IPIDs, ipID) {
-			return durableCacheProjection{}, fmt.Errorf(
+			return fmt.Errorf(
 				"%w: ip=%q assignment=%q",
 				errProjectedAssignmentMissingIP,
 				ipID,
@@ -745,7 +756,7 @@ func buildDurableCacheProjection(snapshot state.Snapshot) (durableCacheProjectio
 			projection.ipConfigState[ipID] = durableStatus
 		}
 	}
-	return projection, nil
+	return nil
 }
 
 type projectedPodInfo struct {
