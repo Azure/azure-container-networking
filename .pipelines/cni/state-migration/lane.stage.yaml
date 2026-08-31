@@ -15,6 +15,8 @@ parameters:
     type: string
   - name: region
     type: string
+  - name: kubernetesVersion
+    type: string
   - name: nodeCount
     type: number
   - name: nodeCountWin
@@ -35,14 +37,23 @@ parameters:
     type: string
   - name: daemonsetName
     type: string
-  - name: manageEndpointState
+  - name: jsonManageEndpointState
     type: string
   - name: initializeFromCNI
+    type: string
+  - name: enableStateMigration
+    type: string
+  - name: boltInitializeFromCNI
+    type: string
+  - name: boltEnableStateMigration
     type: string
   - name: expectedAuthority
     type: string
   - name: expectedSchemaVersion
     type: number
+  - name: enableOwnershipHandoff
+    type: boolean
+    default: false
 
 stages:
   - stage: ${{ parameters.name }}
@@ -51,7 +62,8 @@ stages:
       - setup
       - publish_migration_images
     variables:
-      commitID: $[ stageDependencies.setup.env.outputs['SetEnvVars.commitID'] ]
+      buildID: $[ stageDependencies.setup.env.outputs['SetEnvVars.buildID'] ]
+      KUBECONFIG: "$(Agent.TempDirectory)/kubeconfig-$(Build.BuildId)-$(System.JobId)"
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
@@ -68,7 +80,7 @@ stages:
               inlineScript: |
                 set -euo pipefail
 
-                cluster="${{ parameters.clusterBaseName }}-$(commitID)"
+                cluster="${{ parameters.clusterBaseName }}-$(buildID)"
                 make -C ./hack/aks azcfg AZCLI=az REGION=${{ parameters.region }}
 
                 if az aks show --resource-group "$cluster" --name "$cluster" >/dev/null 2>&1; then
@@ -82,6 +94,7 @@ stages:
                 makeArgs=(
                   "AZCLI=az"
                   "REGION=${{ parameters.region }}"
+                  "K8S_VER=${{ parameters.kubernetesVersion }}"
                   "SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)"
                   "CLUSTER=$cluster"
                   "NODE_COUNT=${{ parameters.nodeCount }}"
@@ -108,14 +121,15 @@ stages:
         steps:
           - template: install-components.steps.yaml
             parameters:
-              clusterName: ${{ parameters.clusterBaseName }}-$(commitID)
+              clusterName: ${{ parameters.clusterBaseName }}-$(buildID)
               scenario: ${{ parameters.scenario }}
               os: ${{ parameters.os }}
               region: ${{ parameters.region }}
               configMapName: ${{ parameters.configMapName }}
               daemonsetName: ${{ parameters.daemonsetName }}
-              manageEndpointState: ${{ parameters.manageEndpointState }}
+              manageEndpointState: ${{ parameters.jsonManageEndpointState }}
               initializeFromCNI: ${{ parameters.initializeFromCNI }}
+              enableStateMigration: ${{ parameters.enableStateMigration }}
 
       - job: json_baseline
         displayName: 01 JSON baseline
@@ -127,7 +141,7 @@ stages:
               lane: ${{ parameters.name }}
               transition: 01-json-baseline
               action: json-baseline
-              clusterName: ${{ parameters.clusterBaseName }}-$(commitID)
+              clusterName: ${{ parameters.clusterBaseName }}-$(buildID)
               os: ${{ parameters.os }}
               cni: ${{ parameters.cni }}
               targetNodeCount: ${{ parameters.targetNodeCount }}
@@ -137,6 +151,9 @@ stages:
               expectedBackend: json
               expectedAuthority: ${{ parameters.expectedAuthority }}
               expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
+              expectedManageEndpointState: ${{ parameters.jsonManageEndpointState }}
+              expectedInitializeFromCNI: ${{ parameters.initializeFromCNI }}
+              expectedEnableStateMigration: ${{ parameters.enableStateMigration }}
 
       - job: bolt_migrate
         displayName: 02 Single-restart Bolt migration
@@ -148,7 +165,7 @@ stages:
               lane: ${{ parameters.name }}
               transition: 02-bolt-migrate
               action: bolt-migrate
-              clusterName: ${{ parameters.clusterBaseName }}-$(commitID)
+              clusterName: ${{ parameters.clusterBaseName }}-$(buildID)
               os: ${{ parameters.os }}
               cni: ${{ parameters.cni }}
               targetNodeCount: ${{ parameters.targetNodeCount }}
@@ -158,7 +175,10 @@ stages:
               expectedBackend: bolt
               expectedAuthority: ${{ parameters.expectedAuthority }}
               expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
-              baselineArtifact: state-migration-${{ parameters.name }}-01-json-baseline
+              expectedManageEndpointState: "true"
+              expectedInitializeFromCNI: ${{ parameters.boltInitializeFromCNI }}
+              expectedEnableStateMigration: ${{ parameters.boltEnableStateMigration }}
+              baselineArtifact: state-migration-$(Build.BuildId)-${{ parameters.name }}-01-json-baseline
               stateRelation: exact
 
       - job: same_boot_restart
@@ -171,7 +191,7 @@ stages:
               lane: ${{ parameters.name }}
               transition: 03-same-boot-restart
               action: same-boot-restart
-              clusterName: ${{ parameters.clusterBaseName }}-$(commitID)
+              clusterName: ${{ parameters.clusterBaseName }}-$(buildID)
               os: ${{ parameters.os }}
               cni: ${{ parameters.cni }}
               targetNodeCount: ${{ parameters.targetNodeCount }}
@@ -181,7 +201,10 @@ stages:
               expectedBackend: bolt
               expectedAuthority: ${{ parameters.expectedAuthority }}
               expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
-              baselineArtifact: state-migration-${{ parameters.name }}-02-bolt-migrate
+              expectedManageEndpointState: "true"
+              expectedInitializeFromCNI: ${{ parameters.boltInitializeFromCNI }}
+              expectedEnableStateMigration: ${{ parameters.boltEnableStateMigration }}
+              baselineArtifact: state-migration-$(Build.BuildId)-${{ parameters.name }}-02-bolt-migrate
               stateRelation: exact
               bootRelation: same
 
@@ -195,7 +218,7 @@ stages:
               lane: ${{ parameters.name }}
               transition: 04-restart-during-scale
               action: restart-during-scale
-              clusterName: ${{ parameters.clusterBaseName }}-$(commitID)
+              clusterName: ${{ parameters.clusterBaseName }}-$(buildID)
               os: ${{ parameters.os }}
               cni: ${{ parameters.cni }}
               targetNodeCount: ${{ parameters.targetNodeCount }}
@@ -205,7 +228,10 @@ stages:
               expectedBackend: bolt
               expectedAuthority: ${{ parameters.expectedAuthority }}
               expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
-              baselineArtifact: state-migration-${{ parameters.name }}-03-same-boot-restart
+              expectedManageEndpointState: "true"
+              expectedInitializeFromCNI: ${{ parameters.boltInitializeFromCNI }}
+              expectedEnableStateMigration: ${{ parameters.boltEnableStateMigration }}
+              baselineArtifact: state-migration-$(Build.BuildId)-${{ parameters.name }}-03-same-boot-restart
               stateRelation: changed
               bootRelation: same
               runFaultInjection: ${{ eq(parameters.manageEndpointState, 'true') }}
@@ -220,7 +246,7 @@ stages:
               lane: ${{ parameters.name }}
               transition: 05-node-reboot
               action: node-reboot
-              clusterName: ${{ parameters.clusterBaseName }}-$(commitID)
+              clusterName: ${{ parameters.clusterBaseName }}-$(buildID)
               os: ${{ parameters.os }}
               cni: ${{ parameters.cni }}
               targetNodeCount: ${{ parameters.targetNodeCount }}
@@ -230,9 +256,13 @@ stages:
               expectedBackend: bolt
               expectedAuthority: ${{ parameters.expectedAuthority }}
               expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
-              baselineArtifact: state-migration-${{ parameters.name }}-04-restart-during-scale
-              stateRelation: exact
+              expectedManageEndpointState: "true"
+              expectedInitializeFromCNI: ${{ parameters.boltInitializeFromCNI }}
+              expectedEnableStateMigration: ${{ parameters.boltEnableStateMigration }}
+              baselineArtifact: state-migration-$(Build.BuildId)-${{ parameters.name }}-04-restart-during-scale
+              stateRelation: none
               bootRelation: changed
+              podRelation: identity
 
       - job: os_validation
         displayName: 06 OS-specific validation
@@ -244,7 +274,7 @@ stages:
               lane: ${{ parameters.name }}
               transition: 06-os-validation
               action: os-validation
-              clusterName: ${{ parameters.clusterBaseName }}-$(commitID)
+              clusterName: ${{ parameters.clusterBaseName }}-$(buildID)
               os: ${{ parameters.os }}
               cni: ${{ parameters.cni }}
               targetNodeCount: ${{ parameters.targetNodeCount }}
@@ -254,7 +284,10 @@ stages:
               expectedBackend: bolt
               expectedAuthority: ${{ parameters.expectedAuthority }}
               expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
-              baselineArtifact: state-migration-${{ parameters.name }}-05-node-reboot
+              expectedManageEndpointState: "true"
+              expectedInitializeFromCNI: ${{ parameters.boltInitializeFromCNI }}
+              expectedEnableStateMigration: ${{ parameters.boltEnableStateMigration }}
+              baselineArtifact: state-migration-$(Build.BuildId)-${{ parameters.name }}-05-node-reboot
               stateRelation: exact
               bootRelation: same
 
@@ -268,7 +301,7 @@ stages:
               lane: ${{ parameters.name }}
               transition: 07-rollback-json
               action: rollback-json
-              clusterName: ${{ parameters.clusterBaseName }}-$(commitID)
+              clusterName: ${{ parameters.clusterBaseName }}-$(buildID)
               os: ${{ parameters.os }}
               cni: ${{ parameters.cni }}
               targetNodeCount: ${{ parameters.targetNodeCount }}
@@ -278,7 +311,10 @@ stages:
               expectedBackend: json
               expectedAuthority: ${{ parameters.expectedAuthority }}
               expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
-              baselineArtifact: state-migration-${{ parameters.name }}-06-os-validation
+              expectedManageEndpointState: ${{ parameters.jsonManageEndpointState }}
+              expectedInitializeFromCNI: ${{ parameters.initializeFromCNI }}
+              expectedEnableStateMigration: ${{ parameters.enableStateMigration }}
+              baselineArtifact: state-migration-$(Build.BuildId)-${{ parameters.name }}-06-os-validation
               stateRelation: exact
 
       - job: json_mutation
@@ -291,7 +327,7 @@ stages:
               lane: ${{ parameters.name }}
               transition: 08-json-mutation
               action: json-mutation
-              clusterName: ${{ parameters.clusterBaseName }}-$(commitID)
+              clusterName: ${{ parameters.clusterBaseName }}-$(buildID)
               os: ${{ parameters.os }}
               cni: ${{ parameters.cni }}
               targetNodeCount: ${{ parameters.targetNodeCount }}
@@ -301,7 +337,10 @@ stages:
               expectedBackend: json
               expectedAuthority: ${{ parameters.expectedAuthority }}
               expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
-              baselineArtifact: state-migration-${{ parameters.name }}-07-rollback-json
+              expectedManageEndpointState: ${{ parameters.jsonManageEndpointState }}
+              expectedInitializeFromCNI: ${{ parameters.initializeFromCNI }}
+              expectedEnableStateMigration: ${{ parameters.enableStateMigration }}
+              baselineArtifact: state-migration-$(Build.BuildId)-${{ parameters.name }}-07-rollback-json
               stateRelation: changed
 
       - job: bolt_reimport
@@ -314,7 +353,7 @@ stages:
               lane: ${{ parameters.name }}
               transition: 09-bolt-reimport
               action: bolt-reimport
-              clusterName: ${{ parameters.clusterBaseName }}-$(commitID)
+              clusterName: ${{ parameters.clusterBaseName }}-$(buildID)
               os: ${{ parameters.os }}
               cni: ${{ parameters.cni }}
               targetNodeCount: ${{ parameters.targetNodeCount }}
@@ -324,7 +363,10 @@ stages:
               expectedBackend: bolt
               expectedAuthority: ${{ parameters.expectedAuthority }}
               expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
-              baselineArtifact: state-migration-${{ parameters.name }}-08-json-mutation
+              expectedManageEndpointState: "true"
+              expectedInitializeFromCNI: ${{ parameters.boltInitializeFromCNI }}
+              expectedEnableStateMigration: ${{ parameters.boltEnableStateMigration }}
+              baselineArtifact: state-migration-$(Build.BuildId)-${{ parameters.name }}-08-json-mutation
               stateRelation: exact
 
       - job: final_same_boot_restart
@@ -337,7 +379,7 @@ stages:
               lane: ${{ parameters.name }}
               transition: 10-final-same-boot-restart
               action: final-same-boot-restart
-              clusterName: ${{ parameters.clusterBaseName }}-$(commitID)
+              clusterName: ${{ parameters.clusterBaseName }}-$(buildID)
               os: ${{ parameters.os }}
               cni: ${{ parameters.cni }}
               targetNodeCount: ${{ parameters.targetNodeCount }}
@@ -347,9 +389,25 @@ stages:
               expectedBackend: bolt
               expectedAuthority: ${{ parameters.expectedAuthority }}
               expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
-              baselineArtifact: state-migration-${{ parameters.name }}-09-bolt-reimport
+              expectedManageEndpointState: "true"
+              expectedInitializeFromCNI: ${{ parameters.boltInitializeFromCNI }}
+              expectedEnableStateMigration: ${{ parameters.boltEnableStateMigration }}
+              baselineArtifact: state-migration-$(Build.BuildId)-${{ parameters.name }}-09-bolt-reimport
               stateRelation: exact
               bootRelation: same
+
+      - ${{ if eq(parameters.enableOwnershipHandoff, true) }}:
+        - template: handoff.jobs.yaml
+          parameters:
+            lane: ${{ parameters.name }}
+            clusterName: ${{ parameters.clusterBaseName }}-$(buildID)
+            os: ${{ parameters.os }}
+            targetNodeCount: ${{ parameters.targetNodeCount }}
+            replicasPerNode: ${{ parameters.replicasPerNode }}
+            configMapName: ${{ parameters.configMapName }}
+            daemonsetName: ${{ parameters.daemonsetName }}
+            expectedAuthority: ${{ parameters.expectedAuthority }}
+            expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
 
       - job: cleanup
         displayName: Clean up migration cluster
@@ -367,10 +425,29 @@ stages:
           - json_mutation
           - bolt_reimport
           - final_same_boot_restart
+          - ${{ if eq(parameters.enableOwnershipHandoff, true) }}:
+            - handoff_cni_json
+            - handoff_ownership_first_import
+            - handoff_ownership_first_stateless
+            - handoff_ownership_first_bolt
+            - handoff_ownership_first_stateful
+            - handoff_ownership_first_reverse
+            - handoff_backend_first_json
+            - handoff_backend_first_bolt
+            - handoff_backend_first_import
+            - handoff_backend_first_stateless
+            - handoff_backend_first_stateful
+            - handoff_backend_first_reverse
+            - handoff_direct_json
+            - handoff_direct_import
+            - handoff_direct_stateless
+            - handoff_faults
+            - handoff_restart
+            - handoff_reboot
         steps:
           - template: ../../templates/delete-cluster.yaml
             parameters:
-              clusterName: ${{ parameters.clusterBaseName }}-$(commitID)
+              clusterName: ${{ parameters.clusterBaseName }}-$(buildID)
               sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
               svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               deleteResources: "true"

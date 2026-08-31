@@ -23,8 +23,7 @@ parameters:
 steps:
   - ${{ if eq(parameters.expectedBackend, 'bolt') }}:
     - task: AzureCLI@2
-      displayName: Capture strict persistent debug responses
-      condition: always()
+      displayName: Validate strict persistent state metadata
       inputs:
         azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
         scriptLocation: inlineScript
@@ -44,40 +43,64 @@ steps:
           fi
 
           found=false
+          declare -A seenNodes=()
           while IFS=$'\t' read -r pod node; do
             [[ -n "$pod" && -n "$node" ]] || continue
-            found=true
-            response="$evidenceDir/persistent-debug/${pod}.json"
-
-            if [[ "${{ parameters.os }}" == "windows" ]]; then
-              kubectl exec -n kube-system "$pod" -c cns-container -- \
-                powershell -NoProfile -Command \
-                'Invoke-WebRequest -Uri 127.0.0.1:10090/debug/persistentstate -Method Post -UseBasicParsing -ErrorAction Stop | Select-Object -Expand Content' \
-                >"$response"
-            else
-              kubectl exec -n kube-system "$pod" -c debug -- \
-                bash -c "curl -sf localhost:10090/debug/persistentstate -d '{}'" \
-                >"$response"
+            if [[ -n "${seenNodes[$node]:-}" ]]; then
+              echo "multiple CNS pods reported for node $node"
+              exit 1
             fi
+            seenNodes[$node]=1
+            found=true
+            response="$evidenceDir/persistent-debug/${node}.json"
+
+            captured=false
+            for attempt in 1 2 3; do
+              if [[ "${{ parameters.os }}" == "windows" ]]; then
+                if kubectl exec -n kube-system "$pod" -c cns-container -- \
+                  powershell -NoProfile -Command \
+                  '$status = (Invoke-WebRequest -Uri 127.0.0.1:10090/debug/persistent-state/status -UseBasicParsing -ErrorAction Stop).Content | ConvertFrom-Json; $snapshot = (Invoke-WebRequest -Uri 127.0.0.1:10090/debug/persistent-state/snapshot -UseBasicParsing -ErrorAction Stop).Content | ConvertFrom-Json; [pscustomobject]@{status=$status;snapshot=$snapshot} | ConvertTo-Json -Depth 100 -Compress' \
+                  >"$response"; then
+                  captured=true
+                fi
+              elif kubectl exec -n kube-system "$pod" -c debug -- \
+                bash -c 'jq -n --argjson status "$(curl -sf localhost:10090/debug/persistent-state/status)" --argjson snapshot "$(curl -sf localhost:10090/debug/persistent-state/snapshot)" "{status:\$status,snapshot:\$snapshot}"' \
+                >"$response"; then
+                captured=true
+              fi
+              [[ "$captured" == "true" ]] && break
+              sleep $((attempt * 5))
+            done
+            if [[ "$captured" != "true" ]]; then
+              echo "persistent state transport failed after three attempts for $node"
+              exit 1
+            fi
+            jq --arg node "$node" '. + {nodeName: $node}' "$response" >"$response.next"
+            mv "$response.next" "$response"
 
             jq -e \
-              --arg backend "${{ parameters.expectedBackend }}" \
               --arg authority "${{ parameters.expectedAuthority }}" \
               --argjson schema "${{ parameters.expectedSchemaVersion }}" \
-              '.storage.backend == $backend
-                and .storage.filePresent == true
-                and .storage.fileSizeBytes > 0
-                and .snapshot.metadata.authority == $authority
-                and .snapshot.metadata.schemaVersion == $schema
-                and ((.snapshot.metadata.bootID // "") | length) > 0' \
+              '.status.backend == "bbolt"
+                and .status.authority == $authority
+                and .status.schemaVersion == $schema
+                and .status.generation > 0
+                and .status.bootPresent == true
+                and .status.storagePresent == true
+                and .status.databaseBytes > 0
+                and .status.invariantStatus == "healthy"
+                and .snapshot.Metadata.authority == $authority
+                and .snapshot.Metadata.schemaVersion == $schema
+                and .snapshot.Metadata.generation == .status.generation
+                and ((.snapshot.Metadata.bootID // "") | length) > 0' \
               "$response"
 
             nodeBootID=$(kubectl get node "$node" -o jsonpath='{.status.nodeInfo.bootID}')
-            stateBootID=$(jq -r '.snapshot.metadata.bootID' "$response")
+            stateBootID=$(jq -r '.snapshot.Metadata.bootID' "$response")
             normalizedNodeBootID=$(tr '[:upper:]' '[:lower:]' <<<"$nodeBootID" | tr -d '{}[:space:]')
             normalizedStateBootID=$(tr '[:upper:]' '[:lower:]' <<<"$stateBootID" | tr -d '{}[:space:]')
             if [[ "$normalizedNodeBootID" != "$normalizedStateBootID" ]]; then
-              echo "persistent boot ID does not match Kubernetes node boot ID for $node"
+              echo "persistent boot ID $stateBootID does not match Kubernetes node boot ID $nodeBootID for $node"
               exit 1
             fi
           done < <(
@@ -89,10 +112,22 @@ steps:
             echo "no CNS pods matched selector $selector"
             exit 1
           fi
+          jq -s \
+            --arg backend "${{ parameters.expectedBackend }}" \
+            --arg authority "${{ parameters.expectedAuthority }}" \
+            --argjson schema "${{ parameters.expectedSchemaVersion }}" \
+            '{
+              expectedBackend: $backend,
+              expectedAuthority: $authority,
+              expectedSchemaVersion: $schema,
+              nodes: sort_by(.nodeName)
+            }' \
+            "$evidenceDir"/persistent-debug/*.json >"$evidenceDir/persistent-summary.json"
 
   - task: AzureCLI@2
     displayName: Capture transition state and logs
     condition: always()
+    continueOnError: true
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: inlineScript
@@ -156,11 +191,5 @@ steps:
         done
 
         if [[ "$captureFailed" == "true" ]]; then
-          echo "one or more required transition evidence captures failed"
-          exit 1
+          echo "##vso[task.logissue type=warning]one or more best-effort transition evidence captures failed"
         fi
-
-  - publish: $(Build.SourcesDirectory)/test/integration/logs/state-migration/${{ parameters.lane }}/${{ parameters.transition }}
-    artifact: state-migration-${{ parameters.lane }}-${{ parameters.transition }}
-    displayName: Publish transition evidence
-    condition: always()

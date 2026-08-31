@@ -15,8 +15,13 @@ parameters:
     type: string
   - name: initializeFromCNI
     type: string
+  - name: enableStateMigration
+    type: string
 
 steps:
+  - ${{ if eq(parameters.scenario, 'cilium-overlay') }}:
+    - template: ../../templates/cilium-cli.yaml
+
   - task: AzureCLI@2
     displayName: Install migration lane components
     inputs:
@@ -36,7 +41,7 @@ steps:
 
         case "${{ parameters.scenario }}" in
           cilium-overlay)
-            make -C ./hack/aks deploy-cilium
+            make -C ./hack/aks deploy-cilium DIR=$(CILIUM_TEMPLATE_DIR)
             sudo -E env "PATH=$PATH" make test-integration \
               AZURE_IPAM_VERSION="$ipamVersion" \
               CNS_VERSION="$cnsVersion" \
@@ -99,15 +104,37 @@ steps:
           done < <(kubectl get nodes -l kubernetes.io/os=windows -o name)
         fi
 
+        config=$(kubectl get configmap/${{ parameters.configMapName }} \
+          -n kube-system -o jsonpath='{.data.cns_config\.json}')
+        config=$(jq \
+          --argjson manage "${{ parameters.manageEndpointState }}" \
+          --argjson initialize "${{ parameters.initializeFromCNI }}" \
+          --argjson migrate "${{ parameters.enableStateMigration }}" \
+          '.EnableBoltStateStore = false
+            | .EnablePersistentStateDebug = false
+            | .StateStoreBackend = "json"
+            | .StateStoreMode = "normal"
+            | .ManageEndpointState = $manage
+            | .InitializeFromCNI = $initialize
+            | .EnableStateMigration = $migrate' \
+          <<<"$config")
+        payload=$(jq -n --arg config "$config" '{data: {"cns_config.json": $config}}')
+        kubectl patch configmap/${{ parameters.configMapName }} -n kube-system --type merge -p "$payload"
+        kubectl rollout restart daemonset/${{ parameters.daemonsetName }} -n kube-system
         kubectl rollout status daemonset/${{ parameters.daemonsetName }} \
           -n kube-system --timeout=20m
 
-        config=$(kubectl get configmap/${{ parameters.configMapName }} \
-          -n kube-system -o jsonpath='{.data.cns_config\.json}')
         jq -e \
           --argjson manage "${{ parameters.manageEndpointState }}" \
           --argjson initialize "${{ parameters.initializeFromCNI }}" \
-          '.ManageEndpointState == $manage and .InitializeFromCNI == $initialize' \
+          --argjson migrate "${{ parameters.enableStateMigration }}" \
+          '.EnableBoltStateStore == false
+            and .EnablePersistentStateDebug == false
+            and .StateStoreBackend == "json"
+            and .StateStoreMode == "normal"
+            and .ManageEndpointState == $manage
+            and .InitializeFromCNI == $initialize
+            and .EnableStateMigration == $migrate' \
           <<<"$config"
 
         kubectl get pods -A -o wide
