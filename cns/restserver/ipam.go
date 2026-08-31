@@ -1231,9 +1231,11 @@ func validateDesiredIPAddresses(desiredIPs []string) error {
 func (service *HTTPRestService) EndpointHandlerAPI(w http.ResponseWriter, r *http.Request) {
 	opName := "endpointHandler"
 	logger.Printf("[EndpointHandlerAPI] EndpointHandlerAPI received request with http Method %s", r.Method)
-	if r.Method == http.MethodDelete && service.selectedUnifiedStateAdapter() != nil {
-		service.DeleteEndpointStateHandler(w, r)
-		return
+	if r.Method == http.MethodDelete {
+		if adapter := service.selectedUnifiedStateAdapter(); adapter != nil {
+			service.deleteEndpointStateHandler(w, r, adapter)
+			return
+		}
 	}
 	service.Lock()
 	defer service.Unlock()
@@ -1253,7 +1255,7 @@ func (service *HTTPRestService) EndpointHandlerAPI(w http.ResponseWriter, r *htt
 	case http.MethodPatch:
 		service.UpdateEndpointHandler(w, r)
 	case http.MethodDelete:
-		service.DeleteEndpointStateHandler(w, r)
+		service.deleteEndpointStateHandler(w, r, nil)
 	default:
 		//nolint
 		logger.Errorf("[EndpointHandlerAPI] EndpointHandler API expect http Get or Patch or Delete method")
@@ -1261,11 +1263,19 @@ func (service *HTTPRestService) EndpointHandlerAPI(w http.ResponseWriter, r *htt
 }
 
 func (service *HTTPRestService) DeleteEndpointStateHandler(w http.ResponseWriter, r *http.Request) {
+	service.deleteEndpointStateHandler(w, r, service.selectedUnifiedStateAdapter())
+}
+
+func (service *HTTPRestService) deleteEndpointStateHandler(
+	w http.ResponseWriter,
+	r *http.Request,
+	adapter *durableStateAdapter,
+) {
 	opName := "DeleteEndpointStateHandler"
 	logger.Printf("[DeleteEndpointStateHandler] DeleteEndpointState for %s", r.URL.Path) //nolint:staticcheck // reason: using deprecated call until migration to new API
 	endpointID := strings.TrimPrefix(r.URL.Path, cns.EndpointPath)
 
-	if service.EndpointStateStore == nil && service.selectedUnifiedStateAdapter() == nil {
+	if service.EndpointStateStore == nil && adapter == nil {
 		response := cns.Response{
 			ReturnCode: types.NilEndpointStateStore,
 			Message:    "[DeleteEndpointStateHandler] EndpointStateStore is not initialized",
@@ -1276,7 +1286,7 @@ func (service *HTTPRestService) DeleteEndpointStateHandler(w http.ResponseWriter
 	}
 
 	// Delete the endpoint from state
-	err := service.deleteEndpointState(r.Context(), endpointID)
+	err := service.deleteEndpointState(r.Context(), endpointID, adapter)
 	if err != nil {
 		response := cns.Response{
 			ReturnCode: types.UnexpectedError,
@@ -1324,8 +1334,12 @@ func (service *HTTPRestService) DeleteEndpointStateHelper(endpointID string) err
 	return nil
 }
 
-func (service *HTTPRestService) deleteEndpointState(ctx context.Context, endpointID string) error {
-	if adapter := service.selectedUnifiedStateAdapter(); adapter != nil {
+func (service *HTTPRestService) deleteEndpointState(
+	ctx context.Context,
+	endpointID string,
+	adapter *durableStateAdapter,
+) error {
+	if adapter != nil {
 		return adapter.deleteEndpointRecord(ctx, endpointID)
 	}
 	return service.DeleteEndpointStateHelper(endpointID)
