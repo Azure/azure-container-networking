@@ -1231,7 +1231,13 @@ func validateDesiredIPAddresses(desiredIPs []string) error {
 func (service *HTTPRestService) EndpointHandlerAPI(w http.ResponseWriter, r *http.Request) {
 	opName := "endpointHandler"
 	logger.Printf("[EndpointHandlerAPI] EndpointHandlerAPI received request with http Method %s", r.Method)
-	if r.Method == http.MethodDelete {
+	switch r.Method {
+	case http.MethodPatch:
+		if adapter := service.selectedUnifiedStateAdapter(); adapter != nil {
+			service.updateEndpointHandler(w, r, adapter)
+			return
+		}
+	case http.MethodDelete:
 		if adapter := service.selectedUnifiedStateAdapter(); adapter != nil {
 			service.deleteEndpointStateHandler(w, r, adapter)
 			return
@@ -1253,7 +1259,7 @@ func (service *HTTPRestService) EndpointHandlerAPI(w http.ResponseWriter, r *htt
 	case http.MethodGet:
 		service.GetEndpointHandler(w, r)
 	case http.MethodPatch:
-		service.UpdateEndpointHandler(w, r)
+		service.updateEndpointHandler(w, r, nil)
 	case http.MethodDelete:
 		service.deleteEndpointStateHandler(w, r, nil)
 	default:
@@ -1422,6 +1428,14 @@ func (service *HTTPRestService) GetEndpointHelper(endpointID string) (*EndpointI
 
 // UpdateEndpointHandler handles the incoming UpdateEndpoint requests with http Patch method
 func (service *HTTPRestService) UpdateEndpointHandler(w http.ResponseWriter, r *http.Request) {
+	service.updateEndpointHandler(w, r, service.selectedUnifiedStateAdapter())
+}
+
+func (service *HTTPRestService) updateEndpointHandler(
+	w http.ResponseWriter,
+	r *http.Request,
+	adapter *durableStateAdapter,
+) {
 	opName := "UpdateEndpointHandler"
 	logger.Printf("[updateEndpoint] updateEndpoint for %s", r.URL.Path)
 
@@ -1451,10 +1465,10 @@ func (service *HTTPRestService) UpdateEndpointHandler(w http.ResponseWriter, r *
 		return
 	}
 	// Update the endpoint state
-	err = service.UpdateEndpointHelper(endpointID, req)
+	err = service.updateEndpoint(r.Context(), endpointID, req, adapter)
 	if err != nil {
 		response := cns.Response{
-			ReturnCode: types.UnexpectedError,
+			ReturnCode: unifiedPatchResponseCode(err),
 			Message:    fmt.Sprintf("[updateEndpoint] updateEndpoint failed with error: %s", err.Error()),
 		}
 		w.Header().Set(cnsReturnCode, response.ReturnCode.String())
@@ -1469,6 +1483,18 @@ func (service *HTTPRestService) UpdateEndpointHandler(w http.ResponseWriter, r *
 	w.Header().Set(cnsReturnCode, response.ReturnCode.String())
 	err = common.Encode(w, &response)
 	logger.Response(opName, response, response.ReturnCode, err)
+}
+
+func (service *HTTPRestService) updateEndpoint(
+	ctx context.Context,
+	endpointID string,
+	req map[string]*IPInfo,
+	adapter *durableStateAdapter,
+) error {
+	if adapter != nil {
+		return adapter.patchEndpoint(ctx, endpointID, req)
+	}
+	return service.UpdateEndpointHelper(endpointID, req)
 }
 
 // UpdateEndpointHelper updates the state of the given endpointId with HNSId, VethName or other InterfaceInfo fields
@@ -1556,6 +1582,9 @@ func updateIPInfoMap(iPInfo map[string]*IPInfo, interfaceInfo *IPInfo, ifName, e
 // verifyUpdateEndpointStateRequest verify the CNI request body for the UpdateENdpointState API
 func verifyUpdateEndpointStateRequest(req map[string]*IPInfo) error {
 	for ifName, InterfaceInfo := range req {
+		if InterfaceInfo == nil {
+			return errors.New("[updateEndpoint] Interface info must not be null")
+		}
 		if InterfaceInfo.HostVethName == "" && InterfaceInfo.HnsEndpointID == "" && InterfaceInfo.NICType == "" && InterfaceInfo.MacAddress == "" {
 			return errors.New("[updateEndpoint] No NicType, MacAddress, HnsEndpointID or HostVethName has been provided")
 		}
