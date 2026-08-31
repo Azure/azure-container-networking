@@ -14,6 +14,9 @@ import (
 
 func TestPersistentStateManifestDefaultsRemainDark(t *testing.T) {
 	repositoryRoot := filepath.Clean(filepath.Join("..", ".."))
+	root, err := os.OpenRoot(repositoryRoot)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, root.Close()) })
 	required := []string{
 		`"EnableBoltStateStore": false`,
 		`"EnablePersistentStateDebug": false`,
@@ -21,16 +24,20 @@ func TestPersistentStateManifestDefaultsRemainDark(t *testing.T) {
 		`"StateStoreMode": "normal"`,
 	}
 	found := 0
-	err := filepath.WalkDir(repositoryRoot, func(path string, entry os.DirEntry, walkErr error) error {
+	err = filepath.WalkDir(repositoryRoot, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
-			return walkErr
+			return fmt.Errorf("walking persistent state manifests: %w", walkErr)
 		}
 		if entry.IsDir() || (filepath.Ext(path) != ".json" && filepath.Ext(path) != ".yaml" && filepath.Ext(path) != ".yml") {
 			return nil
 		}
-		contents, err := os.ReadFile(path)
-		if err != nil {
-			return err
+		relativePath, relativeErr := filepath.Rel(repositoryRoot, path)
+		if relativeErr != nil {
+			return fmt.Errorf("resolving persistent state manifest path: %w", relativeErr)
+		}
+		contents, readErr := root.ReadFile(relativePath)
+		if readErr != nil {
+			return fmt.Errorf("reading persistent state manifest %q: %w", relativePath, readErr)
 		}
 		text := string(contents)
 		if !strings.Contains(text, `"EnableBoltStateStore"`) {

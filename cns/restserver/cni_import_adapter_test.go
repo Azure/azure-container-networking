@@ -20,6 +20,7 @@ import (
 var (
 	errCNIImportProjection = errors.New("projection failure")
 	errCNIImportStatus     = errors.New("status failure")
+	errCNIQuery            = errors.New("CNI query failure")
 )
 
 const (
@@ -83,8 +84,8 @@ func TestDurableStateLifecycleImportsCNIBeforeSelection(t *testing.T) {
 		providerCalls := 0
 		provider := cns.CNIEndpointStateProvider(func(ctx context.Context) ([]cns.CNIEndpointState, error) {
 			providerCalls++
-			if err := ctx.Err(); err != nil {
-				return nil, err
+			if contextErr := ctx.Err(); contextErr != nil {
+				return nil, fmt.Errorf("reading CNI endpoint state: %w", contextErr)
 			}
 			return adapterImportRecords(t), nil
 		})
@@ -109,18 +110,17 @@ func TestDurableStateLifecycleImportsCNIBeforeSelection(t *testing.T) {
 		service := newAdapterTestService()
 		before, err := cloneJSON(service.EndpointState)
 		require.NoError(t, err)
-		queryErr := errors.New("CNI query failure")
 		restore, closeState, err := NewDurableStateLifecycleWithCNIImport(
 			service,
 			db,
 			true,
 			func(context.Context) ([]cns.CNIEndpointState, error) {
-				return nil, queryErr
+				return nil, errCNIQuery
 			},
 		)
 		require.NoError(t, err)
 		err = restore(context.Background())
-		require.ErrorIs(t, err, queryErr)
+		require.ErrorIs(t, err, errCNIQuery)
 		assert.Nil(t, service.selectedUnifiedStateAdapter())
 		assert.Equal(t, before, service.EndpointState)
 		require.NoError(t, closeState())

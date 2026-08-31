@@ -38,7 +38,11 @@ func podInfoProvider(endpointStore store.KeyValueStore) (cns.PodInfoByIPProvider
 }
 
 func endpointStateToPodInfoByIP(state map[string]*restserver.EndpointInfo) (map[string]cns.PodInfo, error) {
-	return restserver.EndpointStatePodInfoByIP(state)
+	podInfo, err := restserver.EndpointStatePodInfoByIP(state)
+	if err != nil {
+		return nil, fmt.Errorf("projecting endpoint state pod information: %w", err)
+	}
+	return podInfo, nil
 }
 
 // MigrateCNISate returns an endpoint state of CNS by reading the CNI state file

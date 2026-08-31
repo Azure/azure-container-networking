@@ -4,12 +4,15 @@
 package restserver
 
 import (
+	stderrors "errors"
 	"fmt"
 	"net"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/pkg/errors"
+	pkgerrors "github.com/pkg/errors"
 )
+
+var errUnifiedEndpointProviderInactive = stderrors.New("unified endpoint state provider is not active")
 
 // EndpointStatePodInfoByIP projects CNS-owned infra endpoint state by IP.
 func EndpointStatePodInfoByIP(state map[string]*EndpointInfo) (map[string]cns.PodInfo, error) {
@@ -22,7 +25,7 @@ func EndpointStatePodInfoByIP(state map[string]*EndpointInfo) (map[string]cns.Po
 			addIP := func(ipConfig net.IPNet) error {
 				ip := ipConfig.IP.String()
 				if _, ok := podInfoByIP[ip]; ok {
-					return errors.Wrap(cns.ErrDuplicateIP, ip)
+					return pkgerrors.Wrap(cns.ErrDuplicateIP, ip)
 				}
 				podInfoByIP[ip] = cns.NewPodInfo(
 					containerID,
@@ -51,10 +54,14 @@ func EndpointStatePodInfoByIP(state map[string]*EndpointInfo) (map[string]cns.Po
 func (service *HTTPRestService) UnifiedPodInfoByIPProvider() cns.PodInfoByIPProvider {
 	return cns.PodInfoByIPProviderFunc(func() (map[string]cns.PodInfo, error) {
 		if service.selectedUnifiedStateAdapter() == nil {
-			return nil, fmt.Errorf("unified endpoint state provider is not active")
+			return nil, errUnifiedEndpointProviderInactive
 		}
 		service.RLock()
 		defer service.RUnlock()
-		return EndpointStatePodInfoByIP(service.EndpointState)
+		podInfo, err := EndpointStatePodInfoByIP(service.EndpointState)
+		if err != nil {
+			return nil, fmt.Errorf("projecting unified endpoint pod information: %w", err)
+		}
+		return podInfo, nil
 	})
 }

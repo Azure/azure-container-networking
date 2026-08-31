@@ -166,38 +166,40 @@ func NewDurableStateLifecycleWithCNIImport(
 	if projectEndpointState {
 		return func(ctx context.Context) error {
 			if cniState == nil {
-				if err := adapter.restore(ctx); err != nil {
-					return err
+				if restoreErr := adapter.restore(ctx); restoreErr != nil {
+					return restoreErr
 				}
 			} else {
-				records, err := cniState(ctx)
-				if err != nil {
-					return err
+				records, queryErr := cniState(ctx)
+				if queryErr != nil {
+					return fmt.Errorf("reading CNI endpoint state: %w", queryErr)
 				}
-				if err := adapter.prepare(ctx); err != nil {
-					return err
+				if prepareErr := adapter.prepare(ctx); prepareErr != nil {
+					return prepareErr
 				}
-				plan, err := adapter.preflightCNIEndpointImport(ctx, records)
-				if err != nil {
-					return err
+				plan, preflightErr := adapter.preflightCNIEndpointImport(ctx, records)
+				if preflightErr != nil {
+					return preflightErr
 				}
-				if err := adapter.importCNIEndpointState(ctx, records, plan); err != nil {
-					return err
+				if importErr := adapter.importCNIEndpointState(ctx, records, plan); importErr != nil {
+					return importErr
 				}
 			}
-			if _, err := db.RefreshMetrics(ctx); err != nil {
-				return err
+			if _, metricsErr := db.RefreshMetrics(ctx); metricsErr != nil {
+				return fmt.Errorf("refreshing persistent state metrics: %w", metricsErr)
 			}
 			service.setUnifiedStateAdapter(adapter)
 			return nil
 		}, adapter.Close, nil
 	}
 	return func(ctx context.Context) error {
-		if err := adapter.restore(ctx); err != nil {
-			return err
+		if restoreErr := adapter.restore(ctx); restoreErr != nil {
+			return restoreErr
 		}
-		_, err := db.RefreshMetrics(ctx)
-		return err
+		if _, metricsErr := db.RefreshMetrics(ctx); metricsErr != nil {
+			return fmt.Errorf("refreshing persistent state metrics: %w", metricsErr)
+		}
+		return nil
 	}, adapter.Close, nil
 }
 

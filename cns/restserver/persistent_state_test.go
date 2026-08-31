@@ -27,6 +27,7 @@ var (
 const (
 	persistentStateTestNetwork   = "network"
 	persistentStateTestNestedKey = "nested"
+	persistentStateTestScheme    = "tcp"
 )
 
 func TestPersistentStateHandlerConstructors(t *testing.T) {
@@ -42,7 +43,7 @@ func TestPersistentStateHandlerConstructors(t *testing.T) {
 func TestRegisterPersistentStateRoutes(t *testing.T) {
 	newService := func(t *testing.T) *HTTPRestService {
 		t.Helper()
-		listener, err := acn.NewListener(&url.URL{Scheme: "tcp", Host: "127.0.0.1:0"})
+		listener, err := acn.NewListener(&url.URL{Scheme: persistentStateTestScheme, Host: "127.0.0.1:0"})
 		require.NoError(t, err)
 		return &HTTPRestService{
 			Service: &cns.Service{Listener: listener},
@@ -63,14 +64,14 @@ func TestRegisterPersistentStateRoutes(t *testing.T) {
 		response := httptest.NewRecorder()
 		service.Listener.GetMux().ServeHTTP(
 			response,
-			httptest.NewRequest(http.MethodGet, PersistentStateStatusPath, nil),
+			httptest.NewRequestWithContext(t.Context(), http.MethodGet, PersistentStateStatusPath, http.NoBody),
 		)
 		assert.Equal(t, http.StatusOK, response.Code)
 
 		response = httptest.NewRecorder()
 		service.Listener.GetMux().ServeHTTP(
 			response,
-			httptest.NewRequest(http.MethodGet, PersistentStateSnapshotPath, nil),
+			httptest.NewRequestWithContext(t.Context(), http.MethodGet, PersistentStateSnapshotPath, http.NoBody),
 		)
 		assert.Equal(t, http.StatusNotFound, response.Code)
 	})
@@ -81,7 +82,7 @@ func TestRegisterPersistentStateRoutes(t *testing.T) {
 		response := httptest.NewRecorder()
 		service.Listener.GetMux().ServeHTTP(
 			response,
-			httptest.NewRequest(http.MethodGet, PersistentStateSnapshotPath, nil),
+			httptest.NewRequestWithContext(t.Context(), http.MethodGet, PersistentStateSnapshotPath, http.NoBody),
 		)
 		assert.Equal(t, http.StatusOK, response.Code)
 	})

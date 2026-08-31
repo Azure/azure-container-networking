@@ -19,11 +19,11 @@ func TestUnifiedPodInfoByIPProvider(t *testing.T) {
 	require.Error(t, err)
 
 	service.EndpointState = map[string]*EndpointInfo{
-		"container-a": {
-			PodName:      "pod-a",
-			PodNamespace: "namespace-a",
+		cniImportContainerA: {
+			PodName:      cniImportPodA,
+			PodNamespace: cniImportNamespaceA,
 			IfnameToIPMap: map[string]*IPInfo{
-				"eth0": {
+				InfraInterfaceName: {
 					IPv4:    []net.IPNet{{IP: net.IPv4(10, 0, 0, 4), Mask: net.CIDRMask(24, 32)}},
 					NICType: cns.InfraNIC,
 				},
@@ -33,6 +33,10 @@ func TestUnifiedPodInfoByIPProvider(t *testing.T) {
 	service.setUnifiedStateAdapter(&durableStateAdapter{})
 	pods, err := provider.PodInfoByIP()
 	require.NoError(t, err)
-	require.Contains(t, pods, "10.0.0.4")
-	assert.Equal(t, cns.NewPodInfo("container-a", "container-a", "pod-a", "namespace-a"), pods["10.0.0.4"])
+	require.Contains(t, pods, adapterTestIPv4)
+	assert.Equal(
+		t,
+		cns.NewPodInfo(cniImportContainerA, cniImportContainerA, cniImportPodA, cniImportNamespaceA),
+		pods[adapterTestIPv4],
+	)
 }

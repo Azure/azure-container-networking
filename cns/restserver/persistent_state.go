@@ -24,6 +24,7 @@ const (
 var (
 	errNilPersistentStateStatusProvider   = errors.New("persistent state status provider is nil")
 	errNilPersistentStateSnapshotProvider = errors.New("persistent state snapshot provider is nil")
+	errNilPersistentStateListener         = errors.New("persistent state listener is nil")
 )
 
 type statusProvider func(context.Context) (state.Status, error)
@@ -80,7 +81,7 @@ func (service *HTTPRestService) RegisterPersistentStateRoutes(
 	enableSnapshot bool,
 ) error {
 	if service == nil || service.Service == nil || service.Listener == nil {
-		return errors.New("persistent state listener is nil")
+		return errNilPersistentStateListener
 	}
 	service.persistentStateRoutesOnce.Do(func() {
 		statusHandler, err := NewPersistentStateStatusHandler(status)

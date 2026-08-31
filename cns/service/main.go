@@ -757,7 +757,7 @@ func main() {
 			cnsconfig.StateStoreMode == configuration.StateStoreModeRollbackToJSON) {
 		persistentStateMetrics, metricsErr := getProductionPersistentStateMetrics()
 		if metricsErr != nil {
-			logger.Errorf("Failed to register persistent state metrics: %v", metricsErr)
+			config.Logger.Error("failed to register persistent state metrics", zap.Error(metricsErr))
 			return
 		}
 		persistentStateOptions = state.Options{
@@ -799,7 +799,7 @@ func main() {
 			nil,
 		)
 		if err != nil {
-			logger.Errorf("Failed to initialize persistent state: %v", err)
+			config.Logger.Error("failed to initialize persistent state", zap.Error(err))
 			return
 		}
 		config.Store = persistentState.stateStore
@@ -853,14 +853,14 @@ func main() {
 			},
 		)
 		if err != nil {
-			logger.Errorf("Failed to initialize persistent state: %v", err)
+			config.Logger.Error("failed to initialize persistent state", zap.Error(err))
 			return
 		}
 	}
 	persistentStateCloseHandled := false
 	defer func() {
 		if closeErr := persistentState.Close(); closeErr != nil && !persistentStateCloseHandled {
-			logger.Errorf("Failed to close persistent state: %v", closeErr)
+			config.Logger.Error("failed to close persistent state", zap.Error(closeErr))
 		}
 	}()
 
@@ -911,18 +911,18 @@ func main() {
 		}
 	}
 	if persistentStateProvider == endpointStateProviderUnified {
-		if err := httpRemoteRestService.RegisterPersistentStateRoutes(
+		if routeErr := httpRemoteRestService.RegisterPersistentStateRoutes(
 			persistentState.status,
 			persistentState.snapshot,
 			cnsconfig.EnablePersistentStateDebug,
-		); err != nil {
-			logger.Errorf("Failed to register persistent state routes: %v", err)
+		); routeErr != nil {
+			config.Logger.Error("failed to register persistent state routes", zap.Error(routeErr))
 			return
 		}
 	}
-	if err := persistentState.Restore(rootCtx); err != nil {
+	if restoreErr := persistentState.Restore(rootCtx); restoreErr != nil {
 		persistentStateCloseHandled = true
-		logger.Errorf("Failed to restore persistent state: %v", err)
+		config.Logger.Error("failed to restore persistent state", zap.Error(restoreErr))
 		return
 	}
 	if gateHealthServerOnPersistentState {
@@ -1783,7 +1783,7 @@ func getPodInfoByIPProvider(
 ) (podInfoByIPProvider cns.PodInfoByIPProvider, err error) {
 	switch {
 	case cnsconfig.StateStoreBackend == configuration.StateStoreBackendBolt:
-		logger.Printf("Initializing from unified endpoint state")
+		logger.Printf("Initializing from unified endpoint state") //nolint:staticcheck // This function still uses the legacy package logger.
 		podInfoByIPProvider = httpRestServiceImplementation.UnifiedPodInfoByIPProvider()
 	case cnsconfig.ManageEndpointState:
 		logger.Printf("Initializing from self managed endpoint store")

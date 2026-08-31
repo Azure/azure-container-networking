@@ -74,7 +74,10 @@ func getProductionPersistentStateMetrics() (*state.Metrics, error) {
 	productionPersistentStateMetricsOnce.Do(func() {
 		productionPersistentStateMetrics, productionPersistentStateMetricsErr = state.NewMetrics(prometheus.DefaultRegisterer)
 	})
-	return productionPersistentStateMetrics, productionPersistentStateMetricsErr
+	if productionPersistentStateMetricsErr != nil {
+		return nil, fmt.Errorf("registering production persistent state metrics: %w", productionPersistentStateMetricsErr)
+	}
+	return productionPersistentStateMetrics, nil
 }
 
 func productionBoltPersistentStateDependencies(
