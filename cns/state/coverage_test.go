@@ -5,7 +5,6 @@ package state
 
 import (
 	"context"
-	"errors"
 	"net"
 	"testing"
 	"time"
@@ -16,12 +15,30 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
+const (
+	hardeningContainerID       = "container"
+	hardeningNamespace         = "namespace"
+	hardeningBadValue          = "bad"
+	hardeningNetworkName       = "network"
+	hardeningPnPID             = "pnp"
+	hardeningInvalidMACCase    = "invalid MAC"
+	hardeningEmptyPnPIDCase    = "empty PnP ID"
+	hardeningOtherContainerID  = "other-container"
+	hardeningOtherPodName      = "other-pod"
+	hardeningContainerID2      = "container-2"
+	hardeningMultipleValues    = "multiple values"
+	hardeningUnsupportedOption = "unsupported"
+	hardeningLocation          = "eastus"
+	hardeningStateNamespace    = "state-machine"
+	hardeningNet1              = "net1"
+)
+
 func TestOwnershipNormalizationRejectsMalformedRecords(t *testing.T) {
 	validPod := PodIdentity{
-		PodKey:           "container",
-		InfraContainerID: "container",
-		PodName:          "pod",
-		PodNamespace:     "namespace",
+		PodKey:           hardeningContainerID,
+		InfraContainerID: hardeningContainerID,
+		PodName:          importOrchestratorContextKey,
+		PodNamespace:     hardeningNamespace,
 	}
 	podTests := []struct {
 		name   string
@@ -29,8 +46,8 @@ func TestOwnershipNormalizationRejectsMalformedRecords(t *testing.T) {
 	}{
 		{name: "empty pod key", mutate: func(pod *PodIdentity) { pod.PodKey = "" }},
 		{name: "empty infra container", mutate: func(pod *PodIdentity) { pod.InfraContainerID = "" }},
-		{name: "pod key differs without interface", mutate: func(pod *PodIdentity) { pod.PodKey = "other" }},
-		{name: "interface differs from pod key", mutate: func(pod *PodIdentity) { pod.InterfaceID = "other" }},
+		{name: "pod key differs without interface", mutate: func(pod *PodIdentity) { pod.PodKey = testMismatchValue }},
+		{name: "interface differs from pod key", mutate: func(pod *PodIdentity) { pod.InterfaceID = testMismatchValue }},
 		{name: "empty pod name", mutate: func(pod *PodIdentity) { pod.PodName = "" }},
 		{name: "empty pod namespace", mutate: func(pod *PodIdentity) { pod.PodNamespace = "" }},
 	}
@@ -70,11 +87,11 @@ func TestOwnershipNormalizationRejectsMalformedRecords(t *testing.T) {
 	}
 
 	validEndpoint := EndpointRecord{
-		PodName:      "pod",
-		PodNamespace: "namespace",
+		PodName:      importOrchestratorContextKey,
+		PodNamespace: hardeningNamespace,
 		IfnameToIPMap: map[string]*IPInfoRecord{
-			"eth0": {
-				IPv4: []net.IPNet{mustIPNetValue("10.0.0.4", 24)},
+			exportIfnameEth0: {
+				IPv4: []net.IPNet{mustIPNetValue(exportIPv4Address, 24)},
 			},
 		},
 	}
@@ -86,94 +103,100 @@ func TestOwnershipNormalizationRejectsMalformedRecords(t *testing.T) {
 		{name: "empty container", record: validEndpoint},
 		{
 			name:        "empty pod name",
-			containerID: "container",
+			containerID: hardeningContainerID,
 			record: EndpointRecord{
-				PodNamespace:  "namespace",
+				PodNamespace:  hardeningNamespace,
 				IfnameToIPMap: validEndpoint.IfnameToIPMap,
 			},
 		},
 		{
 			name:        "empty pod namespace",
-			containerID: "container",
+			containerID: hardeningContainerID,
 			record: EndpointRecord{
-				PodName:       "pod",
+				PodName:       importOrchestratorContextKey,
 				IfnameToIPMap: validEndpoint.IfnameToIPMap,
 			},
 		},
 		{
 			name:        "no interfaces",
-			containerID: "container",
-			record:      EndpointRecord{PodName: "pod", PodNamespace: "namespace"},
+			containerID: hardeningContainerID,
+			record: EndpointRecord{
+				PodName:      importOrchestratorContextKey,
+				PodNamespace: hardeningNamespace,
+			},
 		},
 		{
 			name:        "empty interface",
-			containerID: "container",
+			containerID: hardeningContainerID,
 			record: EndpointRecord{
-				PodName:       "pod",
-				PodNamespace:  "namespace",
+				PodName:       importOrchestratorContextKey,
+				PodNamespace:  hardeningNamespace,
 				IfnameToIPMap: map[string]*IPInfoRecord{" ": {}},
 			},
 		},
 		{
 			name:        "duplicate normalized interface",
-			containerID: "container",
+			containerID: hardeningContainerID,
 			record: EndpointRecord{
-				PodName:      "pod",
-				PodNamespace: "namespace",
+				PodName:      importOrchestratorContextKey,
+				PodNamespace: hardeningNamespace,
 				IfnameToIPMap: map[string]*IPInfoRecord{
-					"eth0":   {IPv4: []net.IPNet{mustIPNetValue("10.0.0.4", 24)}},
-					" eth0 ": {IPv4: []net.IPNet{mustIPNetValue("10.0.0.5", 24)}},
+					exportIfnameEth0: {IPv4: []net.IPNet{mustIPNetValue(exportIPv4Address, 24)}},
+					" eth0 ":         {IPv4: []net.IPNet{mustIPNetValue(exportSecondaryIPv4, 24)}}, //nolint:gocritic // intentionally noncanonical key
 				},
 			},
 		},
 		{
 			name:        "null interface",
-			containerID: "container",
+			containerID: hardeningContainerID,
 			record: EndpointRecord{
-				PodName:       "pod",
-				PodNamespace:  "namespace",
-				IfnameToIPMap: map[string]*IPInfoRecord{"eth0": nil},
+				PodName:       importOrchestratorContextKey,
+				PodNamespace:  hardeningNamespace,
+				IfnameToIPMap: map[string]*IPInfoRecord{exportIfnameEth0: nil},
 			},
 		},
 		{
-			name:        "invalid MAC",
-			containerID: "container",
+			name:        hardeningInvalidMACCase,
+			containerID: hardeningContainerID,
 			record: EndpointRecord{
-				PodName:      "pod",
-				PodNamespace: "namespace",
+				PodName:      importOrchestratorContextKey,
+				PodNamespace: hardeningNamespace,
 				IfnameToIPMap: map[string]*IPInfoRecord{
-					"eth0": {IPv4: []net.IPNet{mustIPNetValue("10.0.0.4", 24)}, MACAddress: "bad"},
+					exportIfnameEth0: {
+						IPv4:       []net.IPNet{mustIPNetValue(exportIPv4Address, 24)},
+						MACAddress: hardeningBadValue,
+					},
 				},
 			},
 		},
 		{
 			name:        "no IPs",
-			containerID: "container",
+			containerID: hardeningContainerID,
 			record: EndpointRecord{
-				PodName:       "pod",
-				PodNamespace:  "namespace",
-				IfnameToIPMap: map[string]*IPInfoRecord{"eth0": {}},
+				PodName:       importOrchestratorContextKey,
+				PodNamespace:  hardeningNamespace,
+				IfnameToIPMap: map[string]*IPInfoRecord{exportIfnameEth0: {}},
 			},
 		},
 		{
 			name:        "IPv6 in IPv4 list",
-			containerID: "container",
+			containerID: hardeningContainerID,
 			record: EndpointRecord{
-				PodName:      "pod",
-				PodNamespace: "namespace",
+				PodName:      importOrchestratorContextKey,
+				PodNamespace: hardeningNamespace,
 				IfnameToIPMap: map[string]*IPInfoRecord{
-					"eth0": {IPv4: []net.IPNet{mustIPNetValue("fd00::4", 64)}},
+					exportIfnameEth0: {IPv4: []net.IPNet{mustIPNetValue(exportIPv6Address, 64)}},
 				},
 			},
 		},
 		{
 			name:        "IPv4 in IPv6 list",
-			containerID: "container",
+			containerID: hardeningContainerID,
 			record: EndpointRecord{
-				PodName:      "pod",
-				PodNamespace: "namespace",
+				PodName:      importOrchestratorContextKey,
+				PodNamespace: hardeningNamespace,
 				IfnameToIPMap: map[string]*IPInfoRecord{
-					"eth0": {IPv6: []net.IPNet{mustIPNetValue("10.0.0.4", 24)}},
+					exportIfnameEth0: {IPv6: []net.IPNet{mustIPNetValue(exportIPv4Address, 24)}},
 				},
 			},
 		},
@@ -189,10 +212,10 @@ func TestOwnershipNormalizationRejectsMalformedRecords(t *testing.T) {
 func TestNormalizeDurableStateRejectsMalformedMappings(t *testing.T) {
 	valid := NewDurableState()
 	valid.NetworkContainers["nc"] = testNetworkContainer("nc")
-	valid.IPs["ip"] = IPRecord{ID: "ip", IPAddress: "10.0.0.4", NCID: "nc"}
-	valid.Networks["network"] = NetworkRecord{NetworkName: "network"}
+	valid.IPs["ip"] = IPRecord{ID: "ip", IPAddress: exportIPv4Address, NCID: "nc"}
+	valid.Networks[hardeningNetworkName] = NetworkRecord{NetworkName: hardeningNetworkName}
 	valid.OrchestratorContexts["context"] = []string{"nc"}
-	valid.PnPIDByMAC["00:11:22:33:44:55"] = "pnp"
+	valid.PnPIDByMAC[testMACAddress] = hardeningPnPID
 
 	tests := []struct {
 		name   string
@@ -201,25 +224,27 @@ func TestNormalizeDurableStateRejectsMalformedMappings(t *testing.T) {
 		{
 			name: "network container key mismatch",
 			mutate: func(value *DurableState) {
-				value.NetworkContainers = map[string]NetworkContainerRecord{"other": testNetworkContainer("nc")}
+				value.NetworkContainers = map[string]NetworkContainerRecord{testMismatchValue: testNetworkContainer("nc")}
 			},
 		},
 		{
 			name: "network container request mismatch",
 			mutate: func(value *DurableState) {
 				record := testNetworkContainer("nc")
-				record.Request.NetworkContainerid = "other"
+				record.Request.NetworkContainerid = testMismatchValue
 				value.NetworkContainers = map[string]NetworkContainerRecord{"nc": record}
 			},
 		},
 		{
-			name:   "IP key mismatch",
-			mutate: func(value *DurableState) { value.IPs = map[string]IPRecord{"other": valid.IPs["ip"]} },
+			name: "IP key mismatch",
+			mutate: func(value *DurableState) {
+				value.IPs = map[string]IPRecord{testMismatchValue: valid.IPs["ip"]}
+			},
 		},
 		{
 			name: "network key mismatch",
 			mutate: func(value *DurableState) {
-				value.Networks = map[string]NetworkRecord{"other": valid.Networks["network"]}
+				value.Networks = map[string]NetworkRecord{testMismatchValue: valid.Networks[hardeningNetworkName]}
 			},
 		},
 		{
@@ -229,19 +254,23 @@ func TestNormalizeDurableStateRejectsMalformedMappings(t *testing.T) {
 			},
 		},
 		{
-			name:   "invalid MAC",
-			mutate: func(value *DurableState) { value.PnPIDByMAC = map[string]string{"bad": "pnp"} },
+			name: hardeningInvalidMACCase,
+			mutate: func(value *DurableState) {
+				value.PnPIDByMAC = map[string]string{hardeningBadValue: hardeningPnPID}
+			},
 		},
 		{
-			name:   "empty PnP ID",
-			mutate: func(value *DurableState) { value.PnPIDByMAC = map[string]string{"00:11:22:33:44:55": ""} },
+			name: hardeningEmptyPnPIDCase,
+			mutate: func(value *DurableState) {
+				value.PnPIDByMAC = map[string]string{testMACAddress: ""}
+			},
 		},
 		{
 			name: "duplicate canonical MAC",
 			mutate: func(value *DurableState) {
 				value.PnPIDByMAC = map[string]string{
-					"00:11:22:33:44:55": "one",
-					"00-11-22-33-44-55": "two",
+					testMACAddress: "one",
+					importPnPMAC:   "two",
 				}
 			},
 		},
@@ -270,7 +299,7 @@ func TestLegacyNetworkValidationRejectsMalformedFields(t *testing.T) {
 		{
 			name: "invalid host primary IP",
 			mutate: func(request *cns.CreateNetworkContainerRequest) {
-				request.HostPrimaryIP = "bad"
+				request.HostPrimaryIP = hardeningBadValue
 			},
 		},
 		{
@@ -282,13 +311,13 @@ func TestLegacyNetworkValidationRejectsMalformedFields(t *testing.T) {
 		{
 			name: "invalid DNS server",
 			mutate: func(request *cns.CreateNetworkContainerRequest) {
-				request.IPConfiguration.DNSServers = []string{"bad"}
+				request.IPConfiguration.DNSServers = []string{hardeningBadValue}
 			},
 		},
 		{
 			name: "invalid gateway",
 			mutate: func(request *cns.CreateNetworkContainerRequest) {
-				request.IPConfiguration.GatewayIPAddress = "bad"
+				request.IPConfiguration.GatewayIPAddress = hardeningBadValue
 			},
 		},
 		{
@@ -300,7 +329,7 @@ func TestLegacyNetworkValidationRejectsMalformedFields(t *testing.T) {
 		{
 			name: "invalid subnet address",
 			mutate: func(request *cns.CreateNetworkContainerRequest) {
-				request.IPConfiguration.IPSubnet.IPAddress = "bad"
+				request.IPConfiguration.IPSubnet.IPAddress = hardeningBadValue
 			},
 		},
 		{
@@ -312,19 +341,19 @@ func TestLegacyNetworkValidationRejectsMalformedFields(t *testing.T) {
 		{
 			name: "invalid route destination",
 			mutate: func(request *cns.CreateNetworkContainerRequest) {
-				request.Routes = []cns.Route{{IPAddress: "bad"}}
+				request.Routes = []cns.Route{{IPAddress: hardeningBadValue}}
 			},
 		},
 		{
 			name: "invalid route gateway",
 			mutate: func(request *cns.CreateNetworkContainerRequest) {
-				request.Routes = []cns.Route{{GatewayIPAddress: "bad"}}
+				request.Routes = []cns.Route{{GatewayIPAddress: hardeningBadValue}}
 			},
 		},
 		{
-			name: "invalid MAC",
+			name: hardeningInvalidMACCase,
 			mutate: func(request *cns.CreateNetworkContainerRequest) {
-				request.NetworkInterfaceInfo.MACAddress = "bad"
+				request.NetworkInterfaceInfo.MACAddress = hardeningBadValue
 			},
 		},
 	}
@@ -339,8 +368,13 @@ func TestLegacyNetworkValidationRejectsMalformedFields(t *testing.T) {
 
 func TestTransactionInputErrorsPreserveState(t *testing.T) {
 	db, _ := openTestDB(t)
-	validEndpoint := testEndpoint("pod", "namespace", "10.0.0.4", "")
-	validAssignment := testAssignment("container", "pod", "namespace", "ip")
+	validEndpoint := coverageEndpoint(importOrchestratorContextKey, hardeningNamespace, exportIPv4Address, "")
+	validAssignment := coverageAssignment(
+		hardeningContainerID,
+		importOrchestratorContextKey,
+		hardeningNamespace,
+		"ip",
+	)
 	tests := []struct {
 		name string
 		run  func(*WriteTx) error
@@ -350,7 +384,7 @@ func TestTransactionInputErrorsPreserveState(t *testing.T) {
 		}},
 		{name: "network container request mismatch", run: func(tx *WriteTx) error {
 			record := testNetworkContainer("nc")
-			record.Request.NetworkContainerid = "other"
+			record.Request.NetworkContainerid = testMismatchValue
 			return tx.PutNetworkContainer(record)
 		}},
 		{name: "IP empty ID", run: func(tx *WriteTx) error { return tx.PutIP(IPRecord{}) }},
@@ -358,14 +392,18 @@ func TestTransactionInputErrorsPreserveState(t *testing.T) {
 		{name: "context empty ID", run: func(tx *WriteTx) error {
 			return tx.PutOrchestratorContext("", nil)
 		}},
-		{name: "PnP invalid MAC", run: func(tx *WriteTx) error { return tx.PutPnPID("bad", "pnp") }},
+		{name: "PnP invalid MAC", run: func(tx *WriteTx) error {
+			return tx.PutPnPID(hardeningBadValue, hardeningPnPID)
+		}},
 		{name: "PnP empty ID", run: func(tx *WriteTx) error {
-			return tx.PutPnPID("00:11:22:33:44:55", "")
+			return tx.PutPnPID(testMACAddress, "")
 		}},
 		{name: "assignment malformed", run: func(tx *WriteTx) error {
 			return tx.PutAssignment(AssignmentRecord{})
 		}},
-		{name: "owner empty IP", run: func(tx *WriteTx) error { return tx.PutIPOwner("", "pod") }},
+		{name: "owner empty IP", run: func(tx *WriteTx) error {
+			return tx.PutIPOwner("", importOrchestratorContextKey)
+		}},
 		{name: "owner empty pod", run: func(tx *WriteTx) error { return tx.PutIPOwner("ip", "") }},
 		{name: "endpoint empty container", run: func(tx *WriteTx) error {
 			return tx.PutEndpoint("", validEndpoint)
@@ -374,7 +412,7 @@ func TestTransactionInputErrorsPreserveState(t *testing.T) {
 			return tx.PutDeleteIntent("", DeleteIntent{CreatedAt: testNow})
 		}},
 		{name: "delete intent zero timestamp", run: func(tx *WriteTx) error {
-			return tx.PutDeleteIntent("container", DeleteIntent{})
+			return tx.PutDeleteIntent(hardeningContainerID, DeleteIntent{})
 		}},
 		{name: "delete empty durable ID", run: func(tx *WriteTx) error {
 			return tx.DeleteNetworkContainer("")
@@ -436,7 +474,7 @@ func TestTransactionCorruptionFaultsAreCategorized(t *testing.T) {
 			name:       "delete missing bucket",
 			bucketName: bucketAssignments,
 			run: func(tx *bolt.Tx) error {
-				return deleteJSONValue(tx, bucketAssignments, "pod")
+				return deleteJSONValue(tx, bucketAssignments, importOrchestratorContextKey)
 			},
 		},
 		{
@@ -507,7 +545,7 @@ func TestValidationHelpersPreserveErrorCategories(t *testing.T) {
 
 	require.NoError(t, validateOptionalAddress(""))
 	require.NoError(t, validateOptionalAddress("10.0.0.1"))
-	require.Error(t, validateOptionalAddress("bad"))
+	require.Error(t, validateOptionalAddress(hardeningBadValue))
 	require.NoError(t, validateOptionalIPValue("10.0.0.0/24"))
 
 	_, err := endpointsEqual(
@@ -516,12 +554,12 @@ func TestValidationHelpersPreserveErrorCategories(t *testing.T) {
 	)
 	require.ErrorIs(t, err, ErrInvalidInput)
 	_, err = endpointsEqual(
-		testEndpoint("pod", "namespace", "10.0.0.4", ""),
+		coverageEndpoint(importOrchestratorContextKey, hardeningNamespace, exportIPv4Address, ""),
 		EndpointRecord{},
 	)
 	require.ErrorIs(t, err, ErrInvalidInput)
-	require.True(t, errors.Is(invalidInput("detail", errAbort), ErrInvalidInput))
-	require.True(t, errors.Is(corrupt("detail", errAbort), ErrCorrupt))
+	require.ErrorIs(t, invalidInput("detail", errAbort), ErrInvalidInput)
+	require.ErrorIs(t, corrupt("detail", errAbort), ErrCorrupt)
 }
 
 func TestReleaseIdentityRejectsConflictingOwnership(t *testing.T) {
@@ -534,37 +572,37 @@ func TestReleaseIdentityRejectsConflictingOwnership(t *testing.T) {
 		{
 			name: "retained endpoint pod mismatch",
 			pod: PodIdentity{
-				PodKey:           "iface-primary",
+				PodKey:           testIfacePrimary,
 				InfraContainerID: "container-1",
-				InterfaceID:      "iface-primary",
-				PodName:          "other",
-				PodNamespace:     "ns-1",
+				InterfaceID:      testIfacePrimary,
+				PodName:          testMismatchValue,
+				PodNamespace:     exportPodNamespace,
 			},
 		},
 		{
 			name: "assignment infra container mismatch",
 			pod: PodIdentity{
-				PodKey:           "iface-primary",
-				InfraContainerID: "other-container",
-				InterfaceID:      "iface-primary",
+				PodKey:           testIfacePrimary,
+				InfraContainerID: hardeningOtherContainerID,
+				InterfaceID:      testIfacePrimary,
 				PodName:          "pod-1",
-				PodNamespace:     "ns-1",
+				PodNamespace:     exportPodNamespace,
 			},
 		},
 		{
 			name: "container assignment pod mismatch",
 			mutate: func(value *Snapshot) {
 				delete(value.Endpoints, "container-1")
-				record := value.Assignments["iface-primary"]
-				record.Pod.PodName = "other"
-				value.Assignments["iface-primary"] = record
+				record := value.Assignments[testIfacePrimary]
+				record.Pod.PodName = testMismatchValue
+				value.Assignments[testIfacePrimary] = record
 			},
 			pod: PodIdentity{
 				PodKey:           "unknown-interface",
 				InfraContainerID: "container-1",
 				InterfaceID:      "unknown-interface",
 				PodName:          "pod-1",
-				PodNamespace:     "ns-1",
+				PodNamespace:     exportPodNamespace,
 			},
 		},
 	}
@@ -623,18 +661,18 @@ func TestSnapshotValidationAdditionalErrorPaths(t *testing.T) {
 		{
 			name: "assignment record has empty pod key",
 			mutate: func(snapshot *Snapshot) {
-				record := snapshot.Assignments["iface-primary"]
+				record := snapshot.Assignments[testIfacePrimary]
 				record.Pod.PodKey = ""
-				snapshot.Assignments["iface-primary"] = record
+				snapshot.Assignments[testIfacePrimary] = record
 			},
 			want: ErrInconsistentState,
 		},
 		{
 			name: "assignment contains empty IP",
 			mutate: func(snapshot *Snapshot) {
-				record := snapshot.Assignments["iface-primary"]
+				record := snapshot.Assignments[testIfacePrimary]
 				record.IPIDs = []string{""}
-				snapshot.Assignments["iface-primary"] = record
+				snapshot.Assignments[testIfacePrimary] = record
 			},
 			want: ErrInconsistentState,
 		},
@@ -658,9 +696,9 @@ func TestSnapshotValidationAdditionalErrorPaths(t *testing.T) {
 		expectedBits int
 	}{
 		{name: "invalid IP", value: net.IPNet{IP: net.IP{1, 2}, Mask: net.CIDRMask(24, 32)}, expectedBits: 32},
-		{name: "wrong mask size", value: mustIPNetValue("10.0.0.4", 24), expectedBits: 128},
+		{name: "wrong mask size", value: mustIPNetValue(exportIPv4Address, 24), expectedBits: 128},
 		{name: "IPv6 in IPv4", value: mustIPNetValue("fd00::4", 64), expectedBits: 32},
-		{name: "IPv4 in IPv6", value: mustIPNetValue("10.0.0.4", 24), expectedBits: 128},
+		{name: "IPv4 in IPv6", value: mustIPNetValue(exportIPv4Address, 24), expectedBits: 128},
 	}
 	for _, tt := range ipNetTests {
 		t.Run("IPNet/"+tt.name, func(t *testing.T) {
@@ -697,7 +735,7 @@ func TestDurableOperationAdditionalInputErrors(t *testing.T) {
 				_, err := db.ApplyNetworkContainer(
 					context.Background(),
 					record,
-					[]IPRecord{{ID: "ip", NCID: "other"}},
+					[]IPRecord{{ID: "ip", NCID: testMismatchValue}},
 				)
 				return err
 			},
@@ -709,8 +747,8 @@ func TestDurableOperationAdditionalInputErrors(t *testing.T) {
 					context.Background(),
 					record,
 					[]IPRecord{
-						{ID: "ip", IPAddress: "10.0.0.4", NCID: "nc"},
-						{ID: "ip", IPAddress: "10.0.0.5", NCID: "nc"},
+						{ID: "ip", IPAddress: exportIPv4Address, NCID: "nc"},
+						{ID: "ip", IPAddress: exportSecondaryIPv4, NCID: "nc"},
 					},
 				)
 				return err
@@ -741,8 +779,13 @@ func TestDurableOperationAdditionalInputErrors(t *testing.T) {
 
 func TestOwnershipOperationAdditionalInputErrors(t *testing.T) {
 	db, _ := openTestDB(t)
-	validAssignment := testAssignment("container", "pod", "namespace", "ip")
-	validEndpoint := testEndpoint("pod", "namespace", "10.0.0.4", "")
+	validAssignment := coverageAssignment(
+		hardeningContainerID,
+		importOrchestratorContextKey,
+		hardeningNamespace,
+		"ip",
+	)
+	validEndpoint := coverageEndpoint(importOrchestratorContextKey, hardeningNamespace, exportIPv4Address, "")
 	tests := []struct {
 		name string
 		run  func() error
@@ -751,7 +794,7 @@ func TestOwnershipOperationAdditionalInputErrors(t *testing.T) {
 			name: "assignment and endpoint pod mismatch",
 			run: func() error {
 				endpoint := validEndpoint
-				endpoint.PodName = "other"
+				endpoint.PodName = testMismatchValue
 				_, err := db.AssignEndpoint(
 					context.Background(),
 					validAssignment,
@@ -832,7 +875,7 @@ func TestOwnershipOperationAdditionalInputErrors(t *testing.T) {
 			name: "patch pod mismatch",
 			run: func() error {
 				endpoint := validEndpoint
-				endpoint.PodNamespace = "other"
+				endpoint.PodNamespace = testMismatchValue
 				_, err := db.PatchEndpoint(
 					context.Background(),
 					validAssignment.Pod,
@@ -895,15 +938,15 @@ func TestAdditionalLegacyImportStructuralErrors(t *testing.T) {
 		{
 			name: "invalid PnP MAC",
 			mutate: func(source map[string]any) {
-				source["PnpIDByMacAddress"] = map[string]any{"bad": "pnp"}
+				source["PnpIDByMacAddress"] = map[string]any{hardeningBadValue: hardeningPnPID}
 			},
 		},
 		{
 			name: "duplicate canonical PnP MAC",
 			mutate: func(source map[string]any) {
 				source["PnpIDByMacAddress"] = map[string]any{
-					"00:11:22:33:44:55": "one",
-					"00-11-22-33-44-55": "two",
+					testMACAddress: "one",
+					importPnPMAC:   "two",
 				}
 			},
 		},
@@ -968,7 +1011,7 @@ func TestStrictDecoderErrorPaths(t *testing.T) {
 	}{
 		{name: "empty", data: nil},
 		{name: "null", data: []byte(" null ")},
-		{name: "multiple values", data: []byte(`{} {}`)},
+		{name: hardeningMultipleValues, data: []byte(`{} {}`)},
 		{name: "malformed trailing value", data: []byte(`{} {`)},
 	}
 	for _, tt := range tests {
@@ -995,17 +1038,56 @@ func TestMetadataMarkerHelpersRejectMissingBuckets(t *testing.T) {
 
 func TestEncodingRejectsUnsupportedNetworkOptions(t *testing.T) {
 	durable := NewDurableState()
-	durable.Networks["network"] = NetworkRecord{
-		NetworkName: "network",
-		Options:     map[string]any{"unsupported": make(chan struct{})},
+	durable.Networks[hardeningNetworkName] = NetworkRecord{
+		NetworkName: hardeningNetworkName,
+		Options:     map[string]any{hardeningUnsupportedOption: make(chan struct{})},
 	}
 	_, err := encodeDurableState(durable)
 	require.ErrorIs(t, err, ErrInvalidInput)
 
 	db, _ := openTestDB(t)
 	require.NoError(t, db.db.Update(func(tx *bolt.Tx) error {
-		err := putJSONValue(tx, bucketNetworks, "network", durable.Networks["network"])
+		err := putJSONValue(
+			tx,
+			bucketNetworks,
+			hardeningNetworkName,
+			durable.Networks[hardeningNetworkName],
+		)
 		require.ErrorIs(t, err, ErrInvalidInput)
 		return nil
 	}))
+}
+
+func coverageAssignment(
+	containerID,
+	podName,
+	podNamespace string,
+	ipIDs ...string,
+) AssignmentRecord {
+	return AssignmentRecord{
+		Pod: PodIdentity{
+			PodKey:           containerID,
+			InfraContainerID: containerID,
+			PodName:          podName,
+			PodNamespace:     podNamespace,
+		},
+		IPIDs: ipIDs,
+	}
+}
+
+func coverageEndpoint(podName, podNamespace, address, ncID string) EndpointRecord {
+	return EndpointRecord{
+		PodName:      podName,
+		PodNamespace: podNamespace,
+		IfnameToIPMap: map[string]*IPInfoRecord{
+			testEth0: {
+				IPv4: []net.IPNet{{
+					IP:   net.ParseIP(address),
+					Mask: net.CIDRMask(24, 32),
+				}},
+				MACAddress:         testMACAddress,
+				NetworkContainerID: ncID,
+			},
+		},
+	}
 }

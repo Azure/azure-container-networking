@@ -57,10 +57,10 @@ func runRandomizedMultiNCStateMachine(t *testing.T, seed int64) {
 	require.NoError(t, db.Update(context.Background(), func(tx *WriteTx) error {
 		return tx.PutMetadata(Metadata{
 			BootID:           "initial-boot",
-			OrchestratorType: "KubernetesCRD",
+			OrchestratorType: importOrchestratorType,
 			NodeID:           "node-state-machine",
-			Location:         "eastus",
-			NetworkType:      "azure",
+			Location:         hardeningLocation,
+			NetworkType:      exportNetworkType,
 			Initialized:      true,
 			TimeStamp:        now,
 		})
@@ -337,7 +337,7 @@ func assertStateMachineModel(t *testing.T, db *DB, model stateMachineModel) {
 					PodKey:           containerID,
 					InfraContainerID: containerID,
 					PodName:          stateMachinePodName(index),
-					PodNamespace:     "state-machine",
+					PodNamespace:     hardeningStateNamespace,
 				},
 				IPIDs: stateMachineIPIDs(index),
 			}}
@@ -370,7 +370,7 @@ func stateMachineAssignments(index int) []AssignmentRecord {
 				InfraContainerID: containerID,
 				InterfaceID:      fmt.Sprintf("interface-%d-primary", index),
 				PodName:          stateMachinePodName(index),
-				PodNamespace:     "state-machine",
+				PodNamespace:     hardeningStateNamespace,
 			},
 			IPIDs: []string{ids[0], ids[1]},
 		},
@@ -380,7 +380,7 @@ func stateMachineAssignments(index int) []AssignmentRecord {
 				InfraContainerID: containerID,
 				InterfaceID:      fmt.Sprintf("interface-%d-secondary", index),
 				PodName:          stateMachinePodName(index),
-				PodNamespace:     "state-machine",
+				PodNamespace:     hardeningStateNamespace,
 			},
 			IPIDs: []string{ids[2]},
 		},
@@ -391,16 +391,16 @@ func stateMachineEndpoint(index, patchVersion int) EndpointRecord {
 	records := stateMachineIPs(index, 1)
 	return EndpointRecord{
 		PodName:      stateMachinePodName(index),
-		PodNamespace: "state-machine",
+		PodNamespace: hardeningStateNamespace,
 		IfnameToIPMap: map[string]*IPInfoRecord{
-			"eth0": {
+			exportIfnameEth0: {
 				IPv4:               []net.IPNet{mustIPNetValue(records[0].IPAddress, 24)},
 				IPv6:               []net.IPNet{mustIPNetValue(records[1].IPAddress, 64)},
 				HostVethName:       fmt.Sprintf("veth-%d-%d", index, patchVersion),
 				MACAddress:         fmt.Sprintf("02:00:00:10:%02x:%02x", index, index+1),
 				NetworkContainerID: stateMachineNCID(index),
 			},
-			"net1": {
+			hardeningNet1: {
 				IPv4:               []net.IPNet{mustIPNetValue(records[2].IPAddress, 24)},
 				HostVethName:       fmt.Sprintf("net1-%d-%d", index, patchVersion),
 				MACAddress:         fmt.Sprintf("02:00:00:20:%02x:%02x", index, index+1),
@@ -586,10 +586,10 @@ func TestConcurrentConflictingOwnersHaveSingleWinner(t *testing.T) {
 	assignment, endpoint := seedOwnershipInventory(t, db)
 	other := assignment
 	other.Pod = PodIdentity{
-		PodKey:           "other-container",
-		InfraContainerID: "other-container",
-		PodName:          "other-pod",
-		PodNamespace:     "ns-1",
+		PodKey:           hardeningOtherContainerID,
+		InfraContainerID: hardeningOtherContainerID,
+		PodName:          hardeningOtherPodName,
+		PodNamespace:     exportPodNamespace,
 	}
 	otherEndpoint := endpoint
 	otherEndpoint.PodName = other.Pod.PodName

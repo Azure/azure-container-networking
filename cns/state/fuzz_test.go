@@ -40,7 +40,8 @@ func FuzzStrictLegacyCNSImport(f *testing.F) {
 			return
 		}
 		require.NoError(t, snapshot.Validate())
-		for id, record := range snapshot.NetworkContainers {
+		for id := range snapshot.NetworkContainers {
+			record := snapshot.NetworkContainers[id]
 			require.Empty(t, record.Request.AuthorizationToken, id)
 			require.Nil(t, record.Request.SecondaryIPConfigs, id)
 		}
@@ -75,7 +76,7 @@ func FuzzStrictLegacyEndpointImport(f *testing.F) {
 }
 
 func FuzzSnapshotValidationAndStrictRecordDecoding(f *testing.F) {
-	validSnapshot, err := json.Marshal(completeSnapshot())
+	validSnapshot, err := json.Marshal(completeSnapshot()) //nolint:musttag // snapshot includes legacy wire structs with default JSON field names
 	require.NoError(f, err)
 	validIP, err := json.Marshal(completeSnapshot().IPs["ip-v4"])
 	require.NoError(f, err)
@@ -140,10 +141,10 @@ func FuzzExportImportRoundTrip(f *testing.F) {
 		require.NoError(t, source.Update(context.Background(), func(tx *WriteTx) error {
 			return tx.PutMetadata(Metadata{
 				BootID:           "source-boot",
-				OrchestratorType: "KubernetesCRD",
+				OrchestratorType: importOrchestratorType,
 				NodeID:           "node-fuzz",
-				Location:         "eastus",
-				NetworkType:      "azure",
+				Location:         hardeningLocation,
+				NetworkType:      exportNetworkType,
 				Initialized:      true,
 				TimeStamp:        time.Date(2026, time.July, 24, 0, 0, 0, 0, time.UTC),
 			})
@@ -218,7 +219,7 @@ func TestStrictJSONRejectsTrailingAndDuplicateValues(t *testing.T) {
 	}{
 		{name: "empty", data: nil},
 		{name: "null", data: []byte("null")},
-		{name: "multiple values", data: []byte(`{} {}`)},
+		{name: hardeningMultipleValues, data: []byte(`{} {}`)},
 		{name: "case-insensitive duplicate", data: []byte(`{"id":"a","ID":"b"}`)},
 		{name: "nested duplicate", data: []byte(`{"outer":{"a":1,"A":2}}`)},
 		{name: "invalid closing delimiter", data: []byte(`{"outer":[1,2}`)},

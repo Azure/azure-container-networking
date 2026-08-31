@@ -264,23 +264,23 @@ func TestAssignEndpointRejectsIdentityConflicts(t *testing.T) {
 		{
 			name: "container already belongs to another pod",
 			changeRequest: func(assignment *AssignmentRecord, endpoint *EndpointRecord) {
-				assignment.Pod.PodName = "other-pod"
-				endpoint.PodName = "other-pod"
+				assignment.Pod.PodName = hardeningOtherPodName
+				endpoint.PodName = hardeningOtherPodName
 			},
 		},
 		{
 			name: "pod changes containers before release",
 			changeRequest: func(assignment *AssignmentRecord, _ *EndpointRecord) {
-				assignment.Pod.PodKey = "container-2"
-				assignment.Pod.InfraContainerID = "container-2"
+				assignment.Pod.PodKey = hardeningContainerID2
+				assignment.Pod.InfraContainerID = hardeningContainerID2
 			},
 		},
 		{
 			name:        "pod changes containers while endpoint retained",
 			retainFirst: true,
 			changeRequest: func(assignment *AssignmentRecord, _ *EndpointRecord) {
-				assignment.Pod.PodKey = "container-2"
-				assignment.Pod.InfraContainerID = "container-2"
+				assignment.Pod.PodKey = hardeningContainerID2
+				assignment.Pod.InfraContainerID = hardeningContainerID2
 			},
 		},
 	}
@@ -339,7 +339,7 @@ func TestConcurrentDuplicateOwnership(t *testing.T) {
 			endpoint:   testEndpoint("pod-1", testIPv4Address),
 		},
 		{
-			assignment: testAssignment("container-2", "pod-2", testIPID1),
+			assignment: testAssignment(hardeningContainerID2, "pod-2", testIPID1),
 			endpoint:   testEndpoint("pod-2", testIPv4Address),
 		},
 	}
@@ -482,7 +482,7 @@ func TestAssignRequiresRetainedEndpointCleanupBeforeContainerChange(t *testing.T
 
 	_, err = db.AssignEndpoint(
 		context.Background(),
-		testAssignment("container-2", "pod-1", testIPID2),
+		testAssignment(hardeningContainerID2, "pod-1", testIPID2),
 		testEndpoint("pod-1", testIPv4Address2),
 		testNow.Add(testDeleteIntentTTL),
 		testDeleteIntentTTL,

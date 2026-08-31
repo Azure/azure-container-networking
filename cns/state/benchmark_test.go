@@ -82,7 +82,7 @@ func BenchmarkAssignReleaseTransaction(b *testing.B) {
 				PodName:      assignment.Pod.PodName,
 				PodNamespace: assignment.Pod.PodNamespace,
 				IfnameToIPMap: map[string]*IPInfoRecord{
-					"eth0": {
+					exportIfnameEth0: {
 						IPv4:               []net.IPNet{mustIPNetValue(ip.IPAddress, 24)},
 						NetworkContainerID: ip.NCID,
 					},
