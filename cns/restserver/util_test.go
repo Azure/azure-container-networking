@@ -37,7 +37,10 @@ type readCountingStore struct {
 
 func (s *readCountingStore) Read(key string, value interface{}) error {
 	s.reads++
-	return s.KeyValueStore.Read(key, value)
+	if err := s.KeyValueStore.Read(key, value); err != nil {
+		return fmt.Errorf("reading counted state: %w", err)
+	}
+	return nil
 }
 
 func TestAreNCsPresent(t *testing.T) {
@@ -232,7 +235,7 @@ func TestUnifiedInitSkipsJSONStateRestore(t *testing.T) {
 			Networks: make(map[string]*networkInfo),
 		},
 		EndpointState: map[string]*EndpointInfo{
-			"container-1": {PodName: "bolt-pod"},
+			adapterTestContainerID: {PodName: "bolt-pod"},
 		},
 		stateRestoreLogger: logs,
 	}
@@ -243,8 +246,8 @@ func TestUnifiedInitSkipsJSONStateRestore(t *testing.T) {
 	}))
 	require.NotNil(t, svc.Listener)
 	assert.Zero(t, mainStore.reads)
-	require.Contains(t, svc.EndpointState, "container-1")
-	assert.Equal(t, "bolt-pod", svc.EndpointState["container-1"].PodName)
+	require.Contains(t, svc.EndpointState, adapterTestContainerID)
+	assert.Equal(t, "bolt-pod", svc.EndpointState[adapterTestContainerID].PodName)
 
 	info, failures := logs.messages()
 	assert.Equal(t, "persistent state JSON restore skipped", info)

@@ -8,6 +8,11 @@ import (
 	"fmt"
 )
 
+var (
+	errUnsupportedEndpointStateProvider = errors.New("unsupported endpoint state provider")
+	errNilEndpointStateStartupFactory   = errors.New("endpoint state startup factory is nil")
+)
+
 type endpointStateProvider string
 
 const (
@@ -35,10 +40,10 @@ func newEndpointStateStartup(
 	case endpointStateProviderUnified:
 		factory = unifiedFactory
 	default:
-		return nil, fmt.Errorf("unsupported endpoint state provider %q", provider)
+		return nil, fmt.Errorf("%w: %q", errUnsupportedEndpointStateProvider, provider)
 	}
 	if factory == nil {
-		return nil, errors.New("endpoint state startup factory is nil")
+		return nil, errNilEndpointStateStartupFactory
 	}
 	return factory()
 }

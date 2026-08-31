@@ -11,6 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	errUnifiedDatabaseOpened = errors.New("unified database opener called")
+	errUnifiedRestore        = errors.New("unified restore failed")
+)
+
 func TestEndpointStateProviderSelection(t *testing.T) {
 	assert.True(t, productionEndpointStateProvider.restoresStateFromJSON())
 
@@ -26,7 +31,7 @@ func TestEndpointStateProviderSelection(t *testing.T) {
 			},
 			func() (*persistentStateStartup, error) {
 				unifiedCalls++
-				return nil, errors.New("unified database opener called")
+				return nil, errUnifiedDatabaseOpened
 			},
 		)
 		require.NoError(t, err)
@@ -56,7 +61,6 @@ func TestEndpointStateProviderSelection(t *testing.T) {
 	})
 
 	t.Run("unified failure does not fall back", func(t *testing.T) {
-		unifiedErr := errors.New("unified restore failed")
 		jsonCalls := 0
 		startup, err := newEndpointStateStartup(
 			endpointStateProviderUnified,
@@ -65,10 +69,10 @@ func TestEndpointStateProviderSelection(t *testing.T) {
 				return &persistentStateStartup{}, nil
 			},
 			func() (*persistentStateStartup, error) {
-				return nil, unifiedErr
+				return nil, errUnifiedRestore
 			},
 		)
-		require.ErrorIs(t, err, unifiedErr)
+		require.ErrorIs(t, err, errUnifiedRestore)
 		assert.Nil(t, startup)
 		assert.Zero(t, jsonCalls)
 	})

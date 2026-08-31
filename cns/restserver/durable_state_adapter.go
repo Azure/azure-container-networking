@@ -20,24 +20,32 @@ import (
 )
 
 var (
-	errNilDurableStateDB           = errors.New("durable state database is nil")
-	errNilDurableRestService       = errors.New("rest service is nil")
-	errNilDurableRestServiceState  = errors.New("rest service state is nil")
-	errNilDurableSnapshotOperation = errors.New("durable state snapshot operation is nil")
-	errNilDurableReplaceOperation  = errors.New("durable state replace operation is nil")
-	errNilDurableMetadataOperation = errors.New("durable state metadata operation is nil")
-	errNilDurableStatusOperation   = errors.New("durable state status operation is nil")
-	errNilDurableCloseOperation    = errors.New("durable state close operation is nil")
-	errDurableStateNotProjected    = errors.New("durable state has not been projected")
-	errUnexpectedDurableBackend    = errors.New("unexpected durable state backend")
-	errUnexpectedDurableAuthority  = errors.New("unexpected durable state authority")
-	errUnexpectedDurableSchema     = errors.New("unexpected durable state schema version")
-	errDurableInvariantFailed      = errors.New("durable state invariant failed")
-	errInvalidProjectionSchema     = errors.New("durable state projection schema version is invalid")
-	errInvalidProjectionAuthority  = errors.New("durable state projection authority is invalid")
-	errMissingProjectedNC          = errors.New("missing projected network container")
-	errEmptyProjectedNCHostVersion = errors.New("projected network container host version is empty")
-	errProjectedNCIDContainsComma  = errors.New("projected network container ID contains a comma")
+	errNilDurableStateDB            = errors.New("durable state database is nil")
+	errNilDurableRestService        = errors.New("rest service is nil")
+	errNilDurableRestServiceState   = errors.New("rest service state is nil")
+	errNilDurableSnapshotOperation  = errors.New("durable state snapshot operation is nil")
+	errNilDurableReplaceOperation   = errors.New("durable state replace operation is nil")
+	errNilDurableMetadataOperation  = errors.New("durable state metadata operation is nil")
+	errNilDurableStatusOperation    = errors.New("durable state status operation is nil")
+	errNilDurableCloseOperation     = errors.New("durable state close operation is nil")
+	errDurableStateNotProjected     = errors.New("durable state has not been projected")
+	errUnexpectedDurableBackend     = errors.New("unexpected durable state backend")
+	errUnexpectedDurableAuthority   = errors.New("unexpected durable state authority")
+	errUnexpectedDurableSchema      = errors.New("unexpected durable state schema version")
+	errDurableInvariantFailed       = errors.New("durable state invariant failed")
+	errInvalidProjectionSchema      = errors.New("durable state projection schema version is invalid")
+	errInvalidProjectionAuthority   = errors.New("durable state projection authority is invalid")
+	errMissingProjectedNC           = errors.New("missing projected network container")
+	errEmptyProjectedNCHostVersion  = errors.New("projected network container host version is empty")
+	errProjectedNCIDContainsComma   = errors.New("projected network container ID contains a comma")
+	errProjectedAssignmentKey       = errors.New("projected assignment key does not match pod key")
+	errMissingProjectedEndpoint     = errors.New("missing projected endpoint")
+	errMissingProjectedIP           = errors.New("missing projected IP")
+	errMissingProjectedOwner        = errors.New("missing projected IP owner")
+	errMismatchedProjectedOwner     = errors.New("projected IP owner does not match assignment")
+	errMissingProjectedAssignment   = errors.New("missing projected assignment")
+	errProjectedAssignmentMissingIP = errors.New("projected assignment does not contain owned IP")
+	errNilProjectedInterface        = errors.New("projected endpoint interface is nil")
 )
 
 type durableStateOperations struct {
@@ -652,7 +660,8 @@ func buildDurableCacheProjection(snapshot state.Snapshot) (durableCacheProjectio
 	for podKey, assignment := range snapshot.Assignments {
 		if assignment.Pod.PodKey != podKey {
 			return durableCacheProjection{}, fmt.Errorf(
-				"assignment key %q does not match projected pod key %q",
+				"%w: assignment=%q pod=%q",
+				errProjectedAssignmentKey,
 				podKey,
 				assignment.Pod.PodKey,
 			)
@@ -660,7 +669,8 @@ func buildDurableCacheProjection(snapshot state.Snapshot) (durableCacheProjectio
 		endpoint, ok := snapshot.Endpoints[assignment.Pod.InfraContainerID]
 		if !ok {
 			return durableCacheProjection{}, fmt.Errorf(
-				"assignment %q references missing projected endpoint %q",
+				"%w: assignment=%q endpoint=%q",
+				errMissingProjectedEndpoint,
 				podKey,
 				assignment.Pod.InfraContainerID,
 			)
@@ -671,7 +681,8 @@ func buildDurableCacheProjection(snapshot state.Snapshot) (durableCacheProjectio
 			ipStatus, ok := projection.ipConfigState[ipID]
 			if !ok {
 				return durableCacheProjection{}, fmt.Errorf(
-					"assignment %q references missing projected IP %q",
+					"%w: assignment=%q ip=%q",
+					errMissingProjectedIP,
 					podKey,
 					ipID,
 				)
@@ -679,14 +690,16 @@ func buildDurableCacheProjection(snapshot state.Snapshot) (durableCacheProjectio
 			owner, ok := snapshot.IPOwners[ipID]
 			if !ok {
 				return durableCacheProjection{}, fmt.Errorf(
-					"assignment %q IP %q has no projected owner",
+					"%w: assignment=%q ip=%q",
+					errMissingProjectedOwner,
 					podKey,
 					ipID,
 				)
 			}
 			if owner != podKey {
 				return durableCacheProjection{}, fmt.Errorf(
-					"assignment %q IP %q is owned by %q",
+					"%w: assignment=%q ip=%q owner=%q",
+					errMismatchedProjectedOwner,
 					podKey,
 					ipID,
 					owner,
@@ -703,20 +716,23 @@ func buildDurableCacheProjection(snapshot state.Snapshot) (durableCacheProjectio
 		assignment, ok := snapshot.Assignments[owner]
 		if !ok {
 			return durableCacheProjection{}, fmt.Errorf(
-				"IP %q references missing projected assignment %q",
+				"%w: ip=%q assignment=%q",
+				errMissingProjectedAssignment,
 				ipID,
 				owner,
 			)
 		}
 		if !containsString(assignment.IPIDs, ipID) {
 			return durableCacheProjection{}, fmt.Errorf(
-				"IP %q owner %q does not contain the IP",
+				"%w: ip=%q assignment=%q",
+				errProjectedAssignmentMissingIP,
 				ipID,
 				owner,
 			)
 		}
 	}
-	for ipID, ipStatus := range projection.ipConfigState {
+	for ipID := range projection.ipConfigState {
+		ipStatus := projection.ipConfigState[ipID]
 		durableStatus := cns.IPConfigurationStatus{
 			ID:        ipStatus.ID,
 			IPAddress: ipStatus.IPAddress,
@@ -773,10 +789,14 @@ func (p *projectedPodInfo) Namespace() string {
 }
 
 func (p *projectedPodInfo) OrchestratorContext() (json.RawMessage, error) {
-	return json.Marshal(cns.KubernetesPodInfo{
+	data, err := json.Marshal(cns.KubernetesPodInfo{
 		PodName:      p.name,
 		PodNamespace: p.namespace,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("encoding projected pod orchestrator context: %w", err)
+	}
+	return data, nil
 }
 
 func (p *projectedPodInfo) MarshalJSON() ([]byte, error) {
@@ -784,12 +804,12 @@ func (p *projectedPodInfo) MarshalJSON() ([]byte, error) {
 	if p.interfaceID != "" {
 		version = cns.InterfaceIDPodInfoScheme
 	}
-	return json.Marshal(struct {
+	data, err := json.Marshal(struct {
 		cns.KubernetesPodInfo
-		PodInfraContainerID   string
-		PodInterfaceID        string
-		Version               any
-		SecondaryInterfaceSet bool
+		PodInfraContainerID   string `json:"PodInfraContainerID"`
+		PodInterfaceID        string `json:"PodInterfaceID"`
+		Version               any    `json:"Version"`
+		SecondaryInterfaceSet bool   `json:"SecondaryInterfaceSet"`
 	}{
 		KubernetesPodInfo: cns.KubernetesPodInfo{
 			PodName:      p.name,
@@ -800,6 +820,10 @@ func (p *projectedPodInfo) MarshalJSON() ([]byte, error) {
 		Version:               version,
 		SecondaryInterfaceSet: p.secondary,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("encoding projected pod info: %w", err)
+	}
+	return data, nil
 }
 
 func (p *projectedPodInfo) Equals(other cns.PodInfo) bool {
@@ -829,7 +853,7 @@ func projectEndpoint(record state.EndpointRecord) (*EndpointInfo, error) {
 	}
 	for ifname, infoRecord := range record.IfnameToIPMap {
 		if infoRecord == nil {
-			return nil, fmt.Errorf("interface %q is nil", ifname)
+			return nil, fmt.Errorf("%w: %q", errNilProjectedInterface, ifname)
 		}
 		endpoint.IfnameToIPMap[ifname] = &IPInfo{
 			IPv4:               cloneIPNets(infoRecord.IPv4),
