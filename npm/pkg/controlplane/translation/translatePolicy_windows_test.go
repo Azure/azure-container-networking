@@ -172,3 +172,23 @@ func TestNPMLiteWindowsNonIPv4ExceptFailsClosed(t *testing.T) {
 	_, err := TranslatePolicy(networkPolicy, true)
 	require.ErrorIs(t, err, ErrUnsupportedIPAddress)
 }
+
+func TestNPMLiteWindowsNonIPv4CIDRFailsClosed(t *testing.T) {
+	networkPolicy := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "victim-bad-cidr", Namespace: victimName},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{MatchLabels: map[string]string{appLabelKey: victimName}},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{{
+				From: []networkingv1.NetworkPolicyPeer{{
+					IPBlock: &networkingv1.IPBlock{
+						CIDR: "fd00::/64",
+					},
+				}},
+			}},
+		},
+	}
+
+	_, err := TranslatePolicy(networkPolicy, true)
+	require.ErrorIs(t, err, ErrUnsupportedIPAddress)
+}
