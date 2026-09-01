@@ -98,7 +98,7 @@ stages:
       vmSize: ${VM_SIZE}
       arch: amd64
       cni: cniv2
-      region: $(LOCATION_AMD64)
+      region: $(LOCATION)
       networkType: azure-cni-overlay
       installFlag: INSTALL_AZURE_CNI_OVERLAY
 
@@ -111,7 +111,7 @@ stages:
       vmSize: ${VM_SIZE_CILIUM}
       arch: amd64
       cni: cilium
-      region: $(LOCATION_AMD64)
+      region: $(LOCATION)
       networkType: cilium-overlay
       installFlag: INSTALL_OVERLAY
 
@@ -125,7 +125,7 @@ stages:
       vmSize: ${VM_SIZE}
       arch: amd64
       cni: dualstack
-      region: $(LOCATION_AMD64)
+      region: $(REGION_AKS_CLUSTER_TEST)
       networkType: azure-cni-dualstack-overlay
       installFlag: INSTALL_DUALSTACK_OVERLAY
 
@@ -138,7 +138,7 @@ stages:
       vmSize: ${VM_SIZE_CILIUM}
       arch: amd64
       cni: cilium_dualstack
-      region: $(LOCATION_AMD64)
+      region: $(REGION_AKS_CLUSTER_TEST)
       networkType: cilium-dualstack
       installFlag: INSTALL_OVERLAY
       ciliumConnectivitySkipTests: '!pod-to-pod-encryption,!node-to-node-encryption,!check-log-errors,!no-unexpected-packet-drops,!to-fqdns,!egress-to-specific-namespace-ccnp,!ingress-from-specific-namespace-ccnp,!client-egress-to-cidrgroup-deny,!client-egress-to-cidrgroup-deny-by-label,!host-firewall-egress,!host-firewall-ingress,!host-firewall-egress-to-fqdns'
