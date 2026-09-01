@@ -3,11 +3,16 @@ parameters:
 
 steps:
   - script: |
-      if ! cilium connectivity test --connect-timeout 4s --request-timeout 30s --test ${{ parameters.skipTests }} --force-deploy
+      CONCURRENCY_FLAG=""
+      if [[ "$(SUPPORTS_TEST_CONCURRENCY)" == "true" ]]; then
+        CONCURRENCY_FLAG="--test-concurrency 5"
+      fi
+
+      if ! cilium connectivity test --connect-timeout 4s --request-timeout 30s --test ${{ parameters.skipTests }} --force-deploy ${CONCURRENCY_FLAG}
       then
         echo "--- Connectivity Tests failed! ---"
         echo "--- Running Connectivity Tests with --debug ---"
-        cilium connectivity test --debug --connect-timeout 4s --request-timeout 30s --test ${{ parameters.skipTests }} --force-deploy
+        cilium connectivity test --debug --connect-timeout 4s --request-timeout 30s --test ${{ parameters.skipTests }} --force-deploy ${CONCURRENCY_FLAG}
       fi
     name: "CiliumConnectivityTests"
     displayName: "Run Cilium Connectivity Tests"
