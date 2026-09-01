@@ -193,13 +193,19 @@ jobs:
         displayName: "Publish analysis summary"
         condition: succeededOrFailed()
 
-      - task: 1ES.PublishPipelineArtifact@1
-        displayName: "Publish analysis artifact"
-        condition: succeededOrFailed()
-        inputs:
-          targetPath: $(Build.ArtifactStagingDirectory)/out
-          artifactName: pipelineFailureAnalysis_${{ parameters.scope }}
-          sbomEnabled: false
+      - ${{ if eq(variables['USE_1ES_PUBLISH_TASK'], 'true') }}:
+        - task: 1ES.PublishPipelineArtifact@1
+          displayName: "Publish analysis artifact"
+          condition: succeededOrFailed()
+          inputs:
+            targetPath: $(Build.ArtifactStagingDirectory)/out
+            artifactName: pipelineFailureAnalysis_${{ parameters.scope }}
+            sbomEnabled: false
+      - ${{ else }}:
+        - publish: $(Build.ArtifactStagingDirectory)/out
+          artifact: pipelineFailureAnalysis_${{ parameters.scope }}
+          displayName: "Publish analysis artifact"
+          condition: succeededOrFailed()
 
       # Post a Teams ping via the shared ACN Notifier bot when the diagnosis is
       # confident and actionable (analyzed + confidence >= 0.51 + a proposed

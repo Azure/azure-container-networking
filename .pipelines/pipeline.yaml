@@ -66,6 +66,10 @@ resources:
       name: 1ESPipelineTemplates/1ESPipelineTemplates
       ref: refs/tags/release
 
+# Shared templates default to Azure Pipelines publishing for non-1ES callers.
+variables:
+  USE_1ES_PUBLISH_TASK: "true"
+
 # Extend a governed 1ES Pipeline Template so the downstream release pipeline can
 # verify which template produced this build's artifacts. This pipeline is marked
 # Production in the 1ES Product Catalog because the release pipeline ships its
