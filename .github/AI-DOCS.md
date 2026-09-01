@@ -19,6 +19,8 @@ This repo uses a **skills-based approach** to AI instructions, following the
 ├── copilot-instructions.md          ← Minimal global config (points to skills)
 ├── AI-DOCS.md                       ← This file (human reference)
 ├── skills/
+│   ├── acn-backport/                ← Deterministic release backport procedure
+│   │   └── SKILL.md
 │   ├── acn-go-version-bump/         ← Go version upgrade procedure + FIPS rules
 │   │   └── SKILL.md
 │   ├── acn-go-errors-logging/       ← Error/logging discipline

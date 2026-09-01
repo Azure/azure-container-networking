@@ -15,6 +15,7 @@ For task-specific guidance, use the appropriate skill:
 
 | Skill | When to use |
 |-------|-------------|
+| `acn-backport` | Backporting merged changes from master to release branches |
 | `acn-go-version-bump` | Go version upgrades, FIPS/systemcrypto config, Dockerfile template updates, CVE patches |
 | `acn-go-errors-logging` | Error string formatting, zap logging discipline |
 | `acn-go-context-lifecycle` | Context propagation and lifecycle management |
