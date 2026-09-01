@@ -19,6 +19,11 @@ const (
 	nonIncluded  bool   = false
 	namedPortStr string = "serve-tcp"
 	defaultNS    string = "default"
+
+	victimName       string = "victim"
+	appLabelKey      string = "app"
+	enclosingCIDR    string = "10.244.1.0/24"
+	exceptedHostBits string = "10.244.1.106/32"
 )
 
 var namedPortPolicyKey = fmt.Sprintf("%s/%s", defaultNS, namedPortStr)

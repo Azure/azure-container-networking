@@ -21,15 +21,15 @@ import (
 
 func TestNPMLiteWindowsIngressExceptEmitsHigherPriorityDrop(t *testing.T) {
 	networkPolicy := &networkingv1.NetworkPolicy{
-		ObjectMeta: metav1.ObjectMeta{Name: "victim-ingress", Namespace: "victim"},
+		ObjectMeta: metav1.ObjectMeta{Name: "victim-ingress", Namespace: victimName},
 		Spec: networkingv1.NetworkPolicySpec{
-			PodSelector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "victim"}},
+			PodSelector: metav1.LabelSelector{MatchLabels: map[string]string{appLabelKey: victimName}},
 			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
 			Ingress: []networkingv1.NetworkPolicyIngressRule{{
 				From: []networkingv1.NetworkPolicyPeer{{
 					IPBlock: &networkingv1.IPBlock{
-						CIDR:   "10.244.1.0/24",
-						Except: []string{"10.244.1.106/32"},
+						CIDR:   enclosingCIDR,
+						Except: []string{exceptedHostBits},
 					},
 				}},
 			}},
@@ -42,12 +42,12 @@ func TestNPMLiteWindowsIngressExceptEmitsHigherPriorityDrop(t *testing.T) {
 
 	allow := translated.ACLs[0]
 	require.Equal(t, policies.Allowed, allow.Target)
-	require.Equal(t, []string{"10.244.1.0/24"}, allow.SrcDirectIPs)
+	require.Equal(t, []string{enclosingCIDR}, allow.SrcDirectIPs)
 	require.Zero(t, allow.Priority)
 
 	drop := translated.ACLs[1]
 	require.Equal(t, policies.Dropped, drop.Target)
-	require.Equal(t, []string{"10.244.1.106/32"}, drop.SrcDirectIPs)
+	require.Equal(t, []string{exceptedHostBits}, drop.SrcDirectIPs)
 	require.Equal(t, policies.ExceptBlockPriority, drop.Priority)
 	// the excepted-drop must out-prioritize the enclosing-CIDR allow (lower number wins on HNS)
 	require.Less(t, drop.Priority, uint16(222))
@@ -55,9 +55,9 @@ func TestNPMLiteWindowsIngressExceptEmitsHigherPriorityDrop(t *testing.T) {
 
 func TestNPMLiteWindowsEgressExceptEmitsHigherPriorityDrop(t *testing.T) {
 	networkPolicy := &networkingv1.NetworkPolicy{
-		ObjectMeta: metav1.ObjectMeta{Name: "victim-egress", Namespace: "victim"},
+		ObjectMeta: metav1.ObjectMeta{Name: "victim-egress", Namespace: victimName},
 		Spec: networkingv1.NetworkPolicySpec{
-			PodSelector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "victim"}},
+			PodSelector: metav1.LabelSelector{MatchLabels: map[string]string{appLabelKey: victimName}},
 			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeEgress},
 			Egress: []networkingv1.NetworkPolicyEgressRule{{
 				To: []networkingv1.NetworkPolicyPeer{{
@@ -88,9 +88,9 @@ func TestNPMLiteWindowsExceptWithPortMirrorsPortScope(t *testing.T) {
 	port := intstr.FromInt(8080)
 	tcp := v1.ProtocolTCP
 	networkPolicy := &networkingv1.NetworkPolicy{
-		ObjectMeta: metav1.ObjectMeta{Name: "victim-port", Namespace: "victim"},
+		ObjectMeta: metav1.ObjectMeta{Name: "victim-port", Namespace: victimName},
 		Spec: networkingv1.NetworkPolicySpec{
-			PodSelector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "victim"}},
+			PodSelector: metav1.LabelSelector{MatchLabels: map[string]string{appLabelKey: victimName}},
 			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
 			Ingress: []networkingv1.NetworkPolicyIngressRule{{
 				Ports: []networkingv1.NetworkPolicyPort{{
@@ -99,8 +99,8 @@ func TestNPMLiteWindowsExceptWithPortMirrorsPortScope(t *testing.T) {
 				}},
 				From: []networkingv1.NetworkPolicyPeer{{
 					IPBlock: &networkingv1.IPBlock{
-						CIDR:   "10.244.1.0/24",
-						Except: []string{"10.244.1.106/32"},
+						CIDR:   enclosingCIDR,
+						Except: []string{exceptedHostBits},
 					},
 				}},
 			}},
@@ -118,7 +118,7 @@ func TestNPMLiteWindowsExceptWithPortMirrorsPortScope(t *testing.T) {
 
 	drop := translated.ACLs[1]
 	require.Equal(t, policies.Dropped, drop.Target)
-	require.Equal(t, []string{"10.244.1.106/32"}, drop.SrcDirectIPs)
+	require.Equal(t, []string{exceptedHostBits}, drop.SrcDirectIPs)
 	require.Equal(t, int32(8080), drop.DstPorts.Port)
 	require.Equal(t, policies.Protocol("TCP"), drop.Protocol)
 	require.Equal(t, policies.ExceptBlockPriority, drop.Priority)
@@ -126,15 +126,15 @@ func TestNPMLiteWindowsExceptWithPortMirrorsPortScope(t *testing.T) {
 
 func TestNPMLiteWindowsMultipleExceptsDeduplicated(t *testing.T) {
 	networkPolicy := &networkingv1.NetworkPolicy{
-		ObjectMeta: metav1.ObjectMeta{Name: "victim-multi", Namespace: "victim"},
+		ObjectMeta: metav1.ObjectMeta{Name: "victim-multi", Namespace: victimName},
 		Spec: networkingv1.NetworkPolicySpec{
-			PodSelector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "victim"}},
+			PodSelector: metav1.LabelSelector{MatchLabels: map[string]string{appLabelKey: victimName}},
 			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
 			Ingress: []networkingv1.NetworkPolicyIngressRule{{
 				From: []networkingv1.NetworkPolicyPeer{{
 					IPBlock: &networkingv1.IPBlock{
-						CIDR:   "10.244.1.0/24",
-						Except: []string{"10.244.1.106/32", "10.244.1.106/32", "10.244.1.200/32"},
+						CIDR:   enclosingCIDR,
+						Except: []string{exceptedHostBits, exceptedHostBits, "10.244.1.200/32"},
 					},
 				}},
 			}},
@@ -147,21 +147,21 @@ func TestNPMLiteWindowsMultipleExceptsDeduplicated(t *testing.T) {
 	require.Len(t, translated.ACLs, 3)
 	require.Equal(t, policies.Allowed, translated.ACLs[0].Target)
 	require.Equal(t, policies.Dropped, translated.ACLs[1].Target)
-	require.Equal(t, []string{"10.244.1.106/32"}, translated.ACLs[1].SrcDirectIPs)
+	require.Equal(t, []string{exceptedHostBits}, translated.ACLs[1].SrcDirectIPs)
 	require.Equal(t, policies.Dropped, translated.ACLs[2].Target)
 	require.Equal(t, []string{"10.244.1.200/32"}, translated.ACLs[2].SrcDirectIPs)
 }
 
 func TestNPMLiteWindowsNonIPv4ExceptFailsClosed(t *testing.T) {
 	networkPolicy := &networkingv1.NetworkPolicy{
-		ObjectMeta: metav1.ObjectMeta{Name: "victim-bad", Namespace: "victim"},
+		ObjectMeta: metav1.ObjectMeta{Name: "victim-bad", Namespace: victimName},
 		Spec: networkingv1.NetworkPolicySpec{
-			PodSelector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "victim"}},
+			PodSelector: metav1.LabelSelector{MatchLabels: map[string]string{appLabelKey: victimName}},
 			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
 			Ingress: []networkingv1.NetworkPolicyIngressRule{{
 				From: []networkingv1.NetworkPolicyPeer{{
 					IPBlock: &networkingv1.IPBlock{
-						CIDR:   "10.244.1.0/24",
+						CIDR:   enclosingCIDR,
 						Except: []string{"fd00::/64"},
 					},
 				}},

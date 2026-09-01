@@ -13,11 +13,11 @@ func TestTranslatePolicyNPMLiteUsesIPSets(t *testing.T) {
 	networkPolicy := &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "allow-cidrs",
-			Namespace: "victim",
+			Namespace: victimName,
 		},
 		Spec: networkingv1.NetworkPolicySpec{
 			PodSelector: metav1.LabelSelector{
-				MatchLabels: map[string]string{"app": "victim"},
+				MatchLabels: map[string]string{appLabelKey: victimName},
 			},
 			PolicyTypes: []networkingv1.PolicyType{
 				networkingv1.PolicyTypeIngress,
@@ -58,16 +58,16 @@ func TestTranslatePolicyNPMLiteLinuxExceptUsesNomatch(t *testing.T) {
 	networkPolicy := &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "allow-cidr-except",
-			Namespace: "victim",
+			Namespace: victimName,
 		},
 		Spec: networkingv1.NetworkPolicySpec{
-			PodSelector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "victim"}},
+			PodSelector: metav1.LabelSelector{MatchLabels: map[string]string{appLabelKey: victimName}},
 			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
 			Ingress: []networkingv1.NetworkPolicyIngressRule{{
 				From: []networkingv1.NetworkPolicyPeer{{
 					IPBlock: &networkingv1.IPBlock{
-						CIDR:   "10.244.1.0/24",
-						Except: []string{"10.244.1.106/32"},
+						CIDR:   enclosingCIDR,
+						Except: []string{exceptedHostBits},
 					},
 				}},
 			}},
@@ -77,7 +77,7 @@ func TestTranslatePolicyNPMLiteLinuxExceptUsesNomatch(t *testing.T) {
 	translated, err := TranslatePolicy(networkPolicy, true)
 	require.NoError(t, err)
 	require.Len(t, translated.RuleIPSets, 1)
-	require.Equal(t, []string{"10.244.1.0/24", "10.244.1.106/32 nomatch"}, translated.RuleIPSets[0].Members)
+	require.Equal(t, []string{enclosingCIDR, "10.244.1.106/32 nomatch"}, translated.RuleIPSets[0].Members)
 
 	// No direct-IP ACLs on Linux; the CIDR+Except is enforced through the ipset above.
 	for _, acl := range translated.ACLs {
