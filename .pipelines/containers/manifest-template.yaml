@@ -1,8 +1,8 @@
 parameters:
   name: ""
   platforms: ""
-  # Callers that extend 1ES PT must declare the artifact via templateContext.outputs
-  # instead, because 1ES disallows publish tasks inside steps.
+  # 1ES PT blocks PublishBuildArtifacts@1 in user steps. Callers extending 1ES
+  # pass false and publish through templateContext.outputs instead.
   publishArtifact: true
 
 steps:
