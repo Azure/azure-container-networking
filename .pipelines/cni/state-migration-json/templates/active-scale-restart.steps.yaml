@@ -1,0 +1,42 @@
+parameters:
+  clusterName: ""
+  os: linux
+  scaleup: 10
+  iterations: 2
+
+steps:
+  - task: AzureCLI@2
+    displayName: "Scale active workload and restart CNS"
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -euo pipefail
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+
+        pushd test/integration/load
+        VALIDATE_STATEFILE=true \
+          CLEANUP=false \
+          ITERATIONS=${{ parameters.iterations }} \
+          SCALE_UP=${{ parameters.scaleup }} \
+          OS_TYPE=${{ parameters.os }} \
+          CNI_TYPE=cniv2 \
+          go test -mod=readonly -count=1 -timeout 30m -tags load -run '^TestLoad$'
+        popd
+
+        daemon_set=azure-cns
+        if [[ "${{ parameters.os }}" == "windows" ]]; then
+          daemon_set=azure-cns-win
+        fi
+
+        kubectl rollout restart daemonset "$daemon_set" -n kube-system
+        kubectl rollout status daemonset "$daemon_set" -n kube-system --timeout=20m
+
+  - template: ../../load-test-templates/validate-state-template.yaml
+    parameters:
+      clusterName: ${{ parameters.clusterName }}
+      os: ${{ parameters.os }}
+      cni: cniv2
+      restartCase: "true"
