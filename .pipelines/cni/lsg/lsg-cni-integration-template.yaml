@@ -44,16 +44,18 @@ stages:
 
                 REGION="${{ parameters.region }}"
                 CLUSTER="${{ parameters.clusterName }}-$(commitID)"
+                K8S_MINOR=$(cut -d. -f1,2 <<< "$(K8S_VER)")
                 K8S_VERSION=$(az aks get-versions --location "$REGION" --output json |
-                  jq -r '[
+                  jq -r --arg minor "$K8S_MINOR" '[
                     .values[]
+                    | select(.version == $minor)
                     | select(.isPreview != true)
                     | select((.capabilities.supportPlan // []) | index("KubernetesOfficial"))
                     | .patchVersions
                     | keys[]
                   ] | sort_by(split(".") | map(tonumber)) | last')
                 if [ -z "$K8S_VERSION" ] || [ "$K8S_VERSION" = "null" ]; then
-                  echo "No GA KubernetesOfficial version is available in $REGION"
+                  echo "No GA KubernetesOfficial patch for Kubernetes $K8S_MINOR is available in $REGION"
                   exit 1
                 fi
 
