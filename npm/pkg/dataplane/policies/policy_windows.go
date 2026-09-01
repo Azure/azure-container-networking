@@ -88,6 +88,11 @@ func (acl *ACLPolicy) convertToAclSettings(aclID string) (*NPMACLPolSettings, er
 	if policySettings.Action == hcn.ActionTypeBlock {
 		policySettings.Priority = uint16(blockRulePriotity)
 	}
+	// An explicit per-ACL priority (e.g. higher-precedence Block ACLs for IPBlock.Except CIDRs)
+	// overrides the Target-derived default.
+	if acl.Priority != 0 {
+		policySettings.Priority = acl.Priority
+	}
 	protoNum, ok := protocolNumMap[acl.Protocol]
 	if !ok {
 		return policySettings, ErrProtocolNotSupported

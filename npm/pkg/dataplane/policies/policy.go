@@ -134,6 +134,11 @@ type ACLPolicy struct {
 	// Target defines a target in iptables for linux. i,e, Mark, Accept, Drop
 	// in windows, this is either ALLOW or DENY
 	Target Verdict
+	// Priority optionally overrides the HNS ACL priority on Windows. When zero, the priority is
+	// derived from Target (allow vs. block). It is used to emit higher-precedence Block ACLs for
+	// IPBlock.Except CIDRs on the NPM Lite Windows direct-rule path so they out-prioritize the
+	// enclosing-CIDR Allow. Ignored on Linux.
+	Priority uint16
 	// Direction defines the flow of traffic
 	Direction Direction
 	// DstPorts always holds the destination port information.
@@ -359,6 +364,14 @@ const (
 	// Dropped is denying a flow
 	Dropped Verdict = "DROP"
 )
+
+// ExceptBlockPriority is the HNS ACL priority assigned to Block ACLs generated from an
+// IPBlock.Except CIDR on the NPM Lite Windows direct-rule path. HNS treats a lower number as
+// higher precedence, so this sits below the Allow priority (222) to out-prioritize the
+// enclosing-CIDR Allow, and above the base wireserver block (200) and readiness-probe allow
+// (201) so it never shadows them. It is set on ACLPolicy.Priority and honored by the Windows
+// renderer; it has no effect on Linux.
+const ExceptBlockPriority uint16 = 221
 
 // Protocol can be TCP, UDP, SCTP, or unspecified since they are currently supported in networkpolicy.
 // Protocol value is case-sensitive (Capital now).

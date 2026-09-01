@@ -329,6 +329,30 @@ func TestGetSettingsFromACLNodeEgressPorts(t *testing.T) {
 
 // Helper functions for UTS
 
+// TestConvertToAclSettingsExceptBlockPriority verifies that an IPBlock.Except Block ACL renders
+// at its higher-precedence priority (below the enclosing-CIDR Allow) with the excepted CIDR in
+// RemoteAddresses, so HNS actually denies the excepted peer (MSRC 132306).
+func TestConvertToAclSettingsExceptBlockPriority(t *testing.T) {
+	allow := NewACLPolicy(Allowed, Ingress)
+	allow.SrcDirectIPs = []string{"10.244.1.0/24"}
+	allowSettings, err := allow.convertToAclSettings("azure-acl-victim-ingress")
+	require.NoError(t, err)
+	assert.Equal(t, hcn.ActionTypeAllow, allowSettings.Action)
+	assert.Equal(t, "10.244.1.0/24", allowSettings.RemoteAddresses)
+	assert.Equal(t, uint16(allowRulePriotity), allowSettings.Priority)
+
+	drop := NewACLPolicy(Dropped, Ingress)
+	drop.SrcDirectIPs = []string{"10.244.1.106/32"}
+	drop.Priority = ExceptBlockPriority
+	dropSettings, err := drop.convertToAclSettings("azure-acl-victim-ingress")
+	require.NoError(t, err)
+	assert.Equal(t, hcn.ActionTypeBlock, dropSettings.Action)
+	assert.Equal(t, "10.244.1.106/32", dropSettings.RemoteAddresses)
+	assert.Equal(t, ExceptBlockPriority, dropSettings.Priority)
+	// lower number wins on HNS: the excepted drop must out-prioritize the enclosing allow
+	assert.Less(t, dropSettings.Priority, allowSettings.Priority)
+}
+
 func getPMgr(t *testing.T) (*PolicyManager, *hnswrapper.Hnsv2wrapperFake) {
 	hns := ipsets.GetHNSFake(t, "azure")
 	io := common.NewMockIOShimWithFakeHNS(hns)
