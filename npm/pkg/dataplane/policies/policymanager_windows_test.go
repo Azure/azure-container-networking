@@ -335,6 +335,7 @@ func TestGetSettingsFromACLNodeEgressPorts(t *testing.T) {
 func TestConvertToAclSettingsExceptBlockPriority(t *testing.T) {
 	allow := NewACLPolicy(Allowed, Ingress)
 	allow.SrcDirectIPs = []string{"10.244.1.0/24"}
+	allow.Protocol = UnspecifiedProtocol
 	allowSettings, err := allow.convertToAclSettings("azure-acl-victim-ingress")
 	require.NoError(t, err)
 	assert.Equal(t, hcn.ActionTypeAllow, allowSettings.Action)
@@ -344,6 +345,7 @@ func TestConvertToAclSettingsExceptBlockPriority(t *testing.T) {
 	drop := NewACLPolicy(Dropped, Ingress)
 	drop.SrcDirectIPs = []string{"10.244.1.106/32"}
 	drop.Priority = ExceptBlockPriority
+	drop.Protocol = UnspecifiedProtocol
 	dropSettings, err := drop.convertToAclSettings("azure-acl-victim-ingress")
 	require.NoError(t, err)
 	assert.Equal(t, hcn.ActionTypeBlock, dropSettings.Action)
