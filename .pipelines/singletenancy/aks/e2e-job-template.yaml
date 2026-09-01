@@ -1,4 +1,7 @@
 parameters:
+  - name: use1ESPublishTask
+    type: boolean
+    default: false
   - name: name
     type: string
     default: ""
@@ -152,12 +155,14 @@ stages:
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
+              use1ESPublishTask: ${{ parameters.use1ESPublishTask }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: cniv1
 
       - template: ../../templates/failure-analysis.job.yaml
         parameters:
+          use1ESPublishTask: ${{ parameters.use1ESPublishTask }}
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
           cni: cniv1

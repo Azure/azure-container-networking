@@ -66,10 +66,6 @@ resources:
       name: 1ESPipelineTemplates/1ESPipelineTemplates
       ref: refs/tags/release
 
-# Shared templates default to Azure Pipelines publishing for non-1ES callers.
-variables:
-  USE_1ES_PUBLISH_TASK: "true"
-
 # Extend a governed 1ES Pipeline Template so the downstream release pipeline can
 # verify which template produced this build's artifacts. This pipeline is marked
 # Production in the 1ES Product Catalog because the release pipeline ships its
@@ -386,6 +382,7 @@ extends:
           jobs:
             - template: /.pipelines/templates/pipeline-failure-analysis.job.yaml@self
               parameters:
+                use1ESPublishTask: true
                 scope: build
 
         - stage: publish
@@ -517,6 +514,7 @@ extends:
         # Cilium Podsubnet E2E tests
         - template: /.pipelines/singletenancy/cilium/cilium-e2e-job-template.yaml@self
           parameters:
+            use1ESPublishTask: true
             name: "cilium_e2e"
             displayName: Cil Podsubnet
             clusterType: swift-byocni-nokubeproxy-up
@@ -528,6 +526,7 @@ extends:
         # Cilium Podsubnet Vnet Scale E2E tests
         - template: /.pipelines/singletenancy/cilium/cilium-e2e-job-template.yaml@self
           parameters:
+            use1ESPublishTask: true
             name: "cilium_vnetscale_e2e"
             displayName: Cil Podsubnet Vnet Scale Ubuntu
             os: linux
@@ -540,6 +539,7 @@ extends:
         # Cilium EBPF Podsubnet E2E tests
         - template: /.pipelines/singletenancy/cilium-ebpf/cilium-e2e-job-template.yaml@self
           parameters:
+            use1ESPublishTask: true
             name: "cilium_ebpf_podsubnet_e2e"
             displayName: Cil EBPF Podsubnet Ubuntu 24
             clusterType: swift-byocni-nokubeproxy-up
@@ -551,6 +551,7 @@ extends:
         # Cilium Nodesubnet E2E tests
         - template: /.pipelines/singletenancy/cilium-nodesubnet/cilium-nodesubnet-e2e-job-template.yaml@self
           parameters:
+            use1ESPublishTask: true
             name: "cilium_nodesubnet_e2e"
             displayName: Cil NodeSubnet
             clusterType: nodesubnet-byocni-nokubeproxy-up
@@ -561,6 +562,7 @@ extends:
         # Cilium Overlay E2E tests
         - template: /.pipelines/singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml@self
           parameters:
+            use1ESPublishTask: true
             name: "cilium_overlay_e2e"
             displayName: Cil on AKS Overlay
             clusterType: overlay-byocni-nokubeproxy-up
@@ -572,6 +574,7 @@ extends:
         # Cilium Dualstack Overlay E2E tests
         - template: /.pipelines/singletenancy/cilium-dualstack-overlay/cilium-dualstackoverlay-e2e-job-template.yaml@self
           parameters:
+            use1ESPublishTask: true
             name: "cilium_dualstackoverlay_e2e"
             displayName: Cil on AKS DualStack Overlay
             os: linux
@@ -584,6 +587,7 @@ extends:
         # Cilium EBPF Overlay E2E tests
         - template: /.pipelines/singletenancy/cilium-overlay-ebpf/cilium-overlay-e2e-job-template.yaml@self
           parameters:
+            use1ESPublishTask: true
             name: "cilium_ebpf_overlay_e2e"
             displayName: Cil EBPF on AKS Overlay Azure Linux
             clusterType: overlay-byocni-nokubeproxy-up
@@ -595,6 +599,7 @@ extends:
         # Cilium EBPF Dualstack Overlay E2E tests
         - template: /.pipelines/singletenancy/cilium-dualstack-ebpf/cilium-dualstack-e2e-job-template.yaml@self
           parameters:
+            use1ESPublishTask: true
             name: "cilium_ebpf_ds_e2e"
             displayName: Cilium EBPF on AKS DualStack Overlay
             os: linux
@@ -607,6 +612,7 @@ extends:
         # Cilium Overlay with hubble E2E tests
         - template: /.pipelines/singletenancy/cilium-overlay-withhubble/cilium-overlay-e2e-job-template.yaml@self
           parameters:
+            use1ESPublishTask: true
             name: "cilium_h_overlay_e2e"
             displayName: Cil on AKS Overlay with Hubble
             clusterType: overlay-byocni-nokubeproxy-up
@@ -619,6 +625,7 @@ extends:
         # Azure Overlay E2E tests
         - template: /.pipelines/singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml@self
           parameters:
+            use1ESPublishTask: true
             name: "linux_azure_overlay_e2e"
             displayName: Azure Overlay Linux
             os: linux
@@ -632,6 +639,7 @@ extends:
         # Windows Azure Overlay E2E tests
         - template: /.pipelines/singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml@self
           parameters:
+            use1ESPublishTask: true
             name: "win_azure_overlay_e2e"
             displayName: Azure Overlay Windows
             os: windows
@@ -645,6 +653,7 @@ extends:
         # Azure Overlay E2E Stateless CNI tests
         - template: /.pipelines/singletenancy/azure-cni-overlay-stateless/azure-cni-overlay-stateless-e2e-job-template.yaml@self
           parameters:
+            use1ESPublishTask: true
             name: "azure_overlay_stateless_e2e"
             displayName: Azure Stateless CNI Overlay
             clusterType: overlay-byocni-up
@@ -655,6 +664,7 @@ extends:
         # AKS Swift E2E tests
         - template: /.pipelines/singletenancy/aks-swift/e2e-job-template.yaml@self
           parameters:
+            use1ESPublishTask: true
             name: "aks_swift_e2e"
             displayName: AKS Swift Ubuntu
             os: linux
@@ -669,6 +679,7 @@ extends:
         # AKS Swift Vnet Scale E2E tests
         - template: /.pipelines/singletenancy/aks-swift/e2e-job-template.yaml@self
           parameters:
+            use1ESPublishTask: true
             name: "aks_swift_vnetscale_e2e"
             displayName: AKS Swift Vnet Scale Ubuntu
             os: linux
@@ -680,6 +691,7 @@ extends:
         # CNIv1 E2E tests
         - template: /.pipelines/singletenancy/aks/e2e-job-template.yaml@self
           parameters:
+            use1ESPublishTask: true
             name: "aks_ubuntu_22_linux_e2e"
             displayName: AKS Ubuntu 22
             arch: "amd64"
@@ -693,6 +705,7 @@ extends:
         # Windows AKS E2E tests
         - template: /.pipelines/singletenancy/aks/e2e-job-template.yaml@self
           parameters:
+            use1ESPublishTask: true
             name: "aks_windows_22_e2e"
             displayName: AKS Windows 2022
             arch: amd64
@@ -707,6 +720,7 @@ extends:
         # CNI dual stack overlay E2E tests
         - template: /.pipelines/singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml@self
           parameters:
+            use1ESPublishTask: true
             name: "linux_dualstackoverlay_e2e"
             displayName: AKS DualStack Overlay Linux
             os: linux
@@ -719,6 +733,7 @@ extends:
         # Windows DualStack Overlay E2E tests
         - template: /.pipelines/singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml@self
           parameters:
+            use1ESPublishTask: true
             name: "win_dualstackoverlay_e2e"
             displayName: AKS DualStack Overlay Windows
             os: windows

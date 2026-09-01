@@ -13,6 +13,7 @@
 # stage. It does NOT affect E2E failure analysis, cluster retention, or teardown.
 
 parameters:
+  use1ESPublishTask: false
   # Human-readable scope label for the analysis artifact name.
   scope: "build"
   # Override pipeline name if needed.
@@ -193,7 +194,7 @@ jobs:
         displayName: "Publish analysis summary"
         condition: succeededOrFailed()
 
-      - ${{ if eq(variables['USE_1ES_PUBLISH_TASK'], 'true') }}:
+      - ${{ if eq(parameters.use1ESPublishTask, true) }}:
         - task: 1ES.PublishPipelineArtifact@1
           displayName: "Publish analysis artifact"
           condition: succeededOrFailed()
