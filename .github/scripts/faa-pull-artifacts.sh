@@ -83,6 +83,16 @@ for row in "${rows[@]}"; do
   esac
   echo "downloading artifact $name"
   curl -sS -fL "${auth[@]}" -o "$work/${name}.zip" "$url"
+  # Info-ZIP already strips leading "/" and ".." components, but reject such an
+  # archive outright rather than extracting a silently mangled tree (zip-slip).
+  if ! entries="$(unzip -Z1 "$work/${name}.zip")"; then
+    echo "::warning::could not list artifact contents: $name"
+    continue
+  fi
+  if grep -qE '^/|(^|/)\.\.(/|$)' <<<"$entries"; then
+    echo "::warning::skipping artifact with unsafe entry paths: $name"
+    continue
+  fi
   unzip -q -o "$work/${name}.zip" -d "$work/extracted/${name}"
 done
 

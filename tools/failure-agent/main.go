@@ -262,9 +262,10 @@ func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, e
 		inc.AnalysisError = classifyErr.Error()
 	}
 
-	// The escalation gate runs between Build and WriteFiles so it sees exactly
-	// the report.md a human would, and so its ruling lands in both artifacts in a
-	// single write rather than a second, racy pass over them.
+	// The escalation gate runs between Build and WriteFiles so it sees the same
+	// report.md a human would, less the escalation section that its own ruling
+	// then adds, and so that ruling lands in both artifacts in a single write
+	// rather than a second, racy pass over them.
 	inc.Escalation = decideEscalation(ctx, logger, opts.timeout, esc, rc, inc)
 
 	if err := report.WriteFiles(opts.output, inc); err != nil {
@@ -331,10 +332,16 @@ func decideEscalation(ctx context.Context, logger *zap.Logger, timeout time.Dura
 		zap.String("fingerprint", inc.Fingerprint),
 		zap.Bool("needed", decision.Needed),
 		zap.String("source", string(decision.Source)),
-		zap.String("reason", decision.Reason),
+		zap.String("reason", oneLine(decision.Reason)),
 		zap.Strings("labels", decision.Labels),
 	)
 	return &decision
+}
+
+// oneLine collapses a model-provided string to a single line so it stays
+// readable as a log field.
+func oneLine(s string) string {
+	return strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "\r", " "), "\n", " "))
 }
 
 // writeIssueArtifact emits issue.md when the gate asked for an issue. A failure
