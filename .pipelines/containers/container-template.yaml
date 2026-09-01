@@ -26,14 +26,7 @@ steps:
   displayName: Image Build
   retryCountOnTaskFailure: 2
   env:
-    # The Makefile prefers buildah when the binary is present. Azure Linux agents
-    # ship buildah without netavark or subuid/subgid, so image builds fail there.
-    # Only the build needs docker; manifest jobs still use buildah.
-    CONTAINER_BUILDER: docker
-    # buildah pushes as part of the build, buildx does not. Push here as well so
-    # the manifest stage can find every platform tag in the registry.
-    # --provenance=false keeps buildx from wrapping the image in an index, which
-    # `buildah manifest add` cannot resolve for a non-host architecture.
+    # Buildah pushes separately and ignores this Docker buildx setting.
     BUILDX_ACTION: --push --provenance=false
 
 - task: AzureCLI@2
