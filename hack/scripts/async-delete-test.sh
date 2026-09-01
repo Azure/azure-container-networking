@@ -65,9 +65,9 @@ if [ -z "$busybox_pod" ]; then
     exit 1
 fi
 node_name=$(kubectl get pod $busybox_pod -o jsonpath='{.spec.nodeName}')
-cns_pod=$(kubectl get pods -l k8s-app=azure-cns -n kube-system -o jsonpath="{.items[?(@.spec.nodeName=='$node_name')].metadata.name}")
+cns_pod=$(kubectl get pods -l k8s-app=azure-cns -n kube-system --field-selector "spec.nodeName=$node_name,status.phase=Running" -o jsonpath='{.items[0].metadata.name}')
 if [ -z "$cns_pod" ]; then
-    echo "##[error]no CNS pod on node $node_name"
+    echo "##[error]no running CNS pod on node $node_name"
     exit 1
 fi
 
@@ -79,6 +79,12 @@ fi
 
 restarts_before=$(kubectl get pod $cns_pod -n kube-system -o jsonpath='{.status.containerStatuses[?(@.name=="cns-container")].restartCount}')
 
+# a paused CNS breaks every later step, so always resume it, on any exit path
+resume_cns() {
+    kubectl exec -i $cns_pod -c debug -n kube-system -- sh -c "kill -CONT $cns_pid" > /dev/null 2>&1
+}
+trap resume_cns EXIT INT TERM
+
 echo "stop the CNS process $cns_pid so the CNI cannot reach it"
 kubectl exec -i $cns_pod -c debug -n kube-system -- sh -c "kill -STOP $cns_pid"
 
@@ -86,7 +92,10 @@ echo "delete busybox pod $busybox_pod. the CNI DEL waits for the 15s CNS request
 kubectl delete pod $busybox_pod --timeout=120s
 
 echo "check the CNI wrote a pending delete while CNS was stopped"
-pending_file=$(kubectl exec -i $cns_pod -c debug -n kube-system -- ls /var/run/azure-vnet/deleteIDs)
+if ! pending_file=$(kubectl exec -i $cns_pod -c debug -n kube-system -- ls /var/run/azure-vnet/deleteIDs 2>&1); then
+    echo "##[error]could not list the deleteIDs directory: $pending_file"
+    exit 1
+fi
 
 echo "resume the CNS process"
 kubectl exec -i $cns_pod -c debug -n kube-system -- sh -c "kill -CONT $cns_pid"
@@ -96,20 +105,26 @@ if [ -z "$pending_file" ]; then
     exit 1
 fi
 echo "pending deletes"
-echo $pending_file
+echo "$pending_file"
 
 echo "wait up to 60s for CNS to process the create event"
 waited=0
+drained=false
 while [ $waited -lt 60 ]; do
     sleep 5s
     waited=$((waited + 5))
-    live_file=$(kubectl exec -i $cns_pod -c debug -n kube-system -- ls /var/run/azure-vnet/deleteIDs)
-    if [ -z "$live_file" ]; then
-        break
+    # only an empty listing that actually succeeded proves the release happened
+    if live_file=$(kubectl exec -i $cns_pod -c debug -n kube-system -- ls /var/run/azure-vnet/deleteIDs 2>&1); then
+        if [ -z "$live_file" ]; then
+            drained=true
+            break
+        fi
+    else
+        echo "could not list the deleteIDs directory, retrying: $live_file"
     fi
 done
 
-if [ -n "$live_file" ]; then
+if [ "$drained" != "true" ]; then
     echo "##[error]async delete failure. CNS did not process the create event. file still exists in deleteIDs directory."
     exit 1
 fi
