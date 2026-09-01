@@ -30,21 +30,6 @@ stages:
             displayName: "Install Go"
           - script: |
               set -e
-              # The NPM controller tests shell out to ipset and iptables. Ubuntu
-              # agent images ship them; Azure Linux images do not, so install the
-              # ones that are missing.
-              if [ -f /etc/debian_version ]; then
-                sudo apt-get update && sudo apt-get install -y ipset iptables
-              else
-                sudo tdnf install -y ipset iptables
-              fi
-              # Verify under sudo: ipset needs privileges to talk to the kernel,
-              # which is how the tests invoke it.
-              sudo ipset --version
-              sudo iptables --version
-            displayName: "Install netfilter test dependencies"
-          - script: |
-              set -e
               # Go 1.21+ is statically linked and cannot be observed directly
               # by CodeQL's LD_PRELOAD build tracer. A dynamic bash wrapper
               # makes the Go invocations in this task visible to the tracer.
