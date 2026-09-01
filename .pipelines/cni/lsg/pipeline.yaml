@@ -77,6 +77,14 @@ stages:
               fi
               echo "Final KernelType : $Kernel"
               echo "##vso[task.setvariable variable=kernelType;isOutput=true]$Kernel"
+
+              RUN_NAME="${DISTRO}-${Kernel}-$(KernelVersion)-$(Build.BuildId)"
+              for invalid in '"' '/' '\' ':' '<' '>' "'" '|' '?' '@' '*'; do
+                RUN_NAME="${RUN_NAME//"$invalid"/-}"
+              done
+              RUN_NAME="${RUN_NAME%.}"
+              echo "Run name : $RUN_NAME"
+              echo "##vso[build.updatebuildnumber]$RUN_NAME"
             name: "SetEnvVars"
             displayName: "Set Environment Variables"
             condition: always()
