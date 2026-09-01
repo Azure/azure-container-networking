@@ -22,7 +22,7 @@ func (service *HTTPRestService) UpdateIPsForNodeSubnet(secondaryIPs []netip.Addr
 
 	networkContainerRequest := nodesubnet.CreateNodeSubnetNCRequest(secondaryIPStrs)
 
-	code, msg := service.saveNetworkContainerGoalState(*networkContainerRequest)
+	code, msg := service.saveNetworkContainerGoalState(*networkContainerRequest, false)
 	if code != types.Success {
 		return errors.Errorf("failed to save fetched ips. code: %d, message %s", code, msg)
 	}
