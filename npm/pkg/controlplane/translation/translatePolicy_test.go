@@ -1293,6 +1293,8 @@ func TestNameSpaceSelectorMultiValueNotIn(t *testing.T) {
 	_, nsSelectorList := nameSpaceSelector(matchType, &flattened[0])
 
 	expected := []policies.SetInfo{
+		// The all-namespaces set keeps the negation-only match scoped to cluster namespaces.
+		policies.NewSetInfo(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace, included, matchType),
 		policies.NewSetInfo("tenant:x", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
 		policies.NewSetInfo("tenant:y", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
 	}
@@ -1326,6 +1328,196 @@ func TestNameSpaceSelectorMatchLabelsAndMultiValueNotIn(t *testing.T) {
 	}
 	require.ElementsMatch(t, expected, nsSelectorList,
 		"matchLabels set must be ANDed with both negated tenant sets in one decision")
+}
+
+// TestNameSpaceSelectorNegationOnlyIsScopedToNamespaces verifies that a namespaceSelector
+// whose requirements are all negative (NotIn / DoesNotExist) is intersected with the
+// all-namespaces set. A negated set match is satisfied by every address that is not in the
+// set, so without a positive set to intersect with, the decision also matches addresses
+// that are not cluster pods at all (e.g. the internet).
+func TestNameSpaceSelectorNegationOnlyIsScopedToNamespaces(t *testing.T) {
+	matchType := policies.DstMatch
+	tests := []struct {
+		name     string
+		selector *metav1.LabelSelector
+		expected []policies.SetInfo
+	}{
+		{
+			name: "single-value NotIn",
+			selector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{Key: "tenant", Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x"}},
+				},
+			},
+			expected: []policies.SetInfo{
+				policies.NewSetInfo(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace, included, matchType),
+				policies.NewSetInfo("tenant:x", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
+			},
+		},
+		{
+			name: "DoesNotExist",
+			selector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{Key: "tenant", Operator: metav1.LabelSelectorOpDoesNotExist},
+				},
+			},
+			expected: []policies.SetInfo{
+				policies.NewSetInfo(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace, included, matchType),
+				policies.NewSetInfo("tenant", ipsets.KeyLabelOfNamespace, nonIncluded, matchType),
+			},
+		},
+		{
+			name: "NotIn and DoesNotExist together",
+			selector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{Key: "tenant", Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x"}},
+					{Key: "team", Operator: metav1.LabelSelectorOpDoesNotExist},
+				},
+			},
+			expected: []policies.SetInfo{
+				policies.NewSetInfo(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace, included, matchType),
+				policies.NewSetInfo("tenant:x", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
+				policies.NewSetInfo("team", ipsets.KeyLabelOfNamespace, nonIncluded, matchType),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			nsSelectorIPSets, nsSelectorList := nameSpaceSelector(matchType, tt.selector)
+			require.ElementsMatch(t, tt.expected, nsSelectorList)
+			// The all-namespaces set must also be translated so it exists in the dataplane.
+			require.Contains(t, nsSelectorIPSets,
+				ipsets.NewTranslatedIPSet(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace))
+		})
+	}
+}
+
+// TestNameSpaceSelectorWithPositiveMatchIsUnchanged verifies that the all-namespaces
+// intersection is added only when it is needed. A selector that already carries a positive
+// requirement is scoped to namespaces by that requirement, so it must be left as-is.
+func TestNameSpaceSelectorWithPositiveMatchIsUnchanged(t *testing.T) {
+	matchType := policies.DstMatch
+	tests := []struct {
+		name     string
+		selector *metav1.LabelSelector
+		expected []policies.SetInfo
+	}{
+		{
+			name:     "matchLabels only",
+			selector: &metav1.LabelSelector{MatchLabels: map[string]string{"team": "blue"}},
+			expected: []policies.SetInfo{
+				policies.NewSetInfo("team:blue", ipsets.KeyValueLabelOfNamespace, included, matchType),
+			},
+		},
+		{
+			name: "matchLabels with a negative expression",
+			selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"team": "blue"},
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{Key: "tenant", Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x"}},
+				},
+			},
+			expected: []policies.SetInfo{
+				policies.NewSetInfo("team:blue", ipsets.KeyValueLabelOfNamespace, included, matchType),
+				policies.NewSetInfo("tenant:x", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
+			},
+		},
+		{
+			name: "Exists with a negative expression",
+			selector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{Key: "team", Operator: metav1.LabelSelectorOpExists},
+					{Key: "tenant", Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x"}},
+				},
+			},
+			expected: []policies.SetInfo{
+				policies.NewSetInfo("team", ipsets.KeyLabelOfNamespace, included, matchType),
+				policies.NewSetInfo("tenant:x", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
+			},
+		},
+		{
+			name:     "empty selector still resolves to all namespaces once",
+			selector: &metav1.LabelSelector{},
+			expected: []policies.SetInfo{
+				policies.NewSetInfo(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace, included, matchType),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			_, nsSelectorList := nameSpaceSelector(matchType, tt.selector)
+			require.ElementsMatch(t, tt.expected, nsSelectorList)
+		})
+	}
+}
+
+// TestTranslatePolicyNegationOnlyNamespaceSelector is the end-to-end regression for a
+// peer whose only requirement is a negative namespaceSelector. It asserts that the
+// resulting allow decision carries the all-namespaces set, so the rule cannot be
+// satisfied by an address outside the cluster. Egress is the impactful direction (an
+// unscoped negation lets a selected pod reach arbitrary external hosts), but ingress is
+// covered too since the compiler is direction-agnostic.
+func TestTranslatePolicyNegationOnlyNamespaceSelector(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		direction networkingv1.PolicyType
+		matchType policies.MatchType
+		peerList  func(*policies.ACLPolicy) []policies.SetInfo
+	}{
+		{
+			name:      "egress",
+			direction: networkingv1.PolicyTypeEgress,
+			matchType: policies.DstMatch,
+			peerList:  func(acl *policies.ACLPolicy) []policies.SetInfo { return acl.DstList },
+		},
+		{
+			name:      "ingress",
+			direction: networkingv1.PolicyTypeIngress,
+			matchType: policies.SrcMatch,
+			peerList:  func(acl *policies.ACLPolicy) []policies.SetInfo { return acl.SrcList },
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			pol := nsNotInPolicy("victim", "default", "tenant", tt.direction, nil, "x")
+			npmNetPol, err := TranslatePolicy(pol, false)
+			require.NoError(t, err)
+
+			var theAllow *policies.ACLPolicy
+			for i := range npmNetPol.ACLs {
+				if npmNetPol.ACLs[i].Target == policies.Allowed {
+					require.Nil(t, theAllow, "there must be exactly one allow ACL")
+					theAllow = npmNetPol.ACLs[i]
+				}
+			}
+			require.NotNil(t, theAllow)
+
+			peers := tt.peerList(theAllow)
+			require.ElementsMatch(t, []policies.SetInfo{
+				policies.NewSetInfo(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace, included, tt.matchType),
+				policies.NewSetInfo("tenant:x", ipsets.KeyValueLabelOfNamespace, nonIncluded, tt.matchType),
+			}, peers, "a negation-only namespaceSelector must be intersected with the all-namespaces set")
+
+			var sawAllNamespaces bool
+			for _, si := range peers {
+				if si.Included && si.IPSet.Name == util.KubeAllNamespacesFlag {
+					sawAllNamespaces = true
+				}
+			}
+			require.True(t, sawAllNamespaces,
+				"without the all-namespaces set the negated match also admits non-cluster addresses")
+		})
+	}
 }
 
 // nsNotInPolicy builds a NetworkPolicy that selects all local pods and, for the given
@@ -1425,20 +1617,30 @@ func TestTranslatePolicyMultiValueNotInConjunction(t *testing.T) {
 			require.NotNil(t, theAllow)
 			require.NotNil(t, theDrop)
 
-			// The single allow ACL's peer list must be EXACTLY the two excluded values,
-			// each a negated match (Included == false) and nothing else (no stray positive
-			// set such as an all-namespaces allow).
+			// The single allow ACL's peer list must be the two excluded values, each a
+			// negated match (Included == false), intersected with the all-namespaces set.
+			// The all-namespaces set is what keeps a negation-only match scoped to cluster
+			// namespaces; without it the negations alone also match non-cluster addresses.
 			allowPeers := tt.peerList(theAllow)
-			require.Len(t, allowPeers, 2, "allow ACL must reference exactly the two excluded sets and no positive set")
+			require.Len(t, allowPeers, 3, "allow ACL must reference the two excluded sets plus the all-namespaces set")
 			var negated []string
+			var positive []string
 			for _, si := range allowPeers {
+				if si.Included {
+					require.Equal(t, util.KubeAllNamespacesFlag, si.IPSet.Name,
+						"the only positive set may be the all-namespaces set")
+					require.Equal(t, ipsets.KeyLabelOfNamespace, si.IPSet.Type)
+					positive = append(positive, si.IPSet.Name)
+					continue
+				}
 				require.True(t, excluded[si.IPSet.Name], "unexpected set %s in allow ACL", si.IPSet.Name)
-				require.False(t, si.Included, "tenant set %s must be a negated match", si.IPSet.Name)
 				require.Equal(t, ipsets.KeyValueLabelOfNamespace, si.IPSet.Type)
 				negated = append(negated, si.IPSet.Name)
 			}
 			require.ElementsMatch(t, []string{"tenant:attacker", "tenant:quarantine"}, negated,
 				"the single allow ACL must negate every excluded value")
+			require.Equal(t, []string{util.KubeAllNamespacesFlag}, positive,
+				"the negation-only match must be intersected with the all-namespaces set")
 
 			// The default drop must be same-direction and unconditional (no peer match),
 			// so the excluded namespaces have no allow path and fall through to it.

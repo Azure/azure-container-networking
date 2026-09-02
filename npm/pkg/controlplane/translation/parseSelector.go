@@ -259,6 +259,17 @@ func (ps *parsedSelectors) addSelector(include bool, setType ipsets.SetType, set
 	ps.labelSet[setNameWithOp] = struct{}{}
 }
 
+// hasPositiveSelector reports whether any parsed selector is a positive (non-negated) match.
+// Without one, the parsed selectors match purely by negation and constrain nothing.
+func (ps *parsedSelectors) hasPositiveSelector() bool {
+	for _, ls := range ps.labelSelectors {
+		if ls.include {
+			return true
+		}
+	}
+	return false
+}
+
 // parseNSSelector parses namespaceSelector and returns slice of labelSelector object
 // which includes operator, setType, ipset name and always nil members slice.
 // Member slices is always nil since parseNSSelector function is called
@@ -298,6 +309,17 @@ func parseNSSelector(selector *metav1.LabelSelector) []labelSelector {
 
 		noNegativeOp := (req.Operator == metav1.LabelSelectorOpIn) || (req.Operator == metav1.LabelSelectorOpExists)
 		parsedSelectors.addSelector(noNegativeOp, setType, setName)
+	}
+
+	// #4. A namespaceSelector only ever selects namespaces, so every match it produces
+	// must be a cluster address. A negative requirement (NotIn / DoesNotExist) renders as
+	// a negated set match, which is satisfied by every address that is not in that set,
+	// including addresses outside the cluster. When the selector produces no positive set
+	// to intersect with, the negations alone are the whole match and the rule would also
+	// admit non-cluster (e.g. internet) peers. Intersect with the all-namespaces set so
+	// the match stays scoped to namespaces, mirroring allowAllInternal.
+	if !parsedSelectors.hasPositiveSelector() {
+		parsedSelectors.addSelector(true, ipsets.KeyLabelOfNamespace, util.KubeAllNamespacesFlag)
 	}
 
 	return parsedSelectors.labelSelectors
