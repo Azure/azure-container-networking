@@ -9,6 +9,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/metrics/promutil"
+	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/translation"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	dpmocks "github.com/Azure/azure-container-networking/npm/pkg/dataplane/mocks"
 	"github.com/Azure/azure-container-networking/npm/util"
@@ -617,4 +618,102 @@ func TestLabelUpdateNetworkPolicy(t *testing.T) {
 	updateNetPol(t, f, oldNetPolObj, newNetPolObj)
 
 	checkNetPolTestResult("TestUpdateNetPol", f, testCases)
+}
+
+// netPolWithCIDR builds an ingress NetworkPolicy that selects all pods in its namespace and
+// admits the given ipBlock CIDR.
+func netPolWithCIDR(cidr string) *networkingv1.NetworkPolicy {
+	return &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "allow-cidr", Namespace: "test-nwpolicy"},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{
+				{From: []networkingv1.NetworkPolicyPeer{{IPBlock: &networkingv1.IPBlock{CIDR: cidr}}}},
+			},
+		},
+	}
+}
+
+// TestAddNetworkPolicyNonCanonicalCIDRIsApplied verifies that a policy naming the
+// all-addresses block with host bits set is programmed into the dataplane. It used to fail
+// translation, and the controller turned that failure into a successful no-op, so the
+// policy's selected pods were left with no rules at all.
+func TestAddNetworkPolicyNonCanonicalCIDRIsApplied(t *testing.T) {
+	netPolObj := netPolWithCIDR("10.0.0.0/0")
+
+	f := newNetPolFixture(t)
+	f.netPolLister = append(f.netPolLister, netPolObj)
+	f.kubeobjects = append(f.kubeobjects, netPolObj)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dp := dpmocks.NewMockGenericDataplane(ctrl)
+	f.newNetPolController(stopCh, dp, false)
+
+	// The policy must reach the dataplane instead of being dropped during translation.
+	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(1)
+
+	addNetPol(f, netPolObj)
+	checkNetPolTestResult("TestAddNetworkPolicyNonCanonicalCIDRIsApplied", f, []expectedNetPolValues{
+		{1, 0, netPolPromVals{1, 1, 0, 0}},
+	})
+}
+
+// TestSyncAddAndUpdateNetPolSurfacesTranslationFailure verifies that a policy NPM cannot
+// translate is reported as an error rather than as a successful no-op. Reporting success
+// left the policy's selected pods with no rules while nothing signalled that the policy had
+// never been applied.
+func TestSyncAddAndUpdateNetPolSurfacesTranslationFailure(t *testing.T) {
+	// An IPv6 ipBlock cannot be expressed by the IPv4 datapath, so translation fails.
+	netPolObj := netPolWithCIDR("2001:db8::/32")
+
+	f := newNetPolFixture(t)
+	f.netPolLister = append(f.netPolLister, netPolObj)
+	f.kubeobjects = append(f.kubeobjects, netPolObj)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dp := dpmocks.NewMockGenericDataplane(ctrl)
+	f.newNetPolController(stopCh, dp, false)
+
+	// Nothing may be programmed for a policy that failed to translate.
+	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(0)
+
+	_, err := f.netPolController.syncAddAndUpdateNetPol(netPolObj)
+	require.Error(t, err, "a translation failure must be surfaced, not reported as success")
+	require.ErrorIs(t, err, translation.ErrUnsupportedIPAddress)
+
+	// The policy must not be recorded as applied, so a later retry still reconciles it.
+	netpolKey, keyErr := cache.MetaNamespaceKeyFunc(netPolObj)
+	require.NoError(t, keyErr)
+	require.NotContains(t, f.netPolController.rawNpSpecMap, netpolKey)
+}
+
+// TestSyncAddAndUpdateNetPolSuppressesUnsupportedFeature verifies that a deliberate datapath
+// limitation stays suppressed. Those cannot resolve on retry, so requeuing them forever
+// would be pure churn.
+func TestSyncAddAndUpdateNetPolSuppressesUnsupportedFeature(t *testing.T) {
+	// NPM Lite only supports CIDR peers, so a label-selector peer is out of scope there.
+	netPolObj := createNetPol()
+
+	f := newNetPolFixture(t)
+	f.netPolLister = append(f.netPolLister, netPolObj)
+	f.kubeobjects = append(f.kubeobjects, netPolObj)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dp := dpmocks.NewMockGenericDataplane(ctrl)
+	f.newNetPolController(stopCh, dp, true)
+
+	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(0)
+
+	_, err := f.netPolController.syncAddAndUpdateNetPol(netPolObj)
+	require.NoError(t, err, "an unsupported-feature limitation must stay suppressed")
 }
