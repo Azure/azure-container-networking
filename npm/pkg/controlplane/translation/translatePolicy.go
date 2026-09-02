@@ -43,6 +43,10 @@ var (
 	// none of In, NotIn, Exists or DoesNotExist. NPM fails closed rather than dropping the requirement,
 	// which could otherwise silently widen the selector.
 	ErrUnsupportedMatchExpressionOperator = errors.New("unsupported matchExpression operator")
+	// ErrTooManyFlattenedSelectors is returned when flattening a namespaceSelector's multi-value In
+	// requirements would produce more labelSelectors than NPM is willing to translate. The count is
+	// the product of the value counts, so it grows exponentially with the number of such requirements.
+	ErrTooManyFlattenedSelectors = errors.New("namespaceSelector expands into too many label selectors")
 	// ErrUnsupportedIPAddress is returned when an unsupported IP address, such as IPV6, is used
 	ErrUnsupportedIPAddress = errors.New("unsupported IP address")
 	// ErrUnsupportedNonCIDR is returned when non-CIDR blocks are passed in with NPM Lite enabled. NPM Lite allows deny-all and allow-all policies

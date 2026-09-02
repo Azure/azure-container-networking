@@ -15,6 +15,14 @@ import (
 // an alphanumeric character (e.g. 'MyValue',  or 'my_value',  or '12345', regex used for validation is '(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?'
 var validLabelRegex = regexp.MustCompile("(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?")
 
+// maxFlattenedNSSelectors caps how many labelSelectors a single namespaceSelector may be
+// flattened into. Flattening multi-value In requirements produces the Cartesian product of
+// their values, and each resulting selector is deep-copied and later turned into its own
+// IPSet and ACL, so the cost grows exponentially with the number of such requirements. The
+// cap is far above any workable policy (a selector fanning out this wide would already be
+// unusable as iptables rules) while keeping a crafted selector from exhausting memory.
+const maxFlattenedNSSelectors = 1000
+
 // flattenNameSpaceSelector will help flatten multiple nameSpace selector match Expressions values
 // into multiple label selectors helping with the OR condition.
 func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelSelector, error) {
@@ -167,10 +175,22 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelS
 	}
 
 	// Now use the baseSelector and loop over multiValueMatchExprs to create all
-	// combinations of values
-	flatNsSelectors := []metav1.LabelSelector{
-		*baseSelector.DeepCopy(),
+	// combinations of values. The number of combinations is the product of the value
+	// counts, so it grows exponentially with the number of multi-value In requirements
+	// (19 two-value requirements already yield 2^19 selectors). Bound the product before
+	// doing any allocation: every selector below is deep-copied and later becomes its own
+	// IPSet and ACL, so an unbounded product exhausts memory on every node running NPM.
+	combinations := 1
+	for _, req := range multiValueMatchExprs {
+		if len(req.Values) > maxFlattenedNSSelectors/combinations {
+			log.Errorf("namespaceSelector [%v] expands past the %d selector limit", *nsSelector, maxFlattenedNSSelectors)
+			return nil, ErrTooManyFlattenedSelectors
+		}
+		combinations *= len(req.Values)
 	}
+
+	flatNsSelectors := make([]metav1.LabelSelector, 0, combinations)
+	flatNsSelectors = append(flatNsSelectors, *baseSelector.DeepCopy())
 	for _, req := range multiValueMatchExprs {
 		flatNsSelectors = zipMatchExprs(flatNsSelectors, req)
 	}
