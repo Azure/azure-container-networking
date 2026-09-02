@@ -300,17 +300,17 @@ func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 			return metrics.NoOp, nil
 		}
 
-		klog.Errorf("Failed to translate NetworkPolicy %s in namespace %s: %s", netPolObj.ObjectMeta.Name, netPolObj.ObjectMeta.Namespace, err.Error())
+		klog.Errorf("Failed to translate NetworkPolicy %s in namespace %s: %s", netPolObj.Name, netPolObj.Namespace, err.Error())
 		metrics.SendErrorLogAndMetric(util.NetpolID,
 			"[syncAddAndUpdateNetPol] Error: failed to translate NetworkPolicy %s in namespace %s due to %v",
-			netPolObj.ObjectMeta.Name, netPolObj.ObjectMeta.Namespace, err)
+			netPolObj.Name, netPolObj.Namespace, err)
 		// Do not report success here. Reporting success left the policy's selected pods with
 		// no rules at all - not even the default drop the policy implies - while the policy
 		// object appeared to be applied and nothing signalled the failure. Return the error so
 		// it is surfaced and the key is requeued (rate limited) instead.
 		// The exec time isn't relevant here, so consider a no-op.
 		return metrics.NoOp, fmt.Errorf("[syncAddAndUpdateNetPol] Error: failed to translate NetworkPolicy %s in namespace %s: %w",
-			netPolObj.ObjectMeta.Name, netPolObj.ObjectMeta.Namespace, err)
+			netPolObj.Name, netPolObj.Namespace, err)
 	}
 
 	_, policyExisted := c.rawNpSpecMap[netpolKey]
