@@ -3934,3 +3934,122 @@ func TestTranslatePolicyInvalidCIDRStillFails(t *testing.T) {
 		})
 	}
 }
+
+// nsExprPolicy builds a NetworkPolicy that selects all local pods and, for the given
+// direction, admits peers whose namespace satisfies the single given matchExpression.
+func nsExprPolicy(name, ns string, direction networkingv1.PolicyType, req metav1.LabelSelectorRequirement) *networkingv1.NetworkPolicy {
+	peer := networkingv1.NetworkPolicyPeer{
+		NamespaceSelector: &metav1.LabelSelector{
+			MatchExpressions: []metav1.LabelSelectorRequirement{req},
+		},
+	}
+	pol := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{},
+			PolicyTypes: []networkingv1.PolicyType{direction},
+		},
+	}
+	if direction == networkingv1.PolicyTypeIngress {
+		pol.Spec.Ingress = []networkingv1.NetworkPolicyIngressRule{{From: []networkingv1.NetworkPolicyPeer{peer}}}
+	} else {
+		pol.Spec.Egress = []networkingv1.NetworkPolicyEgressRule{{To: []networkingv1.NetworkPolicyPeer{peer}}}
+	}
+	return pol
+}
+
+// TestTranslatePolicyNegationOnlyOperators covers every operator that can produce a
+// negation-only namespaceSelector, in both directions.
+//
+// A namespaceSelector selects pods in matching namespaces, and NPM's namespace sets hold
+// pod IPs. A negated set match is satisfied by any address absent from that set, so an
+// address that is not a pod in any namespace satisfies it too. Without a positive set to
+// intersect with, the negation alone is the whole match and the rule admits non-pod
+// addresses: on ingress a routable non-pod host reaching the pod directly, on egress the
+// selected pod reaching arbitrary external hosts.
+//
+// Each case asserts the allow decision carries the all-namespaces anchor, which is the
+// positive match that keeps the decision inside the pod domain.
+func TestTranslatePolicyNegationOnlyOperators(t *testing.T) {
+	t.Parallel()
+
+	operators := []struct {
+		name     string
+		req      metav1.LabelSelectorRequirement
+		excluded string
+		setType  ipsets.SetType
+	}{
+		{
+			name:     "DoesNotExist",
+			req:      metav1.LabelSelectorRequirement{Key: "blocked", Operator: metav1.LabelSelectorOpDoesNotExist},
+			excluded: "blocked",
+			setType:  ipsets.KeyLabelOfNamespace,
+		},
+		{
+			name:     "single-value NotIn",
+			req:      metav1.LabelSelectorRequirement{Key: "blocked", Operator: metav1.LabelSelectorOpNotIn, Values: []string{"yes"}},
+			excluded: "blocked:yes",
+			setType:  ipsets.KeyValueLabelOfNamespace,
+		},
+		{
+			name:     "multi-value NotIn",
+			req:      metav1.LabelSelectorRequirement{Key: "blocked", Operator: metav1.LabelSelectorOpNotIn, Values: []string{"yes", "maybe"}},
+			excluded: "blocked:yes",
+			setType:  ipsets.KeyValueLabelOfNamespace,
+		},
+	}
+
+	directions := []struct {
+		name      string
+		direction networkingv1.PolicyType
+		matchType policies.MatchType
+		peerList  func(*policies.ACLPolicy) []policies.SetInfo
+	}{
+		{"ingress", networkingv1.PolicyTypeIngress, policies.SrcMatch, func(a *policies.ACLPolicy) []policies.SetInfo { return a.SrcList }},
+		{"egress", networkingv1.PolicyTypeEgress, policies.DstMatch, func(a *policies.ACLPolicy) []policies.SetInfo { return a.DstList }},
+	}
+
+	for _, op := range operators {
+		for _, dir := range directions {
+			t.Run(op.name+"/"+dir.name, func(t *testing.T) {
+				t.Parallel()
+
+				npmNetPol, err := TranslatePolicy(nsExprPolicy("victim", "default", dir.direction, op.req), false)
+				require.NoError(t, err)
+
+				var allowACLs int
+				var theAllow *policies.ACLPolicy
+				for i := range npmNetPol.ACLs {
+					if npmNetPol.ACLs[i].Target == policies.Allowed {
+						allowACLs++
+						theAllow = npmNetPol.ACLs[i]
+					}
+				}
+				// One decision only: every negation must be ANDed into it, never split
+				// into additive allow decisions.
+				require.Equal(t, 1, allowACLs, "there must be exactly one allow ACL")
+				require.NotNil(t, theAllow)
+
+				peers := dir.peerList(theAllow)
+				anchor := policies.NewSetInfo(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace, included, dir.matchType)
+				require.Contains(t, peers, anchor,
+					"a negation-only namespaceSelector must carry the all-namespaces anchor, "+
+						"otherwise the negation alone also matches addresses that are not pods")
+
+				// The exclusion itself must still be present and still negated.
+				require.Contains(t, peers,
+					policies.NewSetInfo(op.excluded, op.setType, nonIncluded, dir.matchType))
+
+				// Exactly one positive set: the anchor. Anything else positive would
+				// widen the decision beyond what the selector asked for.
+				var positives []string
+				for _, si := range peers {
+					if si.Included {
+						positives = append(positives, si.IPSet.Name)
+					}
+				}
+				require.Equal(t, []string{util.KubeAllNamespacesFlag}, positives)
+			})
+		}
+	}
+}
