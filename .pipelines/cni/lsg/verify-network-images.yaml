@@ -46,7 +46,7 @@ steps:
         EXPECTED_OPERATOR="${{ parameters.ciliumImageRegistry }}/cilium/operator-generic:${{ parameters.ciliumVersionTag }}"
 
         ACTUAL_AGENT=$(kubectl get daemonset cilium -n kube-system -o jsonpath='{.spec.template.spec.containers[?(@.name=="cilium-agent")].image}')
-        ACTUAL_OPERATOR=$(kubectl get deployment cilium-operator -n kube-system -o jsonpath='{.spec.template.spec.containers[0].image}')
+        ACTUAL_OPERATOR=$(kubectl get deployment cilium-operator -n kube-system -o jsonpath='{.spec.template.spec.containers[?(@.name=="cilium-operator")].image}')
         mapfile -t INIT_IMAGES < <(kubectl get daemonset cilium -n kube-system -o jsonpath='{range .spec.template.spec.initContainers[*]}{.image}{"\n"}{end}')
 
         [ "$ACTUAL_AGENT" = "$EXPECTED_AGENT" ] || {
