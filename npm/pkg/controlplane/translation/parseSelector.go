@@ -2,7 +2,6 @@ package translation
 
 import (
 	"fmt"
-
 	"regexp"
 
 	"github.com/Azure/azure-container-networking/log"
@@ -20,34 +19,47 @@ var validLabelRegex = regexp.MustCompile("(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0
 // into multiple label selectors helping with the OR condition.
 func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelSelector, error) {
 	/*
-			This function helps to create multiple labelSelectors when given a single multivalue nsSelector
-			Take below example: this nsSelector has 2 values in a matchSelector.
+			This function helps to create multiple labelSelectors when given a single multivalue nsSelector.
+
+			The two multi-value operators are handled differently because they carry different semantics:
+
+			In: a multi-value In is a disjunction (OR) over its values, so it is fanned out into one
+			labelSelector per value. Take below example with 2 values in a matchExpression:
 			- namespaceSelector:
 		        matchExpressions:
 		        - key: ns
-		          operator: NotIn
+		          operator: In
 		          values:
 		          - netpol-x
 		          - netpol-y
 
-			goal is to convert this single nsSelector into multiple nsSelectors to preserve OR condition
-			between multiple values of the matchExpr i.e. this function will return
+			becomes
 
 			- namespaceSelector:
 		        matchExpressions:
 		        - key: ns
-		          operator: NotIn
+		          operator: In
 		          values:
 		          - netpol-x
 			- namespaceSelector:
 		        matchExpressions:
 		        - key: ns
-		          operator: NotIn
+		          operator: In
 		          values:
 		          - netpol-y
 
-			then, translate policy will replicate each of these nsSelectors to add two different rules in iptables,
-			resulting in OR condition between the values.
+			then, translate policy will replicate each of these nsSelectors to add two different rules,
+			resulting in the OR condition between the values.
+
+			NotIn: a multi-value NotIn is a single set-membership conjunction, i.e.
+			ns NotIn [x, y] means (ns != x AND ns != y). It must NOT be fanned out into separate
+			selectors, because each generated selector becomes an independent allow rule and allow
+			rules are additive (OR): a namespace carrying one excluded value would still match the
+			rule negating the other value and be admitted. Instead, every value is kept as its own
+			single-value NotIn requirement within the same selector, so all negated conditions land
+			in a single decision (AND) and the default drop stays effective for every excluded value.
+			When a selector mixes In and NotIn, each NotIn exclusion is carried conjunctively into
+			every In branch.
 
 			Check TestFlattenNameSpaceSelector 2nd subcase for complex scenario
 	*/
@@ -70,14 +82,20 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelS
 	}
 
 	multiValuePresent := false
+	// notInExpanded records whether a multi-value NotIn was rewritten into several
+	// single-value NotIn requirements on baseSelector. When it is, baseSelector no
+	// longer equals the input, so the original selector must not be returned as-is.
+	notInExpanded := false
 	multiValueMatchExprs := []metav1.LabelSelectorRequirement{}
 	for _, req := range nsSelector.MatchExpressions {
-		// Only In and NotIn operators of matchExprs have multiple values
-		// NPM will ignore single value matchExprs of these operators.
-		// for multiple values, it will create a slice of them to be used for Zipping with baseSelector
-		// to create multiple nsSelectors to preserve OR condition across all labels and expressions
+		// In/NotIn requirements carry the values; single-value requirements are added to
+		// baseSelector as-is, while multi-value requirements are handled per operator below.
+		// Exists/DoesNotExist carry no values and are added to baseSelector directly.
 		switch {
-		case (req.Operator == metav1.LabelSelectorOpIn) || (req.Operator == metav1.LabelSelectorOpNotIn):
+		case req.Operator == metav1.LabelSelectorOpIn:
+			if len(req.Values) == 0 {
+				return nil, ErrEmptyMatchExpressionValues
+			}
 			for _, v := range req.Values {
 				if !isValidLabelValue(v) {
 					return nil, ErrInvalidMatchExpressionValues
@@ -88,21 +106,64 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelS
 				// for length 1, add the matchExpr to baseSelector
 				baseSelector.MatchExpressions = append(baseSelector.MatchExpressions, req)
 			} else {
+				// multi-value In is a disjunction: zip it with baseSelector to
+				// create one nsSelector per value and preserve the OR condition.
 				multiValuePresent = true
 				multiValueMatchExprs = append(multiValueMatchExprs, req)
+			}
+		case req.Operator == metav1.LabelSelectorOpNotIn:
+			if len(req.Values) == 0 {
+				return nil, ErrEmptyMatchExpressionValues
+			}
+			for _, v := range req.Values {
+				if !isValidLabelValue(v) {
+					return nil, ErrInvalidMatchExpressionValues
+				}
+			}
+
+			if len(req.Values) == 1 {
+				// for length 1, add the matchExpr to baseSelector
+				baseSelector.MatchExpressions = append(baseSelector.MatchExpressions, req)
+			} else {
+				// A multi-value NotIn is a single set-membership conjunction
+				// (key NotIn [a, b] == key != a AND key != b), NOT a disjunction.
+				// Fanning it out into separate selectors would emit independent
+				// additive allow rules and let each excluded value be admitted by
+				// the rule negating another value. Keep every value as its own
+				// single-value NotIn within the same selector so all negations
+				// stay in one decision (AND).
+				notInExpanded = true
+				for _, v := range req.Values {
+					baseSelector.MatchExpressions = append(
+						baseSelector.MatchExpressions,
+						metav1.LabelSelectorRequirement{
+							Key:      req.Key,
+							Operator: metav1.LabelSelectorOpNotIn,
+							Values:   []string{v},
+						},
+					)
+				}
 			}
 		case (req.Operator == metav1.LabelSelectorOpExists) || (req.Operator == metav1.LabelSelectorOpDoesNotExist):
 			// since Exists and NotExists do not contain any values, NPM can safely add them to the baseSelector
 			baseSelector.MatchExpressions = append(baseSelector.MatchExpressions, req)
 		default:
-			log.Errorf("Invalid operator [%s] for selector [%v] requirement", req.Operator, *nsSelector)
+			// Fail closed: an unknown operator must not silently drop the requirement
+			// and widen the selector. Kubernetes only admits In/NotIn/Exists/DoesNotExist.
+			log.Errorf("unsupported operator [%s] for selector [%v] requirement", req.Operator, *nsSelector)
+			return nil, ErrUnsupportedMatchExpressionOperator
 		}
 	}
 
-	// If there are no multiValue NS selector match expressions
-	// return the original NsSelector
+	// If there are no multiValue In match expressions to fan out, the baseSelector
+	// (which already carries any conjunctive NotIn expansions) is the only selector.
 	if !multiValuePresent {
-		return []metav1.LabelSelector{*nsSelector}, nil
+		if !notInExpanded {
+			// Nothing was rewritten; return the original selector unchanged so callers
+			// that compare against the input see an identical selector.
+			return []metav1.LabelSelector{*nsSelector}, nil
+		}
+		return []metav1.LabelSelector{*baseSelector.DeepCopy()}, nil
 	}
 
 	// Now use the baseSelector and loop over multiValueMatchExprs to create all
