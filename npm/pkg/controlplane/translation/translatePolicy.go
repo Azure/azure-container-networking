@@ -38,7 +38,7 @@ var (
 	// ErrEmptyMatchExpressionValues is returned when an In or NotIn matchExpression carries no values.
 	// Kubernetes rejects such requirements; NPM fails closed rather than dropping the requirement,
 	// which could otherwise widen a selector (e.g. a dropped NotIn) or yield no rules at all.
-	ErrEmptyMatchExpressionValues = errors.New("In and NotIn matchExpression requirements must have at least one value")
+	ErrEmptyMatchExpressionValues = errors.New("in and notIn matchExpression requirements must have at least one value")
 	// ErrUnsupportedMatchExpressionOperator is returned when a matchExpression uses an operator that is
 	// none of In, NotIn, Exists or DoesNotExist. NPM fails closed rather than dropping the requirement,
 	// which could otherwise silently widen the selector.

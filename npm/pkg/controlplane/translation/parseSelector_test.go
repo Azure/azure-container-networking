@@ -675,6 +675,8 @@ func TestFlattenNameSpaceSelectorMixedInAndNotIn(t *testing.T) {
 			case metav1.LabelSelectorOpIn:
 				require.Equal(t, "role", req.Key)
 				inValues = append(inValues, req.Values[0])
+			case metav1.LabelSelectorOpExists, metav1.LabelSelectorOpDoesNotExist:
+				t.Fatalf("unexpected valueless operator %s", req.Operator)
 			default:
 				t.Fatalf("unexpected operator %s", req.Operator)
 			}
