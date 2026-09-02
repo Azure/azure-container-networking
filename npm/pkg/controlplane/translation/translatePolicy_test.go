@@ -1388,7 +1388,6 @@ func TestNameSpaceSelectorNegationOnlyIsScopedToNamespaces(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			nsSelectorIPSets, nsSelectorList := nameSpaceSelector(matchType, tt.selector)
 			require.ElementsMatch(t, tt.expected, nsSelectorList)
@@ -1452,7 +1451,6 @@ func TestNameSpaceSelectorWithPositiveMatchIsUnchanged(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			_, nsSelectorList := nameSpaceSelector(matchType, tt.selector)
 			require.ElementsMatch(t, tt.expected, nsSelectorList)
@@ -1490,7 +1488,6 @@ func TestTranslatePolicyNegationOnlyNamespaceSelector(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1589,7 +1586,6 @@ func TestTranslatePolicyMultiValueNotInConjunction(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -3899,7 +3895,6 @@ func TestTranslatePolicyNonCanonicalAllAddressesCIDR(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, cidr := range []string{"10.0.0.0/0", "255.255.255.255/0"} {
-		cidr := cidr
 		t.Run(cidr, func(t *testing.T) {
 			t.Parallel()
 
@@ -3910,7 +3905,7 @@ func TestTranslatePolicyNonCanonicalAllAddressesCIDR(t *testing.T) {
 			// The policy must be indistinguishable from the canonical spelling: same
 			// ipset members (the 0.0.0.0/0 split) and the same ACLs.
 			require.Equal(t, canonical.RuleIPSets, npmNetPol.RuleIPSets)
-			require.Equal(t, len(canonical.ACLs), len(npmNetPol.ACLs))
+			require.Len(t, npmNetPol.ACLs, len(canonical.ACLs))
 
 			// Most importantly the default drop must exist, since its absence is what
 			// left the selected pods unisolated.
@@ -3931,7 +3926,6 @@ func TestTranslatePolicyInvalidCIDRStillFails(t *testing.T) {
 	t.Parallel()
 
 	for _, cidr := range []string{"2001:db8::/32", "10.0.0.0/33", "not-a-cidr/0"} {
-		cidr := cidr
 		t.Run(cidr, func(t *testing.T) {
 			t.Parallel()
 			npmNetPol, err := TranslatePolicy(ipBlockPolicy("victim", "default", cidr), false)
