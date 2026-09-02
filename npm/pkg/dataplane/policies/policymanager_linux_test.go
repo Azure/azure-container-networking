@@ -517,3 +517,56 @@ func TestUpdatingStaleChains(t *testing.T) {
 	require.NoError(t, pMgr.AddPolicies([]*NPMNetworkPolicy{bothDirectionsNetPol}, nil))
 	assertStaleChainsContain(t, pMgr.staleChains, egressNetPolChain)
 }
+
+// TestNegationOnlyPeerRendersAnchor asserts how a negation-only namespace peer reaches the
+// kernel. A negated set match (`! --match-set`) is satisfied by every address absent from
+// that set, including addresses that are not pods at all, so an ACL whose peer list is only
+// negations matches non-pod traffic. The all-namespaces anchor is what confines the decision
+// to the pod domain, and this test pins that it renders as a positive `--match-set` in the
+// same rule as the negation, for both directions.
+func TestNegationOnlyPeerRendersAnchor(t *testing.T) {
+	anchor := ipsets.NewIPSetMetadata(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace)
+	excluded := ipsets.NewIPSetMetadata("blocked", ipsets.KeyLabelOfNamespace)
+
+	tests := []struct {
+		name      string
+		matchType MatchType
+		direction string
+	}{
+		{"ingress", SrcMatch, "src"},
+		{"egress", DstMatch, "dst"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			acl := &ACLPolicy{
+				Target:    Allowed,
+				Direction: Ingress,
+			}
+			peers := []SetInfo{
+				NewSetInfo(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace, true, tt.matchType),
+				NewSetInfo("blocked", ipsets.KeyLabelOfNamespace, false, tt.matchType),
+			}
+			if tt.matchType == SrcMatch {
+				acl.SrcList = peers
+			} else {
+				acl.DstList = peers
+			}
+
+			specs := strings.Join(iptablesRuleSpecs(acl), " ")
+
+			// The anchor must be a positive match, so only pod addresses can satisfy it.
+			require.Contains(t, specs,
+				strings.Join([]string{util.IptablesMatchSetFlag, anchor.GetHashedName(), tt.direction}, " "),
+				"the all-namespaces anchor must render as a positive match-set")
+			// The exclusion must remain negated.
+			require.Contains(t, specs,
+				strings.Join([]string{util.IptablesNotFlag, util.IptablesMatchSetFlag, excluded.GetHashedName(), tt.direction}, " "),
+				"the excluded namespace label must render as a negated match-set")
+			// The negation must not be the only match in the rule, which is the shape
+			// that admits non-pod addresses.
+			require.NotEqual(t, 1, strings.Count(specs, util.IptablesMatchSetFlag),
+				"a negation-only rule must never be emitted for a namespace peer")
+		})
+	}
+}
