@@ -19,6 +19,11 @@ const (
 	nonIncluded  bool   = false
 	namedPortStr string = "serve-tcp"
 	defaultNS    string = "default"
+
+	victimName       string = "victim"
+	appLabelKey      string = "app"
+	enclosingCIDR    string = "10.244.1.0/24"
+	exceptedHostBits string = "10.244.1.106/32"
 )
 
 var namedPortPolicyKey = fmt.Sprintf("%s/%s", defaultNS, namedPortStr)
@@ -1848,7 +1853,7 @@ func TestDirectPeerAndPortAllowRule(t *testing.T) {
 				PolicyKey:   namedPortPolicyKey,
 				ACLPolicyID: fmt.Sprintf("azure-acl-%s-%s", defaultNS, namedPortPolicyKey),
 			}
-			err := directPeerAndPortAllowRule(npmNetPol, tt.direction, tt.ports, tt.cidr, npmLiteToggle)
+			err := directPeerAndPortAllowRule(npmNetPol, tt.direction, tt.ports, tt.cidr, nil, npmLiteToggle)
 			if tt.skipWindows {
 				require.Error(t, err)
 			} else {

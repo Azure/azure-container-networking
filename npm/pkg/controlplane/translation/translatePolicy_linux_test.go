@@ -13,11 +13,11 @@ func TestTranslatePolicyNPMLiteUsesIPSets(t *testing.T) {
 	networkPolicy := &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "allow-cidrs",
-			Namespace: "victim",
+			Namespace: victimName,
 		},
 		Spec: networkingv1.NetworkPolicySpec{
 			PodSelector: metav1.LabelSelector{
-				MatchLabels: map[string]string{"app": "victim"},
+				MatchLabels: map[string]string{appLabelKey: victimName},
 			},
 			PolicyTypes: []networkingv1.PolicyType{
 				networkingv1.PolicyTypeIngress,
@@ -49,4 +49,39 @@ func TestTranslatePolicyNPMLiteUsesIPSets(t *testing.T) {
 	require.Equal(t, policies.Allowed, translated.ACLs[2].Target)
 	require.Len(t, translated.ACLs[2].DstList, 1)
 	require.Empty(t, translated.ACLs[2].DstDirectIPs)
+}
+
+// TestTranslatePolicyNPMLiteLinuxExceptUsesNomatch guards that, on Linux, NPM Lite keeps
+// routing IPBlock.Except through the ipset "nomatch" path (never the Windows direct-drop path),
+// so the fix for MSRC 132306 does not change Linux behavior.
+func TestTranslatePolicyNPMLiteLinuxExceptUsesNomatch(t *testing.T) {
+	networkPolicy := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "allow-cidr-except",
+			Namespace: victimName,
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{MatchLabels: map[string]string{appLabelKey: victimName}},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{{
+				From: []networkingv1.NetworkPolicyPeer{{
+					IPBlock: &networkingv1.IPBlock{
+						CIDR:   enclosingCIDR,
+						Except: []string{exceptedHostBits},
+					},
+				}},
+			}},
+		},
+	}
+
+	translated, err := TranslatePolicy(networkPolicy, true)
+	require.NoError(t, err)
+	require.Len(t, translated.RuleIPSets, 1)
+	require.Equal(t, []string{enclosingCIDR, "10.244.1.106/32 nomatch"}, translated.RuleIPSets[0].Members)
+
+	// No direct-IP ACLs on Linux; the CIDR+Except is enforced through the ipset above.
+	for _, acl := range translated.ACLs {
+		require.Empty(t, acl.SrcDirectIPs)
+		require.Empty(t, acl.DstDirectIPs)
+	}
 }

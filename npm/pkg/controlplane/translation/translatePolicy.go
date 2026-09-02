@@ -365,17 +365,48 @@ func peerAndPortRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Di
 	return nil
 }
 
-func directPeerAndPortAllowRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Direction, ports []networkingv1.NetworkPolicyPort, cidr string, npmLiteToggle bool) error {
+// setDirectIP assigns cidr to the source or destination direct-IP field of acl based on direction.
+func setDirectIP(acl *policies.ACLPolicy, direction policies.Direction, cidr string) {
+	if direction == policies.Ingress {
+		acl.SrcDirectIPs = []string{cidr}
+	} else {
+		acl.DstDirectIPs = []string{cidr}
+	}
+}
+
+// exceptDirectDropRules emits a higher-priority Block ACL for each IPBlock.Except CIDR so an
+// excepted peer is denied even though it falls inside the enclosing CIDR allowed above. It
+// mirrors the port/protocol scope of the Allow it accompanies. Without these rules the Windows
+// direct-rule path would silently ignore Except and allow the full enclosing CIDR.
+func exceptDirectDropRules(npmNetPol *policies.NPMNetworkPolicy, direction policies.Direction, except []string, ports policies.Ports, protocol policies.Protocol) error {
+	for _, exceptCIDR := range deDuplicateExcept(except) {
+		if !util.IsIPV4(exceptCIDR) {
+			// Fail closed: refuse to program an ACL that silently ignores the exclusion.
+			return ErrUnsupportedIPAddress
+		}
+		acl := policies.NewACLPolicy(policies.Dropped, direction)
+		acl.Priority = policies.ExceptBlockPriority
+		setDirectIP(acl, direction, exceptCIDR)
+		acl.DstPorts = ports
+		acl.Protocol = protocol
+		npmNetPol.ACLs = append(npmNetPol.ACLs, acl)
+	}
+	return nil
+}
+
+func directPeerAndPortAllowRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Direction, ports []networkingv1.NetworkPolicyPort, cidr string, except []string, npmLiteToggle bool) error {
+	// Match the ipset-based ipBlockRule path and reject non-IPv4 enclosing CIDRs (e.g. IPv6),
+	// which HNS direct-IP ACLs cannot express. Failing closed avoids programming an ACL that
+	// silently ignores the peer.
+	if !util.IsIPV4(cidr) {
+		return ErrUnsupportedIPAddress
+	}
 	if len(ports) == 0 {
 		acl := policies.NewACLPolicy(policies.Allowed, direction)
 		// bypasses ipset creation for /32 cidrs and directly creates an acl with the cidr
-		if direction == policies.Ingress {
-			acl.SrcDirectIPs = []string{cidr}
-		} else {
-			acl.DstDirectIPs = []string{cidr}
-		}
+		setDirectIP(acl, direction, cidr)
 		npmNetPol.ACLs = append(npmNetPol.ACLs, acl)
-		return nil
+		return exceptDirectDropRules(npmNetPol, direction, except, policies.Ports{}, "")
 	}
 	// handle each port separately
 	for i := range ports {
@@ -392,19 +423,25 @@ func directPeerAndPortAllowRule(npmNetPol *policies.NPMNetworkPolicy, direction 
 		acl := policies.NewACLPolicy(policies.Allowed, direction)
 
 		// Set direct IP based on direction
-		if direction == policies.Ingress {
-			acl.SrcDirectIPs = []string{cidr}
-		} else {
-			acl.DstDirectIPs = []string{cidr}
-		}
+		setDirectIP(acl, direction, cidr)
 
 		// Handle ports
+		var portInfo policies.Ports
+		var protocol policies.Protocol
 		if portKind == numericPortType {
-			portInfo, protocol := numericPortRule(&ports[i])
+			var protoStr string
+			portInfo, protoStr = numericPortRule(&ports[i])
+			protocol = policies.Protocol(protoStr)
 			acl.DstPorts = portInfo
-			acl.Protocol = policies.Protocol(protocol)
+			acl.Protocol = protocol
 		}
 		npmNetPol.ACLs = append(npmNetPol.ACLs, acl)
+
+		// Emit the matching higher-priority Block ACLs for each excepted CIDR, scoped to the
+		// same port/protocol as the Allow above.
+		if err := exceptDirectDropRules(npmNetPol, direction, except, portInfo, protocol); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -453,7 +490,7 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy,
 		if peer.IPBlock != nil {
 			if len(peer.IPBlock.CIDR) > 0 {
 				if npmLiteToggle && util.IsWindowsDP() {
-					err = directPeerAndPortAllowRule(npmNetPol, direction, ports, peer.IPBlock.CIDR, npmLiteToggle)
+					err = directPeerAndPortAllowRule(npmNetPol, direction, ports, peer.IPBlock.CIDR, peer.IPBlock.Except, npmLiteToggle)
 					if err != nil {
 						return err
 					}
