@@ -70,13 +70,57 @@ func FromEnv(getenv func(string) string) model.RunContext {
 	return rc
 }
 
+// maxDiffChars bounds the change-under-test diff injected into the prompt so a
+// large pull request cannot crowd collected evidence out of the excerpt budget.
+const maxDiffChars = 60 << 10 // 60 KiB
+
+// diffPostImageRE matches the "+++ b/<path>" line of a unified diff, which names
+// the post-image path of each changed file.
+var diffPostImageRE = regexp.MustCompile(`(?m)^\+\+\+ b/(.+)$`)
+
+// LoadChangeContext reads a unified diff of the change under test and populates
+// rc.ChangedFiles and rc.Diff. An empty diff is not an error: the agent still
+// analyzes the run, just without change context.
+func LoadChangeContext(rc *model.RunContext, path string) error {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("reading diff %s: %w", path, err)
+	}
+
+	diff := string(b)
+	if strings.TrimSpace(diff) == "" {
+		return nil
+	}
+
+	seen := map[string]bool{}
+	for _, m := range diffPostImageRE.FindAllStringSubmatch(diff, -1) {
+		name := strings.TrimSpace(m[1])
+		if name == "" || name == "/dev/null" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		rc.ChangedFiles = append(rc.ChangedFiles, name)
+	}
+	sort.Strings(rc.ChangedFiles)
+
+	if len(diff) > maxDiffChars {
+		diff = diff[:maxDiffChars] + "\n... (diff truncated)\n"
+	}
+	rc.Diff = diff
+	return nil
+}
+
 // ParseEvidence walks root and extracts error lines, file excerpts, and the
 // file inventory. It is read-only and skips unreadable or non-text files.
 func ParseEvidence(root string) (model.Evidence, error) {
 	ev := model.Evidence{Root: root, Excerpts: map[string]string{}}
 
 	seen := map[string]bool{}
-	var errorLines []string
+	type fileErrors struct {
+		rel   string
+		lines []string
+	}
+	var perFile []fileErrors
 
 	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -98,13 +142,17 @@ func ParseEvidence(root string) (model.Evidence, error) {
 		ev.Files = append(ev.Files, rel)
 
 		lines, snippets := scanFile(path)
+		var kept []string
 		for _, l := range lines {
 			key := normalizeForDedup(l)
 			if key == "" || seen[key] {
 				continue
 			}
 			seen[key] = true
-			errorLines = append(errorLines, l)
+			kept = append(kept, l)
+		}
+		if len(kept) > 0 {
+			perFile = append(perFile, fileErrors{rel: rel, lines: kept})
 		}
 		if len(snippets) == 0 && (isNodeEvidenceFile(rel) || isDatapathEvidenceFile(rel)) {
 			if head := headExcerpt(path); head != "" {
@@ -112,7 +160,10 @@ func ParseEvidence(root string) (model.Evidence, error) {
 			}
 		}
 		if len(snippets) > 0 {
-			if len(ev.Excerpts) < maxExcerptFiles {
+			// High-signal files bypass the excerpt cap: the walk is lexical, so
+			// per-node directories are visited first and would otherwise consume
+			// every slot before the assertion and IP-plane state are reached.
+			if len(ev.Excerpts) < maxExcerptFiles || isAssertionEvidenceFile(rel) || isDatapathEvidenceFile(rel) {
 				ev.Excerpts[rel] = renderFileExcerpt(snippets)
 			}
 			for _, sn := range snippets {
@@ -130,8 +181,27 @@ func ParseEvidence(root string) (model.Evidence, error) {
 	}
 
 	sort.Strings(ev.Files)
-	if len(errorLines) > maxTopErrorLines {
-		errorLines = errorLines[:maxTopErrorLines]
+
+	// Draw error lines round-robin across files rather than in walk order. A
+	// single verbose source (containerd's journal is 1000 lines and sorts before
+	// the CNS log) would otherwise fill the whole budget before the decisive
+	// files are read.
+	var errorLines []string
+	for i := 0; len(errorLines) < maxTopErrorLines; i++ {
+		progressed := false
+		for _, fe := range perFile {
+			if i >= len(fe.lines) {
+				continue
+			}
+			progressed = true
+			errorLines = append(errorLines, fe.lines[i])
+			if len(errorLines) >= maxTopErrorLines {
+				break
+			}
+		}
+		if !progressed {
+			break
+		}
 	}
 	ev.TopErrorLines = errorLines
 	return ev, nil
@@ -154,14 +224,28 @@ func isNodeEvidenceFile(rel string) bool {
 // must be surfaced explicitly. The allowlist is deliberately narrow: it targets
 // the CNS/CNI IPAM view (azure-cns, cnsCache, azure-endpoints), the Windows
 // dataplane (hns-endpoint, hns-network) and the core extracted network dumps
-// (endpoint, routes, ports, vfpOutput, ip), while excluding low-signal noise
-// (per-adapter interface dumps, arp, firewall, dism/cbs) that would otherwise
-// exhaust the excerpt budget.
-var datapathEvidenceNameRE = regexp.MustCompile(`(?i)(^|/)(azure-cns|azure-vnet|cnscache|azure-endpoints|hns-endpoint|hns-network|endpoint|routes|ports|vfpoutput|ip)(\.[a-z]+)?$`)
+// (endpoint, routes, ports, vfpOutput, ip) and the cluster-wide pod/IP table
+// (all-pods), while excluding low-signal noise (per-adapter interface dumps,
+// arp, firewall, dism/cbs) that would otherwise exhaust the excerpt budget.
+// all-pods is included because CNS state and the orchestrator's own view of pod
+// addressing are indexed differently, so reconciling the two requires the pod
+// table as well as the CNS dumps.
+var datapathEvidenceNameRE = regexp.MustCompile(`(?i)(^|/)(azure-cns|azure-vnet|cnscache|azure-endpoints|hns-endpoint|hns-network|endpoint|routes|ports|vfpoutput|ip|all-pods)(\.[a-z]+)?$`)
 
 // isDatapathEvidenceFile reports whether rel is an IP-plane/datapath state file.
 func isDatapathEvidenceFile(rel string) bool {
 	return datapathEvidenceNameRE.MatchString(rel)
+}
+
+// assertionEvidenceNameRE matches the E2E task logs pulled from the ADO build
+// timeline. They carry the test's own assertion text, which is
+// written to the task log and to no file on disk, so it exists in no
+// cluster-side artifact.
+var assertionEvidenceNameRE = regexp.MustCompile(`(?i)(^|/)e2e-task-logs/`)
+
+// isAssertionEvidenceFile reports whether rel is a captured E2E task log.
+func isAssertionEvidenceFile(rel string) bool {
+	return assertionEvidenceNameRE.MatchString(rel)
 }
 
 // headExcerpt returns the first lines of a file as a line-numbered snippet, used

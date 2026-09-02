@@ -57,6 +57,33 @@ steps:
 
   - bash: |
       set -o pipefail
+      # The E2E assertion text (for example a state-file validation error) is
+      # written to the ADO task log and to no file on disk, so
+      # it never reaches the failure-analysis bundle, which otherwise carries only
+      # cluster-side state dumps. Pull this build's failed task logs so the agent
+      # sees the actual test output rather than inferring it from state.
+      out="$(acnLogs)/e2e-task-logs"
+      mkdir -p "$out"
+
+      api="$(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)"
+      timeline=$(curl -sSL -H "Authorization: Bearer $SYSTEM_ACCESSTOKEN" "$api/timeline?api-version=7.0") || exit 0
+
+      echo "$timeline" \
+        | jq -r '.records[] | select(.result=="failed") | select(.log.url != null) | [.id, (.name|gsub("[^A-Za-z0-9._-]";"_")), .log.url] | @tsv' \
+        | head -n 20 \
+        | while IFS=$'\t' read -r id name url; do
+            curl -sSL -H "Authorization: Bearer $SYSTEM_ACCESSTOKEN" "$url" \
+              | tail -c 200000 > "$out/${name}_${id}.txt" || true
+            echo "captured $out/${name}_${id}.txt"
+          done
+    displayName: Failed Task Logs
+    condition: always()
+    continueOnError: true
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+
+  - bash: |
+      set -o pipefail
       bash hack/scripts/collect-bad-pod-info.sh 2>&1 | tee "$(acnLogs)/bad-pod-info.txt"
     displayName: Collect Bad Pod Info
     condition: always()
