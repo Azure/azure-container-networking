@@ -33,6 +33,8 @@ schedules:
   always: true
 
 parameters:
+  # Empty or __use-default__ builds and publishes the component image.
+  # A supplied image skips those entries and is used by the install path.
   - name: cniImage
     type: string
     default: "__use-default__"
@@ -81,7 +83,7 @@ stages:
 
               BUILD_NUMBER=$(Build.BuildNumber)
               echo "##vso[task.setvariable variable=StorageID;isOutput=true]$(echo ${BUILD_NUMBER//./-})"
-              echo "##vso[task.setvariable variable=commitID;isOutput=true]$(Build.BuildId)"
+              echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(date "+%d%H%M"))"
               echo "##vso[task.setvariable variable=Tag;isOutput=true]$(make version)"
               echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
               echo "##vso[task.setvariable variable=imageRepositoryPath;isOutput=true]acnpublic.azurecr.io"
@@ -93,9 +95,6 @@ stages:
               read -r CNI_REPO CNI_NAME CNI_VERSION <<< "$(parse_override_image '${{ parameters.cniImage }}' azure-cni $(make cni-version))"
               read -r CNS_REPO CNS_NAME CNS_VERSION <<< "$(parse_override_image '${{ parameters.cnsImage }}' azure-cns $(make cns-version))"
               read -r IPAM_REPO IPAM_NAME IPAM_VERSION <<< "$(parse_override_image '${{ parameters.ipamImage }}' azure-ipam $(make azure-ipam-version))"
-              read -r IPTABLES_REPO IPTABLES_NAME IPTABLES_VERSION <<< "$(parse_override_image '${{ parameters.azureIptablesMonitorImage }}' azure-iptables-monitor $(make azure-iptables-monitor-version))"
-              read -r IP_MASQ_REPO IP_MASQ_NAME IP_MASQ_VERSION <<< "$(parse_override_image '${{ parameters.azureIpMasqMergerImage }}' azure-ip-masq-merger $(make azure-ip-masq-merger-version))"
-              read -r CLC_REPO CLC_NAME CLC_VERSION <<< "$(parse_override_image '${{ parameters.ciliumLogCollectorImage }}' cilium-log-collector $(make cilium-log-collector-version))"
 
               echo "##vso[task.setvariable variable=cniImageRepo;isOutput=true]${CNI_REPO}"
               echo "##vso[task.setvariable variable=cniImageNameOverride;isOutput=true]${CNI_NAME}"
@@ -114,9 +113,9 @@ stages:
               echo "##vso[task.setvariable variable=ipamImageNameOverride;isOutput=true]${IPAM_NAME}"
               echo "##vso[task.setvariable variable=ipamVersion;isOutput=true]${IPAM_VERSION}"
 
-              echo "##vso[task.setvariable variable=azureIptablesMonitorImage;isOutput=true]$(format_override_image "$IPTABLES_REPO" "$IPTABLES_NAME" "$IPTABLES_VERSION")"
-              echo "##vso[task.setvariable variable=azureIpMasqMergerImage;isOutput=true]$(format_override_image "$IP_MASQ_REPO" "$IP_MASQ_NAME" "$IP_MASQ_VERSION")"
-              echo "##vso[task.setvariable variable=ciliumLogCollectorImage;isOutput=true]$(format_override_image "$CLC_REPO" "$CLC_NAME" "$CLC_VERSION")"
+              echo "##vso[task.setvariable variable=azureIptablesMonitorImageOverride;isOutput=true]$(resolve_override_image '${{ parameters.azureIptablesMonitorImage }}' azure-iptables-monitor $(make azure-iptables-monitor-version))"
+              echo "##vso[task.setvariable variable=azureIpMasqMergerImageOverride;isOutput=true]$(resolve_override_image '${{ parameters.azureIpMasqMergerImage }}' azure-ip-masq-merger $(make azure-ip-masq-merger-version))"
+              echo "##vso[task.setvariable variable=ciliumLogCollectorImageOverride;isOutput=true]$(resolve_override_image '${{ parameters.ciliumLogCollectorImage }}' cilium-log-collector $(make cilium-log-collector-version))"
 
               cat /etc/os-release
               uname -a

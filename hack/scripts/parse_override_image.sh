@@ -55,16 +55,15 @@ parse_override_image() {
   echo "${repo} ${name} ${version}"
 }
 
-format_override_image() {
-  local repo="$1"
-  local registry
+resolve_override_image() {
+  local image="$1"
 
-  case "$repo" in
-    MCR) registry="mcr.microsoft.com/containernetworking" ;;
-    *) registry="acnpublic.azurecr.io" ;;
-  esac
+  if [ -z "$image" ] || [ "$image" = "__use-default__" ]; then
+    format_image "acnpublic.azurecr.io" "$2" "$3"
+    return
+  fi
 
-  format_image "$registry" "$2" "$3"
+  echo "$image"
 }
 
 format_image() {
