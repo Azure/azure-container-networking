@@ -514,3 +514,64 @@ func TestHashedNameGoldenVectors(t *testing.T) {
 		require.Equal(t, want, GetHashedChainName(in), "GetHashedChainName(%q) golden vector", in)
 	}
 }
+
+// TestIsIPV4 covers address and CIDR forms. The CIDR cases matter most: a block whose host
+// bits are set (e.g. "10.0.0.0/0") denotes the same addresses as its canonical form and must
+// be accepted, because rejecting it fails the whole policy translation and leaves the
+// policy's selected pods with no rules at all.
+func TestIsIPV4(t *testing.T) {
+	valid := []string{
+		"10.0.0.1",
+		"0.0.0.0",
+		"10.0.0.0/24",
+		"0.0.0.0/0",
+		// non-canonical spellings of valid IPv4 blocks
+		"10.0.0.0/0",
+		"255.255.255.255/0",
+		"10.1.2.3/24",
+		"10.0.0.1/32",
+	}
+	for _, ip := range valid {
+		require.True(t, IsIPV4(ip), "IsIPV4(%q) must be true", ip)
+	}
+
+	invalid := []string{
+		"",
+		"not-an-ip",
+		"10.0.0.256",
+		"10.0.0.0/33",
+		"10.0.0.0/",
+		"2001:db8::1",
+		"2001:db8::/32",
+		"::/0",
+	}
+	for _, ip := range invalid {
+		require.False(t, IsIPV4(ip), "IsIPV4(%q) must be false", ip)
+	}
+}
+
+// TestNormalizeCIDR verifies that host bits are cleared, so callers can compare a CIDR
+// against a well-known block and hand the canonical form to the kernel.
+func TestNormalizeCIDR(t *testing.T) {
+	canonical := map[string]string{
+		"0.0.0.0/0":         "0.0.0.0/0",
+		"10.0.0.0/0":        "0.0.0.0/0",
+		"255.255.255.255/0": "0.0.0.0/0",
+		"10.0.0.0/1":        "0.0.0.0/1",
+		"200.0.0.0/1":       "128.0.0.0/1",
+		"10.1.2.3/24":       "10.1.2.0/24",
+		"10.1.2.0/24":       "10.1.2.0/24",
+		"10.0.0.1/32":       "10.0.0.1/32",
+	}
+	for in, want := range canonical {
+		got, ok := NormalizeCIDR(in)
+		require.True(t, ok, "NormalizeCIDR(%q) must succeed", in)
+		require.Equal(t, want, got, "NormalizeCIDR(%q)", in)
+	}
+
+	for _, in := range []string{"", "10.0.0.1", "not-a-cidr", "10.0.0.0/33", "2001:db8::/32", "::/0"} {
+		got, ok := NormalizeCIDR(in)
+		require.False(t, ok, "NormalizeCIDR(%q) must fail", in)
+		require.Empty(t, got)
+	}
+}

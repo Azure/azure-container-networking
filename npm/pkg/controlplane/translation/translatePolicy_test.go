@@ -636,13 +636,18 @@ func TestIPBlockIPSet(t *testing.T) {
 			translatedIPSet: ipsets.NewTranslatedIPSet("test:in-ns:default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1", "128.0.0.0/1"}...),
 		},
 		{
-			name:        "cidr: 0.0.0.0/0 and except: 10.0.0.0/1",
+			// "10.0.0.0/1" is a non-canonical spelling of the block "0.0.0.0/1", so this
+			// except names the lower half that the 0.0.0.0/0 split already emits. It must
+			// therefore collapse onto that entry as a nomatch, exactly as the canonical
+			// "0.0.0.0/1" case below does. Emitting "0.0.0.0/1" alongside a separate
+			// "10.0.0.0/1 nomatch" would name the same net twice with opposite meanings.
+			name:        "cidr: 0.0.0.0/0 and except: 10.0.0.0/1 (non-canonical 0.0.0.0/1)",
 			ipBlockInfo: createIPBlockInfo("test", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "0.0.0.0/0",
 				Except: []string{"10.0.0.0/1"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test:in-ns:default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1", "128.0.0.0/1", "10.0.0.0/1 nomatch"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("test:in-ns:default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1 nomatch", "128.0.0.0/1"}...),
 			skipWindows:     true,
 		},
 		{
@@ -3862,4 +3867,76 @@ func TestTranslatePolicyNodeEgressPorts(t *testing.T) {
 	npmNetPol, err := TranslatePolicy(npObj, false)
 	require.NoError(t, err)
 	require.Equal(t, []int32{5005, 2500}, npmNetPol.NodeEgressPorts)
+}
+
+// ipBlockPolicy builds an ingress NetworkPolicy that selects all pods in ns and admits the
+// given ipBlock CIDR.
+func ipBlockPolicy(name, ns, cidr string) *networkingv1.NetworkPolicy {
+	return &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{
+				{
+					From: []networkingv1.NetworkPolicyPeer{
+						{IPBlock: &networkingv1.IPBlock{CIDR: cidr}},
+					},
+				},
+			},
+		},
+	}
+}
+
+// TestTranslatePolicyNonCanonicalAllAddressesCIDR verifies that an ipBlock naming the
+// all-addresses block with host bits set (e.g. "10.0.0.0/0") translates identically to the
+// canonical "0.0.0.0/0". Rejecting it failed the whole policy, so neither the allow nor the
+// default drop the policy implies was installed and the selected pods stayed unisolated.
+func TestTranslatePolicyNonCanonicalAllAddressesCIDR(t *testing.T) {
+	t.Parallel()
+
+	canonical, err := TranslatePolicy(ipBlockPolicy("victim", "default", "0.0.0.0/0"), false)
+	require.NoError(t, err)
+
+	for _, cidr := range []string{"10.0.0.0/0", "255.255.255.255/0"} {
+		cidr := cidr
+		t.Run(cidr, func(t *testing.T) {
+			t.Parallel()
+
+			npmNetPol, err := TranslatePolicy(ipBlockPolicy("victim", "default", cidr), false)
+			require.NoError(t, err, "a non-canonical all-addresses block must not fail translation")
+			require.NotNil(t, npmNetPol)
+
+			// The policy must be indistinguishable from the canonical spelling: same
+			// ipset members (the 0.0.0.0/0 split) and the same ACLs.
+			require.Equal(t, canonical.RuleIPSets, npmNetPol.RuleIPSets)
+			require.Equal(t, len(canonical.ACLs), len(npmNetPol.ACLs))
+
+			// Most importantly the default drop must exist, since its absence is what
+			// left the selected pods unisolated.
+			var dropACLs int
+			for i := range npmNetPol.ACLs {
+				if npmNetPol.ACLs[i].Target == policies.Dropped {
+					dropACLs++
+				}
+			}
+			require.Equal(t, 1, dropACLs, "the policy's default drop must be installed")
+		})
+	}
+}
+
+// TestTranslatePolicyInvalidCIDRStillFails verifies the canonicalization did not weaken
+// validation: a CIDR that is not IPv4 at all must still be rejected.
+func TestTranslatePolicyInvalidCIDRStillFails(t *testing.T) {
+	t.Parallel()
+
+	for _, cidr := range []string{"2001:db8::/32", "10.0.0.0/33", "not-a-cidr/0"} {
+		cidr := cidr
+		t.Run(cidr, func(t *testing.T) {
+			t.Parallel()
+			npmNetPol, err := TranslatePolicy(ipBlockPolicy("victim", "default", cidr), false)
+			require.ErrorIs(t, err, ErrUnsupportedIPAddress)
+			require.Nil(t, npmNetPol)
+		})
+	}
 }
