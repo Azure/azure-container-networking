@@ -167,14 +167,23 @@ func exceptCidr(exceptCidr string) string {
 	return exceptCidr + " " + util.IpsetNomatch
 }
 
-// deDuplicateExcept removes redundance elements and return slices which has only unique element.
+// deDuplicateExcept canonicalizes each except CIDR and removes redundant elements, returning
+// a slice which has only unique elements. Canonicalizing first means two spellings of the same
+// block (e.g. "10.1.2.0/24" and "10.1.2.3/24") collapse to one entry and that the result can be
+// compared against the split-CIDR entries below.
 func deDuplicateExcept(exceptInIPBlock []string) []string {
 	deDupExcepts := []string{}
 	exceptsSet := make(map[string]struct{})
 	for _, except := range exceptInIPBlock {
-		if _, exist := exceptsSet[except]; !exist {
-			deDupExcepts = append(deDupExcepts, except)
-			exceptsSet[except] = struct{}{}
+		canonical, ok := util.NormalizeCIDR(except)
+		if !ok {
+			// Leave a non-IPv4 except untouched; callers validate it separately and
+			// fail closed rather than silently dropping the exclusion.
+			canonical = except
+		}
+		if _, exist := exceptsSet[canonical]; !exist {
+			deDupExcepts = append(deDupExcepts, canonical)
+			exceptsSet[canonical] = struct{}{}
 		}
 	}
 	return deDupExcepts
@@ -184,6 +193,15 @@ func deDuplicateExcept(exceptInIPBlock []string) []string {
 func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSetIndex, ipBlockPeerIndex int, ipBlockRule *networkingv1.IPBlock) (*ipsets.TranslatedIPSet, error) {
 	if ipBlockRule == nil || ipBlockRule.CIDR == "" {
 		return nil, nil
+	}
+
+	// Canonicalize the CIDR before it is compared or handed to the kernel. A block spelled
+	// with host bits set (e.g. "10.0.0.0/0") denotes the same addresses as its canonical form
+	// but does not compare equal to it, so without this the all-addresses block below would
+	// not be recognized and the literal would be rejected by ipset.
+	cidr, ok := util.NormalizeCIDR(ipBlockRule.CIDR)
+	if !ok {
+		return nil, ErrUnsupportedIPAddress
 	}
 
 	// de-duplicated Except if there are redundance elements.
@@ -202,7 +220,7 @@ func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSe
 	// splitCIDRSet has two entries ("0.0.0.0/1" and "128.0.0.0/1") as key.
 	splitCIDRLen := 2
 	splitCIDRSet := make(map[string]int, splitCIDRLen)
-	if ipBlockRule.CIDR == "0.0.0.0/0" {
+	if cidr == "0.0.0.0/0" {
 		// two cidrs (0.0.0.0/1 and 128.0.0.0/1) for 0.0.0.0/0 + except.
 		members = make([]string, lenOfDeDupExcepts+splitCIDRLen)
 		// in case of "0.0.0.0/0", "0.0.0.0/1" or "0.0.0.0/1 nomatch" comes eariler than "128.0.0.0/1" or "128.0.0.0/1 nomatch".
@@ -215,7 +233,7 @@ func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSe
 	} else {
 		// one cidr + except
 		members = make([]string, lenOfDeDupExcepts+1)
-		members[indexOfMembers] = ipBlockRule.CIDR
+		members[indexOfMembers] = cidr
 		indexOfMembers++
 	}
 

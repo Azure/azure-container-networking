@@ -363,21 +363,33 @@ func SliceToString(list []string) string {
 	return strings.Join(list, SetPolicyDelimiter)
 }
 
+// NormalizeCIDR returns the canonical form of an IPv4 CIDR, i.e. the block with its host
+// bits cleared, so "10.0.0.0/0" becomes "0.0.0.0/0" and "10.1.2.3/24" becomes "10.1.2.0/24".
+// It reports false when s is not an IPv4 CIDR. Callers must normalize before comparing a
+// CIDR against a well-known block or handing it to the kernel, because a non-canonical
+// spelling denotes the same block but does not compare equal and is not accepted by ipset.
+func NormalizeCIDR(s string) (string, bool) {
+	_, network, err := net.ParseCIDR(s)
+	if err != nil || network.IP.To4() == nil || len(network.Mask) != net.IPv4len {
+		return "", false
+	}
+	return network.String(), true
+}
+
+// IsIPV4 returns true when ip is an IPv4 address or an IPv4 CIDR block.
+// A CIDR is validated through NormalizeCIDR, which canonicalizes it first, so a block that
+// is spelled with host bits set (for example "10.0.0.0/0") is recognized as the block it
+// denotes instead of being rejected. Rejecting such a block would fail the whole policy
+// translation and leave the policy's selected pods with no rules at all.
 func IsIPV4(ip string) bool {
-	isIPBlock := strings.Contains(ip, "/")
-	ipOnly := strings.Split(ip, "/")
-	if strings.Contains(ip, "/0") && ipOnly[0] != "0.0.0.0" {
-		return false
+	if strings.Contains(ip, "/") {
+		_, ok := NormalizeCIDR(ip)
+		return ok
 	}
 
-	address, err := netip.ParseAddr(ipOnly[0])
+	address, err := netip.ParseAddr(ip)
 	if err != nil {
 		return false
-	}
-
-	if address.Is4() && isIPBlock {
-		_, _, err := net.ParseCIDR(ip)
-		return err == nil
 	}
 
 	return address.Is4()

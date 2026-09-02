@@ -658,5 +658,17 @@ func validateIPSetMemberIP(ip string) bool {
 	ipDetails := strings.Split(ip, ",")
 	ipField := strings.Split(ipDetails[0], " ")
 
-	return util.IsIPV4(ipField[0])
+	if !util.IsIPV4(ipField[0]) {
+		return false
+	}
+
+	// A CIDR member must already be canonical. Translation canonicalizes every CIDR it
+	// emits, so a member with host bits set did not come from a translated policy and
+	// must not be handed to the kernel under a name that denotes a different block.
+	if strings.Contains(ipField[0], "/") {
+		canonical, ok := util.NormalizeCIDR(ipField[0])
+		return ok && canonical == ipField[0]
+	}
+
+	return true
 }
