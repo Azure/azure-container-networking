@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 func TestFlattenNameSpaceSelectorCases(t *testing.T) {
@@ -838,4 +839,82 @@ func TestIsValidLabel(t *testing.T) {
 	for _, b := range bad {
 		require.False(t, isValidLabelValue(b), "string was [%s]", b)
 	}
+}
+
+// TestTranslatePolicyACLBudget covers the multiplication the selector cap alone does not
+// catch. Every flattened namespaceSelector branch is emitted once per port in the rule, so a
+// policy whose selector expansion is comfortably under the selector limit can still generate
+// an enormous number of ACLs by listing many ports. Each ACL becomes an iptables rule.
+func TestTranslatePolicyACLBudget(t *testing.T) {
+	// 2^9 = 512 flattened selectors: under maxFlattenedNSSelectors.
+	reqs := make([]metav1.LabelSelectorRequirement, 0, 9)
+	for i := 0; i < 9; i++ {
+		reqs = append(reqs, metav1.LabelSelectorRequirement{
+			Key:      fmt.Sprintf("key%d", i),
+			Operator: metav1.LabelSelectorOpIn,
+			Values:   []string{"a", "b"},
+		})
+	}
+
+	// Sanity: the selector expansion on its own is accepted.
+	flattened, err := flattenNameSpaceSelector(&metav1.LabelSelector{MatchExpressions: reqs})
+	require.NoError(t, err)
+	require.Len(t, flattened, 512)
+
+	// 512 selectors x 512 ports would be 262144 ACLs.
+	ports := make([]networkingv1.NetworkPolicyPort, 0, 512)
+	for i := 0; i < 512; i++ {
+		p := intstr.FromInt(1000 + i)
+		ports = append(ports, networkingv1.NetworkPolicyPort{Port: &p})
+	}
+
+	pol := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "expand", Namespace: "default"},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{{
+				Ports: ports,
+				From: []networkingv1.NetworkPolicyPeer{
+					{NamespaceSelector: &metav1.LabelSelector{MatchExpressions: reqs}},
+				},
+			}},
+		},
+	}
+
+	npmNetPol, err := TranslatePolicy(pol, false)
+	require.ErrorIs(t, err, ErrTooManyACLs,
+		"a policy that multiplies selectors by ports must be rejected even when the selector count is under its own limit")
+	require.Nil(t, npmNetPol)
+}
+
+// TestTranslatePolicyOrdinaryPolicyWithinACLBudget guards the budget against false positives:
+// a normal policy with several peers and ports must translate unaffected.
+func TestTranslatePolicyOrdinaryPolicyWithinACLBudget(t *testing.T) {
+	ports := make([]networkingv1.NetworkPolicyPort, 0, 8)
+	for i := 0; i < 8; i++ {
+		p := intstr.FromInt(8000 + i)
+		ports = append(ports, networkingv1.NetworkPolicyPort{Port: &p})
+	}
+
+	pol := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "normal", Namespace: "default"},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "web"}},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{{
+				Ports: ports,
+				From: []networkingv1.NetworkPolicyPeer{
+					{NamespaceSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"team": "blue"}}},
+					{PodSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"role": "client"}}},
+					{IPBlock: &networkingv1.IPBlock{CIDR: "10.0.0.0/8"}},
+				},
+			}},
+		},
+	}
+
+	npmNetPol, err := TranslatePolicy(pol, false)
+	require.NoError(t, err)
+	require.NotNil(t, npmNetPol)
+	require.Less(t, len(npmNetPol.ACLs), maxACLsPerPolicy)
 }
