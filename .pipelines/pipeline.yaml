@@ -217,6 +217,9 @@ extends:
           displayName: Build Images
           dependsOn:
             - setup
+          variables:
+            # Buildah cannot preserve non-root ownership while unpacking image layers on 1ESPT image.
+            CONTAINER_BUILDER: docker
           jobs:
             - job: containerize_amd64
               displayName: Build Images
@@ -331,6 +334,9 @@ extends:
           displayName: Build NPM Images
           dependsOn:
             - setup
+          variables:
+            # Buildah cannot preserve non-root ownership while unpacking image layers on 1ESPT image.
+            CONTAINER_BUILDER: docker
           jobs:
             - job: containerize_npm_amd64
               displayName: Build NPM Images
