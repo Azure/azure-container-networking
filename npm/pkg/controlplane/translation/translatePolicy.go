@@ -455,14 +455,9 @@ func exceptDirectDropRules(npmNetPol *policies.NPMNetworkPolicy, direction polic
 func directPeerAndPortAllowRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Direction, ports []networkingv1.NetworkPolicyPort, cidr string, except []string, npmLiteToggle bool) error {
 	// Match the ipset-based ipBlockRule path and reject non-IPv4 enclosing CIDRs (e.g. IPv6),
 	// which HNS direct-IP ACLs cannot express. Failing closed avoids programming an ACL that
-	// silently ignores the peer. This path is Windows/NPM Lite only and is intentionally left
-	// on the unchanged IsIPV4 behavior.
+	// silently ignores the peer.
 	if !util.IsIPV4(cidr) {
 		return ErrUnsupportedIPAddress
-	}
-
-	if err := checkACLBudget(npmNetPol); err != nil {
-		return err
 	}
 	if len(ports) == 0 {
 		acl := policies.NewACLPolicy(policies.Allowed, direction)
