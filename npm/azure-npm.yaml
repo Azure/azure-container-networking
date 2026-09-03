@@ -169,6 +169,7 @@ data:
             "EnablePprof":             false,
             "EnableHTTPDebugAPI":      false,
             "EnableV2NPM":             true,
+            "ApplyIPSetsOnNeed":       true,
             "PlaceAzureChainFirst":    false,
             "ApplyInBackground":       true,
             "NetPolInBackground":      true
