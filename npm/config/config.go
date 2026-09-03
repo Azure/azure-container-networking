@@ -50,7 +50,15 @@ var DefaultConfig = Config{
 		EnableHTTPDebugAPI:   false,
 		EnableV2NPM:          true,
 		PlaceAzureChainFirst: util.PlaceAzureChainAfterKubeServices,
-		ApplyIPSetsOnNeed:    false,
+		// Materialize an ipset in the kernel only once a network policy references it. NPM
+		// creates two sets per distinct pod label and label count is attacker-controlled, so
+		// applying every set unconditionally lets one namespace push tens of thousands of sets
+		// into the kernel on every node, exhaust the agent, and stall policy programming
+		// cluster-wide. On-demand keeps incidental labels out of kernel state entirely.
+		//
+		// This does not weaken enforcement: the sets are still tracked and pods still join
+		// them, so a set is already populated by the time a policy references it.
+		ApplyIPSetsOnNeed: true,
 		// ApplyInBackground is currently used in Windows to apply the following in background: IPSets and NetPols for new/updated Pods
 		ApplyInBackground: true,
 		// NetPolInBackground is currently used in Linux to apply NetPol controller Add events in the background
