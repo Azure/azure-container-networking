@@ -42,9 +42,9 @@
 /npm/                       @azure/acn-npm-reviewers
 
 # Cilium and node-networking utilities.
-/azure-ip*-*/               @azure/acn-cni-reviewers @santhoshmprabhu @camrynl
-/bpf-prog/                  @azure/acn-cni-reviewers @santhoshmprabhu @camrynl
-/cilium-log-collector/      @azure/acn-cni-reviewers @santhoshmprabhu @camrynl
+/azure-ip*-*/               @azure/acn-cni-reviewers
+/bpf-prog/                  @azure/acn-cni-reviewers
+/cilium-log-collector/      @azure/acn-cni-reviewers
 
 # Observability and diagnostics.
 /*telemetry/                @azure/acn-cni-reviewers @azure/acn-cns-reviewers
