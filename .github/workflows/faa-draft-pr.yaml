@@ -1,0 +1,107 @@
+name: FAA Draft PR
+
+# Opens a draft pull request from a Failure Analysis Agent "fix.md" prompt.
+#
+# The FAA runs in Azure DevOps, which cannot obtain a GitHub token, so it only
+# publishes fix.md as part of its analysis artifact. Nothing is pushed from ADO.
+# This workflow is the GitHub-side half: a maintainer runs it manually with the
+# ADO build id, and it *pulls* the artifact (authenticating to Azure DevOps with a
+# short-lived OIDC token — no PAT), and for each high-confidence non-PR regression
+# it:
+#   1. creates branch faa/fix-<fingerprint> carrying the fix.md prompt,
+#   2. opens a draft PR with fix.md as the body,
+#   3. assigns the GitHub Copilot coding agent to author the fix,
+#   4. pings the shared Teams notifier bot (best-effort) to mention the owner.
+#
+# The step logic lives in .github/scripts/faa-pull-artifacts.sh and
+# .github/scripts/faa-open-draft-prs.sh so this file stays declarative.
+#
+# Scheduled automation is deferred; the same pull logic can later move behind a
+# `schedule:` trigger.
+#
+# Prerequisites (configure in the GitHub repo — these live outside this file):
+#   Secrets:
+#     AZURE_CLIENT_ID         Azure OIDC app (federated cred for this repo). Used
+#                             to mint short-lived Entra tokens for BOTH the Azure
+#                             DevOps artifact pull and the Teams notifier — no PAT.
+#     AZURE_TENANT_ID
+#     AZURE_SUBSCRIPTION_ID
+#   Variables:
+#     ADO_ORG                 Azure DevOps organization (e.g. msazure)
+#     ADO_PROJECT             Azure DevOps project (e.g. One)
+#     NOTIFIER_ENDPOINT       ACN notifier bot base URL (Teams ping; optional)
+#     NOTIFIER_API_AUDIENCE   AAD audience for the notifier (api://...)
+#     FAA_NOTIFY_TEAM_ID      Teams team groupId
+#     FAA_NOTIFY_CHANNEL_ID   Teams channel id (19:...@thread.skype)
+#     FAA_NOTIFY_CC           optional comma-separated owner UPNs to @mention
+#   Also required: the OIDC federated identity must be a member of the Azure
+#   DevOps org with Build (read), an Azure federated identity credential for this
+#   repo scoped to the notifier audience, and the GitHub Copilot coding agent
+#   enabled on the repo.
+
+on:
+  workflow_dispatch:
+    inputs:
+      buildId:
+        description: 'Azure DevOps build id whose failureAnalysis artifact to pull'
+        required: true
+        type: string
+      baseBranch:
+        description: 'Base branch for the draft PR(s)'
+        required: false
+        default: 'master'
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: faa-draft-pr-${{ inputs.buildId }}
+  cancel-in-progress: false
+
+jobs:
+  open-draft-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write       # push faa/fix-* branches
+      pull-requests: write   # open draft PRs
+      issues: write          # assign Copilot / comment
+      id-token: write        # Azure OIDC for the ADO pull and Teams notifier
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.baseBranch }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      # OIDC login mints short-lived Entra tokens for both the Azure DevOps
+      # artifact pull and the Teams notifier. The pull depends on it, so this is
+      # required — a failure here correctly fails the run.
+      - name: Azure login (OIDC)
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Pull failureAnalysis artifact from Azure DevOps
+        id: pull
+        env:
+          ADO_ORG: ${{ vars.ADO_ORG }}
+          ADO_PROJECT: ${{ vars.ADO_PROJECT }}
+          BUILD_ID: ${{ inputs.buildId }}
+        run: bash .github/scripts/faa-pull-artifacts.sh
+
+      - name: Open draft PRs, assign Copilot, notify
+        if: steps.pull.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BASE_BRANCH: ${{ inputs.baseBranch }}
+          WORKDIR: ${{ steps.pull.outputs.workdir }}
+          BUILD_ID: ${{ inputs.buildId }}
+          NOTIFIER_ENDPOINT: ${{ vars.NOTIFIER_ENDPOINT }}
+          NOTIFIER_API_AUDIENCE: ${{ vars.NOTIFIER_API_AUDIENCE }}
+          NOTIFY_TEAM_ID: ${{ vars.FAA_NOTIFY_TEAM_ID }}
+          NOTIFY_CHANNEL_ID: ${{ vars.FAA_NOTIFY_CHANNEL_ID }}
+          NOTIFY_CC: ${{ vars.FAA_NOTIFY_CC }}
+        run: bash .github/scripts/faa-open-draft-prs.sh

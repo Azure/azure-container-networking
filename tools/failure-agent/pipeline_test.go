@@ -87,6 +87,67 @@ func TestRunEndToEnd(t *testing.T) {
 	if !strings.Contains(string(md), "acn-failure-agent:"+inc.Fingerprint) {
 		t.Error("expected fingerprint marker in report.md")
 	}
+
+	// A cluster bring-up failure is not a pr_regression, so no fix prompt.
+	if _, err := os.Stat(filepath.Join(out, "fix.md")); !os.IsNotExist(err) {
+		t.Error("did not expect fix.md for a non-regression incident")
+	}
+}
+
+// TestRunEmitsFixPromptWhenGated verifies that a high-confidence pr_regression on
+// a non-PR build writes fix.md, even under --dry-run (it is an artifact, not a PR
+// write-back).
+func TestRunEmitsFixPromptWhenGated(t *testing.T) {
+	out := t.TempDir()
+	cl := &fakeClassifier{result: model.Classification{
+		Category:         model.CategoryPRRegression,
+		Confidence:       0.85,
+		RootCauseSummary: "The change under test broke the CNI conflist.",
+		TopEvidence:      []string{"egress traffic dropped"},
+		ProposedFix:      "Restore the egress accept rule.",
+		Source:           "llm",
+	}}
+	opts := bundleOptions(t, out)
+
+	if err := run(context.Background(), zap.NewNop(), opts, cl, noopStore{}, noopCollector{}, noopCollector{}); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+
+	inc := readIncident(t, out)
+	data, err := os.ReadFile(filepath.Join(out, "fix.md"))
+	if err != nil {
+		t.Fatalf("expected fix.md: %v", err)
+	}
+	if !strings.Contains(string(data), inc.Fingerprint) {
+		t.Error("expected fingerprint in fix.md")
+	}
+	if !strings.Contains(string(data), "Draft fix") {
+		t.Error("expected draft-fix title in fix.md")
+	}
+}
+
+// TestRunSkipsFixPromptOnPRBuild verifies the gate excludes PR builds: they get
+// the inline PR comment instead of a fix prompt.
+func TestRunSkipsFixPromptOnPRBuild(t *testing.T) {
+	t.Setenv("BUILD_REASON", "PullRequest")
+	t.Setenv("SYSTEM_PULLREQUEST_PULLREQUESTNUMBER", "42")
+
+	out := t.TempDir()
+	cl := &fakeClassifier{result: model.Classification{
+		Category:         model.CategoryPRRegression,
+		Confidence:       0.85,
+		RootCauseSummary: "regression",
+		ProposedFix:      "fix it",
+		Source:           "llm",
+	}}
+	opts := bundleOptions(t, out)
+
+	if err := run(context.Background(), zap.NewNop(), opts, cl, noopStore{}, noopCollector{}, noopCollector{}); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(out, "fix.md")); !os.IsNotExist(err) {
+		t.Error("did not expect fix.md for a PR build")
+	}
 }
 
 func TestRunRequiresInput(t *testing.T) {
