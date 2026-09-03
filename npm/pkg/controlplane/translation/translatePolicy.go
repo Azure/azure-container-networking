@@ -47,6 +47,10 @@ var (
 	// requirements would produce more labelSelectors than NPM is willing to translate. The count is
 	// the product of the value counts, so it grows exponentially with the number of such requirements.
 	ErrTooManyFlattenedSelectors = errors.New("namespaceSelector expands into too many label selectors")
+	// ErrTooManyACLs is returned when a NetworkPolicy translates into more ACLs than NPM is
+	// willing to program. ACL count multiplies rather than adds: flattened selector branches are
+	// emitted per port, summed across peers and rules, so bounding selectors alone is not enough.
+	ErrTooManyACLs = errors.New("network policy expands into too many rules")
 	// ErrUnsupportedIPAddress is returned when an unsupported IP address, such as IPV6, is used
 	ErrUnsupportedIPAddress = errors.New("unsupported IP address")
 	// ErrUnsupportedNonCIDR is returned when non-CIDR blocks are passed in with NPM Lite enabled. NPM Lite allows deny-all and allow-all policies
@@ -167,12 +171,25 @@ func exceptCidr(exceptCidr string) string {
 	return exceptCidr + " " + util.IpsetNomatch
 }
 
-// deDuplicateExcept canonicalizes each except CIDR and removes redundant elements, returning
-// a slice which has only unique elements. Canonicalizing first means two spellings of the same
-// block (e.g. "10.1.2.0/24" and "10.1.2.3/24") collapse to one entry and that the result can be
-// compared against the split-CIDR entries below.
+// deDuplicateExcept removes redundance elements and return slices which has only unique element.
 func deDuplicateExcept(exceptInIPBlock []string) []string {
 	deDupExcepts := []string{}
+	exceptsSet := make(map[string]struct{})
+	for _, except := range exceptInIPBlock {
+		if _, exist := exceptsSet[except]; !exist {
+			deDupExcepts = append(deDupExcepts, except)
+			exceptsSet[except] = struct{}{}
+		}
+	}
+	return deDupExcepts
+}
+
+// canonicalizeExcepts returns the except CIDRs in canonical form, with duplicates removed.
+// Canonicalizing first means two spellings of the same block (e.g. "10.1.2.0/24" and
+// "10.1.2.3/24") collapse to one entry, and that an except can be compared against the
+// all-addresses split entries below. This is used only on the ipset path.
+func canonicalizeExcepts(exceptInIPBlock []string) []string {
+	canonicalExcepts := []string{}
 	exceptsSet := make(map[string]struct{})
 	for _, except := range exceptInIPBlock {
 		canonical, ok := util.NormalizeCIDR(except)
@@ -182,11 +199,11 @@ func deDuplicateExcept(exceptInIPBlock []string) []string {
 			canonical = except
 		}
 		if _, exist := exceptsSet[canonical]; !exist {
-			deDupExcepts = append(deDupExcepts, canonical)
+			canonicalExcepts = append(canonicalExcepts, canonical)
 			exceptsSet[canonical] = struct{}{}
 		}
 	}
-	return deDupExcepts
+	return canonicalExcepts
 }
 
 // ipBlockIPSet return translatedIPSet based based on ipBlockRule.
@@ -204,8 +221,9 @@ func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSe
 		return nil, ErrUnsupportedIPAddress
 	}
 
-	// de-duplicated Except if there are redundance elements.
-	deDupExcepts := deDuplicateExcept(ipBlockRule.Except)
+	// de-duplicated Except if there are redundance elements, in canonical form so they
+	// compare correctly against the all-addresses split entries below.
+	deDupExcepts := canonicalizeExcepts(ipBlockRule.Except)
 	lenOfDeDupExcepts := len(deDupExcepts)
 
 	if util.IsWindowsDP() && lenOfDeDupExcepts > 0 {
@@ -263,7 +281,13 @@ func ipBlockRule(policyName, ns string, direction policies.Direction, matchType 
 		return nil, policies.SetInfo{}, nil
 	}
 
-	if !util.IsIPV4(ipBlockRule.CIDR) {
+	// Validate the canonical form rather than the literal the user wrote. A block whose host
+	// bits are set, such as "10.0.0.0/0", denotes exactly the same addresses as its canonical
+	// form, but IsIPV4 refuses a /0 that is not spelled "0.0.0.0". Rejecting here aborts the
+	// translation of the whole policy, so neither the peer rule nor the default drop the policy
+	// implies is installed and the selected pods are left with no rules at all. This is the
+	// ipset path, which is Linux only; the Windows direct-rule path is unchanged.
+	if _, ok := util.NormalizeCIDR(ipBlockRule.CIDR); !ok {
 		return nil, policies.SetInfo{}, ErrUnsupportedIPAddress
 	}
 
@@ -369,6 +393,10 @@ func ruleExists(ports []networkingv1.NetworkPolicyPort, peer []networkingv1.Netw
 // peerAndPortRule deals with composite rules including ports and peers
 // (e.g., IPBlock, podSelector, namespaceSelector, or both podSelector and namespaceSelector).
 func peerAndPortRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Direction, ports []networkingv1.NetworkPolicyPort, setInfo []policies.SetInfo, npmLiteToggle bool) error {
+	if err := checkACLBudget(npmNetPol); err != nil {
+		return err
+	}
+
 	if len(ports) == 0 {
 		acl := policies.NewACLPolicy(policies.Allowed, direction)
 		acl.AddSetInfo(setInfo)
@@ -427,9 +455,14 @@ func exceptDirectDropRules(npmNetPol *policies.NPMNetworkPolicy, direction polic
 func directPeerAndPortAllowRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Direction, ports []networkingv1.NetworkPolicyPort, cidr string, except []string, npmLiteToggle bool) error {
 	// Match the ipset-based ipBlockRule path and reject non-IPv4 enclosing CIDRs (e.g. IPv6),
 	// which HNS direct-IP ACLs cannot express. Failing closed avoids programming an ACL that
-	// silently ignores the peer.
+	// silently ignores the peer. This path is Windows/NPM Lite only and is intentionally left
+	// on the unchanged IsIPV4 behavior.
 	if !util.IsIPV4(cidr) {
 		return ErrUnsupportedIPAddress
+	}
+
+	if err := checkACLBudget(npmNetPol); err != nil {
+		return err
 	}
 	if len(ports) == 0 {
 		acl := policies.NewACLPolicy(policies.Allowed, direction)
@@ -793,7 +826,32 @@ func TranslatePolicy(npObj *networkingv1.NetworkPolicy, npmLiteToggle bool) (*po
 			}
 		}
 	}
+
+	if err := checkACLBudget(npmNetPol); err != nil {
+		return nil, err
+	}
+
 	return npmNetPol, nil
+}
+
+// maxACLsPerPolicy bounds how many ACLs a single NetworkPolicy may translate into. Each ACL
+// becomes one iptables rule, and the count multiplies rather than adds: every flattened
+// namespaceSelector branch is emitted once per port in the rule, and that product is summed
+// across every peer and every rule in the policy. Bounding the flattened selector count on
+// its own is therefore not enough, because a policy that stays under that bound can still
+// multiply itself out by listing many ports. The ceiling is far above any workable policy,
+// since a policy expanding this wide would already be unusable as iptables rules.
+const maxACLsPerPolicy = 2000
+
+// checkACLBudget reports whether the policy has grown past what NPM is willing to translate.
+// It is checked before each peer is expanded, so translation stops early rather than after
+// materializing the full product.
+func checkACLBudget(npmNetPol *policies.NPMNetworkPolicy) error {
+	if len(npmNetPol.ACLs) > maxACLsPerPolicy {
+		klog.Errorf("network policy %s expands past the %d ACL limit", npmNetPol.PolicyKey, maxACLsPerPolicy)
+		return ErrTooManyACLs
+	}
+	return nil
 }
 
 func checkForNamedPortType(npmNetPol *policies.NPMNetworkPolicy, portKind netpolPortType, npmLiteToggle bool, direction policies.Direction, port *networkingv1.NetworkPolicyPort, cidr string) error {
