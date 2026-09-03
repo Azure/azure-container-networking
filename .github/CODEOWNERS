@@ -60,7 +60,6 @@
 
 # Network Policy Manager.
 /npm/                       @azure/acn-npm-reviewers
-/debug/                     @azure/acn-npm-reviewers
 
 # Cilium and node-networking utilities.
 /azure-ip-masq-merger/      @azure/acn-cni-reviewers @santhoshmprabhu @camrynl
