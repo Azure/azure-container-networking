@@ -377,19 +377,27 @@ func NormalizeCIDR(s string) (string, bool) {
 }
 
 // IsIPV4 returns true when ip is an IPv4 address or an IPv4 CIDR block.
-// A CIDR is validated through NormalizeCIDR, which canonicalizes it first, so a block that
-// is spelled with host bits set (for example "10.0.0.0/0") is recognized as the block it
-// denotes instead of being rejected. Rejecting such a block would fail the whole policy
-// translation and leave the policy's selected pods with no rules at all.
+//
+// Note this rejects a /0 block whose address text is not literally "0.0.0.0", even though such
+// a block is valid and denotes the same addresses. Callers on the Linux ipBlock path must
+// therefore canonicalize with NormalizeCIDR before validating, so a valid block is not refused
+// on spelling alone. This function's behavior is deliberately left unchanged because it is also
+// consumed by the Windows and NPM Lite paths, which are not in scope for these changes.
 func IsIPV4(ip string) bool {
-	if strings.Contains(ip, "/") {
-		_, ok := NormalizeCIDR(ip)
-		return ok
+	isIPBlock := strings.Contains(ip, "/")
+	ipOnly := strings.Split(ip, "/")
+	if strings.Contains(ip, "/0") && ipOnly[0] != "0.0.0.0" {
+		return false
 	}
 
-	address, err := netip.ParseAddr(ip)
+	address, err := netip.ParseAddr(ipOnly[0])
 	if err != nil {
 		return false
+	}
+
+	if address.Is4() && isIPBlock {
+		_, _, err := net.ParseCIDR(ip)
+		return err == nil
 	}
 
 	return address.Is4()

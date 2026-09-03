@@ -38,8 +38,9 @@ const (
 
 	// maxConcurrentCacheRequests bounds how many cache encodings run at once. The encoding
 	// holds the cache lock and buffers the whole payload, so it is the most expensive thing
-	// the API does and is kept well below the connection ceiling.
-	maxConcurrentCacheRequests = 2
+	// the API does. One at a time keeps peak memory to a single copy of the cache; excess
+	// requests are shed rather than queued.
+	maxConcurrentCacheRequests = 1
 )
 
 type NPMRestServer struct {

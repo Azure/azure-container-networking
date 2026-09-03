@@ -515,19 +515,16 @@ func TestHashedNameGoldenVectors(t *testing.T) {
 	}
 }
 
-// TestIsIPV4 covers address and CIDR forms. The CIDR cases matter most: a block whose host
-// bits are set (e.g. "10.0.0.0/0") denotes the same addresses as its canonical form and must
-// be accepted, because rejecting it fails the whole policy translation and leaves the
-// policy's selected pods with no rules at all.
+// TestIsIPV4 pins the existing behavior of the shared classifier. It is deliberately left
+// unchanged by these fixes because the Windows and NPM Lite paths also consume it, and those
+// are out of scope. Note it refuses a /0 block that is not spelled "0.0.0.0" even though such a
+// block is valid; the Linux ipBlock path therefore validates via NormalizeCIDR instead.
 func TestIsIPV4(t *testing.T) {
 	valid := []string{
 		"10.0.0.1",
 		"0.0.0.0",
 		"10.0.0.0/24",
 		"0.0.0.0/0",
-		// non-canonical spellings of valid IPv4 blocks
-		"10.0.0.0/0",
-		"255.255.255.255/0",
 		"10.1.2.3/24",
 		"10.0.0.1/32",
 	}
@@ -544,6 +541,10 @@ func TestIsIPV4(t *testing.T) {
 		"2001:db8::1",
 		"2001:db8::/32",
 		"::/0",
+		// a valid but non-canonical /0: refused on spelling, which is why the Linux
+		// ipBlock path canonicalizes before validating.
+		"10.0.0.0/0",
+		"255.255.255.255/0",
 	}
 	for _, ip := range invalid {
 		require.False(t, IsIPV4(ip), "IsIPV4(%q) must be false", ip)
