@@ -48,6 +48,21 @@ type NPMRestServer struct {
 	router           *mux.Router
 }
 
+// newServer builds the API server with the deadlines and bounds that keep a slow or unfinished
+// request from holding resources indefinitely. It is a separate constructor so tests can assert
+// the server that is actually served, rather than the constants it is built from.
+func newServer(addr string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Handler:           handler,
+		Addr:              addr,
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
+		MaxHeaderBytes:    maxHeaderBytes,
+	}
+}
+
 func NPMRestServerListenAndServe(config npmconfig.Config, npmEncoder json.Marshaler) {
 	rs := NPMRestServer{}
 
@@ -79,15 +94,7 @@ func NPMRestServerListenAndServe(config npmconfig.Config, npmEncoder json.Marsha
 		rs.listeningAddress = fmt.Sprintf("%s:%d", config.ListeningAddress, config.ListeningPort)
 	}
 
-	srv := &http.Server{
-		Handler:           rs.router,
-		Addr:              rs.listeningAddress,
-		ReadHeaderTimeout: readHeaderTimeout,
-		ReadTimeout:       readTimeout,
-		WriteTimeout:      writeTimeout,
-		IdleTimeout:       idleTimeout,
-		MaxHeaderBytes:    maxHeaderBytes,
-	}
+	srv := newServer(rs.listeningAddress, rs.router)
 
 	listener, err := net.Listen("tcp", rs.listeningAddress)
 	if err != nil {

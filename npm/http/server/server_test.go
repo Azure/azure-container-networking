@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm"
 	"github.com/Azure/azure-container-networking/npm/http/api"
 	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
+	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -113,15 +114,25 @@ func TestNPMCacheHandlerLimitsConcurrency(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code, "the handler must recover once slots free up")
 }
 
-// TestServerTimeoutsAreSet is a guard on the deadlines and header bound. The API listens on
-// the host network of a privileged process, so a client that never finishes a request must
-// not be able to hold it, and the response buffered for it, open indefinitely.
+// TestServerTimeoutsAreSet guards the deadlines and bounds on the server that is actually
+// constructed. The API listens on the host network of a privileged process, so a client that
+// never finishes a request must not be able to hold it, and the response buffered for it, open
+// indefinitely. Asserting the constructed server rather than the constants means removing an
+// assignment in newServer fails this test.
 func TestServerTimeoutsAreSet(t *testing.T) {
-	require.NotZero(t, readHeaderTimeout)
-	require.NotZero(t, readTimeout)
-	require.NotZero(t, writeTimeout)
-	require.NotZero(t, idleTimeout)
-	require.NotZero(t, maxHeaderBytes)
+	srv := newServer("127.0.0.1:0", mux.NewRouter())
+
+	require.Equal(t, readHeaderTimeout, srv.ReadHeaderTimeout)
+	require.Equal(t, readTimeout, srv.ReadTimeout)
+	require.Equal(t, writeTimeout, srv.WriteTimeout)
+	require.Equal(t, idleTimeout, srv.IdleTimeout)
+	require.Equal(t, maxHeaderBytes, srv.MaxHeaderBytes)
+
+	require.NotZero(t, srv.ReadHeaderTimeout)
+	require.NotZero(t, srv.ReadTimeout)
+	require.NotZero(t, srv.WriteTimeout)
+	require.NotZero(t, srv.IdleTimeout)
+	require.NotZero(t, srv.MaxHeaderBytes)
 	require.NotZero(t, maxConcurrentConns)
 	require.LessOrEqual(t, maxConcurrentCacheRequests, maxConcurrentConns,
 		"cache encodings must be bounded at or below the connection ceiling")
