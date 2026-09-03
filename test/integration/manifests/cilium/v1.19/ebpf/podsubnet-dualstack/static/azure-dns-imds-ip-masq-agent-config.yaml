@@ -13,7 +13,7 @@ data:
     169.254.169.240/29\n- 169.254.169.248/30\n- 169.254.169.252/31\n- 169.254.169.255/32\n-
     169.254.170.0/23\n- 169.254.172.0/22\n- 169.254.176.0/20\n- 169.254.192.0/18\n-
     169.255.0.0/16\n- 170.0.0.0/7\n- 172.0.0.0/6\n- 176.0.0.0/4\n- 192.0.0.0/3\n-
-    224.0.0.0/3\n  \nmasqLinkLocal: true\nmasqLinkLocalIPv6: true\n"
+    224.0.0.0/3\n- \"::/0\"\n  \nmasqLinkLocal: true\nmasqLinkLocalIPv6: true\n"
 kind: ConfigMap
 metadata:
   annotations:
