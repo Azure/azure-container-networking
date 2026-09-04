@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 
-# parse_override_image returns four values:
-# <useProvidedImage> <repoKey> <imageName> <versionOrDigest>
+# parse_override_image returns three values:
+# <repoKey> <imageName> <versionOrDigest>
 # Input -> output examples:
-# 1) image="__use-default__" => "false ACN <defaultName> <defaultVersion>"
-# 2) image="acnpublic.azurecr.io/azure-cns:v1.2.3" => "true ACN azure-cns v1.2.3"
-# 3) image="mcr.microsoft.com/containernetworking/azure-cni:v1.2.3@sha256:abc" => "true MCR azure-cni v1.2.3@sha256:abc"
+# 1) image="__use-default__" => "ACN <defaultName> <defaultVersion>"
+# 2) image="acnpublic.azurecr.io/azure-cns:v1.2.3" => "ACN azure-cns v1.2.3"
+# 3) image="mcr.microsoft.com/containernetworking/azure-cni:v1.2.3@sha256:abc" => "MCR azure-cni v1.2.3@sha256:abc"
 parse_override_image() {
   image="$1"
   defaultName="$2"
   defaultVersion="$3"
 
   if [ -z "$image" ] || [ "$image" = "__use-default__" ]; then
-    echo "false ACN ${defaultName} ${defaultVersion}"
+    echo "ACN ${defaultName} ${defaultVersion}"
     return
   fi
 
@@ -52,5 +52,29 @@ parse_override_image() {
     version="${pathAndTag##*:}"
   fi
 
-  echo "true ${repo} ${name} ${version}"
+  echo "${repo} ${name} ${version}"
+}
+
+resolve_override_image() {
+  local image="$1"
+
+  if [ -z "$image" ] || [ "$image" = "__use-default__" ]; then
+    format_image "acnpublic.azurecr.io" "$2" "$3"
+    return
+  fi
+
+  echo "$image"
+}
+
+format_image() {
+  local registry="$1"
+  local name="$2"
+  local version="$3"
+
+  if [[ "$version" == @* ]]; then
+    echo "${registry}/${name}${version}"
+    return
+  fi
+
+  echo "${registry}/${name}:${version}"
 }
