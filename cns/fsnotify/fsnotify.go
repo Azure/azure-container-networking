@@ -5,6 +5,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -56,15 +57,20 @@ func (w *watcher) releaseAll(ctx context.Context) {
 	defer w.lock.Unlock()
 	for containerID := range w.pendingDelete {
 		// read file contents
-		filepath := w.path + "/" + containerID
-		file, err := os.Open(filepath)
+		filePath := w.path + "/" + containerID
+		file, err := os.Open(filePath)
 		if err != nil {
-			w.log.Error("failed to open file", zap.Error(err))
+			// Without the file we cannot know the pod interface ID, and a
+			// release without it cannot match the assignment in CNS.
+			w.log.Error("failed to open file", zap.String("containerID", containerID), zap.String("path", filePath), zap.Error(err))
+			continue
 		}
 
 		data, errReadingFile := io.ReadAll(file)
 		if errReadingFile != nil {
-			w.log.Error("failed to read file content", zap.Error(errReadingFile))
+			w.log.Error("failed to read file content", zap.String("containerID", containerID), zap.String("path", filePath), zap.Error(errReadingFile))
+			file.Close()
+			continue
 		}
 		file.Close()
 		podInterfaceID := string(data)
@@ -92,7 +98,9 @@ func (w *watcher) watchPendingDelete(ctx context.Context) error {
 		case <-ctx.Done():
 			return errors.Wrap(ctx.Err(), "exiting watchPendingDelete")
 		case <-ticker.C:
+			w.lock.Lock()
 			n := len(w.pendingDelete)
+			w.lock.Unlock()
 			if n == 0 {
 				continue
 			}
@@ -153,7 +161,9 @@ func (w *watcher) watchFS(ctx context.Context) error {
 			}
 			w.log.Info("received create event", zap.String("event", event.Name))
 			w.lock.Lock()
-			w.pendingDelete[event.Name] = struct{}{}
+			// event.Name is the full path; the map is keyed by container ID
+			// (the file name), because releaseAll rebuilds the path from it.
+			w.pendingDelete[filepath.Base(event.Name)] = struct{}{}
 			w.lock.Unlock()
 		case watcherErr := <-watcher.Errors:
 			w.log.Error("fsnotify watcher error", zap.Error(watcherErr))
@@ -177,8 +187,8 @@ func (w *watcher) Start(ctx context.Context) error {
 
 // AddFile creates new file using the containerID as name
 func AddFile(podInterfaceID, containerID, path string) error {
-	filepath := path + "/" + containerID
-	f, err := os.Create(filepath)
+	filePath := path + "/" + containerID
+	f, err := os.Create(filePath)
 	if err != nil {
 		return errors.Wrap(err, "error creating file")
 	}
@@ -191,8 +201,8 @@ func AddFile(podInterfaceID, containerID, path string) error {
 
 // removeFile removes the file based on containerID
 func removeFile(containerID, path string) error {
-	filepath := path + "/" + containerID
-	if err := os.Remove(filepath); err != nil {
+	filePath := path + "/" + containerID
+	if err := os.Remove(filePath); err != nil {
 		return errors.Wrap(err, "error deleting file")
 	}
 	return nil
