@@ -136,6 +136,15 @@ func (service *HTTPRestService) restoreState() error {
 			//nolint:staticcheck // TODO: migrate to zap
 			logger.Printf("[Azure CNS]  Restored endpoint state, %+v\n", service.EndpointState)
 		}
+
+		service.Lock()
+		defer service.Unlock()
+		if err := service.loadEndpointDeleteIntentsLocked(); err != nil {
+			return err
+		}
+		if err := service.replayEndpointDeleteIntentsLocked(time.Now()); err != nil {
+			return err
+		}
 	}
 	return nil
 }
