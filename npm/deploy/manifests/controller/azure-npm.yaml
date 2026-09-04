@@ -58,8 +58,8 @@ data:
         "ListeningAddress":      "0.0.0.0",
         "Toggles": {
             "EnablePrometheusMetrics": true,
-            "EnablePprof":             true,
-            "EnableHTTPDebugAPI":      true,
+            "EnablePprof":             false,
+            "EnableHTTPDebugAPI":      false,
             "EnableV2NPM":             false,
             "PlaceAzureChainFirst":    false
         },

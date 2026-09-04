@@ -35,6 +35,22 @@ var (
 	ErrInvalidMatchExpressionValues = errors.New(
 		"matchExpression label values must be an empty string or consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character",
 	)
+	// ErrEmptyMatchExpressionValues is returned when an In or NotIn matchExpression carries no values.
+	// Kubernetes rejects such requirements; NPM fails closed rather than dropping the requirement,
+	// which could otherwise widen a selector (e.g. a dropped NotIn) or yield no rules at all.
+	ErrEmptyMatchExpressionValues = errors.New("in and notIn matchExpression requirements must have at least one value")
+	// ErrUnsupportedMatchExpressionOperator is returned when a matchExpression uses an operator that is
+	// none of In, NotIn, Exists or DoesNotExist. NPM fails closed rather than dropping the requirement,
+	// which could otherwise silently widen the selector.
+	ErrUnsupportedMatchExpressionOperator = errors.New("unsupported matchExpression operator")
+	// ErrTooManyFlattenedSelectors is returned when flattening a namespaceSelector's multi-value In
+	// requirements would produce more labelSelectors than NPM is willing to translate. The count is
+	// the product of the value counts, so it grows exponentially with the number of such requirements.
+	ErrTooManyFlattenedSelectors = errors.New("namespaceSelector expands into too many label selectors")
+	// ErrTooManyACLs is returned when a NetworkPolicy translates into more ACLs than NPM is
+	// willing to program. ACL count multiplies rather than adds: flattened selector branches are
+	// emitted per port, summed across peers and rules, so bounding selectors alone is not enough.
+	ErrTooManyACLs = errors.New("network policy expands into too many rules")
 	// ErrUnsupportedIPAddress is returned when an unsupported IP address, such as IPV6, is used
 	ErrUnsupportedIPAddress = errors.New("unsupported IP address")
 	// ErrUnsupportedNonCIDR is returned when non-CIDR blocks are passed in with NPM Lite enabled. NPM Lite allows deny-all and allow-all policies
@@ -168,14 +184,46 @@ func deDuplicateExcept(exceptInIPBlock []string) []string {
 	return deDupExcepts
 }
 
+// canonicalizeExcepts returns the except CIDRs in canonical form, with duplicates removed.
+// Canonicalizing first means two spellings of the same block (e.g. "10.1.2.0/24" and
+// "10.1.2.3/24") collapse to one entry, and that an except can be compared against the
+// all-addresses split entries below. This is used only on the ipset path.
+func canonicalizeExcepts(exceptInIPBlock []string) []string {
+	canonicalExcepts := []string{}
+	exceptsSet := make(map[string]struct{})
+	for _, except := range exceptInIPBlock {
+		canonical, ok := util.NormalizeCIDR(except)
+		if !ok {
+			// Leave a non-IPv4 except untouched; callers validate it separately and
+			// fail closed rather than silently dropping the exclusion.
+			canonical = except
+		}
+		if _, exist := exceptsSet[canonical]; !exist {
+			canonicalExcepts = append(canonicalExcepts, canonical)
+			exceptsSet[canonical] = struct{}{}
+		}
+	}
+	return canonicalExcepts
+}
+
 // ipBlockIPSet return translatedIPSet based based on ipBlockRule.
 func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSetIndex, ipBlockPeerIndex int, ipBlockRule *networkingv1.IPBlock) (*ipsets.TranslatedIPSet, error) {
 	if ipBlockRule == nil || ipBlockRule.CIDR == "" {
 		return nil, nil
 	}
 
-	// de-duplicated Except if there are redundance elements.
-	deDupExcepts := deDuplicateExcept(ipBlockRule.Except)
+	// Canonicalize the CIDR before it is compared or handed to the kernel. A block spelled
+	// with host bits set (e.g. "10.0.0.0/0") denotes the same addresses as its canonical form
+	// but does not compare equal to it, so without this the all-addresses block below would
+	// not be recognized and the literal would be rejected by ipset.
+	cidr, ok := util.NormalizeCIDR(ipBlockRule.CIDR)
+	if !ok {
+		return nil, ErrUnsupportedIPAddress
+	}
+
+	// de-duplicated Except if there are redundance elements, in canonical form so they
+	// compare correctly against the all-addresses split entries below.
+	deDupExcepts := canonicalizeExcepts(ipBlockRule.Except)
 	lenOfDeDupExcepts := len(deDupExcepts)
 
 	if util.IsWindowsDP() && lenOfDeDupExcepts > 0 {
@@ -190,7 +238,7 @@ func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSe
 	// splitCIDRSet has two entries ("0.0.0.0/1" and "128.0.0.0/1") as key.
 	splitCIDRLen := 2
 	splitCIDRSet := make(map[string]int, splitCIDRLen)
-	if ipBlockRule.CIDR == "0.0.0.0/0" {
+	if cidr == "0.0.0.0/0" {
 		// two cidrs (0.0.0.0/1 and 128.0.0.0/1) for 0.0.0.0/0 + except.
 		members = make([]string, lenOfDeDupExcepts+splitCIDRLen)
 		// in case of "0.0.0.0/0", "0.0.0.0/1" or "0.0.0.0/1 nomatch" comes eariler than "128.0.0.0/1" or "128.0.0.0/1 nomatch".
@@ -203,7 +251,7 @@ func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSe
 	} else {
 		// one cidr + except
 		members = make([]string, lenOfDeDupExcepts+1)
-		members[indexOfMembers] = ipBlockRule.CIDR
+		members[indexOfMembers] = cidr
 		indexOfMembers++
 	}
 
@@ -233,7 +281,13 @@ func ipBlockRule(policyName, ns string, direction policies.Direction, matchType 
 		return nil, policies.SetInfo{}, nil
 	}
 
-	if !util.IsIPV4(ipBlockRule.CIDR) {
+	// Validate the canonical form rather than the literal the user wrote. A block whose host
+	// bits are set, such as "10.0.0.0/0", denotes exactly the same addresses as its canonical
+	// form, but IsIPV4 refuses a /0 that is not spelled "0.0.0.0". Rejecting here aborts the
+	// translation of the whole policy, so neither the peer rule nor the default drop the policy
+	// implies is installed and the selected pods are left with no rules at all. This is the
+	// ipset path, which is Linux only; the Windows direct-rule path is unchanged.
+	if _, ok := util.NormalizeCIDR(ipBlockRule.CIDR); !ok {
 		return nil, policies.SetInfo{}, ErrUnsupportedIPAddress
 	}
 
@@ -339,6 +393,10 @@ func ruleExists(ports []networkingv1.NetworkPolicyPort, peer []networkingv1.Netw
 // peerAndPortRule deals with composite rules including ports and peers
 // (e.g., IPBlock, podSelector, namespaceSelector, or both podSelector and namespaceSelector).
 func peerAndPortRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Direction, ports []networkingv1.NetworkPolicyPort, setInfo []policies.SetInfo, npmLiteToggle bool) error {
+	if err := checkACLBudget(npmNetPol); err != nil {
+		return err
+	}
+
 	if len(ports) == 0 {
 		acl := policies.NewACLPolicy(policies.Allowed, direction)
 		acl.AddSetInfo(setInfo)
@@ -763,7 +821,32 @@ func TranslatePolicy(npObj *networkingv1.NetworkPolicy, npmLiteToggle bool) (*po
 			}
 		}
 	}
+
+	if err := checkACLBudget(npmNetPol); err != nil {
+		return nil, err
+	}
+
 	return npmNetPol, nil
+}
+
+// maxACLsPerPolicy bounds how many ACLs a single NetworkPolicy may translate into. Each ACL
+// becomes one iptables rule, and the count multiplies rather than adds: every flattened
+// namespaceSelector branch is emitted once per port in the rule, and that product is summed
+// across every peer and every rule in the policy. Bounding the flattened selector count on
+// its own is therefore not enough, because a policy that stays under that bound can still
+// multiply itself out by listing many ports. The ceiling is far above any workable policy,
+// since a policy expanding this wide would already be unusable as iptables rules.
+const maxACLsPerPolicy = 2000
+
+// checkACLBudget reports whether the policy has grown past what NPM is willing to translate.
+// It is checked before each peer is expanded, so translation stops early rather than after
+// materializing the full product.
+func checkACLBudget(npmNetPol *policies.NPMNetworkPolicy) error {
+	if len(npmNetPol.ACLs) > maxACLsPerPolicy {
+		klog.Errorf("network policy %s expands past the %d ACL limit", npmNetPol.PolicyKey, maxACLsPerPolicy)
+		return ErrTooManyACLs
+	}
+	return nil
 }
 
 func checkForNamedPortType(npmNetPol *policies.NPMNetworkPolicy, portKind netpolPortType, npmLiteToggle bool, direction policies.Direction, port *networkingv1.NetworkPolicyPort, cidr string) error {

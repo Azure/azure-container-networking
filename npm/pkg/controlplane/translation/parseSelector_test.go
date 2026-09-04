@@ -6,7 +6,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 func TestFlattenNameSpaceSelectorCases(t *testing.T) {
@@ -599,6 +601,209 @@ func TestFlattenNamespaceSelectorError(t *testing.T) {
 	}
 }
 
+// TestFlattenNameSpaceSelectorMultiValueNotIn verifies that a multi-value NotIn
+// requirement is preserved as a single conjunction rather than fanned out into
+// separate selectors. Separate selectors would become independent additive allow
+// rules, so a namespace carrying one excluded value could still match the rule
+// negating a different value.
+func TestFlattenNameSpaceSelectorMultiValueNotIn(t *testing.T) {
+	selector := &metav1.LabelSelector{
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			{
+				Key:      "tenant",
+				Operator: metav1.LabelSelectorOpNotIn,
+				Values:   []string{"x", "y"},
+			},
+		},
+	}
+
+	testSelectors, err := flattenNameSpaceSelector(selector)
+	require.NoError(t, err)
+
+	expected := []metav1.LabelSelector{
+		{
+			MatchExpressions: []metav1.LabelSelectorRequirement{
+				{
+					Key:      "tenant",
+					Operator: metav1.LabelSelectorOpNotIn,
+					Values:   []string{"x"},
+				},
+				{
+					Key:      "tenant",
+					Operator: metav1.LabelSelectorOpNotIn,
+					Values:   []string{"y"},
+				},
+			},
+		},
+	}
+
+	require.Equal(t, expected, testSelectors)
+}
+
+// TestFlattenNameSpaceSelectorMixedInAndNotIn verifies that multi-value In values
+// fan out into disjunctive branches while every multi-value NotIn exclusion is
+// carried conjunctively into each branch.
+func TestFlattenNameSpaceSelectorMixedInAndNotIn(t *testing.T) {
+	selector := &metav1.LabelSelector{
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			{
+				Key:      "tenant",
+				Operator: metav1.LabelSelectorOpNotIn,
+				Values:   []string{"x", "y"},
+			},
+			{
+				Key:      "role",
+				Operator: metav1.LabelSelectorOpIn,
+				Values:   []string{"a", "b"},
+			},
+		},
+	}
+
+	testSelectors, err := flattenNameSpaceSelector(selector)
+	require.NoError(t, err)
+
+	// Two In branches, each carrying both NotIn exclusions conjunctively.
+	require.Len(t, testSelectors, 2)
+	for _, s := range testSelectors {
+		var notInValues []string
+		var inValues []string
+		for _, req := range s.MatchExpressions {
+			require.Len(t, req.Values, 1, "every requirement must be single-value after flatten")
+			switch req.Operator {
+			case metav1.LabelSelectorOpNotIn:
+				require.Equal(t, "tenant", req.Key)
+				notInValues = append(notInValues, req.Values[0])
+			case metav1.LabelSelectorOpIn:
+				require.Equal(t, "role", req.Key)
+				inValues = append(inValues, req.Values[0])
+			case metav1.LabelSelectorOpExists, metav1.LabelSelectorOpDoesNotExist:
+				t.Fatalf("unexpected valueless operator %s", req.Operator)
+			default:
+				t.Fatalf("unexpected operator %s", req.Operator)
+			}
+		}
+		require.ElementsMatch(t, []string{"x", "y"}, notInValues, "both exclusions must be present in every branch")
+		require.Len(t, inValues, 1)
+	}
+}
+
+// TestFlattenNameSpaceSelectorUnsupportedOperator verifies that a matchExpression with
+// an operator other than In/NotIn/Exists/DoesNotExist is rejected (fail closed) rather
+// than silently dropped, which could otherwise widen the selector.
+func TestFlattenNameSpaceSelectorUnsupportedOperator(t *testing.T) {
+	selector := &metav1.LabelSelector{
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			{
+				Key:      "tenant",
+				Operator: metav1.LabelSelectorOperator("Frobnicate"),
+				Values:   []string{"x"},
+			},
+		},
+	}
+	s, err := flattenNameSpaceSelector(selector)
+	require.ErrorIs(t, err, ErrUnsupportedMatchExpressionOperator)
+	require.Nil(t, s)
+}
+
+// TestFlattenNameSpaceSelectorEmptyValues verifies that In/NotIn requirements with
+// no values are rejected (fail closed) rather than silently dropped, which could
+// otherwise widen a selector or produce no rules at all.
+func TestFlattenNameSpaceSelectorEmptyValues(t *testing.T) {
+	for _, op := range []metav1.LabelSelectorOperator{metav1.LabelSelectorOpIn, metav1.LabelSelectorOpNotIn} {
+		selector := &metav1.LabelSelector{
+			MatchExpressions: []metav1.LabelSelectorRequirement{
+				{
+					Key:      "tenant",
+					Operator: op,
+					Values:   []string{},
+				},
+			},
+		}
+		s, err := flattenNameSpaceSelector(selector)
+		require.ErrorIs(t, err, ErrEmptyMatchExpressionValues, "operator %s", op)
+		require.Nil(t, s)
+	}
+}
+
+// TestFlattenNameSpaceSelectorExpansionLimit verifies that a namespaceSelector whose
+// multi-value In requirements would expand into more selectors than NPM is willing to
+// translate is rejected before any allocation. Each flattened selector is deep-copied and
+// later becomes its own IPSet and ACL, and the count is the product of the value counts,
+// so an unbounded selector exhausts memory on every node running NPM.
+func TestFlattenNameSpaceSelectorExpansionLimit(t *testing.T) {
+	twoValueReqs := func(n int) []metav1.LabelSelectorRequirement {
+		reqs := make([]metav1.LabelSelectorRequirement, 0, n)
+		for i := 0; i < n; i++ {
+			reqs = append(reqs, metav1.LabelSelectorRequirement{
+				Key:      fmt.Sprintf("key%d", i),
+				Operator: metav1.LabelSelectorOpIn,
+				Values:   []string{"a", "b"},
+			})
+		}
+		return reqs
+	}
+
+	// 2^9 = 512 selectors is under the limit and must still translate.
+	under := &metav1.LabelSelector{MatchExpressions: twoValueReqs(9)}
+	selectors, err := flattenNameSpaceSelector(under)
+	require.NoError(t, err)
+	require.Len(t, selectors, 512)
+
+	// 2^19 = 524288 selectors is the reported exhaustion case and must be rejected.
+	over := &metav1.LabelSelector{MatchExpressions: twoValueReqs(19)}
+	selectors, err = flattenNameSpaceSelector(over)
+	require.ErrorIs(t, err, ErrTooManyFlattenedSelectors)
+	require.Nil(t, selectors)
+
+	// A single requirement wider than the limit is rejected on the first iteration,
+	// so the guard cannot be sidestepped by using one very wide requirement.
+	values := make([]string, maxFlattenedNSSelectors+1)
+	for i := range values {
+		values[i] = fmt.Sprintf("v%d", i)
+	}
+	wide := &metav1.LabelSelector{
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			{Key: "key", Operator: metav1.LabelSelectorOpIn, Values: values},
+		},
+	}
+	selectors, err = flattenNameSpaceSelector(wide)
+	require.ErrorIs(t, err, ErrTooManyFlattenedSelectors)
+	require.Nil(t, selectors)
+}
+
+// TestTranslatePolicyExpansionLimit verifies the expansion guard surfaces through the full
+// translation path rather than being swallowed, so an oversized policy is rejected instead
+// of being expanded.
+func TestTranslatePolicyExpansionLimit(t *testing.T) {
+	reqs := make([]metav1.LabelSelectorRequirement, 0, 19)
+	for i := 0; i < 19; i++ {
+		reqs = append(reqs, metav1.LabelSelectorRequirement{
+			Key:      fmt.Sprintf("key%d", i),
+			Operator: metav1.LabelSelectorOpIn,
+			Values:   []string{"a", "b"},
+		})
+	}
+
+	pol := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "expand", Namespace: "default"},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{
+				{
+					From: []networkingv1.NetworkPolicyPeer{
+						{NamespaceSelector: &metav1.LabelSelector{MatchExpressions: reqs}},
+					},
+				},
+			},
+		},
+	}
+
+	npmNetPol, err := TranslatePolicy(pol, false)
+	require.ErrorIs(t, err, ErrTooManyFlattenedSelectors)
+	require.Nil(t, npmNetPol)
+}
+
 func TestIsValidLabel(t *testing.T) {
 	good := []string{
 		"",
@@ -634,4 +839,82 @@ func TestIsValidLabel(t *testing.T) {
 	for _, b := range bad {
 		require.False(t, isValidLabelValue(b), "string was [%s]", b)
 	}
+}
+
+// TestTranslatePolicyACLBudget covers the multiplication the selector cap alone does not
+// catch. Every flattened namespaceSelector branch is emitted once per port in the rule, so a
+// policy whose selector expansion is comfortably under the selector limit can still generate
+// an enormous number of ACLs by listing many ports. Each ACL becomes an iptables rule.
+func TestTranslatePolicyACLBudget(t *testing.T) {
+	// 2^9 = 512 flattened selectors: under maxFlattenedNSSelectors.
+	reqs := make([]metav1.LabelSelectorRequirement, 0, 9)
+	for i := 0; i < 9; i++ {
+		reqs = append(reqs, metav1.LabelSelectorRequirement{
+			Key:      fmt.Sprintf("key%d", i),
+			Operator: metav1.LabelSelectorOpIn,
+			Values:   []string{"a", "b"},
+		})
+	}
+
+	// Sanity: the selector expansion on its own is accepted.
+	flattened, err := flattenNameSpaceSelector(&metav1.LabelSelector{MatchExpressions: reqs})
+	require.NoError(t, err)
+	require.Len(t, flattened, 512)
+
+	// 512 selectors x 512 ports would be 262144 ACLs.
+	ports := make([]networkingv1.NetworkPolicyPort, 0, 512)
+	for i := 0; i < 512; i++ {
+		p := intstr.FromInt(1000 + i)
+		ports = append(ports, networkingv1.NetworkPolicyPort{Port: &p})
+	}
+
+	pol := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "expand", Namespace: "default"},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{{
+				Ports: ports,
+				From: []networkingv1.NetworkPolicyPeer{
+					{NamespaceSelector: &metav1.LabelSelector{MatchExpressions: reqs}},
+				},
+			}},
+		},
+	}
+
+	npmNetPol, err := TranslatePolicy(pol, false)
+	require.ErrorIs(t, err, ErrTooManyACLs,
+		"a policy that multiplies selectors by ports must be rejected even when the selector count is under its own limit")
+	require.Nil(t, npmNetPol)
+}
+
+// TestTranslatePolicyOrdinaryPolicyWithinACLBudget guards the budget against false positives:
+// a normal policy with several peers and ports must translate unaffected.
+func TestTranslatePolicyOrdinaryPolicyWithinACLBudget(t *testing.T) {
+	ports := make([]networkingv1.NetworkPolicyPort, 0, 8)
+	for i := 0; i < 8; i++ {
+		p := intstr.FromInt(8000 + i)
+		ports = append(ports, networkingv1.NetworkPolicyPort{Port: &p})
+	}
+
+	pol := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "normal", Namespace: "default"},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "web"}},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{{
+				Ports: ports,
+				From: []networkingv1.NetworkPolicyPeer{
+					{NamespaceSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"team": "blue"}}},
+					{PodSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"role": "client"}}},
+					{IPBlock: &networkingv1.IPBlock{CIDR: "10.0.0.0/8"}},
+				},
+			}},
+		},
+	}
+
+	npmNetPol, err := TranslatePolicy(pol, false)
+	require.NoError(t, err)
+	require.NotNil(t, npmNetPol)
+	require.Less(t, len(npmNetPol.ACLs), maxACLsPerPolicy)
 }
