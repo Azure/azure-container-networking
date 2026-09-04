@@ -171,3 +171,13 @@ deploy-ebpf-podsubnet-cilium: print-ebpf-cilium-vars deploy-common-ebpf-cilium
 		../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/podsubnet/cilium.yaml \
 		| kubectl apply -f -
 	@$(MAKE) wait-for-cilium
+
+deploy-ebpf-podsubnet-dualstack-cilium: print-ebpf-cilium-vars deploy-common-ebpf-cilium
+	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/podsubnet-dualstack/static/
+	CILIUM_VERSION_TAG=$(EBPF_CILIUM_VERSION_TAG) CILIUM_IMAGE_REGISTRY=$(EBPF_CILIUM_IMAGE_REGISTRY) \
+		envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION},$${IPV6_IMAGE_REGISTRY},$${AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY},$${AZURE_IPTABLES_MONITOR_TAG}' < \
+		../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/podsubnet-dualstack/cilium.yaml \
+		| kubectl apply -f -
+	@$(MAKE) wait-for-cilium
+	@test "$$(kubectl get daemonset cilium -n kube-system -o jsonpath='{.spec.template.spec.volumes[?(@.name=="azure-ip-masq-dir")].configMap.name}')" = "azure-dns-imds-ip-masq-agent-config"
+	@! kubectl get daemonset cilium -n kube-system -o jsonpath='{.spec.template.spec.containers[*].name}' | grep -qw azure-ip-masq-merger
