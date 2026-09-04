@@ -1,3 +1,14 @@
+> **If you are the GitHub Copilot coding agent running on a GitHub Actions runner
+> (`$GITHUB_ACTIONS` = `true`): do ALL work in `$GITHUB_WORKSPACE`. Do NOT create
+> or use a `git worktree`.** Your commit/push step only sees `$GITHUB_WORKSPACE`.
+> Edits made anywhere else are silently discarded and produce a PR with zero
+> files. The worktree guidance in `agents.md` §6 applies to local Copilot CLI
+> sessions only, where one clone is shared between concurrent sessions — that is
+> not your situation. Before your first edit, confirm:
+> `cd "$GITHUB_WORKSPACE" && pwd && git rev-parse --show-toplevel`.
+> Before reporting completion, confirm `git diff --stat origin/master...HEAD` is
+> non-empty; if it is empty, say so instead of describing uncommitted work.
+
 Use all `agents.md` files found from the repository root to the current directory as instructions and context, applying them in root-to-leaf order; if instructions conflict, the `agents.md` closest to the current directory takes precedence. Use relevant repo skills from `.github/skills/` when applicable.
 
 Public authorship is human-owned. Copilot and all other AI agents must never

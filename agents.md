@@ -110,6 +110,15 @@ code.
 
 ## 6. PR Workflow
 
+> **Exception — GitHub Copilot coding agent (cloud):** if you are running as the
+> Copilot coding agent on a GitHub Actions runner (i.e. `$GITHUB_ACTIONS` is
+> `true` and the repo is checked out at `$GITHUB_WORKSPACE`), **do NOT create a
+> worktree.** Do all work directly in `$GITHUB_WORKSPACE`. That environment is a
+> single-session ephemeral container, so there is nothing to collide with, and
+> the agent's commit/push step only ever sees `$GITHUB_WORKSPACE` — work done in
+> a worktree elsewhere on disk is silently discarded and produces an empty PR.
+> The rest of this section applies to local Copilot CLI sessions only.
+
 **All local agent work MUST happen in a dedicated git worktree, never in the shared repo root.** The repo root is shared across concurrent agent sessions; mutating it causes parallel branches, working trees, and build artifacts (`output/`, `bin/`) to collide. From the repo root, create a worktree under the active session folder before touching files:
 
 ```bash
@@ -130,7 +139,9 @@ publishing is requested.
 After the maintainer confirms that the work was merged or abandoned, prune with
 `git worktree remove "$WT"` and `git branch -D "$BRANCH"`. The shared root is
 read-only — only use it for inspection (e.g. `git worktree list`, `git fetch`),
-never to edit, build, or commit.
+never to edit, build, or commit. (Again: this read-only rule is for local CLI
+sessions. The cloud coding agent must edit, build, and commit directly in
+`$GITHUB_WORKSPACE`.)
 
 **Go-specific notes (no per-worktree install):**
 - The Go module cache (`$(go env GOMODCACHE)`, default `$GOPATH/pkg/mod`) and build cache (`$(go env GOCACHE)`) are **content-addressed and concurrent-safe**; Go uses file locking. Do not try to isolate them per worktree.
