@@ -592,8 +592,8 @@ jobs:
 
           # Determine GOEXPERIMENT rules per version
           if [ "$TARGET_MIN_NUM" -ge 27 ]; then
-            echo "goexp_cgo1=systemcrypto" >> "$GITHUB_OUTPUT"
-            echo "goexp_cgo0=systemcrypto" >> "$GITHUB_OUTPUT"
+            echo "goexp_cgo1=" >> "$GITHUB_OUTPUT"
+            echo "goexp_cgo0=" >> "$GITHUB_OUTPUT"
           elif [ "$TARGET_MIN_NUM" -ge 26 ]; then
             echo "goexp_cgo1=systemcrypto" >> "$GITHUB_OUTPUT"
             echo "goexp_cgo0=ms_nocgo_opensslcrypto" >> "$GITHUB_OUTPUT"
@@ -675,19 +675,18 @@ jobs:
           if [ "$FIPS_READY" = "true" ]; then
             FIPS_SECTION="
           ### FIPS Status: ✅ Already configured
-          GOEXPERIMENT and distroless/base are already correctly configured.
+          System crypto and distroless/base are already correctly configured.
           No FIPS changes needed for this upgrade."
           elif [ "$LATEST_MIN_NUM" -ge 27 ]; then
             FIPS_SECTION="
           ### ⚠️ FIPS / System Crypto Requirements
-          Go 1.27+ lifts the cgo requirement for systemcrypto on Linux.
-          \`GOEXPERIMENT=systemcrypto\` can now be set in ALL scripts/Dockerfiles regardless of CGO setting.
+          Go 1.27+ selects system crypto automatically and lifts the cgo requirement on supported Linux architectures.
           Reference: https://github.com/microsoft/go/blob/microsoft/main/eng/doc/NocgoOpenSSL.md
 
-          1. Set \`GOEXPERIMENT=systemcrypto\` in ALL Dockerfile templates and pipeline build scripts
-          2. Remove \`MS_GO_NOSYSTEMCRYPTO=1\` from npm Dockerfiles if present
+          1. Remove \`GOEXPERIMENT=systemcrypto\`, \`GOEXPERIMENT=nosystemcrypto\`, and \`GOEXPERIMENT=ms_nocgo_opensslcrypto\` from all build scripts and Dockerfiles; these experiments are removed and cause build errors
+          2. **Keep** \`MS_GO_NOSYSTEMCRYPTO=1\` in the npm build script and npm Dockerfiles. It is an environment variable, **not** a GOEXPERIMENT, and it is still supported in Go 1.27. npm ships on an Ubuntu base without the Microsoft FIPS OpenSSL build, so removing it makes the binary require OpenSSL at startup and panic during initialization
           3. Ensure \`MARINER_DISTROLESS_IMG\` in \`build/images.mk\` is \`distroless/base\`
-          4. Update \`bpf-prog/ipv6-hp-bpf/linux.Dockerfile\` runtime base to \`azurelinux/distroless/base:3.0\`"
+          4. Update \`bpf-prog/ipv6-hp-bpf/linux.Dockerfile\` runtime base to \`mcr.microsoft.com/azurelinux/distroless/base:3.0\` (keep the full registry prefix — a bare \`azurelinux/...\` reference resolves to Docker Hub and is not pullable)"
           elif [ "$LATEST_MIN_NUM" -ge 26 ]; then
             FIPS_SECTION="
           ### ⚠️ FIPS / System Crypto Requirements (CRITICAL — builds will FAIL without this)
@@ -705,7 +704,7 @@ jobs:
           **Steps:**
           1. Add \`GOEXPERIMENT=ms_nocgo_opensslcrypto\` to ALL scripts/Dockerfiles/Makefiles with \`CGO_ENABLED=0\` on Linux
           2. Add \`GOEXPERIMENT=systemcrypto\` to scripts/Dockerfiles with \`CGO_ENABLED=1\` (cilium-log-collector)
-          3. Remove \`MS_GO_NOSYSTEMCRYPTO=1\` from npm Dockerfiles and replace with \`GOEXPERIMENT=ms_nocgo_opensslcrypto\`
+          3. **Keep** \`MS_GO_NOSYSTEMCRYPTO=1\` in the npm build script and npm Dockerfiles — npm ships on an Ubuntu base without the Microsoft FIPS OpenSSL build, so it must stay on the standard Go crypto backend. Do **not** replace it with a GOEXPERIMENT
           4. npm Dockerfiles use **plain Go tags** (e.g., \`golang:1.26.4\`) — do NOT add \`-azurelinux3.0\` suffix
           5. npm/windows.Dockerfile builds on Linux (\`--platform=linux/amd64\`) — it STILL needs GOEXPERIMENT for CGO=0
           6. Ensure \`MARINER_DISTROLESS_IMG\` in \`build/images.mk\` is \`distroless/base\`
