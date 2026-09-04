@@ -1,4 +1,5 @@
 parameters:
+  use1ESPublishTask: false
   name: ""
   displayName: ""
   clusterType: ""
@@ -111,12 +112,14 @@ stages:
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
+              use1ESPublishTask: ${{ parameters.use1ESPublishTask }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: cilium
 
       - template: ../../templates/failure-analysis.job.yaml
         parameters:
+          use1ESPublishTask: ${{ parameters.use1ESPublishTask }}
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
           cni: cilium

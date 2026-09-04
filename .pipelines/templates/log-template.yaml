@@ -16,6 +16,7 @@
 # Provide through debugging information to understand why CNI test scenarios are failing without having to blindly reproduce
 
 parameters:
+  use1ESPublishTask: false
   clusterName: ""
   logType: "failure"
   os: ""
@@ -164,8 +165,18 @@ steps:
       displayName: Windows Logs
       condition: always()
 
-  - publish: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
-    condition: always()
-    artifact: ${{ parameters.clusterName }}_${{ parameters.logType }}_${{ parameters.os }}${{ parameters.jobName }}_Attempt_#$(System.StageAttempt)
-    name: acnLogs_${{ parameters.logType }}
-    displayName: Publish Cluster logs
+  - ${{ if eq(parameters.use1ESPublishTask, true) }}:
+    - task: 1ES.PublishPipelineArtifact@1
+      condition: always()
+      name: acnLogs_${{ parameters.logType }}
+      displayName: Publish Cluster logs
+      inputs:
+        targetPath: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
+        artifactName: ${{ parameters.clusterName }}_${{ parameters.logType }}_${{ parameters.os }}${{ parameters.jobName }}_Attempt_#$(System.StageAttempt)
+        sbomEnabled: false
+  - ${{ else }}:
+    - publish: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
+      condition: always()
+      artifact: ${{ parameters.clusterName }}_${{ parameters.logType }}_${{ parameters.os }}${{ parameters.jobName }}_Attempt_#$(System.StageAttempt)
+      name: acnLogs_${{ parameters.logType }}
+      displayName: Publish Cluster logs

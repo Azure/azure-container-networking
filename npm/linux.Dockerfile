@@ -8,6 +8,10 @@ RUN MS_GO_NOSYSTEMCRYPTO=1 CGO_ENABLED=0 go build -v -o /usr/local/bin/azure-npm
 
 FROM mcr.microsoft.com/mirror/docker/library/ubuntu:24.04 as linux
 COPY --from=builder /usr/local/bin/azure-npm /usr/bin/azure-npm
-RUN apt-get update && apt-get install -y iptables ipset ca-certificates && apt-get autoremove -y && apt-get clean
+RUN sed -i 's|archive.ubuntu.com|azure.archive.ubuntu.com|g' /etc/apt/sources.list.d/ubuntu.sources \
+    && apt-get update \
+    && apt-get install -y iptables ipset ca-certificates \
+    && apt-get autoremove -y \
+    && apt-get clean
 RUN chmod +x /usr/bin/azure-npm
 ENTRYPOINT ["/usr/bin/azure-npm", "start"]
