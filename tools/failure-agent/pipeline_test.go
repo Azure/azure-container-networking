@@ -35,6 +35,29 @@ func (f *fakeClassifier) Classify(_ context.Context, _ model.RunContext, _ model
 	return f.result, f.err
 }
 
+// noopEscalator stands in for the gate in tests that are not about escalation.
+// It declines, so no issue.md is written.
+type noopEscalator struct{}
+
+func (noopEscalator) Decide(context.Context, model.RunContext, model.Incident, string) (model.Escalation, error) {
+	return model.Escalation{Reason: "not under test", Source: model.EscalationLLM}, nil
+}
+
+// fakeEscalator returns a canned escalation decision (or error) and records the
+// report it was shown, so tests can assert the gate sees the rendered report.
+type fakeEscalator struct {
+	result      model.Escalation
+	err         error
+	gotReportMD string
+	callCount   int
+}
+
+func (f *fakeEscalator) Decide(_ context.Context, _ model.RunContext, _ model.Incident, reportMD string) (model.Escalation, error) {
+	f.callCount++
+	f.gotReportMD = reportMD
+	return f.result, f.err
+}
+
 // TestRunEndToEnd exercises collect -> fingerprint -> signatures -> classify ->
 // report over a committed evidence bundle using a fake LLM classifier.
 func TestRunEndToEnd(t *testing.T) {
@@ -59,7 +82,7 @@ func TestRunEndToEnd(t *testing.T) {
 		cni:            "cilium",
 	}
 
-	if err := run(context.Background(), zap.NewNop(), opts, cl, noopStore{}, noopCollector{}, noopCollector{}); err != nil {
+	if err := run(context.Background(), zap.NewNop(), opts, cl, noopEscalator{}, noopStore{}, noopCollector{}, noopCollector{}); err != nil {
 		t.Fatalf("run failed: %v", err)
 	}
 
@@ -87,10 +110,165 @@ func TestRunEndToEnd(t *testing.T) {
 	if !strings.Contains(string(md), "acn-failure-agent:"+inc.Fingerprint) {
 		t.Error("expected fingerprint marker in report.md")
 	}
+
+	// The gate declined, so no issue artifact.
+	if _, err := os.Stat(filepath.Join(out, "issue.md")); !os.IsNotExist(err) {
+		t.Error("did not expect issue.md when the gate declines")
+	}
+}
+
+// TestRunWritesIssueArtifactWhenGateEscalates verifies that an escalated incident
+// writes issue.md even under --dry-run: it is an artifact, not a PR write-back.
+// It also asserts the decision is recorded on incident.json and report.md, and
+// that the gate was shown the rendered report rather than raw evidence.
+func TestRunWritesIssueArtifactWhenGateEscalates(t *testing.T) {
+	out := t.TempDir()
+	cl := &fakeClassifier{result: model.Classification{
+		Category:         model.CategoryPipelineInfraConfig,
+		Confidence:       0.35,
+		RootCauseSummary: "The CNS image tag in the pipeline template does not exist.",
+		Source:           "llm",
+	}}
+	esc := &fakeEscalator{result: model.Escalation{
+		Needed:       true,
+		Reason:       "The bad image tag is committed in this repository.",
+		Title:        "CNS image tag in the E2E template does not exist",
+		Labels:       []string{"bug", "cns"},
+		FixDirection: "Point the template at a published CNS tag.",
+		Source:       model.EscalationLLM,
+	}}
+	opts := bundleOptions(t, out)
+
+	if err := run(context.Background(), zap.NewNop(), opts, cl, esc, noopStore{}, noopCollector{}, noopCollector{}); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+
+	// Low confidence and a non-regression category must not block escalation:
+	// that decoupling is the point of the gate.
+	inc := readIncident(t, out)
+	if inc.Escalation == nil || !inc.Escalation.Needed {
+		t.Fatalf("expected an escalation decision on incident.json, got %+v", inc.Escalation)
+	}
+	if inc.Escalation.Source != model.EscalationLLM {
+		t.Errorf("escalation source: got %s, want llm", inc.Escalation.Source)
+	}
+
+	data, err := os.ReadFile(filepath.Join(out, "issue.md"))
+	if err != nil {
+		t.Fatalf("expected issue.md: %v", err)
+	}
+	body := string(data)
+	if !strings.Contains(body, "<!-- faa-issue:v1") {
+		t.Error("expected the metadata header in issue.md")
+	}
+	if !strings.Contains(body, "acn-faa-fingerprint:"+inc.Fingerprint) {
+		t.Error("expected the fingerprint marker in issue.md")
+	}
+	if !strings.Contains(body, "labels: bug,cns") {
+		t.Errorf("expected labels in the metadata header, got:\n%s", body)
+	}
+
+	md, err := os.ReadFile(filepath.Join(out, "report.md"))
+	if err != nil {
+		t.Fatalf("reading report.md: %v", err)
+	}
+	if !strings.Contains(string(md), "GitHub issue escalation") {
+		t.Error("expected the escalation section in report.md")
+	}
+
+	if !strings.Contains(esc.gotReportMD, "ACN Pipeline Failure Analysis") {
+		t.Error("expected the gate to be shown the rendered report")
+	}
+}
+
+// TestRunSkipsGateOnPRBuild verifies the precondition: PR builds get the inline
+// PR comment, and their fix belongs in the change under review.
+func TestRunSkipsGateOnPRBuild(t *testing.T) {
+	t.Setenv("BUILD_REASON", "PullRequest")
+	t.Setenv("SYSTEM_PULLREQUEST_PULLREQUESTNUMBER", "42")
+
+	out := t.TempDir()
+	cl := &fakeClassifier{result: model.Classification{
+		Category: model.CategoryPRRegression, Confidence: 0.9, Source: "llm",
+	}}
+	esc := &fakeEscalator{result: model.Escalation{Needed: true, Reason: "should never be consulted", Title: "x"}}
+
+	if err := run(context.Background(), zap.NewNop(), bundleOptions(t, out), cl, esc, noopStore{}, noopCollector{}, noopCollector{}); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+
+	if esc.callCount != 0 {
+		t.Errorf("gate should not be consulted on a PR build, got %d calls", esc.callCount)
+	}
+	if _, err := os.Stat(filepath.Join(out, "issue.md")); !os.IsNotExist(err) {
+		t.Error("did not expect issue.md for a PR build")
+	}
+	inc := readIncident(t, out)
+	if inc.Escalation == nil || inc.Escalation.Source != model.EscalationSkipped {
+		t.Errorf("expected a skipped escalation, got %+v", inc.Escalation)
+	}
+}
+
+// TestRunSurvivesGateFailure verifies that a broken gate is recorded rather than
+// silently reported as "no issue needed", and never fails the run.
+func TestRunSurvivesGateFailure(t *testing.T) {
+	out := t.TempDir()
+	cl := &fakeClassifier{result: model.Classification{
+		Category: model.CategoryPRRegression, Confidence: 0.9, Source: "llm",
+	}}
+	esc := &fakeEscalator{err: errors.New("azure openai unauthorized")}
+
+	if err := run(context.Background(), zap.NewNop(), bundleOptions(t, out), cl, esc, noopStore{}, noopCollector{}, noopCollector{}); err != nil {
+		t.Fatalf("run should not fail when the gate fails: %v", err)
+	}
+
+	inc := readIncident(t, out)
+	if inc.Escalation == nil || inc.Escalation.Source != model.EscalationError {
+		t.Fatalf("expected an error escalation, got %+v", inc.Escalation)
+	}
+	if _, err := os.Stat(filepath.Join(out, "report.md")); err != nil {
+		t.Errorf("report.md should still be written: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(out, "issue.md")); !os.IsNotExist(err) {
+		t.Error("did not expect issue.md when the gate failed")
+	}
+}
+
+// TestRunSkipsGateWhenAnalysisFailed verifies the second precondition: there is
+// no conclusion to escalate when the classifier could not produce one.
+func TestRunSkipsGateWhenAnalysisFailed(t *testing.T) {
+	out := t.TempDir()
+	esc := &fakeEscalator{result: model.Escalation{Needed: true, Reason: "should never be consulted", Title: "x"}}
+
+	if err := run(context.Background(), zap.NewNop(), bundleOptions(t, out), &fakeClassifier{err: errors.New("boom")}, esc, noopStore{}, noopCollector{}, noopCollector{}); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+
+	if esc.callCount != 0 {
+		t.Errorf("gate should not be consulted when analysis failed, got %d calls", esc.callCount)
+	}
+	if _, err := os.Stat(filepath.Join(out, "issue.md")); !os.IsNotExist(err) {
+		t.Error("did not expect issue.md when analysis failed")
+	}
+}
+
+// TestBuildEscalatorWithoutCredentials reports the gate as skipped rather than
+// failed: without a model there was never a decision to make.
+func TestBuildEscalatorWithoutCredentials(t *testing.T) {
+	e, err := buildEscalator(options{}).Decide(context.Background(), model.RunContext{}, model.Incident{}, "")
+	if err != nil {
+		t.Fatalf("unconfigured escalator should not error: %v", err)
+	}
+	if e.Needed {
+		t.Error("unconfigured escalator should not request an issue")
+	}
+	if e.Source != model.EscalationSkipped {
+		t.Errorf("source: got %s, want skipped", e.Source)
+	}
 }
 
 func TestRunRequiresInput(t *testing.T) {
-	if err := run(context.Background(), zap.NewNop(), options{dryRun: true}, &fakeClassifier{}, noopStore{}, noopCollector{}, noopCollector{}); err == nil {
+	if err := run(context.Background(), zap.NewNop(), options{dryRun: true}, &fakeClassifier{}, noopEscalator{}, noopStore{}, noopCollector{}, noopCollector{}); err == nil {
 		t.Fatal("expected error when --input missing")
 	}
 }
@@ -106,7 +284,7 @@ func TestRunAnalysisFailedWhenLLMFails(t *testing.T) {
 		signaturesPath: filepath.Join("signatures", "signatures.yaml"),
 		dryRun:         true,
 	}
-	if err := run(context.Background(), zap.NewNop(), opts, cl, noopStore{}, noopCollector{}, noopCollector{}); err != nil {
+	if err := run(context.Background(), zap.NewNop(), opts, cl, noopEscalator{}, noopStore{}, noopCollector{}, noopCollector{}); err != nil {
 		t.Fatalf("run should not fail on LLM error: %v", err)
 	}
 
@@ -212,7 +390,7 @@ func TestRunSkipsDuplicateFailure(t *testing.T) {
 	}}
 
 	opts := bundleOptions(t, t.TempDir())
-	if err := run(context.Background(), zap.NewNop(), opts, cl, st, noopCollector{}, noopCollector{}); err != nil {
+	if err := run(context.Background(), zap.NewNop(), opts, cl, noopEscalator{}, st, noopCollector{}, noopCollector{}); err != nil {
 		t.Fatalf("first run failed: %v", err)
 	}
 	if cl.callCount != 1 {
@@ -220,7 +398,7 @@ func TestRunSkipsDuplicateFailure(t *testing.T) {
 	}
 
 	opts.output = t.TempDir()
-	if err := run(context.Background(), zap.NewNop(), opts, cl, st, noopCollector{}, noopCollector{}); err != nil {
+	if err := run(context.Background(), zap.NewNop(), opts, cl, noopEscalator{}, st, noopCollector{}, noopCollector{}); err != nil {
 		t.Fatalf("second run failed: %v", err)
 	}
 	if cl.callCount != 1 {
@@ -257,7 +435,7 @@ func TestRunInjectsPriorResolvedContext(t *testing.T) {
 	cl := &fakeClassifier{result: model.Classification{
 		Category: model.CategoryClusterBringupFailure, Confidence: 0.7, Source: "llm",
 	}}
-	if err := run(context.Background(), zap.NewNop(), opts, cl, st, noopCollector{}, noopCollector{}); err != nil {
+	if err := run(context.Background(), zap.NewNop(), opts, cl, noopEscalator{}, st, noopCollector{}, noopCollector{}); err != nil {
 		t.Fatalf("run failed: %v", err)
 	}
 
@@ -285,7 +463,7 @@ func TestRunMergesLiveDiagnostics(t *testing.T) {
 	opts := bundleOptions(t, t.TempDir())
 	collector := live.NewCollector(fakeRunner{})
 
-	if err := run(context.Background(), zap.NewNop(), opts, cl, noopStore{}, collector, noopCollector{}); err != nil {
+	if err := run(context.Background(), zap.NewNop(), opts, cl, noopEscalator{}, noopStore{}, collector, noopCollector{}); err != nil {
 		t.Fatalf("run failed: %v", err)
 	}
 

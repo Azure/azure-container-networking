@@ -226,6 +226,41 @@ type EvidenceGap struct {
 	HowToCapture string `json:"howToCapture"`
 }
 
+// EscalationSource records how an Escalation was arrived at, so "the model
+// declined" is distinguishable from "the gate never ran" and "the gate broke".
+type EscalationSource string
+
+const (
+	// EscalationLLM means the model was consulted and returned a decision.
+	EscalationLLM EscalationSource = "llm"
+	// EscalationSkipped means the preconditions were not met, so no model call
+	// was made. Needed is false but says nothing about the failure itself.
+	EscalationSkipped EscalationSource = "skipped"
+	// EscalationError means the gate was consulted but failed. Needed is false
+	// because no decision was obtained, not because one was declined.
+	EscalationError EscalationSource = "error"
+)
+
+// Escalation is the AI gate's decision about whether an incident warrants a
+// GitHub issue for a code fix. It is deliberately independent of Category and
+// Confidence: a low-confidence but clearly code-shaped failure is worth an issue,
+// while a high-confidence quota exhaustion is not. Reason is populated for both
+// outcomes so a decision not to escalate is as auditable as a decision to.
+type Escalation struct {
+	Needed bool   `json:"needed"`
+	Reason string `json:"reason"`
+
+	// Title, Labels, FixDirection, SuggestedFiles, and Blockers ground the
+	// issue body and are only populated when Needed is true.
+	Title          string   `json:"title,omitempty"`
+	Labels         []string `json:"labels,omitempty"`
+	FixDirection   string   `json:"fixDirection,omitempty"`
+	SuggestedFiles []string `json:"suggestedFiles,omitempty"`
+	Blockers       []string `json:"blockers,omitempty"`
+
+	Source EscalationSource `json:"source"`
+}
+
 // Incident is the full structured result written to incident.json.
 type Incident struct {
 	GeneratedAt time.Time `json:"generatedAt"`
@@ -282,4 +317,8 @@ type Incident struct {
 	AnalysisStatus       AnalysisStatus `json:"analysisStatus"`
 	AnalysisError        string         `json:"analysisError,omitempty"`
 	ClassificationSource string         `json:"classificationSource"`
+
+	// Escalation is the AI gate's decision about raising a GitHub issue for a
+	// code fix. Nil when the gate did not run at all.
+	Escalation *Escalation `json:"escalation,omitempty"`
 }
