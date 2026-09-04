@@ -333,65 +333,76 @@ func (service *HTTPRestService) RequestIPConfigsHandler(w http.ResponseWriter, r
 }
 
 func (service *HTTPRestService) updateEndpointState(ipconfigsRequest cns.IPConfigsRequest, podInfo cns.PodInfo, podIPInfo []cns.PodIpInfo) error {
+	service.Lock()
+	defer service.Unlock()
+	return service.updateEndpointStateUntransacted(ipconfigsRequest, podInfo, podIPInfo)
+}
+
+func (service *HTTPRestService) updateEndpointStateUntransacted(ipconfigsRequest cns.IPConfigsRequest, podInfo cns.PodInfo, podIPInfo []cns.PodIpInfo) error {
 	if service.EndpointStateStore == nil {
 		return ErrStoreEmpty
 	}
-	service.Lock()
-	defer service.Unlock()
 	logger.Printf("[updateEndpointState] Updating endpoint state for infra container %s", ipconfigsRequest.InfraContainerID)
-	for i := range podIPInfo {
-		if endpointInfo, ok := service.EndpointState[ipconfigsRequest.InfraContainerID]; ok {
-			logger.Warnf("[updateEndpointState] Found existing endpoint state for infra container %s", ipconfigsRequest.InfraContainerID)
-			ip := net.ParseIP(podIPInfo[i].PodIPConfig.IPAddress)
-			if ip == nil {
-				logger.Errorf("failed to parse pod ip address %s", podIPInfo[i].PodIPConfig.IPAddress)
-				return ErrParsePodIPFailed
-			}
-			if ip.To4() == nil { // is an ipv6 address
-				ipconfig := net.IPNet{IP: ip, Mask: net.CIDRMask(int(podIPInfo[i].PodIPConfig.PrefixLength), 128)} // nolint
-				for _, ipconf := range endpointInfo.IfnameToIPMap[ipconfigsRequest.Ifname].IPv6 {
-					if ipconf.IP.Equal(ipconfig.IP) {
-						logger.Printf("[updateEndpointState] Found existing ipv6 ipconfig for infra container %s", ipconfigsRequest.InfraContainerID)
-						return nil
-					}
-				}
-				endpointInfo.IfnameToIPMap[ipconfigsRequest.Ifname].IPv6 = append(endpointInfo.IfnameToIPMap[ipconfigsRequest.Ifname].IPv6, ipconfig)
-			} else {
-				ipconfig := net.IPNet{IP: ip, Mask: net.CIDRMask(int(podIPInfo[i].PodIPConfig.PrefixLength), 32)} // nolint
-				for _, ipconf := range endpointInfo.IfnameToIPMap[ipconfigsRequest.Ifname].IPv4 {
-					if ipconf.IP.Equal(ipconfig.IP) {
-						logger.Printf("[updateEndpointState] Found existing ipv4 ipconfig for infra container %s", ipconfigsRequest.InfraContainerID)
-						return nil
-					}
-				}
-				endpointInfo.IfnameToIPMap[ipconfigsRequest.Ifname].IPv4 = append(endpointInfo.IfnameToIPMap[ipconfigsRequest.Ifname].IPv4, ipconfig)
-			}
-			service.EndpointState[ipconfigsRequest.InfraContainerID] = endpointInfo
-		} else {
-			endpointInfo := &EndpointInfo{PodName: podInfo.Name(), PodNamespace: podInfo.Namespace(), IfnameToIPMap: make(map[string]*IPInfo)}
-			ip := net.ParseIP(podIPInfo[i].PodIPConfig.IPAddress)
-			if ip == nil {
-				logger.Errorf("failed to parse pod ip address %s", podIPInfo[i].PodIPConfig.IPAddress)
-				return ErrParsePodIPFailed
-			}
-			ipInfo := &IPInfo{}
-			if ip.To4() == nil { // is an ipv6 address
-				ipconfig := net.IPNet{IP: ip, Mask: net.CIDRMask(int(podIPInfo[i].PodIPConfig.PrefixLength), 128)} // nolint
-				ipInfo.IPv6 = append(ipInfo.IPv6, ipconfig)
-			} else {
-				ipconfig := net.IPNet{IP: ip, Mask: net.CIDRMask(int(podIPInfo[i].PodIPConfig.PrefixLength), 32)} // nolint
-				ipInfo.IPv4 = append(ipInfo.IPv4, ipconfig)
-			}
-			endpointInfo.IfnameToIPMap[ipconfigsRequest.Ifname] = ipInfo
-			service.EndpointState[ipconfigsRequest.InfraContainerID] = endpointInfo
-		}
-
-		err := service.EndpointStateStore.Write(EndpointStoreKey, service.EndpointState)
-		if err != nil {
-			return fmt.Errorf("failed to write endpoint state to store: %w", err)
+	endpointState := cloneEndpointState(service.EndpointState)
+	endpointInfo, ok := endpointState[ipconfigsRequest.InfraContainerID]
+	if !ok {
+		endpointInfo = &EndpointInfo{
+			PodName:       podInfo.Name(),
+			PodNamespace:  podInfo.Namespace(),
+			IfnameToIPMap: make(map[string]*IPInfo),
 		}
 	}
+	if endpointInfo.IfnameToIPMap == nil {
+		endpointInfo.IfnameToIPMap = make(map[string]*IPInfo)
+	}
+	ipInfo := endpointInfo.IfnameToIPMap[ipconfigsRequest.Ifname]
+	if ipInfo == nil {
+		ipInfo = &IPInfo{}
+	}
+
+	changed := false
+	for i := range podIPInfo {
+		addr, err := netip.ParseAddr(podIPInfo[i].PodIPConfig.IPAddress)
+		if err != nil {
+			return fmt.Errorf("%w: parsing %q: %w", ErrParsePodIPFailed, podIPInfo[i].PodIPConfig.IPAddress, err)
+		}
+		ipConfig := net.IPNet{
+			IP:   net.IP(addr.AsSlice()).To16(),
+			Mask: net.CIDRMask(int(podIPInfo[i].PodIPConfig.PrefixLength), addr.BitLen()), //nolint:gosec // PrefixLength is constrained by IP family.
+		}
+		if addr.Is6() {
+			if ipNetSliceContains(ipInfo.IPv6, ipConfig.IP) {
+				continue
+			}
+			ipInfo.IPv6 = append(ipInfo.IPv6, ipConfig)
+		} else {
+			if ipNetSliceContains(ipInfo.IPv4, ipConfig.IP) {
+				continue
+			}
+			ipInfo.IPv4 = append(ipInfo.IPv4, ipConfig)
+		}
+		changed = true
+	}
+	if !changed {
+		return nil
+	}
+
+	endpointInfo.IfnameToIPMap[ipconfigsRequest.Ifname] = ipInfo
+	endpointState[ipconfigsRequest.InfraContainerID] = endpointInfo
+	if err := service.EndpointStateStore.Write(EndpointStoreKey, endpointState); err != nil {
+		return fmt.Errorf("writing endpoint state: %w", err)
+	}
+	service.EndpointState = endpointState
 	return nil
+}
+
+func ipNetSliceContains(ipNets []net.IPNet, ip net.IP) bool {
+	for i := range ipNets {
+		if ipNets[i].IP.Equal(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 // ReleaseIPConfigHandlerHelper validates the request and removes the endpoint associated with the pod
@@ -522,18 +533,24 @@ func (service *HTTPRestService) ReleaseIPConfigsHandler(w http.ResponseWriter, r
 }
 
 func (service *HTTPRestService) removeEndpointState(podInfo cns.PodInfo) error {
+	service.Lock()
+	defer service.Unlock()
+	return service.removeEndpointStateUntransacted(podInfo)
+}
+
+func (service *HTTPRestService) removeEndpointStateUntransacted(podInfo cns.PodInfo) error {
 	if service.EndpointStateStore == nil {
 		return ErrStoreEmpty
 	}
-	service.Lock()
-	defer service.Unlock()
 	logger.Printf("[removeEndpointState] Removing endpoint state for infra container %s", podInfo.InfraContainerID())
 	if _, ok := service.EndpointState[podInfo.InfraContainerID()]; ok {
-		delete(service.EndpointState, podInfo.InfraContainerID())
-		err := service.EndpointStateStore.Write(EndpointStoreKey, service.EndpointState)
+		endpointState := cloneEndpointState(service.EndpointState)
+		delete(endpointState, podInfo.InfraContainerID())
+		err := service.EndpointStateStore.Write(EndpointStoreKey, endpointState)
 		if err != nil {
 			return fmt.Errorf("failed to write endpoint state to store: %w", err)
 		}
+		service.EndpointState = endpointState
 	} else { // will not fail if no endpoint state for infra container id is found
 		logger.Printf("[removeEndpointState] No endpoint state found for infra container %s", podInfo.InfraContainerID())
 	}
@@ -1230,14 +1247,15 @@ func (service *HTTPRestService) DeleteEndpointStateHelper(endpointID string) err
 		return fmt.Errorf("[deleteEndpointState] endpoint %s: %w", endpointID, ErrEndpointStateNotFound)
 	}
 
-	// Delete the endpoint from the state
-	delete(service.EndpointState, endpointID)
+	endpointState := cloneEndpointState(service.EndpointState)
+	delete(endpointState, endpointID)
 
 	// Write the updated state back to the store
-	err := service.EndpointStateStore.Write(EndpointStoreKey, service.EndpointState)
+	err := service.EndpointStateStore.Write(EndpointStoreKey, endpointState)
 	if err != nil {
 		return fmt.Errorf("[deleteEndpointState] failed to write endpoint state to store: %w", err)
 	}
+	service.EndpointState = endpointState
 	logger.Printf("[deleteEndpointState] successfully deleted endpoint %s from state file", endpointID) //nolint:staticcheck // reason: using deprecated call until migration to new API
 	return nil
 }
@@ -1374,23 +1392,25 @@ func (service *HTTPRestService) UpdateEndpointHelper(endpointID string, req map[
 		return ErrStoreEmpty
 	}
 	logger.Printf("[updateEndpoint] Updating endpoint state for infra container %s", endpointID)
-	endpointInfo, endpointExist := service.EndpointState[endpointID]
+	endpointState := cloneEndpointState(service.EndpointState)
+	endpointInfo, endpointExist := endpointState[endpointID]
 	// create a new entry in case the ednpoint does not exist in the statefile.
 	// this applies to the ACI scenario when the endpoint is not added to the statefile when the goalstate is sent to CNI
 	if !endpointExist {
 		logger.Printf("[updateEndpoint] endpoint could not be found in the statefile %s, new entry is being added", endpointID)
 		endpointInfo = &EndpointInfo{PodName: "", PodNamespace: "", IfnameToIPMap: make(map[string]*IPInfo)}
-		service.EndpointState[endpointID] = endpointInfo
+		endpointState[endpointID] = endpointInfo
 	}
 	// updating the InterfaceInfo map of endpoint states with the interfaceInfo map that is given by Stateless Azure CNI
 	for ifName, interfaceInfo := range req {
 		// updating the ipInfoMap
 		updateIPInfoMap(endpointInfo.IfnameToIPMap, interfaceInfo, ifName, endpointID)
 	}
-	err := service.EndpointStateStore.Write(EndpointStoreKey, service.EndpointState)
+	err := service.EndpointStateStore.Write(EndpointStoreKey, endpointState)
 	if err != nil {
 		return fmt.Errorf("[updateEndpoint] failed to write endpoint state to store for pod %s :  %w", endpointInfo.PodName, err)
 	}
+	service.EndpointState = endpointState
 	logger.Printf("[updateEndpoint] successfully write the state to the file %s", endpointID)
 	return nil
 }
