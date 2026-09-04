@@ -124,7 +124,7 @@ stages:
               archiveName: azure-ipam
               archiveVersion: $(AZURE_IPAM_VERSION)
               imageTag: $(Build.BuildNumber)
-              packageWithDropGZ: True
+              packageWithDropGZ: False
             cni:
               name: cni
               extraArgs: '--build-arg CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_AI_ID)'

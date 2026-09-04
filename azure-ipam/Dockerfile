@@ -47,5 +47,6 @@ ENTRYPOINT [ "/dropgz" ]
 # mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0
 FROM --platform=windows/${ARCH} mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0@sha256:b4c9637e032f667c52d1eccfa31ad8c63f1b035e8639f3f48a510536bf34032b AS hpc
 FROM hpc AS windows
-COPY --from=dropgz /go/bin/dropgz dropgz.exe
-ENTRYPOINT [ "/dropgz.exe" ]
+COPY --from=azure-ipam /go/bin/azure-ipam /Windows/System32/azure-ipam.exe
+COPY --from=azure-ipam /azure-ipam/azilium.conflist /Windows/System32/azilium.conflist
+ENTRYPOINT [ "powershell.exe" ]
