@@ -24,6 +24,21 @@ jobs:
         - agent.os -equals Linux
         - Role -equals Build
     steps:
+      - task: AzureCLI@2
+        displayName: "Setup Kubernetes E2E Environment"
+        inputs:
+          azureSubscription: ${{ parameters.sub }}
+          scriptType: "bash"
+          scriptLocation: "inlineScript"
+          inlineScript: |
+            set -e
+
+            make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+            k8sVersion="v$(az aks show -g ${{ parameters.clusterName }} -n ${{ parameters.clusterName }} --query currentKubernetesVersion -o tsv)"
+            echo "Using Kubernetes E2E tests for ${k8sVersion}"
+            curl --fail --location "https://dl.k8s.io/${k8sVersion}/kubernetes-test-linux-amd64.tar.gz" --output kubernetes-test-linux-amd64.tar.gz
+            tar -xzf kubernetes-test-linux-amd64.tar.gz --strip-components=3 kubernetes/test/bin/e2e.test
+
       - ${{ if eq(parameters.os, 'linux') }}:
           - task: AzureCLI@2
             displayName: "Deploy NPM to Test Cluster"
@@ -48,13 +63,6 @@ jobs:
                 echo $FQDN
                 echo "##vso[task.setvariable variable=FQDN]$FQDN"
 
-                artifact=npm_k8s
-                echo $artifact/e2e.test
-                echo "##vso[task.setvariable variable=artifact]$artifact"
-
-          - download: current
-            artifact: npm_k8s
-
       - ${{ if eq(parameters.os, 'windows') }}:
           - task: AzureCLI@2
             displayName: "Deploy Windows NPM to Test Cluster"
@@ -73,8 +81,7 @@ jobs:
                 kubectl set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-${{ parameters.tag }}
                 kubectl rollout status -n kube-system daemonset/azure-npm-win
 
-                # konnectivity agent tends to fail after rollout. Give it time to recover
-                sleep 60
+                kubectl rollout status -n kube-system deployment/konnectivity-agent --timeout=6m
                 # Taint Linux (system) nodes so windows tests do not run on them
                 kubectl taint nodes -l kubernetes.azure.com/mode=system node-role.kubernetes.io/control-plane:NoSchedule
 
@@ -84,13 +91,6 @@ jobs:
                 FQDN=`az aks show -g ${{ parameters.clusterName }} -n ${{ parameters.clusterName }} --query fqdn -o tsv`
                 echo $FQDN
                 echo "##vso[task.setvariable variable=FQDN]$FQDN"
-
-                artifact=npm_k8s_windows
-                echo $artifact/e2e.test
-                echo "##vso[task.setvariable variable=artifact]$artifact"
-
-          - download: current
-            artifact: npm_k8s_windows
 
       - bash: |
           set -e
@@ -111,17 +111,15 @@ jobs:
           client should stop enforcing policies after they are deleted|\
           client should support a 'default-deny-ingress' policy"
 
-          ls -l $(Pipeline.Workspace)/$(artifact)
-          echo adding execution to $(artifact)/e2e.test
-          chmod +x $(Pipeline.Workspace)/$(artifact)/e2e.test
-          ls -l $(Pipeline.Workspace)/$(artifact)
+          chmod +x ./e2e.test
 
           KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 \
-          $(Pipeline.Workspace)/$(artifact)/e2e.test \
+          ./e2e.test \
           --provider=local \
           --ginkgo.focus="$focus" \
           --ginkgo.skip="NetworkPolicyLegacy|SCTP" \
           --kubeconfig=$HOME/.kube/config \
+          --ginkgo.flake-attempts=3 \
           --ginkgo.timeout="2h"
         displayName: "Run Kubernetes e2e.test"
         continueOnError: ${{ parameters.continueOnError }}

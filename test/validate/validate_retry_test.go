@@ -137,3 +137,36 @@ func TestRunValidationAttemptsRejectsInvalidAttemptCount(t *testing.T) {
 	require.Zero(t, attempts)
 	require.False(t, converged)
 }
+
+func TestCanSkipEmptyRestartState(t *testing.T) {
+	tests := []struct {
+		name        string
+		os          string
+		restartCase bool
+		want        bool
+	}{
+		{
+			name:        "linux restart",
+			os:          linuxOS,
+			restartCase: true,
+			want:        true,
+		},
+		{
+			name:        "windows restart",
+			os:          windowsOS,
+			restartCase: true,
+			want:        false,
+		},
+		{
+			name: "non-restart validation",
+			os:   linuxOS,
+			want: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.want, canSkipEmptyRestartState(test.os, test.restartCase))
+		})
+	}
+}
