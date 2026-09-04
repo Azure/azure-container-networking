@@ -1,37 +1,80 @@
-# The intention of the CODEOWNERS is that a reviewer can be automatically assigned
-# to a PR when it is opened instead of needing to be manually assigned or being left
-# unassigned. PRs without assigned Reviewers do not get the prompt attention that
-# they should.
+# CODEOWNERS automatically routes pull requests to reviewers with responsibility
+# and domain context for the affected component.
 #
-# The CODEOWNERS are not Gatekeepers, just someone who has the domain knowledge to
-# review a PR in an area.
+# Code-owner approval is required, so every owner must be a valid user or visible
+# team with write access to this repository.
 #
 # Rules are evaluated in this order, and the last match is used for auto-assignment.
-*                           @azure/azure-sdn-members
-/.github/                   @azure/acn-admins
-/cns/                       @azure/acn-cns-reviewers
+*                           @azure/acn-admins
+
+# Build, CI, release, and repository tooling.
+/.github/hooks/             @azure/acn-infra
+/.github/image-digests/     @azure/acn-infra
+/.github/scripts/           @azure/acn-infra
+/.github/workflows/         @azure/acn-infra
+/.pipelines/                @azure/acn-infra
+/build/                     @azure/acn-infra
+/codeql/                    @azure/acn-infra
+/hack/                      @azure/acn-infra
+/pkgerrlint/                @azure/acn-infra
+/scripts/                   @azure/acn-infra
+/tools/                     @azure/acn-infra
+
+# Azure CNI, IPAM, and host networking.
+/*ipam/                     @azure/acn-cni-reviewers
+/*tables/                   @azure/acn-cni-reviewers
+/net*/                      @azure/acn-cni-reviewers
 /cni/                       @azure/acn-cni-reviewers
-/dropgz/                    @rbtr @camrynl @ashvindeodhar @thatmattlong
+/dhcp/                      @azure/acn-cni-reviewers
+/nns/                       @azure/acn-cni-reviewers
+/ovsctl/                    @azure/acn-cni-reviewers
+/platform/                  @azure/acn-cni-reviewers
+
+# CNS, control-plane contracts, and node goal-state integration.
+/cns/                       @azure/acn-cns-reviewers
+/crd/                       @azure/acn-cns-reviewers
+/nmagent/                   @azure/acn-cns-reviewers
+/proto/                     @azure/acn-cns-reviewers
+/server/                    @azure/acn-cns-reviewers
+/store/                     @azure/acn-cns-reviewers
+
+# Network Policy Manager.
 /npm/                       @azure/acn-npm-reviewers
+
+# Cilium and node-networking utilities.
+/azure-ip*-*/               @azure/acn-cni-reviewers
+/bpf-prog/                  @azure/acn-cni-reviewers
+/cilium-log-collector/      @azure/acn-cni-reviewers
+
+# Observability and diagnostics.
+/*telemetry/                @azure/acn-cni-reviewers @azure/acn-cns-reviewers
+/dropgz/                    @rbtr @camrynl @ashvindeodhar @thatmattlong
+/log/                       @azure/acn-cni-reviewers @azure/acn-cns-reviewers
+/refresh/                   @azure/acn-cni-reviewers @azure/acn-cns-reviewers
 /zapai/                     @rbtr @ZetaoZhuang
-/bpf-prog/                  @camrynl @QxBytes @santhoshmprabhu
-/azure-ip-masq-merger/      @QxBytes @santhoshmprabhu
-/azure-iptables-monitor/    @QxBytes @santhoshmprabhu
+/zapetw/                    @azure/acn-cni-reviewers @azure/acn-cns-reviewers
+
+# Shared libraries used across components.
+/common/                    @azure/acn-cni-reviewers @azure/acn-cns-reviewers
+/internal/                  @azure/acn-cni-reviewers @azure/acn-cns-reviewers
+/keyvault/                  @azure/acn-cni-reviewers @azure/acn-cns-reviewers
+/processlock/               @azure/acn-cni-reviewers @azure/acn-cns-reviewers
+/testutils/                 @azure/acn-cni-reviewers @azure/acn-cns-reviewers
+
+# Cross-component validation and documentation.
+/test/                      @azure/acn-cni-reviewers @azure/acn-cns-reviewers @azure/acn-npm-reviewers @kmurudi @sivakami-projects
+/docs/                      @azure/acn-cni-reviewers @azure/acn-cns-reviewers @azure/acn-npm-reviewers
+/examples/                  @azure/acn-cni-reviewers @azure/acn-cns-reviewers @azure/acn-npm-reviewers
+/README.md                  @azure/acn-cni-reviewers @azure/acn-cns-reviewers @azure/acn-npm-reviewers
 
 # Infrastructure rules follow component rules so that the last match preempts
 # component ownership for build, dependency, script, and test configuration.
-go.mod                      @azure/acn-infra
-go.sum                      @azure/acn-infra
+*go.mod                     @azure/acn-infra
+*go.sum                     @azure/acn-infra
 Makefile                    @azure/acn-infra
 *.mk                        @azure/acn-infra
 *Dockerfile*                @azure/acn-infra
-scripts/                    @azure/acn-infra
 *.sh                        @azure/acn-infra
 *.ps1                       @azure/acn-infra
-/.pipelines/**/*.yaml       @azure/acn-infra
-/.pipelines/**/*.yml        @azure/acn-infra
-/test/**/*.yaml             @azure/acn-infra
-/test/**/*.yml              @azure/acn-infra
-
-# Workflow changes need infrastructure and administrative review requests.
-/.github/workflows/         @azure/acn-infra @azure/acn-admins
+/test/**/*.y*ml             @azure/acn-infra
+/.github/*.y*ml             @azure/acn-infra
