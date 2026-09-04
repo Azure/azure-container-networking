@@ -320,8 +320,13 @@ jobs:
           "
           fi
 
-          # Dedup: skip if an open issue already exists for this update
-          EXISTING_ISSUE=$(gh issue list --repo "$REPO" --state open --search "$MARKER" --json number --jq '.[0].number // empty')
+          # Dedup: skip if an open issue already exists for this update.
+          # Match the marker as an exact substring of the body. Do NOT use
+          # `gh issue list --search`: GitHub's full-text index tokenizes markers
+          # like `go-patch-update:1.26.8` on `-`, `:` and `.`, so it returns
+          # false positives (unrelated issues) and silently suppresses creation.
+          EXISTING_ISSUE=$(gh issue list --repo "$REPO" --state open --limit 200 --json number,body \
+            | jq -r --arg m "$MARKER" 'map(select((.body // "") | contains($m))) | .[0].number // empty')
           if [ -n "$EXISTING_ISSUE" ]; then
             echo "::notice::Issue #$EXISTING_ISSUE already exists for this update — skipping"
             exit 0
@@ -445,7 +450,9 @@ jobs:
           GOEXP_CGO0: ${{ steps.prereqs.outputs.goexp_cgo0 }}
         run: |
           MARKER="fips-prereq:${MATRIX_BRANCH}"
-          EXISTING_ISSUE=$(gh issue list --repo "$REPO" --state open --search "$MARKER" --json number --jq '.[0].number // empty')
+          # Exact substring match — see note on dedup in the auto-bump job.
+          EXISTING_ISSUE=$(gh issue list --repo "$REPO" --state open --limit 200 --json number,body \
+            | jq -r --arg m "$MARKER" 'map(select((.body // "") | contains($m))) | .[0].number // empty')
           if [ -n "$EXISTING_ISSUE" ]; then
             echo "::notice::Prerequisite issue #$EXISTING_ISSUE already exists — skipping"
             exit 0
@@ -496,7 +503,9 @@ jobs:
 
           # Dedup
           MARKER="go-backport:${MATRIX_BRANCH}:${UPDATE_TYPE}"
-          EXISTING_ISSUE=$(gh issue list --repo "$REPO" --state open --search "$MARKER" --json number --jq '.[0].number // empty')
+          # Exact substring match — see note on dedup in the auto-bump job.
+          EXISTING_ISSUE=$(gh issue list --repo "$REPO" --state open --limit 200 --json number,body \
+            | jq -r --arg m "$MARKER" 'map(select((.body // "") | contains($m))) | .[0].number // empty')
           if [ -n "$EXISTING_ISSUE" ]; then
             echo "::notice::Backport issue #$EXISTING_ISSUE already exists — skipping"
             exit 0
@@ -573,13 +582,17 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           MARKER="go-minor-update:${LATEST_MINOR}"
+          # Exact substring match — see note on dedup in the auto-bump job.
+          # The previous `--search "in:body $MARKER"` matched unrelated issues
+          # (e.g. "Release Tracking" issues) and blocked issue creation entirely.
           EXISTING=$(gh issue list \
             --repo "$REPO" \
             --state open \
-            --search "in:body $MARKER" \
-            --json number \
-            --jq 'length')
+            --limit 200 \
+            --json number,body \
+            | jq --arg m "$MARKER" 'map(select((.body // "") | contains($m))) | length')
           echo "existing_count=$EXISTING" >> "$GITHUB_OUTPUT"
+          echo "::notice::Existing open issues matching '${MARKER}': ${EXISTING}"
 
       - name: Fetch MS Go FIPS requirements
         id: msgo_fips_tier3
