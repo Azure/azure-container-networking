@@ -68,6 +68,8 @@ const (
 	// protocolICMPv4 indicates the ICMPv4 protocol identifier in HCN
 	protocolICMPv4 = "1"
 
+	defaultRouteDestinationPrefix = "0.0.0.0/0"
+
 	// aclPriority2000 indicates the ACL priority of 2000
 	aclPriority2000 = 2000
 
@@ -540,7 +542,7 @@ func configureHostNCApipaEndpoint(
 	// keep Apipa Endpoint gw as 169.254.128.1 to make sure NC to host connectivity work for both Linux and Windows containers
 	hcnRoute := hcn.Route{
 		NextHop:           hnsLoopbackAdapterIPAddress,
-		DestinationPrefix: "0.0.0.0/0",
+		DestinationPrefix: defaultRouteDestinationPrefix,
 	}
 
 	endpoint.Routes = append(endpoint.Routes, hcnRoute)
@@ -552,7 +554,7 @@ func configureHostNCApipaEndpoint(
 
 	endpoint.IpConfigurations = append(endpoint.IpConfigurations, ipConfiguration)
 
-	logger.Printf("[Azure CNS] Configured HostNCApipaEndpoint: %+v", endpoint)
+	logger.Log.Printf("[Azure CNS] Configured HostNCApipaEndpoint: %s", endpointLogDetails(endpoint))
 
 	return endpoint, nil
 }
@@ -584,7 +586,7 @@ func CreateHostNCApipaEndpoint(
 	}
 
 	if endpoint != nil {
-		logger.Debugf("[Azure CNS] Found existing endpoint: %+v", endpoint)
+		logger.Log.Debugf("[Azure CNS] Found existing endpoint: %s", endpointLogDetails(endpoint))
 		return endpoint.Id, nil
 	}
 
@@ -608,16 +610,22 @@ func CreateHostNCApipaEndpoint(
 		return "", err
 	}
 
-	logger.Printf("[Azure CNS] Creating HostNCApipaEndpoint for host container connectivity: %+v", endpoint)
+	logger.Log.Printf("[Azure CNS] Creating HostNCApipaEndpoint for host container connectivity: %s, Network: %s",
+		endpoint.Name, endpoint.HostComputeNetwork)
 	if endpoint, err = endpoint.Create(); err != nil {
 		err = fmt.Errorf("Failed to create HostNCApipaEndpoint: %s. Error: %v", endpointName, err)
 		logger.Errorf("[Azure CNS] %s", err.Error())
 		return "", err
 	}
 
-	logger.Printf("[Azure CNS] Successfully created HostNCApipaEndpoint: %+v", endpoint)
+	logger.Log.Printf("[Azure CNS] Successfully created HostNCApipaEndpoint: %s", endpointLogDetails(endpoint))
 
 	return endpoint.Id, nil
+}
+
+func endpointLogDetails(endpoint *hcn.HostComputeEndpoint) string {
+	return fmt.Sprintf("ID: %s, Name: %s, Network: %s, IpConfigurations: %+v, Dns: %+v, Routes: %+v, MacAddress: %s, Flags: %d",
+		endpoint.Id, endpoint.Name, endpoint.HostComputeNetwork, endpoint.IpConfigurations, endpoint.Dns, endpoint.Routes, endpoint.MacAddress, endpoint.Flags)
 }
 
 // updateGwForLocalIPConfiguration applies change on gw IP address for apipa NW and endpoint.
