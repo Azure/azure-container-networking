@@ -1,0 +1,17 @@
+parameters:
+  clusterName: ""
+
+steps:
+  - task: AzureCLI@2
+    displayName: "Remove lifecycle control workload"
+    condition: always()
+    continueOnError: true
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -euo pipefail
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+        bash .pipelines/cni/state-migration-json/scripts/cleanup-json-control.sh
