@@ -1319,7 +1319,10 @@ func createNCReqInternal(t *testing.T, secondaryIPConfigs map[string]cns.Seconda
 func restartService() {
 	fmt.Println("Restart Service")
 
-	service.Stop()
+	if err := stopTestService(); err != nil {
+		fmt.Printf("Failed to stop CNS Service. Error: %v", err)
+		os.Exit(1)
+	}
 	if err := startService(common.ServiceConfig{}, configuration.CNSConfig{}); err != nil {
 		fmt.Printf("Failed to restart CNS Service. Error: %v", err)
 		os.Exit(1)
