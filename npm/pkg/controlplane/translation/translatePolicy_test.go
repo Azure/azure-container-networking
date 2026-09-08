@@ -817,6 +817,25 @@ func TestIPBlockRule(t *testing.T) {
 	}
 }
 
+// TestIPBlockRuleRejectsInvalidExcept covers an ipBlock whose except is not an IPv4 CIDR. Such
+// an exclusion cannot be programmed, so the translation fails rather than carrying the entry
+// into the set, which would either widen the allow to the enclosing CIDR or take the whole set
+// down when it is restored. The Windows datapath refuses any except before this check, so the
+// case is exercised on Linux only.
+func TestIPBlockRuleRejectsInvalidExcept(t *testing.T) {
+	if util.IsWindowsDP() {
+		t.Skip("the Windows datapath refuses any except on this path")
+	}
+
+	for _, except := range []string{"2001:db8::/32", "not-a-cidr", "10.0.0.1", "10.0.0.0/33"} {
+		translatedIPSet, setInfo, err := ipBlockRule("test", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0,
+			&networkingv1.IPBlock{CIDR: "172.17.0.0/16", Except: []string{except}})
+		require.ErrorIs(t, err, ErrUnsupportedIPAddress, "except %q must be refused", except)
+		require.Nil(t, translatedIPSet)
+		require.Equal(t, policies.SetInfo{}, setInfo)
+	}
+}
+
 func TestPodSelector(t *testing.T) {
 	matchType := policies.DstMatch
 	policyKey := "test-ns/test-policy"
