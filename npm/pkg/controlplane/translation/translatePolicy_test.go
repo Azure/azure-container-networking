@@ -24,6 +24,14 @@ const (
 	appLabelKey      string = "app"
 	enclosingCIDR    string = "10.244.1.0/24"
 	exceptedHostBits string = "10.244.1.106/32"
+
+	tenantLabelKey   string = "tenant"
+	teamLabelKey     string = "team"
+	blockedLabelKey  string = "blocked"
+	teamBlueValue    string = "blue"
+	lowerHalfNomatch string = "0.0.0.0/1 nomatch"
+	ingressName      string = "ingress"
+	egressName       string = "egress"
 )
 
 var namedPortPolicyKey = fmt.Sprintf("%s/%s", defaultNS, namedPortStr)
@@ -647,7 +655,7 @@ func TestIPBlockIPSet(t *testing.T) {
 				CIDR:   "0.0.0.0/0",
 				Except: []string{"10.0.0.0/1"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test:in-ns:default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1 nomatch", "128.0.0.0/1"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("test:in-ns:default-0-0IN", ipsets.CIDRBlocks, []string{lowerHalfNomatch, "128.0.0.0/1"}...),
 			skipWindows:     true,
 		},
 		{
@@ -657,7 +665,7 @@ func TestIPBlockIPSet(t *testing.T) {
 				CIDR:   "0.0.0.0/0",
 				Except: []string{"0.0.0.0/1"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test:in-ns:default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1 nomatch", "128.0.0.0/1"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("test:in-ns:default-0-0IN", ipsets.CIDRBlocks, []string{lowerHalfNomatch, "128.0.0.0/1"}...),
 			skipWindows:     true,
 		},
 		{
@@ -677,7 +685,7 @@ func TestIPBlockIPSet(t *testing.T) {
 				CIDR:   "0.0.0.0/0",
 				Except: []string{"0.0.0.0/1", "128.0.0.0/1"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test:in-ns:default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1 nomatch", "128.0.0.0/1 nomatch"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("test:in-ns:default-0-0IN", ipsets.CIDRBlocks, []string{lowerHalfNomatch, "128.0.0.0/1 nomatch"}...),
 			skipWindows:     true,
 		},
 		{
@@ -687,7 +695,7 @@ func TestIPBlockIPSet(t *testing.T) {
 				CIDR:   "0.0.0.0/0",
 				Except: []string{"0.0.0.0/1", "128.0.0.0/1", "128.0.0.0/1"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test:in-ns:default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1 nomatch", "128.0.0.0/1 nomatch"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("test:in-ns:default-0-0IN", ipsets.CIDRBlocks, []string{lowerHalfNomatch, "128.0.0.0/1 nomatch"}...),
 			skipWindows:     true,
 		},
 	}
@@ -1283,7 +1291,7 @@ func TestNameSpaceSelectorMultiValueNotIn(t *testing.T) {
 	selector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
 			{
-				Key:      "tenant",
+				Key:      tenantLabelKey,
 				Operator: metav1.LabelSelectorOpNotIn,
 				Values:   []string{"x", "y"},
 			},
@@ -1313,9 +1321,9 @@ func TestNameSpaceSelectorMultiValueNotIn(t *testing.T) {
 func TestNameSpaceSelectorMatchLabelsAndMultiValueNotIn(t *testing.T) {
 	matchType := policies.SrcMatch
 	selector := &metav1.LabelSelector{
-		MatchLabels: map[string]string{"team": "blue"},
+		MatchLabels: map[string]string{teamLabelKey: teamBlueValue},
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			{Key: "tenant", Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x", "y"}},
+			{Key: tenantLabelKey, Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x", "y"}},
 		},
 	}
 
@@ -1351,7 +1359,7 @@ func TestNameSpaceSelectorNegationOnlyIsScopedToNamespaces(t *testing.T) {
 			name: "single-value NotIn",
 			selector: &metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{
-					{Key: "tenant", Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x"}},
+					{Key: tenantLabelKey, Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x"}},
 				},
 			},
 			expected: []policies.SetInfo{
@@ -1363,26 +1371,26 @@ func TestNameSpaceSelectorNegationOnlyIsScopedToNamespaces(t *testing.T) {
 			name: "DoesNotExist",
 			selector: &metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{
-					{Key: "tenant", Operator: metav1.LabelSelectorOpDoesNotExist},
+					{Key: tenantLabelKey, Operator: metav1.LabelSelectorOpDoesNotExist},
 				},
 			},
 			expected: []policies.SetInfo{
 				policies.NewSetInfo(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace, included, matchType),
-				policies.NewSetInfo("tenant", ipsets.KeyLabelOfNamespace, nonIncluded, matchType),
+				policies.NewSetInfo(tenantLabelKey, ipsets.KeyLabelOfNamespace, nonIncluded, matchType),
 			},
 		},
 		{
 			name: "NotIn and DoesNotExist together",
 			selector: &metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{
-					{Key: "tenant", Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x"}},
-					{Key: "team", Operator: metav1.LabelSelectorOpDoesNotExist},
+					{Key: tenantLabelKey, Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x"}},
+					{Key: teamLabelKey, Operator: metav1.LabelSelectorOpDoesNotExist},
 				},
 			},
 			expected: []policies.SetInfo{
 				policies.NewSetInfo(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace, included, matchType),
 				policies.NewSetInfo("tenant:x", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
-				policies.NewSetInfo("team", ipsets.KeyLabelOfNamespace, nonIncluded, matchType),
+				policies.NewSetInfo(teamLabelKey, ipsets.KeyLabelOfNamespace, nonIncluded, matchType),
 			},
 		},
 	}
@@ -1410,7 +1418,7 @@ func TestNameSpaceSelectorWithPositiveMatchIsUnchanged(t *testing.T) {
 	}{
 		{
 			name:     "matchLabels only",
-			selector: &metav1.LabelSelector{MatchLabels: map[string]string{"team": "blue"}},
+			selector: &metav1.LabelSelector{MatchLabels: map[string]string{teamLabelKey: teamBlueValue}},
 			expected: []policies.SetInfo{
 				policies.NewSetInfo("team:blue", ipsets.KeyValueLabelOfNamespace, included, matchType),
 			},
@@ -1418,9 +1426,9 @@ func TestNameSpaceSelectorWithPositiveMatchIsUnchanged(t *testing.T) {
 		{
 			name: "matchLabels with a negative expression",
 			selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{"team": "blue"},
+				MatchLabels: map[string]string{teamLabelKey: teamBlueValue},
 				MatchExpressions: []metav1.LabelSelectorRequirement{
-					{Key: "tenant", Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x"}},
+					{Key: tenantLabelKey, Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x"}},
 				},
 			},
 			expected: []policies.SetInfo{
@@ -1432,12 +1440,12 @@ func TestNameSpaceSelectorWithPositiveMatchIsUnchanged(t *testing.T) {
 			name: "Exists with a negative expression",
 			selector: &metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{
-					{Key: "team", Operator: metav1.LabelSelectorOpExists},
-					{Key: "tenant", Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x"}},
+					{Key: teamLabelKey, Operator: metav1.LabelSelectorOpExists},
+					{Key: tenantLabelKey, Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x"}},
 				},
 			},
 			expected: []policies.SetInfo{
-				policies.NewSetInfo("team", ipsets.KeyLabelOfNamespace, included, matchType),
+				policies.NewSetInfo(teamLabelKey, ipsets.KeyLabelOfNamespace, included, matchType),
 				policies.NewSetInfo("tenant:x", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
 			},
 		},
@@ -1474,13 +1482,13 @@ func TestTranslatePolicyNegationOnlyNamespaceSelector(t *testing.T) {
 		peerList  func(*policies.ACLPolicy) []policies.SetInfo
 	}{
 		{
-			name:      "egress",
+			name:      egressName,
 			direction: networkingv1.PolicyTypeEgress,
 			matchType: policies.DstMatch,
 			peerList:  func(acl *policies.ACLPolicy) []policies.SetInfo { return acl.DstList },
 		},
 		{
-			name:      "ingress",
+			name:      ingressName,
 			direction: networkingv1.PolicyTypeIngress,
 			matchType: policies.SrcMatch,
 			peerList:  func(acl *policies.ACLPolicy) []policies.SetInfo { return acl.SrcList },
@@ -1491,7 +1499,7 @@ func TestTranslatePolicyNegationOnlyNamespaceSelector(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			pol := nsNotInPolicy("victim", "default", "tenant", tt.direction, nil, "x")
+			pol := nsNotInPolicy("victim", "default", tenantLabelKey, tt.direction, nil, "x")
 			npmNetPol, err := TranslatePolicy(pol, false)
 			require.NoError(t, err)
 
@@ -1568,12 +1576,12 @@ func TestTranslatePolicyMultiValueNotInConjunction(t *testing.T) {
 		peerList  func(*policies.ACLPolicy) []policies.SetInfo
 	}{
 		{
-			name:      "ingress",
+			name:      ingressName,
 			direction: networkingv1.PolicyTypeIngress,
 			peerList:  func(acl *policies.ACLPolicy) []policies.SetInfo { return acl.SrcList },
 		},
 		{
-			name:      "egress",
+			name:      egressName,
 			direction: networkingv1.PolicyTypeEgress,
 			peerList:  func(acl *policies.ACLPolicy) []policies.SetInfo { return acl.DstList },
 		},
@@ -1589,7 +1597,7 @@ func TestTranslatePolicyMultiValueNotInConjunction(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			pol := nsNotInPolicy("victim", "default", "tenant", tt.direction, tt.ports, "attacker", "quarantine")
+			pol := nsNotInPolicy("victim", "default", tenantLabelKey, tt.direction, tt.ports, "attacker", "quarantine")
 			npmNetPol, err := TranslatePolicy(pol, false)
 			require.NoError(t, err)
 
@@ -3981,19 +3989,19 @@ func TestTranslatePolicyNegationOnlyOperators(t *testing.T) {
 	}{
 		{
 			name:     "DoesNotExist",
-			req:      metav1.LabelSelectorRequirement{Key: "blocked", Operator: metav1.LabelSelectorOpDoesNotExist},
-			excluded: "blocked",
+			req:      metav1.LabelSelectorRequirement{Key: blockedLabelKey, Operator: metav1.LabelSelectorOpDoesNotExist},
+			excluded: blockedLabelKey,
 			setType:  ipsets.KeyLabelOfNamespace,
 		},
 		{
 			name:     "single-value NotIn",
-			req:      metav1.LabelSelectorRequirement{Key: "blocked", Operator: metav1.LabelSelectorOpNotIn, Values: []string{"yes"}},
+			req:      metav1.LabelSelectorRequirement{Key: blockedLabelKey, Operator: metav1.LabelSelectorOpNotIn, Values: []string{"yes"}},
 			excluded: "blocked:yes",
 			setType:  ipsets.KeyValueLabelOfNamespace,
 		},
 		{
 			name:     "multi-value NotIn",
-			req:      metav1.LabelSelectorRequirement{Key: "blocked", Operator: metav1.LabelSelectorOpNotIn, Values: []string{"yes", "maybe"}},
+			req:      metav1.LabelSelectorRequirement{Key: blockedLabelKey, Operator: metav1.LabelSelectorOpNotIn, Values: []string{"yes", "maybe"}},
 			excluded: "blocked:yes",
 			setType:  ipsets.KeyValueLabelOfNamespace,
 		},
@@ -4005,8 +4013,8 @@ func TestTranslatePolicyNegationOnlyOperators(t *testing.T) {
 		matchType policies.MatchType
 		peerList  func(*policies.ACLPolicy) []policies.SetInfo
 	}{
-		{"ingress", networkingv1.PolicyTypeIngress, policies.SrcMatch, func(a *policies.ACLPolicy) []policies.SetInfo { return a.SrcList }},
-		{"egress", networkingv1.PolicyTypeEgress, policies.DstMatch, func(a *policies.ACLPolicy) []policies.SetInfo { return a.DstList }},
+		{ingressName, networkingv1.PolicyTypeIngress, policies.SrcMatch, func(a *policies.ACLPolicy) []policies.SetInfo { return a.SrcList }},
+		{egressName, networkingv1.PolicyTypeEgress, policies.DstMatch, func(a *policies.ACLPolicy) []policies.SetInfo { return a.DstList }},
 	}
 
 	for _, op := range operators {

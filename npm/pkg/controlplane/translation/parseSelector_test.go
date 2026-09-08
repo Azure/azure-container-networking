@@ -611,7 +611,7 @@ func TestFlattenNameSpaceSelectorMultiValueNotIn(t *testing.T) {
 	selector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
 			{
-				Key:      "tenant",
+				Key:      tenantLabelKey,
 				Operator: metav1.LabelSelectorOpNotIn,
 				Values:   []string{"x", "y"},
 			},
@@ -625,12 +625,12 @@ func TestFlattenNameSpaceSelectorMultiValueNotIn(t *testing.T) {
 		{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
 				{
-					Key:      "tenant",
+					Key:      tenantLabelKey,
 					Operator: metav1.LabelSelectorOpNotIn,
 					Values:   []string{"x"},
 				},
 				{
-					Key:      "tenant",
+					Key:      tenantLabelKey,
 					Operator: metav1.LabelSelectorOpNotIn,
 					Values:   []string{"y"},
 				},
@@ -648,7 +648,7 @@ func TestFlattenNameSpaceSelectorMixedInAndNotIn(t *testing.T) {
 	selector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
 			{
-				Key:      "tenant",
+				Key:      tenantLabelKey,
 				Operator: metav1.LabelSelectorOpNotIn,
 				Values:   []string{"x", "y"},
 			},
@@ -672,7 +672,7 @@ func TestFlattenNameSpaceSelectorMixedInAndNotIn(t *testing.T) {
 			require.Len(t, req.Values, 1, "every requirement must be single-value after flatten")
 			switch req.Operator {
 			case metav1.LabelSelectorOpNotIn:
-				require.Equal(t, "tenant", req.Key)
+				require.Equal(t, tenantLabelKey, req.Key)
 				notInValues = append(notInValues, req.Values[0])
 			case metav1.LabelSelectorOpIn:
 				require.Equal(t, "role", req.Key)
@@ -695,7 +695,7 @@ func TestFlattenNameSpaceSelectorUnsupportedOperator(t *testing.T) {
 	selector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
 			{
-				Key:      "tenant",
+				Key:      tenantLabelKey,
 				Operator: metav1.LabelSelectorOperator("Frobnicate"),
 				Values:   []string{"x"},
 			},
@@ -714,7 +714,7 @@ func TestFlattenNameSpaceSelectorEmptyValues(t *testing.T) {
 		selector := &metav1.LabelSelector{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
 				{
-					Key:      "tenant",
+					Key:      tenantLabelKey,
 					Operator: op,
 					Values:   []string{},
 				},
@@ -786,7 +786,7 @@ func TestTranslatePolicyExpansionLimit(t *testing.T) {
 	}
 
 	pol := &networkingv1.NetworkPolicy{
-		ObjectMeta: metav1.ObjectMeta{Name: "expand", Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{Name: "expand", Namespace: defaultNS},
 		Spec: networkingv1.NetworkPolicySpec{
 			PodSelector: metav1.LabelSelector{},
 			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
@@ -870,7 +870,7 @@ func TestTranslatePolicyACLBudget(t *testing.T) {
 	}
 
 	pol := &networkingv1.NetworkPolicy{
-		ObjectMeta: metav1.ObjectMeta{Name: "expand", Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{Name: "expand", Namespace: defaultNS},
 		Spec: networkingv1.NetworkPolicySpec{
 			PodSelector: metav1.LabelSelector{},
 			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
@@ -899,14 +899,14 @@ func TestTranslatePolicyOrdinaryPolicyWithinACLBudget(t *testing.T) {
 	}
 
 	pol := &networkingv1.NetworkPolicy{
-		ObjectMeta: metav1.ObjectMeta{Name: "normal", Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{Name: "normal", Namespace: defaultNS},
 		Spec: networkingv1.NetworkPolicySpec{
 			PodSelector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "web"}},
 			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
 			Ingress: []networkingv1.NetworkPolicyIngressRule{{
 				Ports: ports,
 				From: []networkingv1.NetworkPolicyPeer{
-					{NamespaceSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"team": "blue"}}},
+					{NamespaceSelector: &metav1.LabelSelector{MatchLabels: map[string]string{teamLabelKey: teamBlueValue}}},
 					{PodSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"role": "client"}}},
 					{IPBlock: &networkingv1.IPBlock{CIDR: "10.0.0.0/8"}},
 				},
@@ -931,7 +931,7 @@ func TestPeerAndPortRuleBudgetStopsWithinPortLoop(t *testing.T) {
 		ports = append(ports, networkingv1.NetworkPolicyPort{Port: &p})
 	}
 
-	npmNetPol := policies.NewNPMNetworkPolicy("wide-ports", "default")
+	npmNetPol := policies.NewNPMNetworkPolicy("wide-ports", defaultNS)
 	err := peerAndPortRule(npmNetPol, policies.Ingress, ports, []policies.SetInfo{}, false)
 	require.ErrorIs(t, err, ErrTooManyACLs)
 	require.LessOrEqual(t, len(npmNetPol.ACLs), maxACLsPerPolicy+1,

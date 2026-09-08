@@ -515,6 +515,13 @@ func TestHashedNameGoldenVectors(t *testing.T) {
 	}
 }
 
+// Test CIDRs shared by the IsIPV4 and NormalizeCIDR cases below.
+const (
+	allIPv4CIDR    = "0.0.0.0/0"
+	singleHostCIDR = "10.0.0.1/32"
+	canonicalNet24 = "10.1.2.0/24"
+)
+
 // TestIsIPV4 pins the existing behavior of the shared classifier. It is deliberately left
 // unchanged by these fixes because the Windows and NPM Lite paths also consume it, and those
 // are out of scope. Note it refuses a /0 block that is not spelled "0.0.0.0" even though such a
@@ -524,9 +531,9 @@ func TestIsIPV4(t *testing.T) {
 		"10.0.0.1",
 		"0.0.0.0",
 		"10.0.0.0/24",
-		"0.0.0.0/0",
+		allIPv4CIDR,
 		"10.1.2.3/24",
-		"10.0.0.1/32",
+		singleHostCIDR,
 	}
 	for _, ip := range valid {
 		require.True(t, IsIPV4(ip), "IsIPV4(%q) must be true", ip)
@@ -555,14 +562,14 @@ func TestIsIPV4(t *testing.T) {
 // against a well-known block and hand the canonical form to the kernel.
 func TestNormalizeCIDR(t *testing.T) {
 	canonical := map[string]string{
-		"0.0.0.0/0":         "0.0.0.0/0",
-		"10.0.0.0/0":        "0.0.0.0/0",
-		"255.255.255.255/0": "0.0.0.0/0",
+		allIPv4CIDR:         allIPv4CIDR,
+		"10.0.0.0/0":        allIPv4CIDR,
+		"255.255.255.255/0": allIPv4CIDR,
 		"10.0.0.0/1":        "0.0.0.0/1",
 		"200.0.0.0/1":       "128.0.0.0/1",
-		"10.1.2.3/24":       "10.1.2.0/24",
-		"10.1.2.0/24":       "10.1.2.0/24",
-		"10.0.0.1/32":       "10.0.0.1/32",
+		"10.1.2.3/24":       canonicalNet24,
+		canonicalNet24:      canonicalNet24,
+		singleHostCIDR:      singleHostCIDR,
 	}
 	for in, want := range canonical {
 		got, ok := NormalizeCIDR(in)
