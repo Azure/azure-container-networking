@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
 	"github.com/stretchr/testify/require"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -917,4 +918,22 @@ func TestTranslatePolicyOrdinaryPolicyWithinACLBudget(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, npmNetPol)
 	require.Less(t, len(npmNetPol.ACLs), maxACLsPerPolicy)
+}
+
+// TestPeerAndPortRuleBudgetStopsWithinPortLoop covers a single peer listing more ports than
+// the budget allows. One peer emits one ACL per port, so a budget checked only on entry to
+// peerAndPortRule would let that peer materialize every ACL before anything noticed.
+func TestPeerAndPortRuleBudgetStopsWithinPortLoop(t *testing.T) {
+	portCount := maxACLsPerPolicy * 2
+	ports := make([]networkingv1.NetworkPolicyPort, 0, portCount)
+	for i := 0; i < portCount; i++ {
+		p := intstr.FromInt(1 + i)
+		ports = append(ports, networkingv1.NetworkPolicyPort{Port: &p})
+	}
+
+	npmNetPol := policies.NewNPMNetworkPolicy("wide-ports", "default")
+	err := peerAndPortRule(npmNetPol, policies.Ingress, ports, []policies.SetInfo{}, false)
+	require.ErrorIs(t, err, ErrTooManyACLs)
+	require.LessOrEqual(t, len(npmNetPol.ACLs), maxACLsPerPolicy+1,
+		"the port loop must stop once the budget is spent instead of emitting an ACL for every port")
 }
