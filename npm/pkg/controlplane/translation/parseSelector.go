@@ -157,9 +157,10 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelS
 		default:
 			// Fail closed: an unknown operator must not silently drop the requirement
 			// and widen the selector. Kubernetes only admits In/NotIn/Exists/DoesNotExist.
-			// The error carries the selector context and is recorded once by the caller.
-			return nil, fmt.Errorf("operator %q on key %q in selector %v: %w",
-				req.Operator, req.Key, *nsSelector, ErrUnsupportedMatchExpressionOperator)
+			// The operator and key identify the requirement without copying the whole
+			// selector into the message, which a hostile selector could make enormous.
+			return nil, fmt.Errorf("operator %q on key %q: %w",
+				req.Operator, req.Key, ErrUnsupportedMatchExpressionOperator)
 		}
 	}
 
@@ -183,8 +184,10 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelS
 	combinations := 1
 	for _, req := range multiValueMatchExprs {
 		if len(req.Values) > maxFlattenedNSSelectors/combinations {
-			return nil, fmt.Errorf("selector %v expands past the %d selector limit: %w",
-				*nsSelector, maxFlattenedNSSelectors, ErrTooManyFlattenedSelectors)
+			// Summarize rather than print the selector: the message must stay bounded
+			// precisely because the selector that triggers it need not be.
+			return nil, fmt.Errorf("key %q with %d values expands past the %d selector limit: %w",
+				req.Key, len(req.Values), maxFlattenedNSSelectors, ErrTooManyFlattenedSelectors)
 		}
 		combinations *= len(req.Values)
 	}

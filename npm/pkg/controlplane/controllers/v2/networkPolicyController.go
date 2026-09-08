@@ -308,11 +308,11 @@ func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 		// The error is deliberately not logged or counted here: processNextWorkItem already
 		// runs the returned error through utilruntime.HandleError and SendErrorLogAndMetric,
 		// so recording it here as well would emit the same failure three times. The wrapped
-		// message carries the policy name and namespace so that single record stays specific.
+		// message names the policy so that single record stays specific.
 		//
 		// The exec time isn't relevant here, so consider a no-op.
-		return metrics.NoOp, fmt.Errorf("[syncAddAndUpdateNetPol] Error: failed to translate NetworkPolicy %s in namespace %s: %w",
-			netPolObj.Name, netPolObj.Namespace, err)
+		return metrics.NoOp, fmt.Errorf("translating network policy %s/%s: %w",
+			netPolObj.Namespace, netPolObj.Name, err)
 	}
 
 	_, policyExisted := c.rawNpSpecMap[netpolKey]
