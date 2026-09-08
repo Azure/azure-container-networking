@@ -45,6 +45,7 @@ stages:
     CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
     IPV6_HP_BPF_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfVersion'] ]
     NPM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.npmVersion'] ]
+    NPM_IMAGE_TAG: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.npmImageTag'] ]
   jobs:
   - template: /.pipelines/build/images.jobs.yaml
     parameters:
@@ -224,6 +225,7 @@ stages:
       CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
       IPV6_HP_BPF_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfVersion'] ]
       NPM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.npmVersion'] ]
+      NPM_IMAGE_TAG: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.npmImageTag'] ]
 
       IPAM_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/azure-ipam:$(Build.BuildNumber)
       IPAM_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/azure-ipam:$(Build.BuildNumber)

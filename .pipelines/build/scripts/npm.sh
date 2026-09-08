@@ -17,9 +17,13 @@ mkdir -p "$OUT_DIR"/bin
 mkdir -p "$OUT_DIR"/scripts
 
 pushd "$REPO_ROOT"/npm
+  # Report the platform and the published image revision (e.g. linux-amd64-v1.6.48-0)
+  # so the version a pod reports matches the image tag in the registry.
+  NPM_BUILD_VERSION="$OS-$ARCH-${NPM_IMAGE_TAG:-$NPM_VERSION}"
+
   GOOS="$OS" go build -a -v -trimpath \
     -o "$OUT_DIR"/bin/azure-npm"$FILE_EXT" \
-    -ldflags "-s -w -X main.version="$NPM_VERSION" -X "$NPM_AI_PATH"="$NPM_AI_ID"" \
+    -ldflags "-s -w -X main.version="$NPM_BUILD_VERSION" -X "$NPM_AI_PATH"="$NPM_AI_ID"" \
     -gcflags="-dwarflocationlists=true" \
     ./cmd/*.go
 

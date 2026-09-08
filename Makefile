@@ -44,6 +44,11 @@ AZURE_IPTABLES_MONITOR_VERSION		?= $(notdir $(shell git describe --match "azure-
 CNI_VERSION							?= $(ACN_VERSION)
 CNS_VERSION							?= $(ACN_VERSION)
 NPM_VERSION							?= $(ACN_VERSION)
+# The published azure-npm image tag carries an extra revision component after the
+# git tag (e.g. v1.6.48-0), so a CVE respin can be republished off the same commit
+# by bumping the revision. Release pipelines override NPM_IMAGE_REVISION.
+NPM_IMAGE_REVISION					?= 0
+NPM_IMAGE_TAG						?= $(NPM_VERSION)-$(NPM_IMAGE_REVISION)
 ZAPAI_VERSION						?= $(notdir $(shell git describe --match "zapai*" --tags --always))
 
 # Build directories.
@@ -181,6 +186,9 @@ cns-version:
 
 npm-version:
 	@echo $(NPM_VERSION)
+
+npm-image-tag: ## prints the published npm image tag (version plus revision).
+	@echo $(NPM_IMAGE_TAG)
 
 zapai-version: ## prints the zapai version
 	@echo $(ZAPAI_VERSION)

@@ -89,6 +89,10 @@ steps:
     echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$NPMVERSION"
     echo "npmVersion: $NPMVERSION"
 
+    NPMIMAGETAG=$(make npm-image-tag)
+    echo "##vso[task.setvariable variable=npmImageTag;isOutput=true]$NPMIMAGETAG"
+    echo "npmImageTag: $NPMIMAGETAG"
+
     cat /etc/os-release
     uname -a
     sudo chown -R $(whoami):$(whoami) .
