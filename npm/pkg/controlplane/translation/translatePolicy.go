@@ -851,9 +851,10 @@ func TranslatePolicy(npObj *networkingv1.NetworkPolicy, npmLiteToggle bool) (*po
 const maxACLsPerPolicy = 2000
 
 // checkACLBudget reports whether the policy has reached the ceiling. It is checked before a
-// peer is expanded and before each of that peer's ports, so translation never materializes
-// more than maxACLsPerPolicy ACLs, and once more at the end as a backstop for the paths that
-// append without a check.
+// peer is expanded, before each of that peer's ports, and before each port of a port-only
+// rule, so translation never materializes more than maxACLsPerPolicy ACLs on the ipset path.
+// It is checked once more at the end of translation as a backstop, which covers the paths
+// that append without a check, including the direct-rule path this change leaves alone.
 func checkACLBudget(npmNetPol *policies.NPMNetworkPolicy) error {
 	if len(npmNetPol.ACLs) >= maxACLsPerPolicy {
 		// The error carries the policy context and is recorded once by the caller.
@@ -883,6 +884,12 @@ func checkOnlyPortRuleExists(
 	// #1. Only Ports fields exist in rule
 	if portRuleExists && !peerRuleExists && !allowExternal {
 		for i := range ports {
+			// This path emits one ACL per port with no peer to bound it, so the budget is
+			// checked here too rather than leaving it to the backstop at the end.
+			if err := checkACLBudget(npmNetPol); err != nil {
+				return err
+			}
+
 			portKind, err := portType(ports[i])
 			if err != nil {
 				return err
