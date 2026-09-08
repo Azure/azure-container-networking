@@ -9,7 +9,7 @@ spec:
     spec:
       containers:
         - name: cilium-fluent-bit
-          image: $CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY/cilium-log-collector:$CILIUM_LOG_COLLECTOR_VERSION_TAG
+          image: $CILIUM_LOG_COLLECTOR_IMAGE
           imagePullPolicy: Always
           command:
             - /fluent-bit/bin/fluent-bit
