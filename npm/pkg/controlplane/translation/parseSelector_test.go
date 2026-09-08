@@ -920,6 +920,35 @@ func TestTranslatePolicyOrdinaryPolicyWithinACLBudget(t *testing.T) {
 	require.Less(t, len(npmNetPol.ACLs), maxACLsPerPolicy)
 }
 
+// TestTranslatePolicyExactlyAtACLLimit guards the boundary. The per-append guard is asked
+// whether there is room for one more ACL, so it must refuse at the ceiling; the check on the
+// finished policy is asked whether the policy is past the ceiling, so it must admit a policy
+// that lands exactly on it. Using the same comparison for both would reject a policy of
+// exactly maxACLsPerPolicy rules.
+func TestTranslatePolicyExactlyAtACLLimit(t *testing.T) {
+	// one ACL per port, plus the default drop the policy implies.
+	portCount := maxACLsPerPolicy - 1
+	ports := make([]networkingv1.NetworkPolicyPort, 0, portCount)
+	for i := 0; i < portCount; i++ {
+		p := intstr.FromInt(1 + i)
+		ports = append(ports, networkingv1.NetworkPolicyPort{Port: &p})
+	}
+
+	pol := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "at-limit", Namespace: defaultNS},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+			Ingress:     []networkingv1.NetworkPolicyIngressRule{{Ports: ports}},
+		},
+	}
+
+	npmNetPol, err := TranslatePolicy(pol, false)
+	require.NoError(t, err, "a policy landing exactly on the ceiling must translate")
+	require.NotNil(t, npmNetPol)
+	require.Len(t, npmNetPol.ACLs, maxACLsPerPolicy)
+}
+
 // TestPortOnlyRuleBudgetStopsWithinPortLoop covers a rule that lists ports and no peers. That
 // path emits one ACL per port with no peer expansion to bound it, so the budget has to be
 // checked inside its loop rather than only by the backstop at the end of translation.
