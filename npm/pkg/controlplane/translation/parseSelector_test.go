@@ -920,6 +920,24 @@ func TestTranslatePolicyOrdinaryPolicyWithinACLBudget(t *testing.T) {
 	require.Less(t, len(npmNetPol.ACLs), maxACLsPerPolicy)
 }
 
+// TestPortOnlyRuleBudgetStopsWithinPortLoop covers a rule that lists ports and no peers. That
+// path emits one ACL per port with no peer expansion to bound it, so the budget has to be
+// checked inside its loop rather than only by the backstop at the end of translation.
+func TestPortOnlyRuleBudgetStopsWithinPortLoop(t *testing.T) {
+	portCount := maxACLsPerPolicy * 2
+	ports := make([]networkingv1.NetworkPolicyPort, 0, portCount)
+	for i := 0; i < portCount; i++ {
+		p := intstr.FromInt(1 + i)
+		ports = append(ports, networkingv1.NetworkPolicyPort{Port: &p})
+	}
+
+	npmNetPol := policies.NewNPMNetworkPolicy("port-only", defaultNS)
+	err := checkOnlyPortRuleExists(true, false, false, ports, false, policies.Ingress, npmNetPol)
+	require.ErrorIs(t, err, ErrTooManyACLs)
+	require.LessOrEqual(t, len(npmNetPol.ACLs), maxACLsPerPolicy,
+		"a rule with only ports must stop once the budget is spent")
+}
+
 // TestPeerAndPortRuleBudgetStopsWithinPortLoop covers a single peer listing more ports than
 // the budget allows. One peer emits one ACL per port, so a budget checked only on entry to
 // peerAndPortRule would let that peer materialize every ACL before anything noticed.
