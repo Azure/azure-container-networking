@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -104,7 +105,10 @@ func NPMRestServerListenAndServe(config npmconfig.Config, npmEncoder json.Marsha
 	}
 
 	klog.Infof("Starting NPM HTTP API on %s... ", rs.listeningAddress)
-	klog.Errorf("Failed to start NPM HTTP Server with error: %+v", srv.Serve(netutil.LimitListener(listener, maxConcurrentConns)))
+	// A graceful close is not a failure, so it must not be reported as one.
+	if err := srv.Serve(netutil.LimitListener(listener, maxConcurrentConns)); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		klog.Errorf("NPM HTTP Server stopped with error: %+v", err)
+	}
 }
 
 func (n *NPMRestServer) npmCacheHandler(npmCacheEncoder json.Marshaler) http.Handler {

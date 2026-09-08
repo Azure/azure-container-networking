@@ -934,6 +934,6 @@ func TestPeerAndPortRuleBudgetStopsWithinPortLoop(t *testing.T) {
 	npmNetPol := policies.NewNPMNetworkPolicy("wide-ports", defaultNS)
 	err := peerAndPortRule(npmNetPol, policies.Ingress, ports, []policies.SetInfo{}, false)
 	require.ErrorIs(t, err, ErrTooManyACLs)
-	require.LessOrEqual(t, len(npmNetPol.ACLs), maxACLsPerPolicy+1,
+	require.LessOrEqual(t, len(npmNetPol.ACLs), maxACLsPerPolicy,
 		"the port loop must stop once the budget is spent instead of emitting an ACL for every port")
 }

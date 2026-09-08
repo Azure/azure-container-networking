@@ -38,7 +38,7 @@ var (
 	// ErrEmptyMatchExpressionValues is returned when an In or NotIn matchExpression carries no values.
 	// Kubernetes rejects such requirements; NPM fails closed rather than dropping the requirement,
 	// which could otherwise widen a selector (e.g. a dropped NotIn) or yield no rules at all.
-	ErrEmptyMatchExpressionValues = errors.New("in and notIn matchExpression requirements must have at least one value")
+	ErrEmptyMatchExpressionValues = errors.New("matchExpression with operator In or NotIn must have at least one value")
 	// ErrUnsupportedMatchExpressionOperator is returned when a matchExpression uses an operator that is
 	// none of In, NotIn, Exists or DoesNotExist. NPM fails closed rather than dropping the requirement,
 	// which could otherwise silently widen the selector.
@@ -187,23 +187,24 @@ func deDuplicateExcept(exceptInIPBlock []string) []string {
 // canonicalizeExcepts returns the except CIDRs in canonical form, with duplicates removed.
 // Canonicalizing first means two spellings of the same block (e.g. "10.1.2.0/24" and
 // "10.1.2.3/24") collapse to one entry, and that an except can be compared against the
-// all-addresses split entries below. This is used only on the ipset path.
-func canonicalizeExcepts(exceptInIPBlock []string) []string {
+// all-addresses split entries below. An except that is not an IPv4 CIDR cannot be programmed,
+// so it fails the translation rather than being carried into the set: dropping the exclusion
+// would widen the allow, and keeping it would take the whole set down at restore time. This is
+// used only on the ipset path.
+func canonicalizeExcepts(exceptInIPBlock []string) ([]string, error) {
 	canonicalExcepts := []string{}
 	exceptsSet := make(map[string]struct{})
 	for _, except := range exceptInIPBlock {
 		canonical, ok := util.NormalizeCIDR(except)
 		if !ok {
-			// Leave a non-IPv4 except untouched; callers validate it separately and
-			// fail closed rather than silently dropping the exclusion.
-			canonical = except
+			return nil, fmt.Errorf("except %q: %w", except, ErrUnsupportedIPAddress)
 		}
 		if _, exist := exceptsSet[canonical]; !exist {
 			canonicalExcepts = append(canonicalExcepts, canonical)
 			exceptsSet[canonical] = struct{}{}
 		}
 	}
-	return canonicalExcepts
+	return canonicalExcepts, nil
 }
 
 // ipBlockIPSet return translatedIPSet based based on ipBlockRule.
@@ -221,14 +222,19 @@ func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSe
 		return nil, ErrUnsupportedIPAddress
 	}
 
-	// de-duplicated Except if there are redundance elements, in canonical form so they
-	// compare correctly against the all-addresses split entries below.
-	deDupExcepts := canonicalizeExcepts(ipBlockRule.Except)
-	lenOfDeDupExcepts := len(deDupExcepts)
-
-	if util.IsWindowsDP() && lenOfDeDupExcepts > 0 {
+	// The Windows datapath refuses an except before any of it is canonicalized, exactly as
+	// it did before, so the validation below is reached on the Linux path only.
+	if util.IsWindowsDP() && len(ipBlockRule.Except) > 0 {
 		return nil, ErrUnsupportedExceptCIDR
 	}
+
+	// de-duplicated Except if there are redundance elements, in canonical form so they
+	// compare correctly against the all-addresses split entries below.
+	deDupExcepts, err := canonicalizeExcepts(ipBlockRule.Except)
+	if err != nil {
+		return nil, err
+	}
+	lenOfDeDupExcepts := len(deDupExcepts)
 
 	var members []string
 	indexOfMembers := 0
@@ -844,11 +850,12 @@ func TranslatePolicy(npObj *networkingv1.NetworkPolicy, npmLiteToggle bool) (*po
 // since a policy expanding this wide would already be unusable as iptables rules.
 const maxACLsPerPolicy = 2000
 
-// checkACLBudget reports whether the policy has grown past what NPM is willing to translate.
-// It is checked before each peer is expanded and before each of that peer's ports, so
-// translation stops early rather than after materializing the full product.
+// checkACLBudget reports whether the policy has reached the ceiling. It is checked before a
+// peer is expanded and before each of that peer's ports, so translation never materializes
+// more than maxACLsPerPolicy ACLs, and once more at the end as a backstop for the paths that
+// append without a check.
 func checkACLBudget(npmNetPol *policies.NPMNetworkPolicy) error {
-	if len(npmNetPol.ACLs) > maxACLsPerPolicy {
+	if len(npmNetPol.ACLs) >= maxACLsPerPolicy {
 		// The error carries the policy context and is recorded once by the caller.
 		return fmt.Errorf("network policy %s expands past the %d rule limit: %w",
 			npmNetPol.PolicyKey, maxACLsPerPolicy, ErrTooManyACLs)
