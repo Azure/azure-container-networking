@@ -7,8 +7,9 @@ ARG ARCH
 FROM --platform=windows/${ARCH} mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0@sha256:b4c9637e032f667c52d1eccfa31ad8c63f1b035e8639f3f48a510536bf34032b as windows
 ARG ARTIFACT_DIR .
 
-COPY ${ARTIFACT_DIR}/bin/dropgz.exe /dropgz.exe
-ENTRYPOINT [ "/dropgz.exe" ]
+COPY ${ARTIFACT_DIR}/bin/azure-ipam.exe /Windows/System32/azure-ipam.exe
+COPY ${ARTIFACT_DIR}/files/azilium.conflist /Windows/System32/azilium.conflist
+ENTRYPOINT [ "powershell.exe" ]
 
 # mcr.microsoft.com/azurelinux/distroless/base:3.0
 FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/distroless/base:3.0@sha256:387a603a274e74568fd7a0e6d48ef68e631990e3b5149801515fe749a74b5b29 AS linux
