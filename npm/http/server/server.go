@@ -128,7 +128,7 @@ func (n *NPMRestServer) npmCacheHandler(npmCacheEncoder json.Marshaler) http.Han
 
 		b, err := json.Marshal(npmCacheEncoder)
 		if err != nil {
-			http.Error(w, err.Error(), 500)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		_, err = w.Write(b)
