@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -95,7 +96,8 @@ func NPMRestServerListenAndServe(config npmconfig.Config, npmEncoder json.Marsha
 
 	srv := newServer(rs.listeningAddress, rs.router)
 
-	listener, err := net.Listen("tcp", rs.listeningAddress)
+	var lc net.ListenConfig
+	listener, err := lc.Listen(context.Background(), "tcp", rs.listeningAddress)
 	if err != nil {
 		klog.Errorf("Failed to start NPM HTTP Server with error: %+v", err)
 		return

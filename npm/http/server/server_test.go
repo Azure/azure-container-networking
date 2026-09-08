@@ -90,7 +90,7 @@ func TestNPMCacheHandlerLimitsConcurrency(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			req := httptest.NewRequest(http.MethodGet, api.NPMMgrPath, http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, api.NPMMgrPath, http.NoBody)
 			handler.ServeHTTP(httptest.NewRecorder(), req)
 		}()
 	}
@@ -101,7 +101,7 @@ func TestNPMCacheHandlerLimitsConcurrency(t *testing.T) {
 	// With every slot busy, a further request must be shed instead of queueing another
 	// full copy of the cache.
 	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, api.NPMMgrPath, http.NoBody))
+	handler.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, api.NPMMgrPath, http.NoBody))
 	require.Equal(t, http.StatusServiceUnavailable, rr.Code,
 		"a request beyond the in-flight limit must be shed")
 
@@ -110,7 +110,7 @@ func TestNPMCacheHandlerLimitsConcurrency(t *testing.T) {
 
 	// Once the in-flight requests drain, the handler must serve again.
 	rr = httptest.NewRecorder()
-	handler.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, api.NPMMgrPath, http.NoBody))
+	handler.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, api.NPMMgrPath, http.NoBody))
 	require.Equal(t, http.StatusOK, rr.Code, "the handler must recover once slots free up")
 }
 
