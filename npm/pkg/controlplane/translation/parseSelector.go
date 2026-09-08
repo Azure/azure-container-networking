@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -158,8 +157,9 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelS
 		default:
 			// Fail closed: an unknown operator must not silently drop the requirement
 			// and widen the selector. Kubernetes only admits In/NotIn/Exists/DoesNotExist.
-			log.Errorf("unsupported operator [%s] for selector [%v] requirement", req.Operator, *nsSelector)
-			return nil, ErrUnsupportedMatchExpressionOperator
+			// The error carries the selector context and is recorded once by the caller.
+			return nil, fmt.Errorf("operator %q on key %q in selector %v: %w",
+				req.Operator, req.Key, *nsSelector, ErrUnsupportedMatchExpressionOperator)
 		}
 	}
 
@@ -183,8 +183,8 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelS
 	combinations := 1
 	for _, req := range multiValueMatchExprs {
 		if len(req.Values) > maxFlattenedNSSelectors/combinations {
-			log.Errorf("namespaceSelector [%v] expands past the %d selector limit", *nsSelector, maxFlattenedNSSelectors)
-			return nil, ErrTooManyFlattenedSelectors
+			return nil, fmt.Errorf("selector %v expands past the %d selector limit: %w",
+				*nsSelector, maxFlattenedNSSelectors, ErrTooManyFlattenedSelectors)
 		}
 		combinations *= len(req.Values)
 	}

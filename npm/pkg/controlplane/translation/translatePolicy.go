@@ -405,6 +405,12 @@ func peerAndPortRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Di
 	}
 
 	for i := range ports {
+		// Re-checked per port, not only on entry: this peer emits one ACL per port, so a
+		// check that ran once could not stop a single peer from expanding past the limit.
+		if err := checkACLBudget(npmNetPol); err != nil {
+			return err
+		}
+
 		portKind, err := portType(ports[i])
 		if err != nil {
 			return err
@@ -839,12 +845,13 @@ func TranslatePolicy(npObj *networkingv1.NetworkPolicy, npmLiteToggle bool) (*po
 const maxACLsPerPolicy = 2000
 
 // checkACLBudget reports whether the policy has grown past what NPM is willing to translate.
-// It is checked before each peer is expanded, so translation stops early rather than after
-// materializing the full product.
+// It is checked before each peer is expanded and before each of that peer's ports, so
+// translation stops early rather than after materializing the full product.
 func checkACLBudget(npmNetPol *policies.NPMNetworkPolicy) error {
 	if len(npmNetPol.ACLs) > maxACLsPerPolicy {
-		klog.Errorf("network policy %s expands past the %d ACL limit", npmNetPol.PolicyKey, maxACLsPerPolicy)
-		return ErrTooManyACLs
+		// The error carries the policy context and is recorded once by the caller.
+		return fmt.Errorf("network policy %s expands past the %d rule limit: %w",
+			npmNetPol.PolicyKey, maxACLsPerPolicy, ErrTooManyACLs)
 	}
 	return nil
 }

@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
-	_ "net/http/pprof"
 	"time"
 
 	"github.com/Azure/azure-container-networking/log"
