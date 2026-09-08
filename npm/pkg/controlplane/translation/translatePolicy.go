@@ -834,7 +834,7 @@ func TranslatePolicy(npObj *networkingv1.NetworkPolicy, npmLiteToggle bool) (*po
 		}
 	}
 
-	if err := checkACLBudget(npmNetPol); err != nil {
+	if err := checkACLTotal(npmNetPol); err != nil {
 		return nil, err
 	}
 
@@ -850,18 +850,32 @@ func TranslatePolicy(npObj *networkingv1.NetworkPolicy, npmLiteToggle bool) (*po
 // since a policy expanding this wide would already be unusable as iptables rules.
 const maxACLsPerPolicy = 2000
 
-// checkACLBudget reports whether the policy has reached the ceiling. It is checked before a
-// peer is expanded, before each of that peer's ports, and before each port of a port-only
-// rule, so translation never materializes more than maxACLsPerPolicy ACLs on the ipset path.
-// It is checked once more at the end of translation as a backstop, which covers the paths
-// that append without a check, including the direct-rule path this change leaves alone.
+// checkACLBudget reports whether there is room for another ACL. It is checked before a peer
+// is expanded, before each of that peer's ports, and before each port of a port-only rule, so
+// those paths never take the policy past the ceiling.
 func checkACLBudget(npmNetPol *policies.NPMNetworkPolicy) error {
 	if len(npmNetPol.ACLs) >= maxACLsPerPolicy {
-		// The error carries the policy context and is recorded once by the caller.
-		return fmt.Errorf("network policy %s expands past the %d rule limit: %w",
-			npmNetPol.PolicyKey, maxACLsPerPolicy, ErrTooManyACLs)
+		return tooManyACLs(npmNetPol)
 	}
 	return nil
+}
+
+// checkACLTotal reports whether the finished policy is past the ceiling. It is the backstop
+// for the paths that append without asking for room first, including the direct-rule path
+// this change leaves alone. It admits a policy that lands exactly on the ceiling, which
+// checkACLBudget cannot do because it is asked before the ACL exists.
+func checkACLTotal(npmNetPol *policies.NPMNetworkPolicy) error {
+	if len(npmNetPol.ACLs) > maxACLsPerPolicy {
+		return tooManyACLs(npmNetPol)
+	}
+	return nil
+}
+
+// tooManyACLs builds the refusal. The error carries the policy context and is recorded once
+// by the caller.
+func tooManyACLs(npmNetPol *policies.NPMNetworkPolicy) error {
+	return fmt.Errorf("network policy %s expands past the %d rule limit: %w",
+		npmNetPol.PolicyKey, maxACLsPerPolicy, ErrTooManyACLs)
 }
 
 func checkForNamedPortType(npmNetPol *policies.NPMNetworkPolicy, portKind netpolPortType, npmLiteToggle bool, direction policies.Direction, port *networkingv1.NetworkPolicyPort, cidr string) error {
