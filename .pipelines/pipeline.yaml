@@ -59,6 +59,11 @@ parameters:
     type: string
     default: "__use-default__"
 
+variables:
+  BUILD_POOL_NAME_DEFAULT: $(BUILD_POOL_1ESPT_AMD)
+  BUILD_POOL_NAME_LINUX_AMD64: $(BUILD_POOL_1ESPT_AMD)
+  BUILD_POOL_NAME_LINUX_ARM64: $(BUILD_POOL_1ESPT_ARM)
+
 resources:
   repositories:
     - repository: 1ESPipelineTemplates
