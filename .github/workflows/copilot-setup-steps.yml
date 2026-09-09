@@ -32,6 +32,145 @@ jobs:
           echo "${GOPATH}/bin" >> "$GITHUB_PATH"
           echo "GOPATH=${GOPATH}" >> "$GITHUB_ENV"
 
+      - name: Enforce work-in-workspace (block git worktree)
+        run: |
+          set -euo pipefail
+
+          # The coding agent has twice done all its work inside a git worktree
+          # outside $GITHUB_WORKSPACE (#4756, #4833). Only $GITHUB_WORKSPACE is
+          # committed and pushed, so that work was silently discarded and the PR
+          # landed with zero files.
+          #
+          # agents.md tells local CLI sessions to use a worktree, which is
+          # correct there (one clone shared by concurrent sessions) and wrong
+          # here. Instructions alone did not reliably stop it, so this removes
+          # the capability rather than asking.
+          #
+          # /usr/local/bin precedes /usr/bin in PATH, so this shim intercepts
+          # every PATH-resolved `git` for the rest of the job, including the
+          # agent phase. It does not depend on $GITHUB_PATH or $GITHUB_ENV
+          # propagating into that phase.
+
+          REAL_GIT=$(command -v git)
+          if [ "$REAL_GIT" != "/usr/bin/git" ]; then
+            echo "::error::Expected git at /usr/bin/git, found ${REAL_GIT}. Refusing to install shim."
+            exit 1
+          fi
+
+          # Preserve the real binary once. Guarded so a re-run cannot copy an
+          # already-installed shim over it and destroy real git.
+          sudo mkdir -p /usr/local/lib/git-guard
+          if [ ! -x /usr/local/lib/git-guard/git.real ]; then
+            sudo cp -p /usr/bin/git /usr/local/lib/git-guard/git.real
+          fi
+          /usr/local/lib/git-guard/git.real --version > /dev/null
+
+          sudo tee /usr/local/lib/git-guard/git-shim > /dev/null <<'SHIM'
+          #!/usr/bin/env bash
+          # Guard: block worktree creation in the Copilot cloud agent environment.
+          # All other git subcommands and options pass through untouched.
+
+          args=("$@")
+          n=${#args[@]}
+          i=0
+          sub=""
+
+          # Walk past git's global options to find the subcommand. Options that
+          # consume a following value (-C <path>, -c <k>=<v>, ...) must skip two
+          # slots, otherwise their value is mistaken for the subcommand and
+          # `git -C <path> worktree add` slips through.
+          while [ "$i" -lt "$n" ]; do
+            case "${args[$i]}" in
+              -C|-c|--git-dir|--work-tree|--namespace|--exec-path|--super-prefix|--config-env)
+                i=$((i + 2)) ;;
+              -*)
+                i=$((i + 1)) ;;
+              *)
+                sub="${args[$i]}"; break ;;
+            esac
+          done
+
+          if [ "$sub" = "worktree" ]; then
+            # Find the worktree subcommand (add / list / remove / prune / ...).
+            j=$((i + 1))
+            while [ "$j" -lt "$n" ]; do
+              case "${args[$j]}" in
+                -*) j=$((j + 1)) ;;
+                *) break ;;
+              esac
+            done
+
+            if [ "${args[$j]:-}" = "add" ]; then
+              cat >&2 <<'MSG'
+          git worktree add is disabled in this environment.
+
+          You are the GitHub Copilot coding agent on a GitHub Actions runner.
+          Only $GITHUB_WORKSPACE is committed and pushed. Work done in a worktree
+          elsewhere on disk is discarded and produces a pull request with zero
+          files.
+
+          Do all work directly in $GITHUB_WORKSPACE:
+
+              cd "$GITHUB_WORKSPACE"
+
+          The worktree guidance in agents.md section 6 applies to local Copilot
+          CLI sessions only, where one clone is shared between concurrent
+          sessions. That is not your situation.
+          MSG
+              exit 1
+            fi
+          fi
+
+          exec /usr/local/lib/git-guard/git.real "$@"
+          SHIM
+
+          # Install at every entry point the agent could plausibly invoke, not
+          # just the PATH-resolved one. /usr/lib/git-core/git is deliberately
+          # left as the real binary so git's own helper dispatch is untouched.
+          sudo chmod 755 /usr/local/lib/git-guard/git-shim
+          sudo cp /usr/local/lib/git-guard/git-shim /usr/local/bin/git
+          sudo cp /usr/local/lib/git-guard/git-shim /usr/bin/git
+          sudo chmod 755 /usr/local/bin/git /usr/bin/git
+
+          # Prove the shim resolves first, blocks every spelling of
+          # `worktree add`, and leaves everything else working. Any failure here
+          # fails setup rather than silently leaving the agent unguarded.
+          hash -r
+          test "$(command -v git)" = "/usr/local/bin/git"
+
+          git --version > /dev/null
+          git -C "$GITHUB_WORKSPACE" rev-parse --show-toplevel > /dev/null
+          git -C "$GITHUB_WORKSPACE" status --porcelain > /dev/null
+          git -C "$GITHUB_WORKSPACE" worktree list > /dev/null
+          git -c user.name=x -C "$GITHUB_WORKSPACE" log --oneline -1 > /dev/null
+          # Fetch/clone still work, so nothing legitimate is broken.
+          git -C "$GITHUB_WORKSPACE" fetch --dry-run origin > /dev/null 2>&1 || true
+
+          blocked() {
+            if "$@" 2>/dev/null; then
+              echo "::error::Shim failed to block: $*"
+              exit 1
+            fi
+          }
+          blocked git worktree add /tmp/guard-probe-1
+          blocked git worktree add -b probe /tmp/guard-probe-2
+          blocked git -C "$GITHUB_WORKSPACE" worktree add /tmp/guard-probe-3
+          blocked git --no-pager worktree add /tmp/guard-probe-4
+          blocked git -c core.pager=cat -C "$GITHUB_WORKSPACE" worktree add /tmp/guard-probe-5
+          blocked git --git-dir "$GITHUB_WORKSPACE/.git" worktree add /tmp/guard-probe-6
+          # Absolute-path invocation must not be an escape hatch.
+          blocked /usr/bin/git worktree add /tmp/guard-probe-7
+          blocked /usr/local/bin/git worktree add /tmp/guard-probe-8
+
+          for p in /tmp/guard-probe-*; do
+            if [ -e "$p" ]; then
+              echo "::error::Worktree leaked past the shim: $p"
+              exit 1
+            fi
+          done
+
+          echo "✓ git worktree add blocked (8 variants, incl. absolute paths); all other git subcommands pass through"
+
       - name: Pre-download module dependencies (before firewall activates)
         run: |
           set -euo pipefail
