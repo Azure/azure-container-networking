@@ -1,6 +1,9 @@
 parameters:
   name: ""
   platforms: ""
+  # 1ES PT blocks PublishBuildArtifacts@1 in user steps. Callers extending 1ES
+  # pass false and publish through templateContext.outputs instead.
+  publishArtifact: true
 
 steps:
 
@@ -45,8 +48,9 @@ steps:
       inlineScript: |
         docker logout
 
-  - task: PublishBuildArtifacts@1
-    inputs:
-      artifactName: "output"
-      pathtoPublish: "$(Build.ArtifactStagingDirectory)"
-    condition: succeeded()
+  - ${{ if eq(parameters.publishArtifact, true) }}:
+      - task: PublishBuildArtifacts@1
+        inputs:
+          artifactName: "output"
+          pathtoPublish: "$(Build.ArtifactStagingDirectory)"
+        condition: succeeded()
