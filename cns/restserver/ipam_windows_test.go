@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -515,6 +517,149 @@ func TestCleanupStaleHNSResources(t *testing.T) {
 			}
 			if tt.wantDeletedNetworks != nil {
 				assert.ElementsMatch(t, tt.wantDeletedNetworks, mockClient.deletedNetworkIDs)
+			}
+		})
+	}
+}
+
+// TestCleanupStaleHNSForDelegatedNIC covers the api.go gating helper that fronts
+// cleanupStaleHNSResources for delegated-NIC NC creates (both AzureContainerInstance and Docker).
+func TestCleanupStaleHNSForDelegatedNIC(t *testing.T) {
+	staleDelegatedState := func() map[string]*EndpointInfo {
+		return map[string]*EndpointInfo{
+			"stale-container": {
+				PodName: "pod1", PodNamespace: "ns1",
+				IfnameToIPMap: map[string]*IPInfo{
+					"eth0": {NICType: cns.DelegatedVMNIC, MacAddress: "00:11:22:33:44:55", HnsEndpointID: "ep-1", HnsNetworkID: "net-1"},
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name                 string
+		cleanupEnabled       bool
+		ncType               string
+		nicType              cns.NICType
+		mac                  string
+		localIP              string
+		endpointState        map[string]*EndpointInfo
+		hnsErr               error
+		wantCode             types.ResponseCode
+		wantDeletedEndpoints []string
+		wantRemaining        int
+	}{
+		{
+			name:                 "docker delegated NIC with cleanup enabled deletes stale HNS",
+			cleanupEnabled:       true,
+			ncType:               cns.Docker,
+			nicType:              cns.DelegatedVMNIC,
+			mac:                  "00:11:22:33:44:55",
+			endpointState:        staleDelegatedState(),
+			wantCode:             types.Success,
+			wantDeletedEndpoints: []string{"ep-1"},
+			wantRemaining:        0,
+		},
+		{
+			name:           "cleanup disabled is a no-op",
+			cleanupEnabled: false,
+			ncType:         cns.Docker,
+			nicType:        cns.DelegatedVMNIC,
+			mac:            "00:11:22:33:44:55",
+			endpointState:  staleDelegatedState(),
+			wantCode:       types.Success,
+			wantRemaining:  1,
+		},
+		{
+			name:           "non-delegated NIC is a no-op even when enabled",
+			cleanupEnabled: true,
+			ncType:         cns.Docker,
+			nicType:        cns.InfraNIC,
+			mac:            "00:11:22:33:44:55",
+			endpointState:  staleDelegatedState(),
+			wantCode:       types.Success,
+			wantRemaining:  1,
+		},
+		{
+			name:           "empty MAC is a no-op even when enabled",
+			cleanupEnabled: true,
+			ncType:         cns.Docker,
+			nicType:        cns.DelegatedVMNIC,
+			mac:            "",
+			endpointState:  staleDelegatedState(),
+			wantCode:       types.Success,
+			wantRemaining:  1,
+		},
+		{
+			// AKS never has ApipaNIC endpoints; passing the NC local IP as apipaIP must be a safe
+			// no-op (findStaleContainerByApipaIP finds no match) and only the delegated NIC is cleaned.
+			name:                 "local IP passed with no APIPA endpoint present is a safe no-op",
+			cleanupEnabled:       true,
+			ncType:               cns.Docker,
+			nicType:              cns.DelegatedVMNIC,
+			mac:                  "00:11:22:33:44:55",
+			localIP:              "10.0.0.4",
+			endpointState:        staleDelegatedState(),
+			wantCode:             types.Success,
+			wantDeletedEndpoints: []string{"ep-1"},
+			wantRemaining:        0,
+		},
+		{
+			name:           "cleanup failure fails closed with UnexpectedError",
+			cleanupEnabled: true,
+			ncType:         cns.Docker,
+			nicType:        cns.DelegatedVMNIC,
+			mac:            "00:11:22:33:44:55",
+			endpointState:  staleDelegatedState(),
+			hnsErr:         errors.New("HNS access denied"),
+			wantCode:       types.UnexpectedError,
+			wantRemaining:  1,
+		},
+		{
+			name:                 "AzureContainerInstance path still cleans up (regression guard)",
+			cleanupEnabled:       true,
+			ncType:               cns.AzureContainerInstance,
+			nicType:              cns.DelegatedVMNIC,
+			mac:                  "00:11:22:33:44:55",
+			endpointState:        staleDelegatedState(),
+			wantCode:             types.Success,
+			wantDeletedEndpoints: []string{"ep-1"},
+			wantRemaining:        0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := getTestService(cns.AzureContainerInstance)
+			svc.EndpointStateStore = store.NewMockStore("")
+			svc.EndpointState = tt.endpointState
+			require.NoError(t, svc.EndpointStateStore.Write(EndpointStoreKey, svc.EndpointState))
+			svc.Options = map[string]interface{}{
+				common.OptEnableStaleHNSCleanupOnNCCreate: tt.cleanupEnabled,
+				common.OptManageEndpointState:             tt.cleanupEnabled,
+			}
+
+			mockClient := &mockHNSClient{err: tt.hnsErr}
+			orig := defaultHNSClient
+			t.Cleanup(func() { defaultHNSClient = orig })
+			defaultHNSClient = mockClient
+
+			req := cns.CreateNetworkContainerRequest{
+				NetworkContainerid:   "Swift_new-nc",
+				NetworkContainerType: tt.ncType,
+				NetworkInterfaceInfo: cns.NetworkInterfaceInfo{NICType: tt.nicType, MACAddress: tt.mac},
+				LocalIPConfiguration: cns.IPConfiguration{IPSubnet: cns.IPSubnet{IPAddress: tt.localIP}},
+			}
+
+			code, msg := svc.cleanupStaleHNSForDelegatedNIC(req)
+
+			assert.Equal(t, tt.wantCode, code)
+			if tt.wantCode != types.Success {
+				assert.NotEmpty(t, msg)
+			}
+			assert.Len(t, svc.EndpointState, tt.wantRemaining)
+			if tt.wantDeletedEndpoints != nil {
+				assert.ElementsMatch(t, tt.wantDeletedEndpoints, mockClient.deletedEndpointIDs)
 			}
 		})
 	}

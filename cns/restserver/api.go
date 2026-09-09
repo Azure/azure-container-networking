@@ -501,6 +501,25 @@ func (service *HTTPRestService) getHomeAz(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// cleanupStaleHNSForDelegatedNIC runs stale-HNS-resource cleanup for a delegated-NIC NC create
+// when the feature is enabled. It is a no-op unless stale-HNS cleanup and endpoint-state
+// management are both enabled and the request carries a delegated NIC (MAC + delegated NICType).
+// On success (including the no-op path) it returns types.Success; on cleanup failure it returns
+// UnexpectedError and a message so the caller can fail the NC create closed.
+func (service *HTTPRestService) cleanupStaleHNSForDelegatedNIC(req cns.CreateNetworkContainerRequest) (types.ResponseCode, string) {
+	cleanupEnabled := service.Options[common.OptEnableStaleHNSCleanupOnNCCreate] == true &&
+		service.Options[common.OptManageEndpointState] == true
+	hasDelegatedNIC := req.NetworkInterfaceInfo.MACAddress != "" &&
+		(req.NetworkInterfaceInfo.NICType == cns.DelegatedVMNIC || req.NetworkInterfaceInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC)
+	if !cleanupEnabled || !hasDelegatedNIC {
+		return types.Success, ""
+	}
+	if err := service.cleanupStaleHNSResources(req.NetworkContainerid, req.NetworkInterfaceInfo.MACAddress, req.LocalIPConfiguration.IPSubnet.IPAddress); err != nil {
+		return types.UnexpectedError, fmt.Sprintf("[Azure CNS] stale HNS cleanup failed for MAC %s: %v", req.NetworkInterfaceInfo.MACAddress, err)
+	}
+	return types.Success, ""
+}
+
 func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWriter, r *http.Request) {
 	var req cns.CreateNetworkContainerRequest
 	if err := common.Decode(w, r, &req); err != nil {
@@ -535,16 +554,10 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 			}
 		} else if req.NetworkContainerType == cns.AzureContainerInstance {
 			// Clean up stale HNS resources from a previous NC that used the same delegated NIC.
-			cleanupEnabled := service.Options[common.OptEnableStaleHNSCleanupOnNCCreate] == true &&
-				service.Options[common.OptManageEndpointState] == true
-			hasDelegatedNIC := req.NetworkInterfaceInfo.MACAddress != "" &&
-				(req.NetworkInterfaceInfo.NICType == cns.DelegatedVMNIC || req.NetworkInterfaceInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC)
-			if cleanupEnabled && hasDelegatedNIC {
-				if cleanupErr := service.cleanupStaleHNSResources(req.NetworkContainerid, req.NetworkInterfaceInfo.MACAddress, req.LocalIPConfiguration.IPSubnet.IPAddress); cleanupErr != nil {
-					returnMessage = fmt.Sprintf("[Azure CNS] stale HNS cleanup failed for MAC %s: %v", req.NetworkInterfaceInfo.MACAddress, cleanupErr)
-					returnCode = types.UnexpectedError
-					break
-				}
+			if code, msg := service.cleanupStaleHNSForDelegatedNIC(req); code != types.Success {
+				returnCode = code
+				returnMessage = msg
+				break
 			}
 
 			// try to get the saved nc state if it exists
@@ -559,6 +572,14 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 					returnCode = types.UnexpectedError
 					break
 				}
+			}
+		} else if req.NetworkContainerType == cns.Docker {
+			// Clean up stale HNS resources left by a previous NC that used the same delegated NIC,
+			// then proceed as a normal Docker NC (saveNetworkContainerGoalState below).
+			if code, msg := service.cleanupStaleHNSForDelegatedNIC(req); code != types.Success {
+				returnCode = code
+				returnMessage = msg
+				break
 			}
 		}
 
