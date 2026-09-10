@@ -14,6 +14,13 @@ import (
 // an alphanumeric character (e.g. 'MyValue',  or 'my_value',  or '12345', regex used for validation is '(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?'
 var validLabelRegex = regexp.MustCompile("(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?")
 
+// maxSelectorMatches bounds how many set matches a single namespaceSelector may expand into.
+// Each match becomes its own IPSet and its own condition on the rule the selector produces, and
+// a multi-value NotIn contributes one per value while staying in a single selector, so it is
+// counted by neither maxFlattenedNSSelectors nor the per-policy rule budget. The bound is the
+// same ceiling used for the selector count, and is far above any workable selector.
+const maxSelectorMatches = maxFlattenedNSSelectors
+
 // maxFlattenedNSSelectors caps how many labelSelectors a single namespaceSelector may be
 // flattened into. Flattening multi-value In requirements produces the Cartesian product of
 // their values, and each resulting selector is deep-copied and later turned into its own
@@ -79,6 +86,26 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelS
 
 	if len(nsSelector.MatchExpressions) == 0 {
 		return []metav1.LabelSelector{*nsSelector}, nil
+	}
+
+	// Bound how far this selector expands, before anything is allocated. A multi-value NotIn
+	// stays inside a single selector, so it is invisible to both the selector-count bound
+	// further down and the per-policy rule budget, yet every one of its values becomes its own
+	// IPSet and its own condition on one rule. Counting the matches the selector will produce
+	// is what catches that.
+	matches := len(nsSelector.MatchLabels)
+	for _, req := range nsSelector.MatchExpressions {
+		if req.Operator == metav1.LabelSelectorOpNotIn {
+			// each excluded value is carried as its own negated match
+			matches += len(req.Values)
+			continue
+		}
+		// In contributes one match per branch; Exists and DoesNotExist one each
+		matches++
+	}
+	if matches > maxSelectorMatches {
+		return nil, fmt.Errorf("selector expands into %d matches, past the %d limit: %w",
+			matches, maxSelectorMatches, ErrTooManySelectorMatches)
 	}
 
 	// create a baseSelector which needs to be same across all
