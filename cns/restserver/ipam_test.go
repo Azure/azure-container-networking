@@ -291,6 +291,63 @@ func endpointStateReadAndWrite(t *testing.T, ncStates []ncState) {
 	assert.Equal(t, desiredState, svc.EndpointState)
 }
 
+func TestUpdateEndpointStateDoesNotPersistPartialState(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	countingStore := &endpointWriteCountingStore{KeyValueStore: svc.EndpointStateStore}
+	svc.EndpointStateStore = countingStore
+	req := cns.IPConfigsRequest{
+		InfraContainerID: testPod1Info.InfraContainerID(),
+		Ifname:           "eth0",
+	}
+	podIPInfo := []cns.PodIpInfo{
+		{PodIPConfig: cns.IPSubnet{IPAddress: testIP1, PrefixLength: ipPrefixBitsv4}},
+		{PodIPConfig: cns.IPSubnet{IPAddress: "not-an-ip", PrefixLength: ipPrefixBitsv4}},
+	}
+
+	err := svc.updateEndpointState(req, testPod1Info, podIPInfo)
+
+	require.ErrorIs(t, err, ErrParsePodIPFailed)
+	require.Zero(t, countingStore.endpointWrites)
+	require.Empty(t, svc.EndpointState)
+}
+
+func TestUpdateEndpointStateWritesMultiIPStateOnce(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	countingStore := &endpointWriteCountingStore{KeyValueStore: svc.EndpointStateStore}
+	svc.EndpointStateStore = countingStore
+	req := cns.IPConfigsRequest{
+		InfraContainerID: testPod1Info.InfraContainerID(),
+		Ifname:           "eth0",
+	}
+	podIPInfo := []cns.PodIpInfo{
+		{PodIPConfig: cns.IPSubnet{IPAddress: testIP1, PrefixLength: ipPrefixBitsv4}},
+		{PodIPConfig: cns.IPSubnet{IPAddress: testIP1v6, PrefixLength: ipPrefixBitsv6}},
+	}
+
+	err := svc.updateEndpointState(req, testPod1Info, podIPInfo)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, countingStore.endpointWrites)
+	ipInfo := svc.EndpointState[testPod1Info.InfraContainerID()].IfnameToIPMap[req.Ifname]
+	require.Len(t, ipInfo.IPv4, 1)
+	require.Len(t, ipInfo.IPv6, 1)
+}
+
+type endpointWriteCountingStore struct {
+	store.KeyValueStore
+	endpointWrites int
+}
+
+func (s *endpointWriteCountingStore) Write(key string, value interface{}) error {
+	if key == EndpointStoreKey {
+		s.endpointWrites++
+	}
+	if err := s.KeyValueStore.Write(key, value); err != nil {
+		return fmt.Errorf("writing key %q: %w", key, err)
+	}
+	return nil
+}
+
 // assign the available IP to the new pod
 func TestIPAMGetAvailableIPConfig(t *testing.T) {
 	testNcs := [][]ncState{
