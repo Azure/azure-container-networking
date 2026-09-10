@@ -97,7 +97,7 @@ func (s *Server) Ready(ctx context.Context) error {
 // of the steps to make the Device available in the container
 // We are not using this functionality currently
 func (s *Server) Allocate(_ context.Context, req *v1beta1.AllocateRequest) (*v1beta1.AllocateResponse, error) {
-	s.logger.Info("allocate request", zap.Any("req", *req))
+	s.logger.Info("allocate request", zap.Any("req", req))
 	crs := req.GetContainerRequests()
 	resps := make([]*v1beta1.ContainerAllocateResponse, len(crs))
 	for i, containerReq := range crs {
