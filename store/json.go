@@ -122,9 +122,25 @@ func (kvs *jsonFileStore) Write(key string, value interface{}) error {
 		return err
 	}
 
+	if kvs.data == nil {
+		kvs.data = make(map[string]*json.RawMessage, 1)
+	}
+
+	// Stage the new value, then roll it back if the store cannot be persisted, so
+	// that a failed write never leaks into a later successful flush.
+	previous, existed := kvs.data[key]
 	kvs.data[key] = &raw
 
-	return kvs.flush()
+	if err := kvs.flush(); err != nil {
+		if existed {
+			kvs.data[key] = previous
+		} else {
+			delete(kvs.data, key)
+		}
+		return err
+	}
+
+	return nil
 }
 
 // Flush commits in-memory state to persistent store.
@@ -176,6 +192,7 @@ func (kvs *jsonFileStore) flush() error {
 		return fmt.Errorf("rename temp file to state file failed:%v", err)
 	}
 
+	kvs.inSync = true
 	return nil
 }
 

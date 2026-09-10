@@ -5,6 +5,7 @@ package store
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -155,6 +156,54 @@ func TestKeyValuePairsAreWrittenAndReadCorrectly(t *testing.T) {
 
 	// Cleanup.
 	os.Remove(testFileName)
+}
+
+func TestFailedWriteDoesNotPersistOnLaterWrite(t *testing.T) {
+	storeDir := filepath.Join(t.TempDir(), "missing")
+	storePath := filepath.Join(storeDir, testFileName)
+	kvs, err := NewJsonFileStore(storePath, processlock.NewMockFileLock(false), nil)
+	require.NoError(t, err)
+
+	err = kvs.Write(testKey1, &testType1{"failed", 1})
+	require.Error(t, err)
+
+	require.NoError(t, os.MkdirAll(storeDir, 0o755))
+	require.NoError(t, kvs.Write(testKey2, &testType1{"persisted", 2}))
+
+	reloaded, err := NewJsonFileStore(storePath, processlock.NewMockFileLock(false), nil)
+	require.NoError(t, err)
+
+	var value testType1
+	require.ErrorIs(t, reloaded.Read(testKey1, &value), ErrKeyNotFound)
+	require.NoError(t, reloaded.Read(testKey2, &value))
+	require.Equal(t, testType1{"persisted", 2}, value)
+}
+
+// TestFailedOverwriteRestoresPreviousValue covers the rollback path for a key
+// that already holds a value: a failed write must restore the prior value
+// rather than leaving the rejected one in the cache.
+func TestFailedOverwriteRestoresPreviousValue(t *testing.T) {
+	storeDir := t.TempDir()
+	storePath := filepath.Join(storeDir, testFileName)
+	kvs, err := NewJsonFileStore(storePath, processlock.NewMockFileLock(false), nil)
+	require.NoError(t, err)
+
+	require.NoError(t, kvs.Write(testKey1, &testType1{"original", 1}))
+
+	// Remove the directory so the temp-file flush fails even when tests run as root.
+	require.NoError(t, os.RemoveAll(storeDir))
+
+	require.Error(t, kvs.Write(testKey1, &testType1{"rejected", 2}))
+
+	require.NoError(t, os.MkdirAll(storeDir, 0o700))
+	require.NoError(t, kvs.Write(testKey2, &testType1{"later", 3}))
+
+	reloaded, err := NewJsonFileStore(storePath, processlock.NewMockFileLock(false), nil)
+	require.NoError(t, err)
+
+	var value testType1
+	require.NoError(t, reloaded.Read(testKey1, &value))
+	require.Equal(t, testType1{"original", 1}, value, "rejected write must not survive a later flush")
 }
 
 // test case for testing newjsonfilestore idempotent
