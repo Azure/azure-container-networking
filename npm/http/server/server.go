@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/http/pprof"
+	// registers the pprof handlers on the default mux, which is mounted at the pprof
+	// prefix when profiling is enabled.
+	_ "net/http/pprof"
 	"time"
 
 	"github.com/Azure/azure-container-networking/log"
@@ -82,12 +84,13 @@ func NPMRestServerListenAndServe(config npmconfig.Config, npmEncoder json.Marsha
 	}
 
 	if config.Toggles.EnablePprof {
-		rs.router.PathPrefix("/debug/").Handler(loopbackOnly(http.DefaultServeMux))
-		rs.router.Handle("/debug/pprof/", loopbackOnly(http.HandlerFunc(pprof.Index)))
-		rs.router.Handle("/debug/pprof/cmdline", loopbackOnly(http.HandlerFunc(pprof.Cmdline)))
-		rs.router.Handle("/debug/pprof/profile", loopbackOnly(http.HandlerFunc(pprof.Profile)))
-		rs.router.Handle("/debug/pprof/symbol", loopbackOnly(http.HandlerFunc(pprof.Symbol)))
-		rs.router.Handle("/debug/pprof/trace", loopbackOnly(http.HandlerFunc(pprof.Trace)))
+		// net/http/pprof registers every profile handler on the default mux under this
+		// prefix, including subpaths such as /debug/pprof/goroutine that naming the
+		// handlers individually used to miss. The prefix has no trailing slash so that
+		// /debug/pprof still reaches the mux, which redirects it to the index. Mounting at
+		// the pprof prefix rather than at /debug/ also keeps anything else later registered
+		// on the default mux from being served here.
+		rs.router.PathPrefix("/debug/pprof").Handler(loopbackOnly(http.DefaultServeMux))
 	}
 
 	// use default listening address if none is specified

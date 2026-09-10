@@ -198,3 +198,57 @@ func TestLoopbackOnlyGuardsBeforeHandler(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, rr.Code)
 	require.Empty(t, encoder.entered, "the cache must not be encoded for a rejected request")
 }
+
+// Remote addresses used by the routing and guard cases below.
+const (
+	nodeLoopbackAddr = "127.0.0.1:1"
+	podAddr          = "10.244.1.7:1"
+	// anyRedirect asks for a redirect of any code rather than a specific status.
+	anyRedirect = -1
+)
+
+// TestPprofRoutesAreMountedAtTheProfilePrefix covers the routing for the profiling handlers:
+// every pprof subpath must be served, the routes must stay behind the loopback guard, and
+// nothing else on the default mux may be reachable through /debug/.
+func TestPprofRoutesAreMountedAtTheProfilePrefix(t *testing.T) {
+	http.DefaultServeMux.HandleFunc("/debug/unrelated", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	router := mux.NewRouter()
+	router.PathPrefix("/debug/pprof").Handler(loopbackOnly(http.DefaultServeMux))
+
+	tests := []struct {
+		name       string
+		path       string
+		remoteAddr string
+		wantCode   int
+	}{
+		{"pprof index from the node", "/debug/pprof/", nodeLoopbackAddr, http.StatusOK},
+		{"pprof cmdline from the node", "/debug/pprof/cmdline", nodeLoopbackAddr, http.StatusOK},
+		// a subpath that naming each handler individually did not cover
+		{"pprof goroutine from the node", "/debug/pprof/goroutine", nodeLoopbackAddr, http.StatusOK},
+		// without the trailing slash the mux redirects to the index rather than 404ing.
+		// The exact redirect code is the mux's choice, so only the class is asserted.
+		{"pprof index without a trailing slash", "/debug/pprof", nodeLoopbackAddr, anyRedirect},
+		{"pprof index from a pod", "/debug/pprof/", podAddr, http.StatusForbidden},
+		{"pprof goroutine from a pod", "/debug/pprof/goroutine", podAddr, http.StatusForbidden},
+		// anything else on the default mux must not be reachable through this router
+		{"unrelated default mux route", "/debug/unrelated", nodeLoopbackAddr, http.StatusNotFound},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, tt.path, http.NoBody)
+			req.RemoteAddr = tt.remoteAddr
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, req)
+			if tt.wantCode == anyRedirect {
+				require.GreaterOrEqual(t, rr.Code, http.StatusMultipleChoices)
+				require.Less(t, rr.Code, http.StatusBadRequest)
+				return
+			}
+			require.Equal(t, tt.wantCode, rr.Code)
+		})
+	}
+}
