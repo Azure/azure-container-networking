@@ -47,6 +47,11 @@ var (
 	// requirements would produce more labelSelectors than NPM is willing to translate. The count is
 	// the product of the value counts, so it grows exponentially with the number of such requirements.
 	ErrTooManyFlattenedSelectors = errors.New("namespaceSelector expands into too many label selectors")
+	// ErrTooManySelectorMatches is returned when a namespaceSelector expands into more set matches
+	// than NPM is willing to translate. A multi-value NotIn contributes one match per value while
+	// staying in a single selector, so it is counted by neither the flattened-selector bound nor the
+	// per-policy rule budget, yet each match becomes its own IPSet and its own condition on a rule.
+	ErrTooManySelectorMatches = errors.New("namespaceSelector expands into too many set matches")
 	// ErrTooManyACLs is returned when a NetworkPolicy translates into more ACLs than NPM is
 	// willing to program. ACL count multiplies rather than adds: flattened selector branches are
 	// emitted per port, summed across peers and rules, so bounding selectors alone is not enough.

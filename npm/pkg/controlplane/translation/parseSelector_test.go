@@ -984,3 +984,58 @@ func TestPeerAndPortRuleBudgetStopsWithinPortLoop(t *testing.T) {
 	require.LessOrEqual(t, len(npmNetPol.ACLs), maxACLsPerPolicy,
 		"the port loop must stop once the budget is spent instead of emitting an ACL for every port")
 }
+
+// TestNotInValuesAreBounded covers a long NotIn list. Compiling it as one conjunction keeps it
+// out of the flattened-selector count and out of the rule budget, because it stays a single
+// selector producing a single rule, but every value still becomes its own IPSet and its own
+// condition on that rule. The match bound is what stops it.
+func TestNotInValuesAreBounded(t *testing.T) {
+	values := make([]string, 0, maxSelectorMatches+1)
+	for i := 0; i <= maxSelectorMatches; i++ {
+		values = append(values, fmt.Sprintf("v%d", i))
+	}
+
+	selector := &metav1.LabelSelector{
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			{Key: tenantLabelKey, Operator: metav1.LabelSelectorOpNotIn, Values: values},
+		},
+	}
+
+	flattened, err := flattenNameSpaceSelector(selector)
+	require.ErrorIs(t, err, ErrTooManySelectorMatches,
+		"a NotIn list past the match bound must be refused")
+	require.Nil(t, flattened)
+
+	// the same policy is refused end to end, so no partial rules are installed
+	pol := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "wide-notin", Namespace: defaultNS},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{{
+				From: []networkingv1.NetworkPolicyPeer{{NamespaceSelector: selector}},
+			}},
+		},
+	}
+	npmNetPol, err := TranslatePolicy(pol, false)
+	require.ErrorIs(t, err, ErrTooManySelectorMatches)
+	require.Nil(t, npmNetPol)
+}
+
+// TestNotInValuesAtTheBoundAreAccepted keeps the bound from rejecting a selector that sits
+// exactly on it, and guards the ordinary small NotIn that real policies use.
+func TestNotInValuesAtTheBoundAreAccepted(t *testing.T) {
+	values := make([]string, 0, maxSelectorMatches)
+	for i := 0; i < maxSelectorMatches; i++ {
+		values = append(values, fmt.Sprintf("v%d", i))
+	}
+
+	flattened, err := flattenNameSpaceSelector(&metav1.LabelSelector{
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			{Key: tenantLabelKey, Operator: metav1.LabelSelectorOpNotIn, Values: values},
+		},
+	})
+	require.NoError(t, err, "a selector exactly on the bound must translate")
+	require.Len(t, flattened, 1, "a NotIn stays a single conjunction")
+	require.Len(t, flattened[0].MatchExpressions, maxSelectorMatches)
+}
