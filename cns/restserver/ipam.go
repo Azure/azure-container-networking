@@ -29,6 +29,7 @@ var (
 	ErrOptManageEndpointState = errors.New("CNS is not set to manage the endpoint state")
 	ErrEndpointStateNotFound  = errors.New("endpoint state could not be found in the statefile")
 	ErrGetAllNCResponseEmpty  = errors.New("failed to get NC responses from statefile")
+	ErrEndpointStateUpdate    = errors.New("endpoint state update failed")
 )
 
 const (
@@ -73,11 +74,21 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 
 	// record a pod requesting an IP
 	service.podsPendingIPAssignment.Push(podInfo.Key())
-	podIPInfo, err := requestIPConfigsHelper(service, ipconfigsRequest) //nolint:contextcheck // appease linter for revert PR
+	var podIPInfo []cns.PodIpInfo
+	var err error
+	if service.Options[common.OptManageEndpointState] == true {
+		podIPInfo, err = service.requestIPConfigsWithEndpointState(ctx, ipconfigsRequest, podInfo)
+	} else {
+		podIPInfo, err = requestIPConfigsHelper(service, ipconfigsRequest) //nolint:contextcheck // appease linter for revert PR
+	}
 	if err != nil {
+		returnCode := types.FailedToAllocateIPConfig
+		if errors.Is(err, ErrEndpointStateUpdate) || errors.Is(err, ErrStoreEmpty) {
+			returnCode = types.UnexpectedError
+		}
 		return &cns.IPConfigsResponse{
 			Response: cns.Response{
-				ReturnCode: types.FailedToAllocateIPConfig,
+				ReturnCode: returnCode,
 				Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %v", err, ipconfigsRequest),
 			},
 			PodIPInfo: podIPInfo,
@@ -92,20 +103,6 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 		}
 	}()
 
-	// Check if http rest service managed endpoint state is set
-	if service.Options[common.OptManageEndpointState] == true {
-		err = service.updateEndpointState(ipconfigsRequest, podInfo, podIPInfo)
-		if err != nil {
-			return &cns.IPConfigsResponse{
-				Response: cns.Response{
-					ReturnCode: types.UnexpectedError,
-					Message:    fmt.Sprintf("Update endpoint state failed: %v ", err),
-				},
-				PodIPInfo: podIPInfo,
-			}, err
-		}
-	}
-
 	podIPInfoResult = append(podIPInfoResult, podIPInfo...)
 	return &cns.IPConfigsResponse{
 		Response: cns.Response{
@@ -113,6 +110,34 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 		},
 		PodIPInfo: podIPInfoResult,
 	}, nil
+}
+
+func (service *HTTPRestService) requestIPConfigsWithEndpointState(ctx context.Context, ipconfigsRequest cns.IPConfigsRequest, podInfo cns.PodInfo) ([]cns.PodIpInfo, error) {
+	if service.EndpointStateStore == nil {
+		return nil, ErrStoreEmpty
+	}
+
+	service.Lock()
+	defer service.Unlock()
+
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("ip config request canceled: %w", err)
+	}
+
+	podIPInfo, newlyAssigned, err := requestIPConfigsHelperUntransacted(service, ipconfigsRequest, podInfo) //nolint:contextcheck // legacy helper uses context.TODO for cached host interface lookup
+	if err != nil {
+		return podIPInfo, err
+	}
+
+	if err := service.updateEndpointStateUntransacted(ipconfigsRequest, podInfo, podIPInfo); err != nil {
+		if newlyAssigned {
+			if rollbackErr := service.releaseIPConfigsUntransacted(podInfo); rollbackErr != nil {
+				return podIPInfo, fmt.Errorf("%w: %w; rolling back newly assigned IPs: %w", ErrEndpointStateUpdate, err, rollbackErr)
+			}
+		}
+		return podIPInfo, fmt.Errorf("%w: %w", ErrEndpointStateUpdate, err)
+	}
+	return podIPInfo, nil
 }
 
 // requestIPConfigHandlerHelperStandalone validates the request, assign IPs and return the IPConfigs
@@ -332,12 +357,6 @@ func (service *HTTPRestService) RequestIPConfigsHandler(w http.ResponseWriter, r
 	logger.ResponseEx(opName, ipconfigsRequest, ipConfigsResp, ipConfigsResp.Response.ReturnCode, err)
 }
 
-func (service *HTTPRestService) updateEndpointState(ipconfigsRequest cns.IPConfigsRequest, podInfo cns.PodInfo, podIPInfo []cns.PodIpInfo) error {
-	service.Lock()
-	defer service.Unlock()
-	return service.updateEndpointStateUntransacted(ipconfigsRequest, podInfo, podIPInfo)
-}
-
 func (service *HTTPRestService) updateEndpointStateUntransacted(ipconfigsRequest cns.IPConfigsRequest, podInfo cns.PodInfo, podIPInfo []cns.PodIpInfo) error {
 	if service.EndpointStateStore == nil {
 		return ErrStoreEmpty
@@ -418,18 +437,16 @@ func (service *HTTPRestService) ReleaseIPConfigHandlerHelper(ctx context.Context
 	}
 	// Check if http rest service managed endpoint state is set
 	if service.Options[common.OptManageEndpointState] == true {
-		if err := service.removeEndpointState(podInfo); err != nil {
+		if err := service.releaseIPConfigsWithEndpointState(podInfo); err != nil {
 			resp := &cns.IPConfigsResponse{
 				Response: cns.Response{
 					ReturnCode: types.UnexpectedError,
 					Message:    err.Error(),
 				},
 			}
-			return resp, fmt.Errorf("ReleaseIPConfigHandlerHelper remove endpoint state failed : %v, release IP config info %+v", resp.Response.Message, ipconfigsRequest) //nolint:goerr113 // return error
+			return resp, fmt.Errorf("releasing IP configs with endpoint state: %w", err)
 		}
-	}
-
-	if err := service.releaseIPConfigs(podInfo); err != nil {
+	} else if err := service.releaseIPConfigs(podInfo); err != nil {
 		return &cns.IPConfigsResponse{
 			Response: cns.Response{
 				ReturnCode: types.UnexpectedError,
@@ -444,6 +461,20 @@ func (service *HTTPRestService) ReleaseIPConfigHandlerHelper(ctx context.Context
 			Message:    "",
 		},
 	}, nil
+}
+
+func (service *HTTPRestService) releaseIPConfigsWithEndpointState(podInfo cns.PodInfo) error {
+	if service.EndpointStateStore == nil {
+		return ErrStoreEmpty
+	}
+
+	service.Lock()
+	defer service.Unlock()
+
+	if err := service.removeEndpointStateUntransacted(podInfo); err != nil {
+		return err
+	}
+	return service.releaseIPConfigsUntransacted(podInfo)
 }
 
 // ReleaseIPConfigHandler frees the IP assigned to a pod from CNS
@@ -530,12 +561,6 @@ func (service *HTTPRestService) ReleaseIPConfigsHandler(w http.ResponseWriter, r
 	w.Header().Set(cnsReturnCode, resp.Response.ReturnCode.String())
 	err = common.Encode(w, &resp)
 	logger.ResponseEx(opName, ipconfigsRequest, resp, resp.Response.ReturnCode, err)
-}
-
-func (service *HTTPRestService) removeEndpointState(podInfo cns.PodInfo) error {
-	service.Lock()
-	defer service.Unlock()
-	return service.removeEndpointStateUntransacted(podInfo)
 }
 
 func (service *HTTPRestService) removeEndpointStateUntransacted(podInfo cns.PodInfo) error {
@@ -830,6 +855,10 @@ func (service *HTTPRestService) unassignIPConfig(ipconfig cns.IPConfigurationSta
 func (service *HTTPRestService) releaseIPConfigs(podInfo cns.PodInfo) error {
 	service.Lock()
 	defer service.Unlock()
+	return service.releaseIPConfigsUntransacted(podInfo)
+}
+
+func (service *HTTPRestService) releaseIPConfigsUntransacted(podInfo cns.PodInfo) error {
 	ipsToBeReleased := make([]cns.IPConfigurationStatus, 0)
 	logger.Printf("[releaseIPConfigs] Releasing pod with key %s", podInfo.Key())
 	for i, ipID := range service.PodIPIDByPodInterfaceKey[podInfo.Key()] {
@@ -894,11 +923,7 @@ func (service *HTTPRestService) MarkExistingIPsAsPendingRelease(pendingIPIDs []s
 	return nil
 }
 
-// Returns the current IP configs for a pod if they exist
-func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) ([]cns.PodIpInfo, bool, error) {
-	service.RLock()
-	defer service.RUnlock()
-
+func (service *HTTPRestService) getExistingIPConfigUntransacted(podInfo cns.PodInfo) ([]cns.PodIpInfo, bool, error) {
 	numIPConfigs := len(service.PodIPIDByPodInterfaceKey[podInfo.Key()])
 	podIPInfo := make([]cns.PodIpInfo, numIPConfigs)
 	ipConfigExists := false
@@ -922,11 +947,7 @@ func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) ([]cns.
 	return podIPInfo, ipConfigExists, nil
 }
 
-// Assigns a pod with all IPs desired
-func (service *HTTPRestService) AssignDesiredIPConfigs(podInfo cns.PodInfo, desiredIPAddresses []string) ([]cns.PodIpInfo, error) {
-	service.Lock()
-	defer service.Unlock()
-
+func (service *HTTPRestService) assignDesiredIPConfigsUntransacted(podInfo cns.PodInfo, desiredIPAddresses []string) ([]cns.PodIpInfo, error) {
 	// Gets the number of NCs which will determine the number of IPs given to a pod
 	numOfNCs := len(service.state.ContainerStatus)
 	// checks to make sure we have NCs before trying to get IPs
@@ -1024,9 +1045,9 @@ func (service *HTTPRestService) AssignDesiredIPConfigs(podInfo cns.PodInfo, desi
 	return podIPInfo, nil
 }
 
-// Assigns an available IP from each NC on the NNC. If there is one NC then we expect to only have one IP return
-// In the case of dualstack we would expect to have one IPv6 from one NC and one IPv4 from a second NC
-func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([]cns.PodIpInfo, error) {
+// assignAvailableIPConfigsUntransacted assigns an available IP from each NC on the NNC.
+// In dual-stack configurations, it assigns one IPv4 and one IPv6 address.
+func (service *HTTPRestService) assignAvailableIPConfigsUntransacted(podInfo cns.PodInfo) ([]cns.PodIpInfo, error) {
 	// Gets the number of NCs which will determine the number of IPs given to a pod
 	numOfNCs := len(service.state.ContainerStatus)
 	// if there are no NCs on the NNC there will be no IPs in the pool so return error
@@ -1040,8 +1061,6 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 	// Get the actual IP families map for validation
 	ncIPFamilies := service.getIPFamiliesMap()
 
-	service.Lock()
-	defer service.Unlock()
 	// Creates a slice of PodIpInfo with the size as number of NCs to hold the result for assigned IP configs
 	podIPInfo := make([]cns.PodIpInfo, numberOfIPs)
 	// This map is used to store whether or not we have found an available IP from an NC when looping through the pool
@@ -1139,20 +1158,29 @@ func requestIPConfigsHelper(service *HTTPRestService, req cns.IPConfigsRequest) 
 		return []cns.PodIpInfo{}, errors.Wrapf(err, "failed to parse IPConfigsRequest %v", req)
 	}
 
-	if podIPInfo, isExist, err := service.GetExistingIPConfig(podInfo); err != nil || isExist {
-		return podIPInfo, err
+	service.Lock()
+	defer service.Unlock()
+	podIPInfo, _, err := requestIPConfigsHelperUntransacted(service, req, podInfo)
+	return podIPInfo, err
+}
+
+func requestIPConfigsHelperUntransacted(service *HTTPRestService, req cns.IPConfigsRequest, podInfo cns.PodInfo) ([]cns.PodIpInfo, bool, error) {
+	if podIPInfo, isExist, err := service.getExistingIPConfigUntransacted(podInfo); err != nil || isExist {
+		return podIPInfo, false, err
 	}
 
 	// if the desired IP configs are not specified, assign any free IPConfigs
 	if len(req.DesiredIPAddresses) == 0 {
-		return service.AssignAvailableIPConfigs(podInfo)
+		podIPInfo, err := service.assignAvailableIPConfigsUntransacted(podInfo)
+		return podIPInfo, err == nil, err
 	}
 
 	if err := validateDesiredIPAddresses(req.DesiredIPAddresses); err != nil {
-		return []cns.PodIpInfo{}, err
+		return []cns.PodIpInfo{}, false, err
 	}
 
-	return service.AssignDesiredIPConfigs(podInfo, req.DesiredIPAddresses)
+	podIPInfo, err := service.assignDesiredIPConfigsUntransacted(podInfo, req.DesiredIPAddresses)
+	return podIPInfo, err == nil, err
 }
 
 // checks all desired IPs for a request to make sure they are all valid
