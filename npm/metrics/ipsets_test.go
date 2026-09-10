@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/npm/metrics/promutil"
@@ -203,4 +204,55 @@ func TestResetIPSetEntries(t *testing.T) {
 	ResetIPSetEntries()
 	assertNumEntriesAndCounts(t, &testSet{testName1, 0}, &testSet{testName2, 0})
 	assertMapIsGood(t)
+}
+
+// TestIPSetInventorySeriesAreBounded covers the cardinality bound on ipset_counts. NPM makes
+// a set per distinct pod label, so without a bound a single pod's labels decide how many
+// series every node holds and how large the metrics response is. The aggregate counters must
+// stay exact regardless, since they are what NPM and its operators actually count on.
+func TestIPSetInventorySeriesAreBounded(t *testing.T) {
+	ResetIPSetEntries()
+	defer ResetIPSetEntries()
+
+	const over = maxIPSetInventorySeries + 500
+	for i := 0; i < over; i++ {
+		AddEntryToIPSet(fmt.Sprintf("podlabel-key%d:v%d", i, i))
+	}
+
+	require.Len(t, inventorySeries, maxIPSetInventorySeries,
+		"the number of reported series must stop at the bound")
+
+	// the aggregate is unaffected by the bound
+	entries, err := GetNumIPSetEntries()
+	promutil.NotifyIfErrors(t, err)
+	require.Equal(t, over, entries, "the total entry count must still be exact")
+
+	// a set that got a series still reports its own count
+	first, err := GetNumEntriesForIPSet("podlabel-key0:v0")
+	promutil.NotifyIfErrors(t, err)
+	require.Equal(t, 1, first)
+
+	// removing a reported set frees its slot for a new one
+	RemoveAllEntriesFromIPSet("podlabel-key0:v0")
+	require.Len(t, inventorySeries, maxIPSetInventorySeries-1)
+	AddEntryToIPSet("podlabel-fresh:v")
+	require.Contains(t, inventorySeries, "podlabel-fresh:v")
+}
+
+// TestIPSetInventoryUnboundedBelowLimit guards against the bound changing behaviour for a
+// cluster that stays under it, which is every real one.
+func TestIPSetInventoryUnboundedBelowLimit(t *testing.T) {
+	ResetIPSetEntries()
+	defer ResetIPSetEntries()
+
+	for i := 0; i < 500; i++ {
+		AddEntryToIPSet(fmt.Sprintf("podlabel-key%d:v%d", i, i))
+	}
+
+	require.Len(t, inventorySeries, 500)
+	for i := 0; i < 500; i++ {
+		count, err := GetNumEntriesForIPSet(fmt.Sprintf("podlabel-key%d:v%d", i, i))
+		promutil.NotifyIfErrors(t, err)
+		require.Equal(t, 1, count, "every set under the bound reports its own count")
+	}
 }

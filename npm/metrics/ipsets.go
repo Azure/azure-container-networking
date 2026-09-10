@@ -7,6 +7,21 @@ import (
 
 var ipsetInventoryMap map[string]int
 
+// inventorySeries holds the set names that ipset_counts currently reports, so the number of
+// series stays bounded and a set that is already reported keeps reporting.
+var inventorySeries map[string]struct{}
+
+// maxIPSetInventorySeries bounds how many individual ipsets the ipset_counts metric reports.
+// That series is labelled by set name, and NPM creates a set per distinct pod label, so its
+// cardinality follows workload labels rather than anything an operator controls: one pod
+// carrying tens of thousands of labels otherwise adds that many series on every node, which
+// both retains them in the agent and inflates the response built for each scrape of an
+// endpoint served on the host network. The aggregate counters stay exact past the bound and
+// nothing NPM does reads the breakdown, so only the per-set detail stops growing; an operator
+// can tell it is incomplete by comparing the reported series against num_ipsets. The bound is
+// far above the number of sets a cluster's namespaces, policies and workloads produce.
+const maxIPSetInventorySeries = 20000
+
 // AddPod increments the number of Pod IPs.
 func AddPod() {
 	podsWatched.Inc()
@@ -101,6 +116,7 @@ func ResetIPSetEntries() {
 		removeFromIPSetInventory(setName)
 	}
 	ipsetInventoryMap = make(map[string]int)
+	inventorySeries = make(map[string]struct{})
 }
 
 // GetNumIPSets returns the number of IPSets.
@@ -131,12 +147,30 @@ func GetIPSetExecCount() (int, error) {
 }
 
 func updateIPSetInventory(setName string) {
+	if !canReportIPSetInventory(setName) {
+		return
+	}
 	labels := getIPSetInventoryLabels(setName)
 	val := getEntryCountForIPSet(setName)
 	ipsetInventory.With(labels).Set(val)
 }
 
+// canReportIPSetInventory reports whether setName may hold a per-set series, claiming a slot
+// for it the first time. A set that already has a series keeps it, so an ipset's reported
+// count does not flap once established.
+func canReportIPSetInventory(setName string) bool {
+	if _, reported := inventorySeries[setName]; reported {
+		return true
+	}
+	if len(inventorySeries) >= maxIPSetInventorySeries {
+		return false
+	}
+	inventorySeries[setName] = struct{}{}
+	return true
+}
+
 func removeFromIPSetInventory(setName string) {
+	delete(inventorySeries, setName)
 	labels := getIPSetInventoryLabels(setName)
 	ipsetInventory.Delete(labels)
 }
