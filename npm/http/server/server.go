@@ -78,16 +78,16 @@ func NPMRestServerListenAndServe(config npmconfig.Config, npmEncoder json.Marsha
 	// the nil check is for fan-out npm
 	if config.Toggles.EnableHTTPDebugAPI && npmEncoder != nil {
 		// ACN CLI debug handlers
-		rs.router.Handle(api.NPMMgrPath, rs.npmCacheHandler(npmEncoder)).Methods(http.MethodGet)
+		rs.router.Handle(api.NPMMgrPath, loopbackOnly(rs.npmCacheHandler(npmEncoder))).Methods(http.MethodGet)
 	}
 
 	if config.Toggles.EnablePprof {
-		rs.router.PathPrefix("/debug/").Handler(http.DefaultServeMux)
-		rs.router.HandleFunc("/debug/pprof/", pprof.Index)
-		rs.router.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-		rs.router.HandleFunc("/debug/pprof/profile", pprof.Profile)
-		rs.router.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-		rs.router.HandleFunc("/debug/pprof/trace", pprof.Trace)
+		rs.router.PathPrefix("/debug/").Handler(loopbackOnly(http.DefaultServeMux))
+		rs.router.Handle("/debug/pprof/", loopbackOnly(http.HandlerFunc(pprof.Index)))
+		rs.router.Handle("/debug/pprof/cmdline", loopbackOnly(http.HandlerFunc(pprof.Cmdline)))
+		rs.router.Handle("/debug/pprof/profile", loopbackOnly(http.HandlerFunc(pprof.Profile)))
+		rs.router.Handle("/debug/pprof/symbol", loopbackOnly(http.HandlerFunc(pprof.Symbol)))
+		rs.router.Handle("/debug/pprof/trace", loopbackOnly(http.HandlerFunc(pprof.Trace)))
 	}
 
 	// use default listening address if none is specified
@@ -109,6 +109,31 @@ func NPMRestServerListenAndServe(config npmconfig.Config, npmEncoder json.Marsha
 	if err := srv.Serve(netutil.LimitListener(listener, maxConcurrentConns)); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		klog.Errorf("NPM HTTP Server stopped with error: %+v", err)
 	}
+}
+
+// loopbackOnly serves a request only when it originated on the node itself. The debug route
+// returns NPM's whole policy cache and the pprof routes expose the process, and both are
+// served on the host network of a privileged process, so every pod on the node can otherwise
+// reach them by reading its own node address. A pod has its own network namespace and cannot
+// reach the node's loopback, while the on-node tooling that consumes these routes connects
+// over localhost, so this keeps the routes available to their only caller and out of reach of
+// a tenant workload. The Prometheus routes are deliberately not wrapped: they are scraped
+// from off the node.
+func loopbackOnly(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		host, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
+		if ip := net.ParseIP(host); ip == nil || !ip.IsLoopback() {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (n *NPMRestServer) npmCacheHandler(npmCacheEncoder json.Marshaler) http.Handler {

@@ -137,3 +137,64 @@ func TestServerTimeoutsAreSet(t *testing.T) {
 	require.LessOrEqual(t, maxConcurrentCacheRequests, maxConcurrentConns,
 		"cache encodings must be bounded at or below the connection ceiling")
 }
+
+// TestLoopbackOnly covers the guard on the debug and pprof routes. NPM runs on the host
+// network of a privileged process, so before this guard any pod on the node could reach
+// those routes through its own node address; a pod cannot reach the node's loopback, and
+// the on-node tooling that consumes them connects over localhost.
+func TestLoopbackOnly(t *testing.T) {
+	served := false
+	handler := loopbackOnly(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		served = true
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	tests := []struct {
+		name       string
+		remoteAddr string
+		wantCode   int
+		wantServed bool
+	}{
+		{"IPv4 loopback", "127.0.0.1:54321", http.StatusOK, true},
+		{"IPv4 loopback range", "127.9.9.9:54321", http.StatusOK, true},
+		{"IPv6 loopback", "[::1]:54321", http.StatusOK, true},
+		// the address a pod on the node would come from
+		{"pod address", "10.244.1.7:54321", http.StatusForbidden, false},
+		// the node's own routable address, which a pod reads from the downward API
+		{"node address", "10.240.0.4:54321", http.StatusForbidden, false},
+		{"malformed remote address", "not-an-address", http.StatusForbidden, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			served = false
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, api.NPMMgrPath, http.NoBody)
+			req.RemoteAddr = tt.remoteAddr
+
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			require.Equal(t, tt.wantCode, rr.Code)
+			require.Equal(t, tt.wantServed, served, "whether the wrapped handler ran")
+		})
+	}
+}
+
+// TestLoopbackOnlyGuardsBeforeHandler makes sure a rejected request never reaches the cache
+// encoder. The encoding is the expensive part of the route, so the guard has to run first.
+func TestLoopbackOnlyGuardsBeforeHandler(t *testing.T) {
+	encoder := &blockingMarshaler{
+		entered: make(chan struct{}, 1),
+		release: make(chan struct{}),
+	}
+	n := &NPMRestServer{}
+	handler := loopbackOnly(n.npmCacheHandler(encoder))
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, api.NPMMgrPath, http.NoBody)
+	req.RemoteAddr = "10.244.1.7:54321"
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusForbidden, rr.Code)
+	require.Empty(t, encoder.entered, "the cache must not be encoded for a rejected request")
+}
