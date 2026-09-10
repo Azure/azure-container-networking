@@ -1039,3 +1039,25 @@ func TestNotInValuesAtTheBoundAreAccepted(t *testing.T) {
 	require.Len(t, flattened, 1, "a NotIn stays a single conjunction")
 	require.Len(t, flattened[0].MatchExpressions, maxSelectorMatches)
 }
+
+// TestMatchLabelsOnlySelectorIsBounded covers a selector that carries only matchLabels. It
+// takes a shortcut past the expression handling, but each label still becomes its own match,
+// so the bound has to be applied before that shortcut.
+func TestMatchLabelsOnlySelectorIsBounded(t *testing.T) {
+	labels := make(map[string]string, maxSelectorMatches+1)
+	for i := 0; i <= maxSelectorMatches; i++ {
+		labels[fmt.Sprintf("key%d", i)] = "v"
+	}
+
+	flattened, err := flattenNameSpaceSelector(&metav1.LabelSelector{MatchLabels: labels})
+	require.ErrorIs(t, err, ErrTooManySelectorMatches,
+		"a matchLabels-only selector past the bound must be refused")
+	require.Nil(t, flattened)
+
+	// an ordinary selector is untouched
+	ok, err := flattenNameSpaceSelector(&metav1.LabelSelector{
+		MatchLabels: map[string]string{"team": teamBlueValue},
+	})
+	require.NoError(t, err)
+	require.Len(t, ok, 1)
+}

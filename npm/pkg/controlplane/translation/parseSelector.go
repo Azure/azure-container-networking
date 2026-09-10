@@ -84,15 +84,11 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelS
 		return []metav1.LabelSelector{}, nil
 	}
 
-	if len(nsSelector.MatchExpressions) == 0 {
-		return []metav1.LabelSelector{*nsSelector}, nil
-	}
-
-	// Bound how far this selector expands, before anything is allocated. A multi-value NotIn
-	// stays inside a single selector, so it is invisible to both the selector-count bound
-	// further down and the per-policy rule budget, yet every one of its values becomes its own
-	// IPSet and its own condition on one rule. Counting the matches the selector will produce
-	// is what catches that.
+	// Bound how many matches this selector produces, before anything is allocated and before
+	// the matchLabels-only shortcut below, since those labels each become a match too. A
+	// multi-value NotIn stays inside a single selector, so it is invisible to both the
+	// selector-count bound further down and the per-policy rule budget, yet every one of its
+	// values becomes its own IPSet and its own condition on one rule.
 	matches := len(nsSelector.MatchLabels)
 	for _, req := range nsSelector.MatchExpressions {
 		if req.Operator == metav1.LabelSelectorOpNotIn {
@@ -106,6 +102,10 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelS
 	if matches > maxSelectorMatches {
 		return nil, fmt.Errorf("selector expands into %d matches, past the %d limit: %w",
 			matches, maxSelectorMatches, ErrTooManySelectorMatches)
+	}
+
+	if len(nsSelector.MatchExpressions) == 0 {
+		return []metav1.LabelSelector{*nsSelector}, nil
 	}
 
 	// create a baseSelector which needs to be same across all
