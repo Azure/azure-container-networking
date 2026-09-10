@@ -30,6 +30,7 @@ const (
 	blockedLabelKey  string = "blocked"
 	teamBlueValue    string = "blue"
 	lowerHalfNomatch string = "0.0.0.0/1 nomatch"
+	exceptedClassA   string = "200.0.0.0/8"
 	ingressName      string = "ingress"
 	egressName       string = "egress"
 )
@@ -4078,5 +4079,62 @@ func TestTranslatePolicyNegationOnlyOperators(t *testing.T) {
 				require.Equal(t, []string{util.KubeAllNamespacesFlag}, positives)
 			})
 		}
+	}
+}
+
+// TestIPBlockExceptCanonicalizationKeepsEveryExcept locks the member packing now that except
+// CIDRs are canonicalized first. Canonicalizing can turn an except into one of the two halves
+// that 0.0.0.0/0 is split into, which takes a different branch of the packing loop and shortens
+// the member list, so every other except must still survive that, whatever order they arrive in.
+func TestIPBlockExceptCanonicalizationKeepsEveryExcept(t *testing.T) {
+	if util.IsWindowsDP() {
+		t.Skip("the Windows datapath refuses any except on this path")
+	}
+
+	tests := []struct {
+		name   string
+		cidr   string
+		except []string
+		want   []string
+	}{
+		{
+			name:   "except canonicalizes onto the lower half, listed last",
+			cidr:   "0.0.0.0/0",
+			except: []string{exceptedClassA, "10.0.0.0/1"},
+			want:   []string{lowerHalfNomatch, "128.0.0.0/1", exceptedClassA + " nomatch"},
+		},
+		{
+			name:   "same excepts in the other order",
+			cidr:   "0.0.0.0/0",
+			except: []string{"10.0.0.0/1", exceptedClassA},
+			want:   []string{lowerHalfNomatch, "128.0.0.0/1", exceptedClassA + " nomatch"},
+		},
+		{
+			name:   "a split-half except between two ordinary ones",
+			cidr:   "0.0.0.0/0",
+			except: []string{exceptedClassA, "10.0.0.0/1", "9.0.0.0/8"},
+			want:   []string{lowerHalfNomatch, "128.0.0.0/1", exceptedClassA + " nomatch", "9.0.0.0/8 nomatch"},
+		},
+		{
+			name:   "both halves reached by canonicalization",
+			cidr:   "0.0.0.0/0",
+			except: []string{exceptedClassA, "250.0.0.0/1", "10.0.0.0/1"},
+			want:   []string{lowerHalfNomatch, "128.0.0.0/1 nomatch", exceptedClassA + " nomatch"},
+		},
+		{
+			name:   "a non-canonical all-addresses block behaves the same",
+			cidr:   "10.0.0.0/0",
+			except: []string{exceptedClassA, "10.0.0.0/1"},
+			want:   []string{lowerHalfNomatch, "128.0.0.0/1", exceptedClassA + " nomatch"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			set, err := ipBlockIPSet("p", defaultNS, policies.Ingress, 0, 0,
+				&networkingv1.IPBlock{CIDR: tt.cidr, Except: tt.except})
+			require.NoError(t, err)
+			require.Equal(t, tt.want, set.Members)
+		})
 	}
 }
