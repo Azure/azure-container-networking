@@ -347,6 +347,19 @@ var args = acn.ArgumentList{
 		Type:         "string",
 		DefaultValue: "",
 	},
+	{
+		Name:         acn.OptServiceAction,
+		Shorthand:    acn.OptServiceActionAlias,
+		Description:  "Windows service action: install, uninstall, or run as service",
+		Type:         "string",
+		DefaultValue: "",
+		ValueMap: map[string]interface{}{
+			acn.OptServiceInstall:   0,
+			acn.OptServiceUninstall: 0,
+			acn.OptServiceRun:       0,
+			"":                      0,
+		},
+	},
 }
 
 // init() is executed before main() whenever this package is imported
@@ -522,9 +535,19 @@ func main() {
 	telemetryDaemonEnabled := acn.GetArg(acn.OptTelemetryService).(bool)
 	cniConflistFilepathArg := acn.GetArg(acn.OptCNIConflistFilepath).(string)
 	cniConflistScenarioArg := acn.GetArg(acn.OptCNIConflistScenario).(string)
+	serviceAction := acn.GetArg(acn.OptServiceAction).(string)
 
 	if vers {
 		printVersion()
+		os.Exit(0)
+	}
+
+	exit, serviceErr := handleServiceAction(serviceAction)
+	if serviceErr != nil {
+		fmt.Fprintf(os.Stderr, "Service action failed: %v\n", serviceErr)
+		os.Exit(1)
+	}
+	if exit {
 		os.Exit(0)
 	}
 
