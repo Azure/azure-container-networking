@@ -2,10 +2,8 @@ package translation
 
 import (
 	"fmt"
-
 	"regexp"
 
-	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,38 +14,73 @@ import (
 // an alphanumeric character (e.g. 'MyValue',  or 'my_value',  or '12345', regex used for validation is '(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?'
 var validLabelRegex = regexp.MustCompile("(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?")
 
+// maxTotalSelectorMatches bounds the set matches a namespaceSelector produces across every
+// branch it fans out into. A multi-value In repeats the whole selector once per value, so the
+// cost is the branch count multiplied by the matches in each branch; bounding either factor on
+// its own leaves a wide selector repeated across many branches unbounded, and the translator
+// materializes an IPSet and a SetInfo for each before the per-policy rule budget is consulted.
+const maxTotalSelectorMatches = 10000
+
+// maxSelectorMatches bounds how many set matches a single namespaceSelector may expand into.
+// Each match becomes its own IPSet and its own condition on the rule the selector produces, and
+// a multi-value NotIn contributes one per value while staying in a single selector, so it is
+// counted by neither maxFlattenedNSSelectors nor the per-policy rule budget. The bound is the
+// same ceiling used for the selector count, and is far above any workable selector.
+const maxSelectorMatches = maxFlattenedNSSelectors
+
+// maxFlattenedNSSelectors caps how many labelSelectors a single namespaceSelector may be
+// flattened into. Flattening multi-value In requirements produces the Cartesian product of
+// their values, and each resulting selector is deep-copied and later turned into its own
+// IPSet and ACL, so the cost grows exponentially with the number of such requirements. The
+// cap is far above any workable policy (a selector fanning out this wide would already be
+// unusable as iptables rules) while keeping a crafted selector from exhausting memory.
+const maxFlattenedNSSelectors = 1000
+
 // flattenNameSpaceSelector will help flatten multiple nameSpace selector match Expressions values
 // into multiple label selectors helping with the OR condition.
 func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelSelector, error) {
 	/*
-			This function helps to create multiple labelSelectors when given a single multivalue nsSelector
-			Take below example: this nsSelector has 2 values in a matchSelector.
+			This function helps to create multiple labelSelectors when given a single multivalue nsSelector.
+
+			The two multi-value operators are handled differently because they carry different semantics:
+
+			In: a multi-value In is a disjunction (OR) over its values, so it is fanned out into one
+			labelSelector per value. Take below example with 2 values in a matchExpression:
 			- namespaceSelector:
 		        matchExpressions:
 		        - key: ns
-		          operator: NotIn
+		          operator: In
 		          values:
 		          - netpol-x
 		          - netpol-y
 
-			goal is to convert this single nsSelector into multiple nsSelectors to preserve OR condition
-			between multiple values of the matchExpr i.e. this function will return
+			becomes
 
 			- namespaceSelector:
 		        matchExpressions:
 		        - key: ns
-		          operator: NotIn
+		          operator: In
 		          values:
 		          - netpol-x
 			- namespaceSelector:
 		        matchExpressions:
 		        - key: ns
-		          operator: NotIn
+		          operator: In
 		          values:
 		          - netpol-y
 
-			then, translate policy will replicate each of these nsSelectors to add two different rules in iptables,
-			resulting in OR condition between the values.
+			then, translate policy will replicate each of these nsSelectors to add two different rules,
+			resulting in the OR condition between the values.
+
+			NotIn: a multi-value NotIn is a single set-membership conjunction, i.e.
+			ns NotIn [x, y] means (ns != x AND ns != y). It must NOT be fanned out into separate
+			selectors, because each generated selector becomes an independent allow rule and allow
+			rules are additive (OR): a namespace carrying one excluded value would still match the
+			rule negating the other value and be admitted. Instead, every value is kept as its own
+			single-value NotIn requirement within the same selector, so all negated conditions land
+			in a single decision (AND) and the default drop stays effective for every excluded value.
+			When a selector mixes In and NotIn, each NotIn exclusion is carried conjunctively into
+			every In branch.
 
 			Check TestFlattenNameSpaceSelector 2nd subcase for complex scenario
 	*/
@@ -56,6 +89,60 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelS
 	// with original nsSelector
 	if nsSelector == nil {
 		return []metav1.LabelSelector{}, nil
+	}
+
+	// Bound how many matches this selector produces, before anything is allocated and before
+	// the matchLabels-only shortcut below, since those labels each become a match too. A
+	// multi-value NotIn stays inside a single selector, so it is invisible to both the
+	// selector-count bound further down and the per-policy rule budget, yet every one of its
+	// values becomes its own IPSet and its own condition on one rule.
+	matches := len(nsSelector.MatchLabels)
+	branches := 1
+	hasPositiveMatch := len(nsSelector.MatchLabels) > 0
+	for _, req := range nsSelector.MatchExpressions {
+		switch req.Operator {
+		case metav1.LabelSelectorOpNotIn:
+			// each excluded value is carried as its own negated match
+			matches += len(req.Values)
+		case metav1.LabelSelectorOpIn:
+			// one match per branch, and a multi-value In fans out into branches
+			matches++
+			hasPositiveMatch = true
+			if len(req.Values) > 1 {
+				// the branch count is bounded on its own terms first, so a selector that
+				// fans out too far still reports that rather than the total below.
+				// Divide rather than multiply so the product cannot overflow.
+				if len(req.Values) > maxFlattenedNSSelectors/branches {
+					return nil, fmt.Errorf("key %q with %d values expands past the %d selector limit: %w",
+						req.Key, len(req.Values), maxFlattenedNSSelectors, ErrTooManyFlattenedSelectors)
+				}
+				branches *= len(req.Values)
+			}
+		case metav1.LabelSelectorOpExists:
+			matches++
+			hasPositiveMatch = true
+		case metav1.LabelSelectorOpDoesNotExist:
+			matches++
+		default:
+			// an unknown operator, which the loop below rejects
+			matches++
+		}
+	}
+	if !hasPositiveMatch {
+		// parseNSSelector anchors a selector that matches only negatively with the
+		// all-namespaces set, so that match counts too
+		matches++
+	}
+	if matches > maxSelectorMatches {
+		return nil, fmt.Errorf("selector expands into %d matches, past the %d limit: %w",
+			matches, maxSelectorMatches, ErrTooManySelectorMatches)
+	}
+	// Each branch repeats every match, so the cost is the product rather than either factor.
+	// The branch count alone is bounded further down and the rule count by the policy budget,
+	// but neither sees a wide selector repeated across many branches.
+	if matches > maxTotalSelectorMatches/branches {
+		return nil, fmt.Errorf("selector expands into %d branches of %d matches, past the %d total match limit: %w",
+			branches, matches, maxTotalSelectorMatches, ErrTooManySelectorMatches)
 	}
 
 	if len(nsSelector.MatchExpressions) == 0 {
@@ -70,14 +157,20 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelS
 	}
 
 	multiValuePresent := false
+	// notInExpanded records whether a multi-value NotIn was rewritten into several
+	// single-value NotIn requirements on baseSelector. When it is, baseSelector no
+	// longer equals the input, so the original selector must not be returned as-is.
+	notInExpanded := false
 	multiValueMatchExprs := []metav1.LabelSelectorRequirement{}
 	for _, req := range nsSelector.MatchExpressions {
-		// Only In and NotIn operators of matchExprs have multiple values
-		// NPM will ignore single value matchExprs of these operators.
-		// for multiple values, it will create a slice of them to be used for Zipping with baseSelector
-		// to create multiple nsSelectors to preserve OR condition across all labels and expressions
+		// In/NotIn requirements carry the values; single-value requirements are added to
+		// baseSelector as-is, while multi-value requirements are handled per operator below.
+		// Exists/DoesNotExist carry no values and are added to baseSelector directly.
 		switch {
-		case (req.Operator == metav1.LabelSelectorOpIn) || (req.Operator == metav1.LabelSelectorOpNotIn):
+		case req.Operator == metav1.LabelSelectorOpIn:
+			if len(req.Values) == 0 {
+				return nil, ErrEmptyMatchExpressionValues
+			}
 			for _, v := range req.Values {
 				if !isValidLabelValue(v) {
 					return nil, ErrInvalidMatchExpressionValues
@@ -88,28 +181,87 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelS
 				// for length 1, add the matchExpr to baseSelector
 				baseSelector.MatchExpressions = append(baseSelector.MatchExpressions, req)
 			} else {
+				// multi-value In is a disjunction: zip it with baseSelector to
+				// create one nsSelector per value and preserve the OR condition.
 				multiValuePresent = true
 				multiValueMatchExprs = append(multiValueMatchExprs, req)
 			}
+		case req.Operator == metav1.LabelSelectorOpNotIn:
+			if len(req.Values) == 0 {
+				return nil, ErrEmptyMatchExpressionValues
+			}
+			for _, v := range req.Values {
+				if !isValidLabelValue(v) {
+					return nil, ErrInvalidMatchExpressionValues
+				}
+			}
+
+			if len(req.Values) == 1 {
+				// for length 1, add the matchExpr to baseSelector
+				baseSelector.MatchExpressions = append(baseSelector.MatchExpressions, req)
+			} else {
+				// A multi-value NotIn is a single set-membership conjunction
+				// (key NotIn [a, b] == key != a AND key != b), NOT a disjunction.
+				// Fanning it out into separate selectors would emit independent
+				// additive allow rules and let each excluded value be admitted by
+				// the rule negating another value. Keep every value as its own
+				// single-value NotIn within the same selector so all negations
+				// stay in one decision (AND).
+				notInExpanded = true
+				for _, v := range req.Values {
+					baseSelector.MatchExpressions = append(
+						baseSelector.MatchExpressions,
+						metav1.LabelSelectorRequirement{
+							Key:      req.Key,
+							Operator: metav1.LabelSelectorOpNotIn,
+							Values:   []string{v},
+						},
+					)
+				}
+			}
 		case (req.Operator == metav1.LabelSelectorOpExists) || (req.Operator == metav1.LabelSelectorOpDoesNotExist):
-			// since Exists and NotExists do not contain any values, NPM can safely add them to the baseSelector
+			// Exists and DoesNotExist do not carry values.
 			baseSelector.MatchExpressions = append(baseSelector.MatchExpressions, req)
 		default:
-			log.Errorf("Invalid operator [%s] for selector [%v] requirement", req.Operator, *nsSelector)
+			// Fail closed: an unknown operator must not silently drop the requirement
+			// and widen the selector. Kubernetes only admits In/NotIn/Exists/DoesNotExist.
+			// The operator and key identify the requirement without copying the whole
+			// selector into the message, which a hostile selector could make enormous.
+			return nil, fmt.Errorf("operator %q on key %q: %w",
+				req.Operator, req.Key, ErrUnsupportedMatchExpressionOperator)
 		}
 	}
 
-	// If there are no multiValue NS selector match expressions
-	// return the original NsSelector
+	// If there are no multiValue In match expressions to fan out, the baseSelector
+	// (which already carries any conjunctive NotIn expansions) is the only selector.
 	if !multiValuePresent {
-		return []metav1.LabelSelector{*nsSelector}, nil
+		if !notInExpanded {
+			// Nothing was rewritten; return the original selector unchanged so callers
+			// that compare against the input see an identical selector.
+			return []metav1.LabelSelector{*nsSelector}, nil
+		}
+		return []metav1.LabelSelector{*baseSelector.DeepCopy()}, nil
 	}
 
 	// Now use the baseSelector and loop over multiValueMatchExprs to create all
-	// combinations of values
-	flatNsSelectors := []metav1.LabelSelector{
-		*baseSelector.DeepCopy(),
+	// combinations of values. The number of combinations is the product of the value
+	// counts, so it grows exponentially with the number of multi-value In requirements
+	// (19 two-value requirements already yield 2^19 selectors). Bound the product before
+	// doing any allocation: every selector below is deep-copied and later becomes its own
+	// IPSet and ACL, so an unbounded product exhausts memory on every node running NPM.
+	combinations := 1
+	for _, req := range multiValueMatchExprs {
+		if len(req.Values) > maxFlattenedNSSelectors/combinations {
+			// Summarize rather than print the selector: the message must stay bounded
+			// precisely because the selector that triggers it need not be.
+			return nil, fmt.Errorf("key %q with %d values expands past the %d selector limit: %w",
+				req.Key, len(req.Values), maxFlattenedNSSelectors, ErrTooManyFlattenedSelectors)
+		}
+		combinations *= len(req.Values)
 	}
+
+	flatNsSelectors := make([]metav1.LabelSelector, 0, combinations)
+	flatNsSelectors = append(flatNsSelectors, *baseSelector.DeepCopy())
 	for _, req := range multiValueMatchExprs {
 		flatNsSelectors = zipMatchExprs(flatNsSelectors, req)
 	}
@@ -198,6 +350,17 @@ func (ps *parsedSelectors) addSelector(include bool, setType ipsets.SetType, set
 	ps.labelSet[setNameWithOp] = struct{}{}
 }
 
+// hasPositiveSelector reports whether any parsed selector is a positive (non-negated) match.
+// Without one, the parsed selectors match purely by negation and constrain nothing.
+func (ps *parsedSelectors) hasPositiveSelector() bool {
+	for _, ls := range ps.labelSelectors {
+		if ls.include {
+			return true
+		}
+	}
+	return false
+}
+
 // parseNSSelector parses namespaceSelector and returns slice of labelSelector object
 // which includes operator, setType, ipset name and always nil members slice.
 // Member slices is always nil since parseNSSelector function is called
@@ -209,7 +372,7 @@ func parseNSSelector(selector *metav1.LabelSelector) []labelSelector {
 
 	// #1. All namespaces case
 	if len(selector.MatchLabels) == 0 && len(selector.MatchExpressions) == 0 {
-		parsedSelectors.addSelector(true, ipsets.KeyLabelOfNamespace, util.KubeAllNamespacesFlag)
+		parsedSelectors.addSelector(true, ipsets.KeyLabelOfNamespace, util.KubeAllNamespacesFlagV2)
 		return parsedSelectors.labelSelectors
 	}
 
@@ -237,6 +400,17 @@ func parseNSSelector(selector *metav1.LabelSelector) []labelSelector {
 
 		noNegativeOp := (req.Operator == metav1.LabelSelectorOpIn) || (req.Operator == metav1.LabelSelectorOpExists)
 		parsedSelectors.addSelector(noNegativeOp, setType, setName)
+	}
+
+	// #4. A namespaceSelector only ever selects namespaces, so every match it produces
+	// must be a cluster address. A negative requirement (NotIn / DoesNotExist) renders as
+	// a negated set match, which is satisfied by every address that is not in that set,
+	// including addresses outside the cluster. When the selector produces no positive set
+	// to intersect with, the negations alone are the whole match and the rule would also
+	// admit non-cluster (e.g. internet) peers. Intersect with the all-namespaces set so
+	// the match stays scoped to namespaces, mirroring allowAllInternal.
+	if !parsedSelectors.hasPositiveSelector() {
+		parsedSelectors.addSelector(true, ipsets.KeyLabelOfNamespace, util.KubeAllNamespacesFlagV2)
 	}
 
 	return parsedSelectors.labelSelectors

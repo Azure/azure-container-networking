@@ -24,6 +24,15 @@ const (
 	appLabelKey      string = "app"
 	enclosingCIDR    string = "10.244.1.0/24"
 	exceptedHostBits string = "10.244.1.106/32"
+
+	tenantLabelKey   string = "tenant"
+	teamLabelKey     string = "team"
+	blockedLabelKey  string = "blocked"
+	teamBlueValue    string = "blue"
+	lowerHalfNomatch string = "0.0.0.0/1 nomatch"
+	exceptedClassA   string = "200.0.0.0/8"
+	ingressName      string = "ingress"
+	egressName       string = "egress"
 )
 
 var namedPortPolicyKey = fmt.Sprintf("%s/%s", defaultNS, namedPortStr)
@@ -636,13 +645,18 @@ func TestIPBlockIPSet(t *testing.T) {
 			translatedIPSet: ipsets.NewTranslatedIPSet("test:in-ns:default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1", "128.0.0.0/1"}...),
 		},
 		{
-			name:        "cidr: 0.0.0.0/0 and except: 10.0.0.0/1",
+			// "10.0.0.0/1" is a non-canonical spelling of the block "0.0.0.0/1", so this
+			// except names the lower half that the 0.0.0.0/0 split already emits. It must
+			// therefore collapse onto that entry as a nomatch, exactly as the canonical
+			// "0.0.0.0/1" case below does. Emitting "0.0.0.0/1" alongside a separate
+			// "10.0.0.0/1 nomatch" would name the same net twice with opposite meanings.
+			name:        "cidr: 0.0.0.0/0 and except: 10.0.0.0/1 (non-canonical 0.0.0.0/1)",
 			ipBlockInfo: createIPBlockInfo("test", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "0.0.0.0/0",
 				Except: []string{"10.0.0.0/1"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test:in-ns:default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1", "128.0.0.0/1", "10.0.0.0/1 nomatch"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("test:in-ns:default-0-0IN", ipsets.CIDRBlocks, []string{lowerHalfNomatch, "128.0.0.0/1"}...),
 			skipWindows:     true,
 		},
 		{
@@ -652,7 +666,7 @@ func TestIPBlockIPSet(t *testing.T) {
 				CIDR:   "0.0.0.0/0",
 				Except: []string{"0.0.0.0/1"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test:in-ns:default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1 nomatch", "128.0.0.0/1"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("test:in-ns:default-0-0IN", ipsets.CIDRBlocks, []string{lowerHalfNomatch, "128.0.0.0/1"}...),
 			skipWindows:     true,
 		},
 		{
@@ -672,7 +686,7 @@ func TestIPBlockIPSet(t *testing.T) {
 				CIDR:   "0.0.0.0/0",
 				Except: []string{"0.0.0.0/1", "128.0.0.0/1"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test:in-ns:default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1 nomatch", "128.0.0.0/1 nomatch"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("test:in-ns:default-0-0IN", ipsets.CIDRBlocks, []string{lowerHalfNomatch, "128.0.0.0/1 nomatch"}...),
 			skipWindows:     true,
 		},
 		{
@@ -682,7 +696,7 @@ func TestIPBlockIPSet(t *testing.T) {
 				CIDR:   "0.0.0.0/0",
 				Except: []string{"0.0.0.0/1", "128.0.0.0/1", "128.0.0.0/1"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test:in-ns:default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1 nomatch", "128.0.0.0/1 nomatch"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("test:in-ns:default-0-0IN", ipsets.CIDRBlocks, []string{lowerHalfNomatch, "128.0.0.0/1 nomatch"}...),
 			skipWindows:     true,
 		},
 	}
@@ -801,6 +815,25 @@ func TestIPBlockRule(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestIPBlockRuleRejectsInvalidExcept covers an ipBlock whose except is not an IPv4 CIDR. Such
+// an exclusion cannot be programmed, so the translation fails rather than carrying the entry
+// into the set, which would either widen the allow to the enclosing CIDR or take the whole set
+// down when it is restored. The Windows datapath refuses any except before this check, so the
+// case is exercised on Linux only.
+func TestIPBlockRuleRejectsInvalidExcept(t *testing.T) {
+	if util.IsWindowsDP() {
+		t.Skip("the Windows datapath refuses any except on this path")
+	}
+
+	for _, except := range []string{"2001:db8::/32", "not-a-cidr", "10.0.0.1", "10.0.0.0/33"} {
+		translatedIPSet, setInfo, err := ipBlockRule("test", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0,
+			&networkingv1.IPBlock{CIDR: "172.17.0.0/16", Except: []string{except}})
+		require.ErrorIs(t, err, ErrUnsupportedIPAddress, "except %q must be refused", except)
+		require.Nil(t, translatedIPSet)
+		require.Equal(t, policies.SetInfo{}, setInfo)
 	}
 }
 
@@ -1111,10 +1144,10 @@ func TestNameSpaceSelector(t *testing.T) {
 				MatchLabels: map[string]string{},
 			},
 			nsSelectorIPSets: []*ipsets.TranslatedIPSet{
-				ipsets.NewTranslatedIPSet(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace),
+				ipsets.NewTranslatedIPSet(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace),
 			},
 			nsSelectorList: []policies.SetInfo{
-				policies.NewSetInfo(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace, included, matchType),
+				policies.NewSetInfo(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace, included, matchType),
 			},
 		},
 		{
@@ -1268,6 +1301,391 @@ func TestNameSpaceSelector(t *testing.T) {
 	}
 }
 
+// TestNameSpaceSelectorMultiValueNotIn verifies that a namespaceSelector with a
+// single multi-value NotIn requirement is translated (after flatten, as translateRule
+// does) into one decision carrying a negated match-set for every excluded value.
+// Emitting these as separate allow rules would be additive (OR) and admit a namespace
+// that carries any one of the excluded values.
+func TestNameSpaceSelectorMultiValueNotIn(t *testing.T) {
+	matchType := policies.SrcMatch
+	selector := &metav1.LabelSelector{
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			{
+				Key:      tenantLabelKey,
+				Operator: metav1.LabelSelectorOpNotIn,
+				Values:   []string{"x", "y"},
+			},
+		},
+	}
+
+	flattened, err := flattenNameSpaceSelector(selector)
+	require.NoError(t, err)
+	// The NotIn conjunction must stay in a single selector, not fan out.
+	require.Len(t, flattened, 1)
+
+	_, nsSelectorList := nameSpaceSelector(matchType, &flattened[0])
+
+	expected := []policies.SetInfo{
+		// The all-namespaces set keeps the negation-only match scoped to cluster namespaces.
+		policies.NewSetInfo(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace, included, matchType),
+		policies.NewSetInfo("tenant:x", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
+		policies.NewSetInfo("tenant:y", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
+	}
+	require.ElementsMatch(t, expected, nsSelectorList)
+}
+
+// TestNameSpaceSelectorMatchLabelsAndMultiValueNotIn covers a namespaceSelector that
+// combines matchLabels with a multi-value NotIn matchExpression. The matchLabels set
+// must be ANDed into the same decision as the two negated values (a positive match plus
+// two negated matches in one ACL), matching Kubernetes' conjunction of all requirements.
+func TestNameSpaceSelectorMatchLabelsAndMultiValueNotIn(t *testing.T) {
+	matchType := policies.SrcMatch
+	selector := &metav1.LabelSelector{
+		MatchLabels: map[string]string{teamLabelKey: teamBlueValue},
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			{Key: tenantLabelKey, Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x", "y"}},
+		},
+	}
+
+	flattened, err := flattenNameSpaceSelector(selector)
+	require.NoError(t, err)
+	// matchLabels + a single conjunctive NotIn must stay in ONE selector, not fan out.
+	require.Len(t, flattened, 1)
+
+	_, nsSelectorList := nameSpaceSelector(matchType, &flattened[0])
+
+	expected := []policies.SetInfo{
+		policies.NewSetInfo("team:blue", ipsets.KeyValueLabelOfNamespace, included, matchType),
+		policies.NewSetInfo("tenant:x", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
+		policies.NewSetInfo("tenant:y", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
+	}
+	require.ElementsMatch(t, expected, nsSelectorList,
+		"matchLabels set must be ANDed with both negated tenant sets in one decision")
+}
+
+// TestNameSpaceSelectorNegationOnlyIsScopedToNamespaces verifies that a namespaceSelector
+// whose requirements are all negative (NotIn / DoesNotExist) is intersected with the
+// all-namespaces set. A negated set match is satisfied by every address that is not in the
+// set, so without a positive set to intersect with, the decision also matches addresses
+// that are not cluster pods at all (e.g. the internet).
+func TestNameSpaceSelectorNegationOnlyIsScopedToNamespaces(t *testing.T) {
+	matchType := policies.DstMatch
+	tests := []struct {
+		name     string
+		selector *metav1.LabelSelector
+		expected []policies.SetInfo
+	}{
+		{
+			name: "single-value NotIn",
+			selector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{Key: tenantLabelKey, Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x"}},
+				},
+			},
+			expected: []policies.SetInfo{
+				policies.NewSetInfo(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace, included, matchType),
+				policies.NewSetInfo("tenant:x", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
+			},
+		},
+		{
+			name: "DoesNotExist",
+			selector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{Key: tenantLabelKey, Operator: metav1.LabelSelectorOpDoesNotExist},
+				},
+			},
+			expected: []policies.SetInfo{
+				policies.NewSetInfo(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace, included, matchType),
+				policies.NewSetInfo(tenantLabelKey, ipsets.KeyLabelOfNamespace, nonIncluded, matchType),
+			},
+		},
+		{
+			name: "NotIn and DoesNotExist together",
+			selector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{Key: tenantLabelKey, Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x"}},
+					{Key: teamLabelKey, Operator: metav1.LabelSelectorOpDoesNotExist},
+				},
+			},
+			expected: []policies.SetInfo{
+				policies.NewSetInfo(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace, included, matchType),
+				policies.NewSetInfo("tenant:x", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
+				policies.NewSetInfo(teamLabelKey, ipsets.KeyLabelOfNamespace, nonIncluded, matchType),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nsSelectorIPSets, nsSelectorList := nameSpaceSelector(matchType, tt.selector)
+			require.ElementsMatch(t, tt.expected, nsSelectorList)
+			// The all-namespaces set must also be translated so it exists in the dataplane.
+			require.Contains(t, nsSelectorIPSets,
+				ipsets.NewTranslatedIPSet(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace))
+		})
+	}
+}
+
+// TestNameSpaceSelectorWithPositiveMatchIsUnchanged verifies that the all-namespaces
+// intersection is added only when it is needed. A selector that already carries a positive
+// requirement is scoped to namespaces by that requirement, so it must be left as-is.
+func TestNameSpaceSelectorWithPositiveMatchIsUnchanged(t *testing.T) {
+	matchType := policies.DstMatch
+	tests := []struct {
+		name     string
+		selector *metav1.LabelSelector
+		expected []policies.SetInfo
+	}{
+		{
+			name:     "matchLabels only",
+			selector: &metav1.LabelSelector{MatchLabels: map[string]string{teamLabelKey: teamBlueValue}},
+			expected: []policies.SetInfo{
+				policies.NewSetInfo("team:blue", ipsets.KeyValueLabelOfNamespace, included, matchType),
+			},
+		},
+		{
+			name: "matchLabels with a negative expression",
+			selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{teamLabelKey: teamBlueValue},
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{Key: tenantLabelKey, Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x"}},
+				},
+			},
+			expected: []policies.SetInfo{
+				policies.NewSetInfo("team:blue", ipsets.KeyValueLabelOfNamespace, included, matchType),
+				policies.NewSetInfo("tenant:x", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
+			},
+		},
+		{
+			name: "Exists with a negative expression",
+			selector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{Key: teamLabelKey, Operator: metav1.LabelSelectorOpExists},
+					{Key: tenantLabelKey, Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x"}},
+				},
+			},
+			expected: []policies.SetInfo{
+				policies.NewSetInfo(teamLabelKey, ipsets.KeyLabelOfNamespace, included, matchType),
+				policies.NewSetInfo("tenant:x", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
+			},
+		},
+		{
+			name:     "empty selector still resolves to all namespaces once",
+			selector: &metav1.LabelSelector{},
+			expected: []policies.SetInfo{
+				policies.NewSetInfo(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace, included, matchType),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, nsSelectorList := nameSpaceSelector(matchType, tt.selector)
+			require.ElementsMatch(t, tt.expected, nsSelectorList)
+		})
+	}
+}
+
+// TestTranslatePolicyNegationOnlyNamespaceSelector is the end-to-end regression for a
+// peer whose only requirement is a negative namespaceSelector. It asserts that the
+// resulting allow decision carries the all-namespaces set, so the rule cannot be
+// satisfied by an address outside the cluster. Egress is the impactful direction (an
+// unscoped negation lets a selected pod reach arbitrary external hosts), but ingress is
+// covered too since the compiler is direction-agnostic.
+func TestTranslatePolicyNegationOnlyNamespaceSelector(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		direction networkingv1.PolicyType
+		matchType policies.MatchType
+		peerList  func(*policies.ACLPolicy) []policies.SetInfo
+	}{
+		{
+			name:      egressName,
+			direction: networkingv1.PolicyTypeEgress,
+			matchType: policies.DstMatch,
+			peerList:  func(acl *policies.ACLPolicy) []policies.SetInfo { return acl.DstList },
+		},
+		{
+			name:      ingressName,
+			direction: networkingv1.PolicyTypeIngress,
+			matchType: policies.SrcMatch,
+			peerList:  func(acl *policies.ACLPolicy) []policies.SetInfo { return acl.SrcList },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			pol := nsNotInPolicy("victim", "default", tenantLabelKey, tt.direction, nil, "x")
+			npmNetPol, err := TranslatePolicy(pol, false)
+			require.NoError(t, err)
+
+			var theAllow *policies.ACLPolicy
+			for i := range npmNetPol.ACLs {
+				if npmNetPol.ACLs[i].Target == policies.Allowed {
+					require.Nil(t, theAllow, "there must be exactly one allow ACL")
+					theAllow = npmNetPol.ACLs[i]
+				}
+			}
+			require.NotNil(t, theAllow)
+
+			peers := tt.peerList(theAllow)
+			require.ElementsMatch(t, []policies.SetInfo{
+				policies.NewSetInfo(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace, included, tt.matchType),
+				policies.NewSetInfo("tenant:x", ipsets.KeyValueLabelOfNamespace, nonIncluded, tt.matchType),
+			}, peers, "a negation-only namespaceSelector must be intersected with the all-namespaces set")
+
+			var sawAllNamespaces bool
+			for _, si := range peers {
+				if si.Included && si.IPSet.Name == util.KubeAllNamespacesFlagV2 {
+					sawAllNamespaces = true
+				}
+			}
+			require.True(t, sawAllNamespaces,
+				"without the all-namespaces set the negated match also admits non-cluster addresses")
+		})
+	}
+}
+
+// nsNotInPolicy builds a NetworkPolicy that selects all local pods and, for the given
+// direction, admits peers whose namespace matches `key NotIn values`. When ports is
+// non-empty, the peer rule also carries those ports.
+func nsNotInPolicy(name, ns, key string, direction networkingv1.PolicyType, ports []networkingv1.NetworkPolicyPort, values ...string) *networkingv1.NetworkPolicy {
+	peer := networkingv1.NetworkPolicyPeer{
+		NamespaceSelector: &metav1.LabelSelector{
+			MatchExpressions: []metav1.LabelSelectorRequirement{
+				{Key: key, Operator: metav1.LabelSelectorOpNotIn, Values: values},
+			},
+		},
+	}
+	pol := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{},
+			PolicyTypes: []networkingv1.PolicyType{direction},
+		},
+	}
+	if direction == networkingv1.PolicyTypeIngress {
+		pol.Spec.Ingress = []networkingv1.NetworkPolicyIngressRule{{Ports: ports, From: []networkingv1.NetworkPolicyPeer{peer}}}
+	} else {
+		pol.Spec.Egress = []networkingv1.NetworkPolicyEgressRule{{Ports: ports, To: []networkingv1.NetworkPolicyPeer{peer}}}
+	}
+	return pol
+}
+
+// TestTranslatePolicyMultiValueNotInConjunction is the end-to-end regression for a
+// multi-value namespaceSelector NotIn. It drives the full TranslatePolicy path (both
+// directions, with and without a port) and asserts the complete enforcement invariant:
+// exactly ONE allow ACL exists, it negates every excluded value within that single
+// decision (a conjunction / AND) and references no positive tenant set, and a default
+// drop is still present. The pre-fix behavior emitted one additive allow ACL per value,
+// so a namespace carrying any one excluded value matched the ACL negating another value
+// and was admitted before the default drop.
+func TestTranslatePolicyMultiValueNotInConjunction(t *testing.T) {
+	t.Parallel()
+
+	tcpPort := networkingv1.NetworkPolicyPort{Port: &intstr.IntOrString{Type: intstr.Int, IntVal: 80}}
+
+	tests := []struct {
+		name      string
+		direction networkingv1.PolicyType
+		ports     []networkingv1.NetworkPolicyPort
+		peerList  func(*policies.ACLPolicy) []policies.SetInfo
+	}{
+		{
+			name:      ingressName,
+			direction: networkingv1.PolicyTypeIngress,
+			peerList:  func(acl *policies.ACLPolicy) []policies.SetInfo { return acl.SrcList },
+		},
+		{
+			name:      egressName,
+			direction: networkingv1.PolicyTypeEgress,
+			peerList:  func(acl *policies.ACLPolicy) []policies.SetInfo { return acl.DstList },
+		},
+		{
+			name:      "ingress-with-port",
+			direction: networkingv1.PolicyTypeIngress,
+			ports:     []networkingv1.NetworkPolicyPort{tcpPort},
+			peerList:  func(acl *policies.ACLPolicy) []policies.SetInfo { return acl.SrcList },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			pol := nsNotInPolicy("victim", "default", tenantLabelKey, tt.direction, tt.ports, "attacker", "quarantine")
+			npmNetPol, err := TranslatePolicy(pol, false)
+			require.NoError(t, err)
+
+			excluded := map[string]bool{"tenant:attacker": true, "tenant:quarantine": true}
+			var allowACLs, dropACLs int
+			var theAllow, theDrop *policies.ACLPolicy
+			for i := range npmNetPol.ACLs {
+				acl := npmNetPol.ACLs[i]
+				switch acl.Target {
+				case policies.Allowed:
+					allowACLs++
+					theAllow = npmNetPol.ACLs[i]
+				case policies.Dropped:
+					dropACLs++
+					theDrop = npmNetPol.ACLs[i]
+				default:
+					t.Fatalf("unexpected ACL target %v", acl.Target)
+				}
+			}
+
+			// Full enforcement invariant: exactly one allow decision and exactly one
+			// default drop. An additive-OR bypass would yield two allow ACLs; a missing
+			// drop or an allow-all leaking in would also be caught here.
+			require.Equal(t, 1, allowACLs, "there must be exactly one allow ACL, not additive allow ACLs")
+			require.Equal(t, 1, dropACLs, "there must be exactly one default drop ACL")
+			require.NotNil(t, theAllow)
+			require.NotNil(t, theDrop)
+
+			// The single allow ACL's peer list must be the two excluded values, each a
+			// negated match (Included == false), intersected with the all-namespaces set.
+			// The all-namespaces set is what keeps a negation-only match scoped to cluster
+			// namespaces; without it the negations alone also match non-cluster addresses.
+			allowPeers := tt.peerList(theAllow)
+			require.Len(t, allowPeers, 3, "allow ACL must reference the two excluded sets plus the all-namespaces set")
+			var negated []string
+			var positive []string
+			for _, si := range allowPeers {
+				if si.Included {
+					require.Equal(t, util.KubeAllNamespacesFlagV2, si.IPSet.Name,
+						"the only positive set may be the all-namespaces set")
+					require.Equal(t, ipsets.KeyLabelOfNamespace, si.IPSet.Type)
+					positive = append(positive, si.IPSet.Name)
+					continue
+				}
+				require.True(t, excluded[si.IPSet.Name], "unexpected set %s in allow ACL", si.IPSet.Name)
+				require.Equal(t, ipsets.KeyValueLabelOfNamespace, si.IPSet.Type)
+				negated = append(negated, si.IPSet.Name)
+			}
+			require.ElementsMatch(t, []string{"tenant:attacker", "tenant:quarantine"}, negated,
+				"the single allow ACL must negate every excluded value")
+			require.Equal(t, []string{util.KubeAllNamespacesFlagV2}, positive,
+				"the negation-only match must be intersected with the all-namespaces set")
+
+			// The default drop must be same-direction and unconditional (no peer match),
+			// so the excluded namespaces have no allow path and fall through to it.
+			require.Equal(t, theAllow.Direction, theDrop.Direction, "drop must be the same direction as the allow")
+			require.Empty(t, tt.peerList(theDrop), "the default drop must be unconditional")
+
+			// When a port is present it must be carried in the same allow decision,
+			// conjunctively with the negated tenant sets.
+			if len(tt.ports) > 0 {
+				require.EqualValues(t, 80, theAllow.DstPorts.Port,
+					"the port must render in the same allow ACL as the negated tenant sets")
+			}
+		})
+	}
+}
+
 func TestAllowAllInternal(t *testing.T) {
 	matchType := policies.SrcMatch
 	tests := []struct {
@@ -1279,8 +1697,8 @@ func TestAllowAllInternal(t *testing.T) {
 		{
 			name:             "Allow all traffic from all namespaces in ingress",
 			matchType:        matchType,
-			nsSelectorIPSets: ipsets.NewTranslatedIPSet(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace),
-			nsSelectorList:   policies.NewSetInfo(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace, included, matchType),
+			nsSelectorIPSets: ipsets.NewTranslatedIPSet(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace),
+			nsSelectorList:   policies.NewSetInfo(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace, included, matchType),
 		},
 	}
 
@@ -3473,4 +3891,250 @@ func TestTranslatePolicyNodeEgressPorts(t *testing.T) {
 	npmNetPol, err := TranslatePolicy(npObj, false)
 	require.NoError(t, err)
 	require.Equal(t, []int32{5005, 2500}, npmNetPol.NodeEgressPorts)
+}
+
+// ipBlockPolicy builds an ingress NetworkPolicy that selects all pods in ns and admits the
+// given ipBlock CIDR.
+func ipBlockPolicy(name, ns, cidr string) *networkingv1.NetworkPolicy {
+	return &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{
+				{
+					From: []networkingv1.NetworkPolicyPeer{
+						{IPBlock: &networkingv1.IPBlock{CIDR: cidr}},
+					},
+				},
+			},
+		},
+	}
+}
+
+// TestTranslatePolicyNonCanonicalAllAddressesCIDR verifies that an ipBlock naming the
+// all-addresses block with host bits set (e.g. "10.0.0.0/0") translates identically to the
+// canonical "0.0.0.0/0". Rejecting it failed the whole policy, so neither the allow nor the
+// default drop the policy implies was installed and the selected pods stayed unisolated.
+func TestTranslatePolicyNonCanonicalAllAddressesCIDR(t *testing.T) {
+	t.Parallel()
+
+	canonical, err := TranslatePolicy(ipBlockPolicy("victim", "default", "0.0.0.0/0"), false)
+	require.NoError(t, err)
+
+	for _, cidr := range []string{"10.0.0.0/0", "255.255.255.255/0"} {
+		t.Run(cidr, func(t *testing.T) {
+			t.Parallel()
+
+			npmNetPol, err := TranslatePolicy(ipBlockPolicy("victim", "default", cidr), false)
+			require.NoError(t, err, "a non-canonical all-addresses block must not fail translation")
+			require.NotNil(t, npmNetPol)
+
+			// The policy must be indistinguishable from the canonical spelling: same
+			// ipset members (the 0.0.0.0/0 split) and the same ACLs.
+			require.Equal(t, canonical.RuleIPSets, npmNetPol.RuleIPSets)
+			require.Len(t, npmNetPol.ACLs, len(canonical.ACLs))
+
+			// Most importantly the default drop must exist, since its absence is what
+			// left the selected pods unisolated.
+			var dropACLs int
+			for i := range npmNetPol.ACLs {
+				if npmNetPol.ACLs[i].Target == policies.Dropped {
+					dropACLs++
+				}
+			}
+			require.Equal(t, 1, dropACLs, "the policy's default drop must be installed")
+		})
+	}
+}
+
+// TestTranslatePolicyInvalidCIDRStillFails verifies the canonicalization did not weaken
+// validation: a CIDR that is not IPv4 at all must still be rejected.
+func TestTranslatePolicyInvalidCIDRStillFails(t *testing.T) {
+	t.Parallel()
+
+	for _, cidr := range []string{"2001:db8::/32", "10.0.0.0/33", "not-a-cidr/0"} {
+		t.Run(cidr, func(t *testing.T) {
+			t.Parallel()
+			npmNetPol, err := TranslatePolicy(ipBlockPolicy("victim", "default", cidr), false)
+			require.ErrorIs(t, err, ErrUnsupportedIPAddress)
+			require.Nil(t, npmNetPol)
+		})
+	}
+}
+
+// nsExprPolicy builds a NetworkPolicy that selects all local pods and, for the given
+// direction, admits peers whose namespace satisfies the single given matchExpression.
+func nsExprPolicy(name, ns string, direction networkingv1.PolicyType, req metav1.LabelSelectorRequirement) *networkingv1.NetworkPolicy {
+	peer := networkingv1.NetworkPolicyPeer{
+		NamespaceSelector: &metav1.LabelSelector{
+			MatchExpressions: []metav1.LabelSelectorRequirement{req},
+		},
+	}
+	pol := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{},
+			PolicyTypes: []networkingv1.PolicyType{direction},
+		},
+	}
+	if direction == networkingv1.PolicyTypeIngress {
+		pol.Spec.Ingress = []networkingv1.NetworkPolicyIngressRule{{From: []networkingv1.NetworkPolicyPeer{peer}}}
+	} else {
+		pol.Spec.Egress = []networkingv1.NetworkPolicyEgressRule{{To: []networkingv1.NetworkPolicyPeer{peer}}}
+	}
+	return pol
+}
+
+// TestTranslatePolicyNegationOnlyOperators covers every operator that can produce a
+// negation-only namespaceSelector, in both directions.
+//
+// A namespaceSelector selects pods in matching namespaces, and NPM's namespace sets hold
+// pod IPs. A negated set match is satisfied by any address absent from that set, so an
+// address that is not a pod in any namespace satisfies it too. Without a positive set to
+// intersect with, the negation alone is the whole match and the rule admits non-pod
+// addresses: on ingress a routable non-pod host reaching the pod directly, on egress the
+// selected pod reaching arbitrary external hosts.
+//
+// Each case asserts the allow decision carries the all-namespaces anchor, which is the
+// positive match that keeps the decision inside the pod domain.
+func TestTranslatePolicyNegationOnlyOperators(t *testing.T) {
+	t.Parallel()
+
+	operators := []struct {
+		name     string
+		req      metav1.LabelSelectorRequirement
+		excluded string
+		setType  ipsets.SetType
+	}{
+		{
+			name:     "DoesNotExist",
+			req:      metav1.LabelSelectorRequirement{Key: blockedLabelKey, Operator: metav1.LabelSelectorOpDoesNotExist},
+			excluded: blockedLabelKey,
+			setType:  ipsets.KeyLabelOfNamespace,
+		},
+		{
+			name:     "single-value NotIn",
+			req:      metav1.LabelSelectorRequirement{Key: blockedLabelKey, Operator: metav1.LabelSelectorOpNotIn, Values: []string{"yes"}},
+			excluded: "blocked:yes",
+			setType:  ipsets.KeyValueLabelOfNamespace,
+		},
+		{
+			name:     "multi-value NotIn",
+			req:      metav1.LabelSelectorRequirement{Key: blockedLabelKey, Operator: metav1.LabelSelectorOpNotIn, Values: []string{"yes", "maybe"}},
+			excluded: "blocked:yes",
+			setType:  ipsets.KeyValueLabelOfNamespace,
+		},
+	}
+
+	directions := []struct {
+		name      string
+		direction networkingv1.PolicyType
+		matchType policies.MatchType
+		peerList  func(*policies.ACLPolicy) []policies.SetInfo
+	}{
+		{ingressName, networkingv1.PolicyTypeIngress, policies.SrcMatch, func(a *policies.ACLPolicy) []policies.SetInfo { return a.SrcList }},
+		{egressName, networkingv1.PolicyTypeEgress, policies.DstMatch, func(a *policies.ACLPolicy) []policies.SetInfo { return a.DstList }},
+	}
+
+	for _, op := range operators {
+		for _, dir := range directions {
+			t.Run(op.name+"/"+dir.name, func(t *testing.T) {
+				t.Parallel()
+
+				npmNetPol, err := TranslatePolicy(nsExprPolicy("victim", "default", dir.direction, op.req), false)
+				require.NoError(t, err)
+
+				var allowACLs int
+				var theAllow *policies.ACLPolicy
+				for i := range npmNetPol.ACLs {
+					if npmNetPol.ACLs[i].Target == policies.Allowed {
+						allowACLs++
+						theAllow = npmNetPol.ACLs[i]
+					}
+				}
+				// One decision only: every negation must be ANDed into it, never split
+				// into additive allow decisions.
+				require.Equal(t, 1, allowACLs, "there must be exactly one allow ACL")
+				require.NotNil(t, theAllow)
+
+				peers := dir.peerList(theAllow)
+				anchor := policies.NewSetInfo(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace, included, dir.matchType)
+				require.Contains(t, peers, anchor,
+					"a negation-only namespaceSelector must carry the all-namespaces anchor, "+
+						"otherwise the negation alone also matches addresses that are not pods")
+
+				// The exclusion itself must still be present and still negated.
+				require.Contains(t, peers,
+					policies.NewSetInfo(op.excluded, op.setType, nonIncluded, dir.matchType))
+
+				// Exactly one positive set: the anchor. Anything else positive would
+				// widen the decision beyond what the selector asked for.
+				var positives []string
+				for _, si := range peers {
+					if si.Included {
+						positives = append(positives, si.IPSet.Name)
+					}
+				}
+				require.Equal(t, []string{util.KubeAllNamespacesFlagV2}, positives)
+			})
+		}
+	}
+}
+
+// TestIPBlockExceptCanonicalizationKeepsEveryExcept locks the member packing now that except
+// CIDRs are canonicalized first. Canonicalizing can turn an except into one of the two halves
+// that 0.0.0.0/0 is split into, which takes a different branch of the packing loop and shortens
+// the member list, so every other except must still survive that, whatever order they arrive in.
+func TestIPBlockExceptCanonicalizationKeepsEveryExcept(t *testing.T) {
+	if util.IsWindowsDP() {
+		t.Skip("the Windows datapath refuses any except on this path")
+	}
+
+	tests := []struct {
+		name   string
+		cidr   string
+		except []string
+		want   []string
+	}{
+		{
+			name:   "except canonicalizes onto the lower half, listed last",
+			cidr:   "0.0.0.0/0",
+			except: []string{exceptedClassA, "10.0.0.0/1"},
+			want:   []string{lowerHalfNomatch, "128.0.0.0/1", exceptedClassA + " nomatch"},
+		},
+		{
+			name:   "same excepts in the other order",
+			cidr:   "0.0.0.0/0",
+			except: []string{"10.0.0.0/1", exceptedClassA},
+			want:   []string{lowerHalfNomatch, "128.0.0.0/1", exceptedClassA + " nomatch"},
+		},
+		{
+			name:   "a split-half except between two ordinary ones",
+			cidr:   "0.0.0.0/0",
+			except: []string{exceptedClassA, "10.0.0.0/1", "9.0.0.0/8"},
+			want:   []string{lowerHalfNomatch, "128.0.0.0/1", exceptedClassA + " nomatch", "9.0.0.0/8 nomatch"},
+		},
+		{
+			name:   "both halves reached by canonicalization",
+			cidr:   "0.0.0.0/0",
+			except: []string{exceptedClassA, "250.0.0.0/1", "10.0.0.0/1"},
+			want:   []string{lowerHalfNomatch, "128.0.0.0/1 nomatch", exceptedClassA + " nomatch"},
+		},
+		{
+			name:   "a non-canonical all-addresses block behaves the same",
+			cidr:   "10.0.0.0/0",
+			except: []string{exceptedClassA, "10.0.0.0/1"},
+			want:   []string{lowerHalfNomatch, "128.0.0.0/1", exceptedClassA + " nomatch"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			set, err := ipBlockIPSet("p", defaultNS, policies.Ingress, 0, 0,
+				&networkingv1.IPBlock{CIDR: tt.cidr, Except: tt.except})
+			require.NoError(t, err)
+			require.Equal(t, tt.want, set.Members)
+		})
+	}
 }

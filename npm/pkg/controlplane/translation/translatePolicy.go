@@ -35,6 +35,27 @@ var (
 	ErrInvalidMatchExpressionValues = errors.New(
 		"matchExpression label values must be an empty string or consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character",
 	)
+	// ErrEmptyMatchExpressionValues is returned when an In or NotIn matchExpression carries no values.
+	// Kubernetes rejects such requirements; NPM fails closed rather than dropping the requirement,
+	// which could otherwise widen a selector (e.g. a dropped NotIn) or yield no rules at all.
+	ErrEmptyMatchExpressionValues = errors.New("matchExpression with operator In or NotIn must have at least one value")
+	// ErrUnsupportedMatchExpressionOperator is returned when a matchExpression uses an operator that is
+	// none of In, NotIn, Exists or DoesNotExist. NPM fails closed rather than dropping the requirement,
+	// which could otherwise silently widen the selector.
+	ErrUnsupportedMatchExpressionOperator = errors.New("unsupported matchExpression operator")
+	// ErrTooManyFlattenedSelectors is returned when flattening a namespaceSelector's multi-value In
+	// requirements would produce more labelSelectors than NPM is willing to translate. The count is
+	// the product of the value counts, so it grows exponentially with the number of such requirements.
+	ErrTooManyFlattenedSelectors = errors.New("namespaceSelector expands into too many label selectors")
+	// ErrTooManySelectorMatches is returned when a namespaceSelector expands into more set matches
+	// than NPM is willing to translate. A multi-value NotIn contributes one match per value while
+	// staying in a single selector, so it is counted by neither the flattened-selector bound nor the
+	// per-policy rule budget, yet each match becomes its own IPSet and its own condition on a rule.
+	ErrTooManySelectorMatches = errors.New("namespaceSelector expands into too many set matches")
+	// ErrTooManyACLs is returned when a NetworkPolicy translates into more ACLs than NPM is
+	// willing to program. ACL count multiplies rather than adds: flattened selector branches are
+	// emitted per port, summed across peers and rules, so bounding selectors alone is not enough.
+	ErrTooManyACLs = errors.New("network policy expands into too many rules")
 	// ErrUnsupportedIPAddress is returned when an unsupported IP address, such as IPV6, is used
 	ErrUnsupportedIPAddress = errors.New("unsupported IP address")
 	// ErrUnsupportedNonCIDR is returned when non-CIDR blocks are passed in with NPM Lite enabled. NPM Lite allows deny-all and allow-all policies
@@ -168,19 +189,56 @@ func deDuplicateExcept(exceptInIPBlock []string) []string {
 	return deDupExcepts
 }
 
+// canonicalizeExcepts returns the except CIDRs in canonical form, with duplicates removed.
+// Canonicalizing first means two spellings of the same block (e.g. "10.1.2.0/24" and
+// "10.1.2.3/24") collapse to one entry, and that an except can be compared against the
+// all-addresses split entries below. An except that is not an IPv4 CIDR cannot be programmed,
+// so it fails the translation rather than being carried into the set: dropping the exclusion
+// would widen the allow, and keeping it would take the whole set down at restore time. This is
+// used only on the ipset path.
+func canonicalizeExcepts(exceptInIPBlock []string) ([]string, error) {
+	canonicalExcepts := []string{}
+	exceptsSet := make(map[string]struct{})
+	for _, except := range exceptInIPBlock {
+		canonical, ok := util.NormalizeCIDR(except)
+		if !ok {
+			return nil, fmt.Errorf("except %q: %w", except, ErrUnsupportedIPAddress)
+		}
+		if _, exist := exceptsSet[canonical]; !exist {
+			canonicalExcepts = append(canonicalExcepts, canonical)
+			exceptsSet[canonical] = struct{}{}
+		}
+	}
+	return canonicalExcepts, nil
+}
+
 // ipBlockIPSet return translatedIPSet based based on ipBlockRule.
 func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSetIndex, ipBlockPeerIndex int, ipBlockRule *networkingv1.IPBlock) (*ipsets.TranslatedIPSet, error) {
 	if ipBlockRule == nil || ipBlockRule.CIDR == "" {
 		return nil, nil
 	}
 
-	// de-duplicated Except if there are redundance elements.
-	deDupExcepts := deDuplicateExcept(ipBlockRule.Except)
-	lenOfDeDupExcepts := len(deDupExcepts)
+	// Canonicalize the CIDR before it is compared or handed to the kernel. A block spelled
+	// with host bits set (e.g. "10.0.0.0/0") denotes the same addresses as its canonical form
+	// but does not compare equal to it, so without this the all-addresses block below would
+	// not be recognized and the literal would be rejected by ipset.
+	cidr, ok := util.NormalizeCIDR(ipBlockRule.CIDR)
+	if !ok {
+		return nil, ErrUnsupportedIPAddress
+	}
 
-	if util.IsWindowsDP() && lenOfDeDupExcepts > 0 {
+	// The Windows datapath refuses an except before any of it is canonicalized, exactly as
+	// it did before, so the validation below is reached on the Linux path only.
+	if util.IsWindowsDP() && len(ipBlockRule.Except) > 0 {
 		return nil, ErrUnsupportedExceptCIDR
 	}
+
+	// Canonicalize and deduplicate exclusions before comparing with the split entries.
+	deDupExcepts, err := canonicalizeExcepts(ipBlockRule.Except)
+	if err != nil {
+		return nil, err
+	}
+	lenOfDeDupExcepts := len(deDupExcepts)
 
 	var members []string
 	indexOfMembers := 0
@@ -190,7 +248,7 @@ func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSe
 	// splitCIDRSet has two entries ("0.0.0.0/1" and "128.0.0.0/1") as key.
 	splitCIDRLen := 2
 	splitCIDRSet := make(map[string]int, splitCIDRLen)
-	if ipBlockRule.CIDR == "0.0.0.0/0" {
+	if cidr == "0.0.0.0/0" {
 		// two cidrs (0.0.0.0/1 and 128.0.0.0/1) for 0.0.0.0/0 + except.
 		members = make([]string, lenOfDeDupExcepts+splitCIDRLen)
 		// in case of "0.0.0.0/0", "0.0.0.0/1" or "0.0.0.0/1 nomatch" comes eariler than "128.0.0.0/1" or "128.0.0.0/1 nomatch".
@@ -203,7 +261,7 @@ func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSe
 	} else {
 		// one cidr + except
 		members = make([]string, lenOfDeDupExcepts+1)
-		members[indexOfMembers] = ipBlockRule.CIDR
+		members[indexOfMembers] = cidr
 		indexOfMembers++
 	}
 
@@ -233,7 +291,13 @@ func ipBlockRule(policyName, ns string, direction policies.Direction, matchType 
 		return nil, policies.SetInfo{}, nil
 	}
 
-	if !util.IsIPV4(ipBlockRule.CIDR) {
+	// Validate the canonical form rather than the literal the user wrote. A block whose host
+	// bits are set, such as "10.0.0.0/0", denotes exactly the same addresses as its canonical
+	// form, but IsIPV4 refuses a /0 that is not spelled "0.0.0.0". Rejecting here aborts the
+	// translation of the whole policy, so neither the peer rule nor the default drop the policy
+	// implies is installed and the selected pods are left with no rules at all. This is the
+	// shared ipset path; the Windows NPM Lite direct-rule path is unchanged.
+	if _, ok := util.NormalizeCIDR(ipBlockRule.CIDR); !ok {
 		return nil, policies.SetInfo{}, ErrUnsupportedIPAddress
 	}
 
@@ -306,8 +370,8 @@ func nameSpaceSelector(matchType policies.MatchType, selector *metav1.LabelSelec
 
 // allowAllInternal returns translatedIPSet and SetInfo in case of allowing all internal traffic excluding external.
 func allowAllInternal(matchType policies.MatchType) (*ipsets.TranslatedIPSet, policies.SetInfo) {
-	allowAllIPSets := ipsets.NewTranslatedIPSet(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace)
-	setInfo := policies.NewSetInfo(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace, included, matchType)
+	allowAllIPSets := ipsets.NewTranslatedIPSet(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace)
+	setInfo := policies.NewSetInfo(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace, included, matchType)
 	return allowAllIPSets, setInfo
 }
 
@@ -339,6 +403,10 @@ func ruleExists(ports []networkingv1.NetworkPolicyPort, peer []networkingv1.Netw
 // peerAndPortRule deals with composite rules including ports and peers
 // (e.g., IPBlock, podSelector, namespaceSelector, or both podSelector and namespaceSelector).
 func peerAndPortRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Direction, ports []networkingv1.NetworkPolicyPort, setInfo []policies.SetInfo, npmLiteToggle bool) error {
+	if err := checkACLBudget(npmNetPol); err != nil {
+		return err
+	}
+
 	if len(ports) == 0 {
 		acl := policies.NewACLPolicy(policies.Allowed, direction)
 		acl.AddSetInfo(setInfo)
@@ -347,6 +415,12 @@ func peerAndPortRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Di
 	}
 
 	for i := range ports {
+		// Re-checked per port, not only on entry: this peer emits one ACL per port, so a
+		// check that ran once could not stop a single peer from expanding past the limit.
+		if err := checkACLBudget(npmNetPol); err != nil {
+			return err
+		}
+
 		portKind, err := portType(ports[i])
 		if err != nil {
 			return err
@@ -466,6 +540,9 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy,
 	if !portRuleExists && !peerRuleExists && !allowExternal {
 		if npmLiteToggle {
 			return ErrUnsupportedNonCIDR
+		}
+		if err := checkACLBudget(npmNetPol); err != nil {
+			return err
 		}
 		acl := policies.NewACLPolicy(policies.Allowed, direction)
 		ruleIPSets, allowAllInternalSetInfo := allowAllInternal(matchType)
@@ -613,12 +690,18 @@ func ingressPolicy(npmNetPol *policies.NPMNetworkPolicy, netPolName string, ingr
 	// #1. Allow all traffic from both internal and external.
 	// In yaml file, it is specified with '{}'.
 	if isAllowAllToIngress(ingress) {
+		if err := checkACLBudget(npmNetPol); err != nil {
+			return err
+		}
 		allowAllPolicy(npmNetPol, policies.Ingress)
 		return nil
 	}
 
 	// #2. If ingress is nil (in yaml file, it is specified with '[]'), it means "Deny all" - it does not allow receiving any traffic from others.
 	if ingress == nil {
+		if err := checkACLBudget(npmNetPol); err != nil {
+			return err
+		}
 		// Except for allow all traffic case in #1, the rest of them should have default drop rules.
 		dropACL := defaultDropACL(policies.Ingress)
 		npmNetPol.ACLs = append(npmNetPol.ACLs, dropACL)
@@ -633,6 +716,9 @@ func ingressPolicy(npmNetPol *policies.NPMNetworkPolicy, netPolName string, ingr
 		}
 	}
 	// Except for allow all traffic case in #1, the rest of them should have default drop rules.
+	if err := checkACLBudget(npmNetPol); err != nil {
+		return err
+	}
 	dropACL := defaultDropACL(policies.Ingress)
 	npmNetPol.ACLs = append(npmNetPol.ACLs, dropACL)
 	return nil
@@ -656,12 +742,18 @@ func egressPolicy(npmNetPol *policies.NPMNetworkPolicy, netPolName string, egres
 	// #1. Allow all traffic to both internal and external.
 	// In yaml file, it is specified with '{}'.
 	if isAllowAllToEgress(egress) {
+		if err := checkACLBudget(npmNetPol); err != nil {
+			return err
+		}
 		allowAllPolicy(npmNetPol, policies.Egress)
 		return nil
 	}
 
 	// #2. If egress is nil (in yaml file, it is specified with '[]'), it means "Deny all" - it does not allow sending traffic to others.
 	if egress == nil {
+		if err := checkACLBudget(npmNetPol); err != nil {
+			return err
+		}
 		// Except for allow all traffic case in #1, the rest of them should have default drop rules.
 		dropACL := defaultDropACL(policies.Egress)
 		npmNetPol.ACLs = append(npmNetPol.ACLs, dropACL)
@@ -679,6 +771,9 @@ func egressPolicy(npmNetPol *policies.NPMNetworkPolicy, netPolName string, egres
 
 	// #3. Except for allow all traffic case in #1, the rest of them should have default drop rules.
 	// Add drop ACL to drop the rest of traffic which is not specified in Egress Spec.
+	if err := checkACLBudget(npmNetPol); err != nil {
+		return err
+	}
 	dropACL := defaultDropACL(policies.Egress)
 	npmNetPol.ACLs = append(npmNetPol.ACLs, dropACL)
 	return nil
@@ -763,7 +858,49 @@ func TranslatePolicy(npObj *networkingv1.NetworkPolicy, npmLiteToggle bool) (*po
 			}
 		}
 	}
+
+	if err := checkACLTotal(npmNetPol); err != nil {
+		return nil, err
+	}
+
 	return npmNetPol, nil
+}
+
+// maxACLsPerPolicy bounds how many ACLs a single NetworkPolicy may translate into. Each ACL
+// becomes one iptables rule, and the count multiplies rather than adds: every flattened
+// namespaceSelector branch is emitted once per port in the rule, and that product is summed
+// across every peer and every rule in the policy. Bounding the flattened selector count on
+// its own is therefore not enough, because a policy that stays under that bound can still
+// multiply itself out by listing many ports. The ceiling is far above any workable policy,
+// since a policy expanding this wide would already be unusable as iptables rules.
+const maxACLsPerPolicy = 2000
+
+// checkACLBudget checks room before an ACL is added, including default drops.
+// Unlike reserving a fixed number of slots, this admits an exact-limit policy
+// regardless of which directions have already been translated.
+func checkACLBudget(npmNetPol *policies.NPMNetworkPolicy) error {
+	if len(npmNetPol.ACLs) >= maxACLsPerPolicy {
+		return tooManyACLs(npmNetPol)
+	}
+	return nil
+}
+
+// checkACLTotal reports whether the finished policy is past the ceiling. It is the backstop
+// for the paths that append without asking for room first, including the direct-rule path
+// this change leaves alone. It admits a policy that lands exactly on the ceiling, which
+// checkACLBudget cannot do because it is asked before the ACL exists.
+func checkACLTotal(npmNetPol *policies.NPMNetworkPolicy) error {
+	if len(npmNetPol.ACLs) > maxACLsPerPolicy {
+		return tooManyACLs(npmNetPol)
+	}
+	return nil
+}
+
+// tooManyACLs builds the refusal. The error carries the policy context and is recorded once
+// by the caller.
+func tooManyACLs(npmNetPol *policies.NPMNetworkPolicy) error {
+	return fmt.Errorf("network policy %s expands past the %d rule limit: %w",
+		npmNetPol.PolicyKey, maxACLsPerPolicy, ErrTooManyACLs)
 }
 
 func checkForNamedPortType(npmNetPol *policies.NPMNetworkPolicy, portKind netpolPortType, npmLiteToggle bool, direction policies.Direction, port *networkingv1.NetworkPolicyPort, cidr string) error {
@@ -786,6 +923,12 @@ func checkOnlyPortRuleExists(
 	// #1. Only Ports fields exist in rule
 	if portRuleExists && !peerRuleExists && !allowExternal {
 		for i := range ports {
+			// This path emits one ACL per port with no peer to bound it, so the budget is
+			// checked here too rather than leaving it to the backstop at the end.
+			if err := checkACLBudget(npmNetPol); err != nil {
+				return err
+			}
+
 			portKind, err := portType(ports[i])
 			if err != nil {
 				return err
