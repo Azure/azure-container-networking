@@ -456,6 +456,18 @@ jobs:
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
 
+      # Modules with BPF-generated sources don't compile from a clean checkout,
+      # so govulncheck reports a build error instead of scanning them.
+      # Keep this list in sync with the `bpf: true` entries in govulncheck.yaml.
+      - name: Build BPF lib and generate sources
+        run: |
+          set -euo pipefail
+          make bpf-lib
+          for moddir in . bpf-prog/ipv6-hp-bpf azure-iptables-monitor; do
+            echo "go generate in $moddir..."
+            (cd "$moddir" && go generate ./...)
+          done
+
       - name: Run govulncheck on all modules
         id: scan
         run: |
@@ -479,6 +491,7 @@ jobs:
                 SCAN_ERRORS=$((SCAN_ERRORS + 1))
                 VULN_REPORT+="$moddir: scan error (exit $EXIT_CODE, no vulns reported)\n"
                 echo "::error::govulncheck failed in $moddir (exit $EXIT_CODE) without reporting vulnerabilities — possible build error"
+                echo "$OUTPUT"
               fi
             fi
           done
