@@ -926,9 +926,8 @@ func TestTranslatePolicyOrdinaryPolicyWithinACLBudget(t *testing.T) {
 // that lands exactly on it. Using the same comparison for both would reject a policy of
 // exactly maxACLsPerPolicy rules.
 func TestTranslatePolicyExactlyAtACLLimit(t *testing.T) {
-	// the budget holds back a slot for the default drop the policy implies, so this is the
-	// widest a policy can get: every port emits an ACL and the drop still fits under the ceiling
-	portCount := maxACLsPerPolicy - reservedDropACLs
+	// One ACL per port, plus the required default drop.
+	portCount := maxACLsPerPolicy - 1
 	ports := make([]networkingv1.NetworkPolicyPort, 0, portCount)
 	for i := 0; i < portCount; i++ {
 		p := intstr.FromInt(1 + i)
@@ -945,11 +944,10 @@ func TestTranslatePolicyExactlyAtACLLimit(t *testing.T) {
 	}
 
 	npmNetPol, err := TranslatePolicy(pol, false)
-	require.NoError(t, err, "a policy at the widest the budget allows must translate")
+	require.NoError(t, err, "a policy exactly at the ceiling must translate")
 	require.NotNil(t, npmNetPol)
 	require.Len(t, npmNetPol.ACLs, portCount+1, "every port plus the default drop")
-	require.LessOrEqual(t, len(npmNetPol.ACLs), maxACLsPerPolicy,
-		"the drop must never take the policy past the ceiling")
+	require.Len(t, npmNetPol.ACLs, maxACLsPerPolicy)
 }
 
 // TestPortOnlyRuleBudgetStopsWithinPortLoop covers a rule that lists ports and no peers. That

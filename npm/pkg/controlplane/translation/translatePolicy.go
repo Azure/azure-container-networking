@@ -542,6 +542,9 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy,
 		if npmLiteToggle {
 			return ErrUnsupportedNonCIDR
 		}
+		if err := checkACLBudget(npmNetPol); err != nil {
+			return err
+		}
 		acl := policies.NewACLPolicy(policies.Allowed, direction)
 		ruleIPSets, allowAllInternalSetInfo := allowAllInternal(matchType)
 		npmNetPol.RuleIPSets = append(npmNetPol.RuleIPSets, ruleIPSets)
@@ -688,12 +691,18 @@ func ingressPolicy(npmNetPol *policies.NPMNetworkPolicy, netPolName string, ingr
 	// #1. Allow all traffic from both internal and external.
 	// In yaml file, it is specified with '{}'.
 	if isAllowAllToIngress(ingress) {
+		if err := checkACLBudget(npmNetPol); err != nil {
+			return err
+		}
 		allowAllPolicy(npmNetPol, policies.Ingress)
 		return nil
 	}
 
 	// #2. If ingress is nil (in yaml file, it is specified with '[]'), it means "Deny all" - it does not allow receiving any traffic from others.
 	if ingress == nil {
+		if err := checkACLBudget(npmNetPol); err != nil {
+			return err
+		}
 		// Except for allow all traffic case in #1, the rest of them should have default drop rules.
 		dropACL := defaultDropACL(policies.Ingress)
 		npmNetPol.ACLs = append(npmNetPol.ACLs, dropACL)
@@ -708,6 +717,9 @@ func ingressPolicy(npmNetPol *policies.NPMNetworkPolicy, netPolName string, ingr
 		}
 	}
 	// Except for allow all traffic case in #1, the rest of them should have default drop rules.
+	if err := checkACLBudget(npmNetPol); err != nil {
+		return err
+	}
 	dropACL := defaultDropACL(policies.Ingress)
 	npmNetPol.ACLs = append(npmNetPol.ACLs, dropACL)
 	return nil
@@ -731,12 +743,18 @@ func egressPolicy(npmNetPol *policies.NPMNetworkPolicy, netPolName string, egres
 	// #1. Allow all traffic to both internal and external.
 	// In yaml file, it is specified with '{}'.
 	if isAllowAllToEgress(egress) {
+		if err := checkACLBudget(npmNetPol); err != nil {
+			return err
+		}
 		allowAllPolicy(npmNetPol, policies.Egress)
 		return nil
 	}
 
 	// #2. If egress is nil (in yaml file, it is specified with '[]'), it means "Deny all" - it does not allow sending traffic to others.
 	if egress == nil {
+		if err := checkACLBudget(npmNetPol); err != nil {
+			return err
+		}
 		// Except for allow all traffic case in #1, the rest of them should have default drop rules.
 		dropACL := defaultDropACL(policies.Egress)
 		npmNetPol.ACLs = append(npmNetPol.ACLs, dropACL)
@@ -754,6 +772,9 @@ func egressPolicy(npmNetPol *policies.NPMNetworkPolicy, netPolName string, egres
 
 	// #3. Except for allow all traffic case in #1, the rest of them should have default drop rules.
 	// Add drop ACL to drop the rest of traffic which is not specified in Egress Spec.
+	if err := checkACLBudget(npmNetPol); err != nil {
+		return err
+	}
 	dropACL := defaultDropACL(policies.Egress)
 	npmNetPol.ACLs = append(npmNetPol.ACLs, dropACL)
 	return nil
@@ -855,17 +876,11 @@ func TranslatePolicy(npObj *networkingv1.NetworkPolicy, npmLiteToggle bool) (*po
 // since a policy expanding this wide would already be unusable as iptables rules.
 const maxACLsPerPolicy = 2000
 
-// reservedDropACLs is what the per-append guard holds back for the default drop a policy still
-// needs after its rules are translated, one per direction. Without the reservation a policy
-// that filled the budget with allow rules would append its drop on top and land one or two ACLs
-// past the ceiling before the check at the end of translation refused it.
-const reservedDropACLs = 2
-
-// checkACLBudget reports whether there is room for another ACL. It is checked before a peer
-// is expanded, before each of that peer's ports, and before each port of a port-only rule, so
-// those paths never take the policy past the ceiling, including the default drop still to come.
+// checkACLBudget checks room before an ACL is added, including default drops.
+// Unlike reserving a fixed number of slots, this admits an exact-limit policy
+// regardless of which directions have already been translated.
 func checkACLBudget(npmNetPol *policies.NPMNetworkPolicy) error {
-	if len(npmNetPol.ACLs) >= maxACLsPerPolicy-reservedDropACLs {
+	if len(npmNetPol.ACLs) >= maxACLsPerPolicy {
 		return tooManyACLs(npmNetPol)
 	}
 	return nil
