@@ -1095,7 +1095,9 @@ jobs:
     name: "Step 5: Pipeline Validation"
     runs-on: ubuntu-latest
     needs: [create_tag, release_channel_post]
-    if: ${{ !inputs.dry_run }}
+    # create_tag and release_channel_post both use always(), so an upstream skip
+    # (e.g. vuln_check via skip_vuln_check) propagates here unless we opt out too.
+    if: ${{ always() && !inputs.dry_run && needs.create_tag.result == 'success' && needs.release_channel_post.result == 'success' }}
     permissions:
       contents: read
       id-token: write
