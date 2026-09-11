@@ -59,6 +59,7 @@ type TelemetryBuffer struct {
 	mutex       sync.Mutex
 	logger      *zap.Logger
 	plc         platform.ExecClient
+	fdName      string
 }
 
 // Buffer object holds the different types of reports
@@ -75,6 +76,7 @@ func NewTelemetryBuffer(logger *zap.Logger) *TelemetryBuffer {
 	tb.connections = make([]net.Conn, 0)
 	tb.logger = logger
 	tb.plc = platform.NewExecClient(tb.logger)
+	tb.fdName = FdName
 
 	return &tb
 }
@@ -91,7 +93,7 @@ func remove(s []net.Conn, i int) []net.Conn {
 
 // Starts Telemetry server listening on unix domain socket
 func (tb *TelemetryBuffer) StartServer() error {
-	err := tb.Listen(FdName)
+	err := tb.Listen(tb.fdName)
 	if err != nil {
 		tb.FdExists = strings.Contains(err.Error(), "in use") || strings.Contains(err.Error(), "Access is denied")
 		if tb.logger != nil {
@@ -193,11 +195,11 @@ func (tb *TelemetryBuffer) StartServer() error {
 }
 
 func (tb *TelemetryBuffer) Connect() error {
-	err := tb.Dial(FdName)
+	err := tb.Dial(tb.fdName)
 	if err == nil {
 		tb.Connected = true
 	} else if tb.FdExists {
-		tb.Cleanup(FdName)
+		_ = tb.Cleanup(tb.fdName)
 	}
 
 	return err
@@ -375,7 +377,7 @@ func (tb *TelemetryBuffer) ConnectToTelemetryService(telemetryNumRetries, teleme
 				}
 				return
 			}
-			tb.Cleanup(FdName)
+			_ = tb.Cleanup(tb.fdName)
 			tb.StartTelemetryService(path, args) // nolint
 			WaitForTelemetrySocket(telemetryNumRetries, time.Duration(telemetryWaitTimeInMilliseconds))
 		} else {
