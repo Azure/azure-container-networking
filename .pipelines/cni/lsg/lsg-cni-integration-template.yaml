@@ -47,7 +47,7 @@ stages:
                 if [ "${K8S_VER:-__use-default__}" = "__use-default__" ]; then
                   unset K8S_VER
                 fi
-                K8S_VERSION=$(make -s -C ./hack/aks vars | sed -n 's/^K8S_VER=//p')
+                K8S_VERSION=$(make -s -C ./hack/aks vars AZCLI=az LTS=false | sed -n 's/^K8S_VER=//p')
                 if [ -z "$K8S_VERSION" ]; then
                   echo "Failed to resolve K8S_VER from hack/aks/Makefile"
                   exit 1
@@ -58,7 +58,7 @@ stages:
                 make -C ./hack/aks ${{ parameters.clusterType }} \
                   AZCLI=az REGION="$REGION" SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \
                   CLUSTER="$CLUSTER" NODE_COUNT=${{ parameters.nodeCount }} \
-                  VM_SIZE=${{ parameters.vmSize }} AUTOUPGRADE=none LTS=false \
+                  VM_SIZE=${{ parameters.vmSize }} AUTOUPGRADE=none LTS=auto \
                   K8S_VER="$K8S_VERSION" OS_SKU=$(osSKU)
                 make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER="$CLUSTER"
 
@@ -85,7 +85,7 @@ stages:
                   exit 1
                 }
                 if [[ "$K8S_VERSION" =~ ^[0-9]+\.[0-9]+$ ]]; then
-                  [[ "$ACTUAL_K8S_VERSION" == "$K8S_VERSION".* ]] || {
+                  [[ "$ACTUAL_K8S_VERSION" == "$K8S_VERSION" || "$ACTUAL_K8S_VERSION" == "$K8S_VERSION".* ]] || {
                     echo "Expected Kubernetes $K8S_VERSION.x, got $ACTUAL_K8S_VERSION"
                     exit 1
                   }
