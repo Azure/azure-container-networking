@@ -855,11 +855,17 @@ func TranslatePolicy(npObj *networkingv1.NetworkPolicy, npmLiteToggle bool) (*po
 // since a policy expanding this wide would already be unusable as iptables rules.
 const maxACLsPerPolicy = 2000
 
+// reservedDropACLs is what the per-append guard holds back for the default drop a policy still
+// needs after its rules are translated, one per direction. Without the reservation a policy
+// that filled the budget with allow rules would append its drop on top and land one or two ACLs
+// past the ceiling before the check at the end of translation refused it.
+const reservedDropACLs = 2
+
 // checkACLBudget reports whether there is room for another ACL. It is checked before a peer
 // is expanded, before each of that peer's ports, and before each port of a port-only rule, so
-// those paths never take the policy past the ceiling.
+// those paths never take the policy past the ceiling, including the default drop still to come.
 func checkACLBudget(npmNetPol *policies.NPMNetworkPolicy) error {
-	if len(npmNetPol.ACLs) >= maxACLsPerPolicy {
+	if len(npmNetPol.ACLs) >= maxACLsPerPolicy-reservedDropACLs {
 		return tooManyACLs(npmNetPol)
 	}
 	return nil

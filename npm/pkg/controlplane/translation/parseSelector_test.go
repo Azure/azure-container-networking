@@ -926,8 +926,9 @@ func TestTranslatePolicyOrdinaryPolicyWithinACLBudget(t *testing.T) {
 // that lands exactly on it. Using the same comparison for both would reject a policy of
 // exactly maxACLsPerPolicy rules.
 func TestTranslatePolicyExactlyAtACLLimit(t *testing.T) {
-	// one ACL per port, plus the default drop the policy implies.
-	portCount := maxACLsPerPolicy - 1
+	// the budget holds back a slot for the default drop the policy implies, so this is the
+	// widest a policy can get: every port emits an ACL and the drop still fits under the ceiling
+	portCount := maxACLsPerPolicy - reservedDropACLs
 	ports := make([]networkingv1.NetworkPolicyPort, 0, portCount)
 	for i := 0; i < portCount; i++ {
 		p := intstr.FromInt(1 + i)
@@ -944,9 +945,11 @@ func TestTranslatePolicyExactlyAtACLLimit(t *testing.T) {
 	}
 
 	npmNetPol, err := TranslatePolicy(pol, false)
-	require.NoError(t, err, "a policy landing exactly on the ceiling must translate")
+	require.NoError(t, err, "a policy at the widest the budget allows must translate")
 	require.NotNil(t, npmNetPol)
-	require.Len(t, npmNetPol.ACLs, maxACLsPerPolicy)
+	require.Len(t, npmNetPol.ACLs, portCount+1, "every port plus the default drop")
+	require.LessOrEqual(t, len(npmNetPol.ACLs), maxACLsPerPolicy,
+		"the drop must never take the policy past the ceiling")
 }
 
 // TestPortOnlyRuleBudgetStopsWithinPortLoop covers a rule that lists ports and no peers. That
@@ -1025,8 +1028,10 @@ func TestNotInValuesAreBounded(t *testing.T) {
 // TestNotInValuesAtTheBoundAreAccepted keeps the bound from rejecting a selector that sits
 // exactly on it, and guards the ordinary small NotIn that real policies use.
 func TestNotInValuesAtTheBoundAreAccepted(t *testing.T) {
-	values := make([]string, 0, maxSelectorMatches)
-	for i := 0; i < maxSelectorMatches; i++ {
+	// one short of the bound: the selector matches only negatively, so parseNSSelector
+	// anchors it with the all-namespaces set and that match counts too
+	values := make([]string, 0, maxSelectorMatches-1)
+	for i := 0; i < maxSelectorMatches-1; i++ {
 		values = append(values, fmt.Sprintf("v%d", i))
 	}
 
@@ -1037,7 +1042,7 @@ func TestNotInValuesAtTheBoundAreAccepted(t *testing.T) {
 	})
 	require.NoError(t, err, "a selector exactly on the bound must translate")
 	require.Len(t, flattened, 1, "a NotIn stays a single conjunction")
-	require.Len(t, flattened[0].MatchExpressions, maxSelectorMatches)
+	require.Len(t, flattened[0].MatchExpressions, maxSelectorMatches-1)
 }
 
 // TestMatchLabelsOnlySelectorIsBounded covers a selector that carries only matchLabels. It
@@ -1060,4 +1065,52 @@ func TestMatchLabelsOnlySelectorIsBounded(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, ok, 1)
+}
+
+// TestSelectorBranchesTimesMatchesIsBounded covers a selector that stays under both the match
+// bound and the branch bound yet multiplies them together. Each branch repeats every match, and
+// the translator materializes an IPSet and a SetInfo per match before the policy's rule budget
+// is consulted, so the product is what has to be bounded.
+func TestSelectorBranchesTimesMatchesIsBounded(t *testing.T) {
+	// 991 labels plus nine two-value In requirements: 1000 matches per branch, 512 branches
+	labels := make(map[string]string, 991)
+	for i := 0; i < 991; i++ {
+		labels[fmt.Sprintf("key%d", i)] = "v"
+	}
+	reqs := make([]metav1.LabelSelectorRequirement, 0, 9)
+	for i := 0; i < 9; i++ {
+		reqs = append(reqs, metav1.LabelSelectorRequirement{
+			Key:      fmt.Sprintf("in%d", i),
+			Operator: metav1.LabelSelectorOpIn,
+			Values:   []string{"a", "b"},
+		})
+	}
+
+	selector := &metav1.LabelSelector{MatchLabels: labels, MatchExpressions: reqs}
+
+	// each factor on its own is within its bound
+	require.LessOrEqual(t, len(labels)+len(reqs), maxSelectorMatches)
+	require.LessOrEqual(t, 1<<len(reqs), maxFlattenedNSSelectors)
+
+	flattened, err := flattenNameSpaceSelector(selector)
+	require.ErrorIs(t, err, ErrTooManySelectorMatches,
+		"the product of branches and matches must be refused")
+	require.Nil(t, flattened)
+}
+
+// TestOrdinarySelectorIsWithinTheTotalBound guards the total bound against false positives on
+// the shape the existing budget test uses: many branches, few matches in each.
+func TestOrdinarySelectorIsWithinTheTotalBound(t *testing.T) {
+	reqs := make([]metav1.LabelSelectorRequirement, 0, 9)
+	for i := 0; i < 9; i++ {
+		reqs = append(reqs, metav1.LabelSelectorRequirement{
+			Key:      fmt.Sprintf("in%d", i),
+			Operator: metav1.LabelSelectorOpIn,
+			Values:   []string{"a", "b"},
+		})
+	}
+
+	flattened, err := flattenNameSpaceSelector(&metav1.LabelSelector{MatchExpressions: reqs})
+	require.NoError(t, err, "512 branches of 9 matches must still translate")
+	require.Len(t, flattened, 512)
 }

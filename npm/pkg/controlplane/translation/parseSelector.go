@@ -14,6 +14,13 @@ import (
 // an alphanumeric character (e.g. 'MyValue',  or 'my_value',  or '12345', regex used for validation is '(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?'
 var validLabelRegex = regexp.MustCompile("(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?")
 
+// maxTotalSelectorMatches bounds the set matches a namespaceSelector produces across every
+// branch it fans out into. A multi-value In repeats the whole selector once per value, so the
+// cost is the branch count multiplied by the matches in each branch; bounding either factor on
+// its own leaves a wide selector repeated across many branches unbounded, and the translator
+// materializes an IPSet and a SetInfo for each before the per-policy rule budget is consulted.
+const maxTotalSelectorMatches = 10000
+
 // maxSelectorMatches bounds how many set matches a single namespaceSelector may expand into.
 // Each match becomes its own IPSet and its own condition on the rule the selector produces, and
 // a multi-value NotIn contributes one per value while staying in a single selector, so it is
@@ -90,18 +97,52 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelS
 	// selector-count bound further down and the per-policy rule budget, yet every one of its
 	// values becomes its own IPSet and its own condition on one rule.
 	matches := len(nsSelector.MatchLabels)
+	branches := 1
+	hasPositiveMatch := len(nsSelector.MatchLabels) > 0
 	for _, req := range nsSelector.MatchExpressions {
-		if req.Operator == metav1.LabelSelectorOpNotIn {
+		switch req.Operator {
+		case metav1.LabelSelectorOpNotIn:
 			// each excluded value is carried as its own negated match
 			matches += len(req.Values)
-			continue
+		case metav1.LabelSelectorOpIn:
+			// one match per branch, and a multi-value In fans out into branches
+			matches++
+			hasPositiveMatch = true
+			if len(req.Values) > 1 {
+				// the branch count is bounded on its own terms first, so a selector that
+				// fans out too far still reports that rather than the total below.
+				// Divide rather than multiply so the product cannot overflow.
+				if len(req.Values) > maxFlattenedNSSelectors/branches {
+					return nil, fmt.Errorf("key %q with %d values expands past the %d selector limit: %w",
+						req.Key, len(req.Values), maxFlattenedNSSelectors, ErrTooManyFlattenedSelectors)
+				}
+				branches *= len(req.Values)
+			}
+		case metav1.LabelSelectorOpExists:
+			matches++
+			hasPositiveMatch = true
+		case metav1.LabelSelectorOpDoesNotExist:
+			matches++
+		default:
+			// an unknown operator, which the loop below rejects
+			matches++
 		}
-		// In contributes one match per branch; Exists and DoesNotExist one each
+	}
+	if !hasPositiveMatch {
+		// parseNSSelector anchors a selector that matches only negatively with the
+		// all-namespaces set, so that match counts too
 		matches++
 	}
 	if matches > maxSelectorMatches {
 		return nil, fmt.Errorf("selector expands into %d matches, past the %d limit: %w",
 			matches, maxSelectorMatches, ErrTooManySelectorMatches)
+	}
+	// Each branch repeats every match, so the cost is the product rather than either factor.
+	// The branch count alone is bounded further down and the rule count by the policy budget,
+	// but neither sees a wide selector repeated across many branches.
+	if matches > maxTotalSelectorMatches/branches {
+		return nil, fmt.Errorf("selector expands into %d branches of %d matches, past the %d total match limit: %w",
+			branches, matches, maxTotalSelectorMatches, ErrTooManySelectorMatches)
 	}
 
 	if len(nsSelector.MatchExpressions) == 0 {
