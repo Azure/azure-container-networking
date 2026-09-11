@@ -518,6 +518,7 @@ jobs:
           MSG="🚫 **govulncheck FAILED** on $RELEASE_BRANCH. Vulnerabilities: ${VULN_COUNT}, Scan errors: ${SCAN_ERRORS}. Release blocked until resolved."
           /tmp/release-cli notify \
             --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
+            --run-id "vuln-check-${GITHUB_RUN_ID}" \
             --title "Vuln Check: ${RELEASE_BRANCH}" \
             --status failed \
             --summary "$MSG" \
@@ -670,6 +671,7 @@ jobs:
             MSG="🏜️ [DRY RUN] Binary releases that WOULD be created: ${CREATED} — These tags were detected as needing a release but were not pushed (dry run mode)."
             /tmp/release-cli notify \
               --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
+              --run-id "binary-release-${GITHUB_RUN_ID}" \
               --title "Binary Release Summary: ${RELEASE_BRANCH}" \
               --status queued \
               --summary "$MSG" \
@@ -687,6 +689,7 @@ jobs:
               MSG="📦 Binary releases created (monthly release cycle): $(echo -e "$CREATED") — These tags were auto-created because changes were detected since the previous release."
               /tmp/release-cli notify \
                 --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
+                --run-id "binary-release-${GITHUB_RUN_ID}" \
                 --title "Binary Release Summary: ${RELEASE_BRANCH}" \
                 --status succeeded \
                 --summary "$MSG" \
@@ -1046,6 +1049,7 @@ jobs:
         run: |
           /tmp/release-cli notify \
             --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
+            --run-id "r2d-draft-${GITHUB_RUN_ID}" \
             --title "R2D Drafts: ${NEW_TAG}" \
             --status running \
             --summary "📋 R2D Drafts prepared for ${NEW_TAG}: UNSIGNED — Clone from SafeFly Request #193479 • Service Group: microsoft.azure.networking.containernetworking.githubrelease • File at: https://aka.ms/R2D | SIGNED — Clone from SafeFly Request #174991 • Service Group: microsoft.azure.networking.containernetworking • File at: https://aka.ms/R2D | ⚠️ Human action required: File both R2Ds, then post the Safefly/R2D links back in this thread." \
@@ -1227,6 +1231,7 @@ jobs:
 
           /tmp/release-cli notify \
             --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
+            --run-id "pipeline-validation-${GITHUB_RUN_ID}" \
             --title "Pipeline Validation: ${NEW_TAG}" \
             --status "$OVERALL_STATUS" \
             --summary "$MSG" \
