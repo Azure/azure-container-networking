@@ -374,6 +374,7 @@ func initializeDaemonMetrics() {
 	numIPSetEntries = createClusterGauge(numIPSetEntriesName, numIPSetEntriesHelp)
 	ipsetInventory = createClusterGaugeVec(ipsetInventoryName, ipsetInventoryHelp, ipsetInventoryLabels)
 	ipsetInventoryMap = make(map[string]int)
+	inventorySeries = make(map[string]struct{})
 
 	// NODE METRICS
 	addACLRuleExecTime = createNodeSummary(addACLRuleExecTimeName, addACLRuleExecTimeHelp)

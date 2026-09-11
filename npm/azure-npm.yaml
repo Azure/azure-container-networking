@@ -166,9 +166,10 @@ data:
         "MaxPendingNetPols":            100,
         "Toggles": {
             "EnablePrometheusMetrics": true,
-            "EnablePprof":             true,
-            "EnableHTTPDebugAPI":      true,
+            "EnablePprof":             false,
+            "EnableHTTPDebugAPI":      false,
             "EnableV2NPM":             true,
+            "ApplyIPSetsOnNeed":       true,
             "PlaceAzureChainFirst":    false,
             "ApplyInBackground":       true,
             "NetPolInBackground":      true
