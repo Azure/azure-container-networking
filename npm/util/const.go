@@ -6,10 +6,13 @@ import "k8s.io/klog"
 
 // kubernetes related constants.
 const (
-	KubeSystemFlag             string = "kube-system"
-	KubePodTemplateHashFlag    string = "pod-template-hash"
-	KubeAllPodsFlag            string = "all-pod"
-	KubeAllNamespacesFlag      string = "all-namespaces"
+	KubeSystemFlag          string = "kube-system"
+	KubePodTemplateHashFlag string = "pod-template-hash"
+	KubeAllPodsFlag         string = "all-pod"
+	KubeAllNamespacesFlag   string = "all-namespaces"
+	// A leading colon cannot occur in a label key or a key:value label identity.
+	// Keep the v1 name unchanged and separate v2 aggregate membership from labels.
+	KubeAllNamespacesFlagV2    string = ":all-namespaces"
 	KubeAppFlag                string = "k8s-app"
 	KubeProxyFlag              string = "kube-proxy"
 	KubePodStatusFailedFlag    string = "Failed"

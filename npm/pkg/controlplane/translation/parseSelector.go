@@ -220,7 +220,7 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelS
 				}
 			}
 		case (req.Operator == metav1.LabelSelectorOpExists) || (req.Operator == metav1.LabelSelectorOpDoesNotExist):
-			// since Exists and NotExists do not contain any values, NPM can safely add them to the baseSelector
+			// Exists and DoesNotExist do not carry values.
 			baseSelector.MatchExpressions = append(baseSelector.MatchExpressions, req)
 		default:
 			// Fail closed: an unknown operator must not silently drop the requirement
@@ -372,7 +372,7 @@ func parseNSSelector(selector *metav1.LabelSelector) []labelSelector {
 
 	// #1. All namespaces case
 	if len(selector.MatchLabels) == 0 && len(selector.MatchExpressions) == 0 {
-		parsedSelectors.addSelector(true, ipsets.KeyLabelOfNamespace, util.KubeAllNamespacesFlag)
+		parsedSelectors.addSelector(true, ipsets.KeyLabelOfNamespace, util.KubeAllNamespacesFlagV2)
 		return parsedSelectors.labelSelectors
 	}
 
@@ -410,7 +410,7 @@ func parseNSSelector(selector *metav1.LabelSelector) []labelSelector {
 	// admit non-cluster (e.g. internet) peers. Intersect with the all-namespaces set so
 	// the match stays scoped to namespaces, mirroring allowAllInternal.
 	if !parsedSelectors.hasPositiveSelector() {
-		parsedSelectors.addSelector(true, ipsets.KeyLabelOfNamespace, util.KubeAllNamespacesFlag)
+		parsedSelectors.addSelector(true, ipsets.KeyLabelOfNamespace, util.KubeAllNamespacesFlagV2)
 	}
 
 	return parsedSelectors.labelSelectors

@@ -465,12 +465,12 @@ func (nsc *NamespaceController) cleanDeletedNamespace(cachedNsKey string) error 
 		cachedNsObj.RemoveLabelsWithKey(nsLabelKey)
 	}
 
-	allNamespacesSet := ipsets.NewIPSetMetadata(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace)
+	allNamespacesSet := ipsets.NewIPSetMetadata(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace)
 	toBeDeletedCachedKey := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(cachedNsKey, ipsets.Namespace)}
 
 	// Delete the namespace from all-namespace ipset list.
 	if err = nsc.dp.RemoveFromList(allNamespacesSet, toBeDeletedCachedKey); err != nil {
-		metrics.SendErrorLogAndMetric(util.NSID, "[DeleteNamespace] Error: failed to delete namespace %s from ipset list %s with err: %v", cachedNsKey, util.KubeAllNamespacesFlag, err)
+		metrics.SendErrorLogAndMetric(util.NSID, "[DeleteNamespace] Error: failed to delete namespace %s from ipset list %s with err: %v", cachedNsKey, util.KubeAllNamespacesFlagV2, err)
 		return fmt.Errorf("failed to remove from list during clean deleted namespace %w", err)
 	}
 

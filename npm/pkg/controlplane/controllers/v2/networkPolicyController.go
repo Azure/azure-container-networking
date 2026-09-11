@@ -376,6 +376,7 @@ func isUnsupportedWindowsTranslationErr(err error) bool {
 // selected pods with no rules while nothing signalled that the policy was never applied.
 func isUnsupportedTranslationErr(err error) bool {
 	return isUnsupportedWindowsTranslationErr(err) ||
+		(util.IsWindowsDP() && errors.Is(err, translation.ErrUnsupportedIPAddress)) ||
 		// NPM Lite only supports CIDR peers; a label-selector peer is out of scope there.
 		errors.Is(err, translation.ErrUnsupportedNonCIDR)
 }

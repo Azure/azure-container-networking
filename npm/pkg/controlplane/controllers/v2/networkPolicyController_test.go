@@ -685,8 +685,11 @@ func TestSyncAddAndUpdateNetPolSurfacesTranslationFailure(t *testing.T) {
 	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(0)
 
 	_, err := f.netPolController.syncAddAndUpdateNetPol(netPolObj)
-	require.Error(t, err, "a translation failure must be surfaced, not reported as success")
-	require.ErrorIs(t, err, translation.ErrUnsupportedIPAddress)
+	if util.IsWindowsDP() {
+		require.NoError(t, err, "an unsupported Windows address must stay suppressed")
+	} else {
+		require.ErrorIs(t, err, translation.ErrUnsupportedIPAddress)
+	}
 
 	// The policy must not be recorded as applied, so a later retry still reconciles it.
 	netpolKey, keyErr := cache.MetaNamespaceKeyFunc(netPolObj)
@@ -716,4 +719,8 @@ func TestSyncAddAndUpdateNetPolSuppressesUnsupportedFeature(t *testing.T) {
 
 	_, err := f.netPolController.syncAddAndUpdateNetPol(netPolObj)
 	require.NoError(t, err, "an unsupported-feature limitation must stay suppressed")
+}
+
+func TestUnsupportedAddressClassificationIsPlatformSpecific(t *testing.T) {
+	require.Equal(t, util.IsWindowsDP(), isUnsupportedTranslationErr(translation.ErrUnsupportedIPAddress))
 }

@@ -37,7 +37,7 @@ const (
 	updateEvent string = "UPDATE"
 )
 
-var kubeAllNamespaces = &ipsets.IPSetMetadata{Name: util.KubeAllNamespacesFlag, Type: ipsets.KeyLabelOfNamespace}
+var kubeAllNamespaces = &ipsets.IPSetMetadata{Name: util.KubeAllNamespacesFlagV2, Type: ipsets.KeyLabelOfNamespace}
 
 type PodController struct {
 	podLister corelisters.PodLister

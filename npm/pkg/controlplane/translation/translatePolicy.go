@@ -233,8 +233,7 @@ func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSe
 		return nil, ErrUnsupportedExceptCIDR
 	}
 
-	// de-duplicated Except if there are redundance elements, in canonical form so they
-	// compare correctly against the all-addresses split entries below.
+	// Canonicalize and deduplicate exclusions before comparing with the split entries.
 	deDupExcepts, err := canonicalizeExcepts(ipBlockRule.Except)
 	if err != nil {
 		return nil, err
@@ -297,7 +296,7 @@ func ipBlockRule(policyName, ns string, direction policies.Direction, matchType 
 	// form, but IsIPV4 refuses a /0 that is not spelled "0.0.0.0". Rejecting here aborts the
 	// translation of the whole policy, so neither the peer rule nor the default drop the policy
 	// implies is installed and the selected pods are left with no rules at all. This is the
-	// ipset path, which is Linux only; the Windows direct-rule path is unchanged.
+	// shared ipset path; the Windows NPM Lite direct-rule path is unchanged.
 	if _, ok := util.NormalizeCIDR(ipBlockRule.CIDR); !ok {
 		return nil, policies.SetInfo{}, ErrUnsupportedIPAddress
 	}
@@ -371,8 +370,8 @@ func nameSpaceSelector(matchType policies.MatchType, selector *metav1.LabelSelec
 
 // allowAllInternal returns translatedIPSet and SetInfo in case of allowing all internal traffic excluding external.
 func allowAllInternal(matchType policies.MatchType) (*ipsets.TranslatedIPSet, policies.SetInfo) {
-	allowAllIPSets := ipsets.NewTranslatedIPSet(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace)
-	setInfo := policies.NewSetInfo(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace, included, matchType)
+	allowAllIPSets := ipsets.NewTranslatedIPSet(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace)
+	setInfo := policies.NewSetInfo(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace, included, matchType)
 	return allowAllIPSets, setInfo
 }
 

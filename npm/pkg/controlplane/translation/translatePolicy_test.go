@@ -1144,10 +1144,10 @@ func TestNameSpaceSelector(t *testing.T) {
 				MatchLabels: map[string]string{},
 			},
 			nsSelectorIPSets: []*ipsets.TranslatedIPSet{
-				ipsets.NewTranslatedIPSet(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace),
+				ipsets.NewTranslatedIPSet(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace),
 			},
 			nsSelectorList: []policies.SetInfo{
-				policies.NewSetInfo(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace, included, matchType),
+				policies.NewSetInfo(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace, included, matchType),
 			},
 		},
 		{
@@ -1327,7 +1327,7 @@ func TestNameSpaceSelectorMultiValueNotIn(t *testing.T) {
 
 	expected := []policies.SetInfo{
 		// The all-namespaces set keeps the negation-only match scoped to cluster namespaces.
-		policies.NewSetInfo(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace, included, matchType),
+		policies.NewSetInfo(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace, included, matchType),
 		policies.NewSetInfo("tenant:x", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
 		policies.NewSetInfo("tenant:y", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
 	}
@@ -1383,7 +1383,7 @@ func TestNameSpaceSelectorNegationOnlyIsScopedToNamespaces(t *testing.T) {
 				},
 			},
 			expected: []policies.SetInfo{
-				policies.NewSetInfo(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace, included, matchType),
+				policies.NewSetInfo(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace, included, matchType),
 				policies.NewSetInfo("tenant:x", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
 			},
 		},
@@ -1395,7 +1395,7 @@ func TestNameSpaceSelectorNegationOnlyIsScopedToNamespaces(t *testing.T) {
 				},
 			},
 			expected: []policies.SetInfo{
-				policies.NewSetInfo(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace, included, matchType),
+				policies.NewSetInfo(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace, included, matchType),
 				policies.NewSetInfo(tenantLabelKey, ipsets.KeyLabelOfNamespace, nonIncluded, matchType),
 			},
 		},
@@ -1408,7 +1408,7 @@ func TestNameSpaceSelectorNegationOnlyIsScopedToNamespaces(t *testing.T) {
 				},
 			},
 			expected: []policies.SetInfo{
-				policies.NewSetInfo(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace, included, matchType),
+				policies.NewSetInfo(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace, included, matchType),
 				policies.NewSetInfo("tenant:x", ipsets.KeyValueLabelOfNamespace, nonIncluded, matchType),
 				policies.NewSetInfo(teamLabelKey, ipsets.KeyLabelOfNamespace, nonIncluded, matchType),
 			},
@@ -1421,7 +1421,7 @@ func TestNameSpaceSelectorNegationOnlyIsScopedToNamespaces(t *testing.T) {
 			require.ElementsMatch(t, tt.expected, nsSelectorList)
 			// The all-namespaces set must also be translated so it exists in the dataplane.
 			require.Contains(t, nsSelectorIPSets,
-				ipsets.NewTranslatedIPSet(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace))
+				ipsets.NewTranslatedIPSet(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace))
 		})
 	}
 }
@@ -1473,7 +1473,7 @@ func TestNameSpaceSelectorWithPositiveMatchIsUnchanged(t *testing.T) {
 			name:     "empty selector still resolves to all namespaces once",
 			selector: &metav1.LabelSelector{},
 			expected: []policies.SetInfo{
-				policies.NewSetInfo(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace, included, matchType),
+				policies.NewSetInfo(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace, included, matchType),
 			},
 		},
 	}
@@ -1534,13 +1534,13 @@ func TestTranslatePolicyNegationOnlyNamespaceSelector(t *testing.T) {
 
 			peers := tt.peerList(theAllow)
 			require.ElementsMatch(t, []policies.SetInfo{
-				policies.NewSetInfo(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace, included, tt.matchType),
+				policies.NewSetInfo(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace, included, tt.matchType),
 				policies.NewSetInfo("tenant:x", ipsets.KeyValueLabelOfNamespace, nonIncluded, tt.matchType),
 			}, peers, "a negation-only namespaceSelector must be intersected with the all-namespaces set")
 
 			var sawAllNamespaces bool
 			for _, si := range peers {
-				if si.Included && si.IPSet.Name == util.KubeAllNamespacesFlag {
+				if si.Included && si.IPSet.Name == util.KubeAllNamespacesFlagV2 {
 					sawAllNamespaces = true
 				}
 			}
@@ -1656,7 +1656,7 @@ func TestTranslatePolicyMultiValueNotInConjunction(t *testing.T) {
 			var positive []string
 			for _, si := range allowPeers {
 				if si.Included {
-					require.Equal(t, util.KubeAllNamespacesFlag, si.IPSet.Name,
+					require.Equal(t, util.KubeAllNamespacesFlagV2, si.IPSet.Name,
 						"the only positive set may be the all-namespaces set")
 					require.Equal(t, ipsets.KeyLabelOfNamespace, si.IPSet.Type)
 					positive = append(positive, si.IPSet.Name)
@@ -1668,7 +1668,7 @@ func TestTranslatePolicyMultiValueNotInConjunction(t *testing.T) {
 			}
 			require.ElementsMatch(t, []string{"tenant:attacker", "tenant:quarantine"}, negated,
 				"the single allow ACL must negate every excluded value")
-			require.Equal(t, []string{util.KubeAllNamespacesFlag}, positive,
+			require.Equal(t, []string{util.KubeAllNamespacesFlagV2}, positive,
 				"the negation-only match must be intersected with the all-namespaces set")
 
 			// The default drop must be same-direction and unconditional (no peer match),
@@ -1697,8 +1697,8 @@ func TestAllowAllInternal(t *testing.T) {
 		{
 			name:             "Allow all traffic from all namespaces in ingress",
 			matchType:        matchType,
-			nsSelectorIPSets: ipsets.NewTranslatedIPSet(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace),
-			nsSelectorList:   policies.NewSetInfo(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace, included, matchType),
+			nsSelectorIPSets: ipsets.NewTranslatedIPSet(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace),
+			nsSelectorList:   policies.NewSetInfo(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace, included, matchType),
 		},
 	}
 
@@ -4059,7 +4059,7 @@ func TestTranslatePolicyNegationOnlyOperators(t *testing.T) {
 				require.NotNil(t, theAllow)
 
 				peers := dir.peerList(theAllow)
-				anchor := policies.NewSetInfo(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace, included, dir.matchType)
+				anchor := policies.NewSetInfo(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace, included, dir.matchType)
 				require.Contains(t, peers, anchor,
 					"a negation-only namespaceSelector must carry the all-namespaces anchor, "+
 						"otherwise the negation alone also matches addresses that are not pods")
@@ -4076,7 +4076,7 @@ func TestTranslatePolicyNegationOnlyOperators(t *testing.T) {
 						positives = append(positives, si.IPSet.Name)
 					}
 				}
-				require.Equal(t, []string{util.KubeAllNamespacesFlag}, positives)
+				require.Equal(t, []string{util.KubeAllNamespacesFlagV2}, positives)
 			})
 		}
 	}

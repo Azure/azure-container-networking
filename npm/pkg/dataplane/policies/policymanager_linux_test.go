@@ -525,7 +525,7 @@ func TestUpdatingStaleChains(t *testing.T) {
 // domain, and this test pins that it renders as a positive `--match-set` in the same rule as the
 // negation, in both directions.
 func TestNegationOnlyPeerRendersAnchor(t *testing.T) {
-	anchor := ipsets.NewIPSetMetadata(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace)
+	anchor := ipsets.NewIPSetMetadata(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace)
 	excluded := ipsets.NewIPSetMetadata("blocked", ipsets.KeyLabelOfNamespace)
 
 	tests := []struct {
@@ -545,7 +545,7 @@ func TestNegationOnlyPeerRendersAnchor(t *testing.T) {
 				Direction: tt.direction,
 			}
 			peers := []SetInfo{
-				NewSetInfo(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace, true, tt.matchType),
+				NewSetInfo(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace, true, tt.matchType),
 				NewSetInfo("blocked", ipsets.KeyLabelOfNamespace, false, tt.matchType),
 			}
 			if tt.matchType == SrcMatch {
