@@ -163,6 +163,9 @@ type AddressRecord struct {
 
 func hnsStateFileIPs(result []byte) (map[string]string, error) {
 	jsonType := bytes.TrimLeft(result, " \t\r\n")
+	if len(jsonType) == 0 {
+		return nil, errors.New("hns endpoint list is empty")
+	}
 	isObject := jsonType[0] == '{'
 	isArray := jsonType[0] == '['
 	hnsPodIps := make(map[string]string)
