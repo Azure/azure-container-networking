@@ -58,7 +58,7 @@ stages:
                 make -C ./hack/aks ${{ parameters.clusterType }} \
                   AZCLI=az REGION="$REGION" SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \
                   CLUSTER="$CLUSTER" NODE_COUNT=${{ parameters.nodeCount }} \
-                  VM_SIZE=${{ parameters.vmSize }} AUTOUPGRADE=none LTS=false \
+                  VM_SIZE=${{ parameters.vmSize }} AUTOUPGRADE=none LTS=auto \
                   K8S_VER="$K8S_VERSION" OS_SKU=$(osSKU)
                 make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER="$CLUSTER"
 
