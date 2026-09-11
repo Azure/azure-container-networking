@@ -1,6 +1,9 @@
 {
     "ChannelMode": "Direct",
+    "EnableBoltStateStore": false,
     "InitializeFromCNI": true,
+    "StateStoreBackend": "json",
+    "StateStoreMode": "normal",
     "EnablePprof": true,
     "EnableHomeAZ": true,
     "EnableSubnetScarcity": true,

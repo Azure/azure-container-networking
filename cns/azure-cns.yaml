@@ -185,7 +185,10 @@ data:
           "NodeSyncIntervalInSeconds": 30
       },
       "ChannelMode": "CRD",
+      "EnableBoltStateStore": false,
       "InitializeFromCNI": true,
+      "StateStoreBackend": "json",
+      "StateStoreMode": "normal",
       "ManageEndpointState": false,
       "ProgramSNATIPTables" : false
     }

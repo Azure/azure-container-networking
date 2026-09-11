@@ -17,7 +17,10 @@
         "PrivateEndpoint": ""
     },
     "ChannelMode": "Direct",
+    "EnableBoltStateStore": false,
     "InitializeFromCNI": false,
+    "StateStoreBackend": "json",
+    "StateStoreMode": "normal",
     "TLSCertificatePath": "",
     "TLSPort": "10091",
     "TLSSubjectName": "",
