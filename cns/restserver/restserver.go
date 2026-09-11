@@ -47,9 +47,10 @@ type nmagentClient interface {
 }
 
 type wireserverProxy interface {
-	JoinNetwork(ctx context.Context, vnetID string) (*http.Response, error)
-	PublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte) (*http.Response, error)
-	UnpublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte) (*http.Response, error)
+	JoinNetwork(ctx context.Context, vnetID string, useRNCPublisher bool) (*http.Response, error)
+	JoinSubnet(ctx context.Context, vnetID, subnetName string, ncParams cns.NetworkContainerParameters) (*http.Response, error)
+	PublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte, useRNCPublisher bool) (*http.Response, error)
+	UnpublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte, useRNCPublisher bool) (*http.Response, error)
 }
 
 type imdsClient interface {
