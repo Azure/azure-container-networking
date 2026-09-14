@@ -200,9 +200,9 @@ func canonicalizeExcepts(exceptInIPBlock []string) ([]string, error) {
 	canonicalExcepts := []string{}
 	exceptsSet := make(map[string]struct{})
 	for _, except := range exceptInIPBlock {
-		canonical, ok := util.NormalizeCIDR(except)
-		if !ok {
-			return nil, fmt.Errorf("except %q: %w", except, ErrUnsupportedIPAddress)
+		canonical, err := util.NormalizeCIDR(except)
+		if err != nil {
+			return nil, fmt.Errorf("except %q: %w: %w", except, ErrUnsupportedIPAddress, err)
 		}
 		if _, exist := exceptsSet[canonical]; !exist {
 			canonicalExcepts = append(canonicalExcepts, canonical)
@@ -222,9 +222,9 @@ func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSe
 	// with host bits set (e.g. "10.0.0.0/0") denotes the same addresses as its canonical form
 	// but does not compare equal to it, so without this the all-addresses block below would
 	// not be recognized and the literal would be rejected by ipset.
-	cidr, ok := util.NormalizeCIDR(ipBlockRule.CIDR)
-	if !ok {
-		return nil, ErrUnsupportedIPAddress
+	cidr, err := util.NormalizeCIDR(ipBlockRule.CIDR)
+	if err != nil {
+		return nil, fmt.Errorf("ipBlock %q: %w: %w", ipBlockRule.CIDR, ErrUnsupportedIPAddress, err)
 	}
 
 	// The Windows datapath refuses an except before any of it is canonicalized, exactly as
@@ -291,16 +291,7 @@ func ipBlockRule(policyName, ns string, direction policies.Direction, matchType 
 		return nil, policies.SetInfo{}, nil
 	}
 
-	// Validate the canonical form rather than the literal the user wrote. A block whose host
-	// bits are set, such as "10.0.0.0/0", denotes exactly the same addresses as its canonical
-	// form, but IsIPV4 refuses a /0 that is not spelled "0.0.0.0". Rejecting here aborts the
-	// translation of the whole policy, so neither the peer rule nor the default drop the policy
-	// implies is installed and the selected pods are left with no rules at all. This is the
-	// shared ipset path; the Windows NPM Lite direct-rule path is unchanged.
-	if _, ok := util.NormalizeCIDR(ipBlockRule.CIDR); !ok {
-		return nil, policies.SetInfo{}, ErrUnsupportedIPAddress
-	}
-
+	// The set builder validates and normalizes the CIDR once, before creating any members.
 	ipBlockIPSet, err := ipBlockIPSet(policyName, ns, direction, ipBlockSetIndex, ipBlockPeerIndex, ipBlockRule)
 	if err != nil {
 		return nil, policies.SetInfo{}, err

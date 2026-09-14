@@ -3,7 +3,9 @@ package translation
 import (
 	"testing"
 
+	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
+	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -22,8 +24,16 @@ func TestNamespaceAnchorDoesNotAliasLabelSets(t *testing.T) {
 			require.Len(t, matches, 2)
 			require.NotEqual(t, sets[0].Metadata.GetPrefixName(), sets[1].Metadata.GetPrefixName())
 			require.NotEqual(t, sets[0].Metadata.GetHashedName(), sets[1].Metadata.GetHashedName())
-			require.False(t, matches[0].Included)
-			require.True(t, matches[1].Included)
+			name := requirement.Key
+			setType := ipsets.KeyLabelOfNamespace
+			if requirement.Operator == metav1.LabelSelectorOpNotIn {
+				name = util.GetIpSetFromLabelKV(requirement.Key, requirement.Values[0])
+				setType = ipsets.KeyValueLabelOfNamespace
+			}
+			require.ElementsMatch(t, []policies.SetInfo{
+				policies.NewSetInfo(name, setType, false, policies.SrcMatch),
+				policies.NewSetInfo(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace, true, policies.SrcMatch),
+			}, matches)
 		})
 	}
 }

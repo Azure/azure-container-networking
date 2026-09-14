@@ -1,6 +1,7 @@
 package util
 
 import (
+	"net"
 	"reflect"
 	"strings"
 	"testing"
@@ -568,18 +569,58 @@ func TestNormalizeCIDR(t *testing.T) {
 		"10.0.0.0/1":        "0.0.0.0/1",
 		"200.0.0.0/1":       "128.0.0.0/1",
 		"10.1.2.3/24":       canonicalNet24,
+		"10.1.2.3/024":      canonicalNet24,
 		canonicalNet24:      canonicalNet24,
 		singleHostCIDR:      singleHostCIDR,
 	}
 	for in, want := range canonical {
-		got, ok := NormalizeCIDR(in)
-		require.True(t, ok, "NormalizeCIDR(%q) must succeed", in)
+		got, err := NormalizeCIDR(in)
+		require.NoError(t, err, "NormalizeCIDR(%q) must succeed", in)
 		require.Equal(t, want, got, "NormalizeCIDR(%q)", in)
 	}
 
-	for _, in := range []string{"", "10.0.0.1", "not-a-cidr", "10.0.0.0/33", "2001:db8::/32", "::/0"} {
-		got, ok := NormalizeCIDR(in)
-		require.False(t, ok, "NormalizeCIDR(%q) must fail", in)
-		require.Empty(t, got)
+	for _, test := range []struct {
+		cidr string
+		want error
+	}{
+		{"", ErrInvalidCIDR},
+		{"10.0.0.1", ErrInvalidCIDR},
+		{"not-a-cidr", ErrInvalidCIDR},
+		{"10.0.0.0/33", ErrInvalidCIDR},
+		{"2001:db8::/32", ErrUnsupportedIPFamily},
+		{"::/0", ErrUnsupportedIPFamily},
+		{"::ffff:192.0.2.1/128", ErrUnsupportedIPFamily},
+	} {
+		t.Run(test.cidr, func(t *testing.T) {
+			got, err := NormalizeCIDR(test.cidr)
+			require.ErrorIs(t, err, test.want)
+			require.Empty(t, got)
+		})
 	}
+}
+
+func FuzzNormalizeCIDRCompatibility(f *testing.F) {
+	for _, input := range []string{
+		allIPv4CIDR, singleHostCIDR, "192.168.7.19/24", "192.168.7.19/0",
+		"2001:db8:1::/48", "::ffff:192.0.2.1/128", "0::/00", "broken", "",
+	} {
+		f.Add(input)
+	}
+	f.Fuzz(func(t *testing.T, input string) {
+		// Preserve the accepted values and canonical output of the previous classifier.
+		_, network, parseErr := net.ParseCIDR(input)
+		got, err := NormalizeCIDR(input)
+		switch {
+		case parseErr != nil:
+			require.ErrorIs(t, err, ErrInvalidCIDR)
+		case network.IP.To4() == nil || len(network.Mask) != net.IPv4len:
+			require.ErrorIs(t, err, ErrUnsupportedIPFamily)
+		default:
+			require.NoError(t, err)
+			require.Equal(t, network.String(), got)
+		}
+		if err != nil {
+			require.Empty(t, got)
+		}
+	})
 }

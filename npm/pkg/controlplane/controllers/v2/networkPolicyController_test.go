@@ -689,6 +689,7 @@ func TestSyncAddAndUpdateNetPolSurfacesTranslationFailure(t *testing.T) {
 		require.NoError(t, err, "an unsupported Windows address must stay suppressed")
 	} else {
 		require.ErrorIs(t, err, translation.ErrUnsupportedIPAddress)
+		require.ErrorIs(t, err, util.ErrUnsupportedIPFamily)
 	}
 
 	// The policy must not be recorded as applied, so a later retry still reconciles it.
