@@ -231,11 +231,14 @@ func getHitRules(
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("evaluating source namespace conditions: %w", err)
 		}
+		if !srcNamespaceMatch {
+			continue
+		}
 		dstNamespaceMatch, err := matchNamespaceAnchorConditions("dst", dst, rule.GetDstList(), rule, npmCache)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("evaluating destination namespace conditions: %w", err)
 		}
-		if !srcNamespaceMatch || !dstNamespaceMatch {
+		if !dstNamespaceMatch {
 			continue
 		}
 		matchedSrc := false
@@ -295,17 +298,18 @@ func getHitRules(
 	return res, srcSets, dstSets, nil
 }
 
-// An aggregate match must not override the other peer conditions beside it.
-// Handle this v2 conjunction without changing legacy matching for unrelated sets.
+// V2 namespace conditions are conjunctive, whether or not an aggregate was needed.
+// The namespace-label prefix and type keep legacy v1 matching outside this path.
 func matchNamespaceAnchorConditions(origin string, pod *common.NpmPod, sets []*pb.RuleResponse_SetInfo, rule *pb.RuleResponse, npmCache common.GenericCache) (bool, error) {
-	hasAnchor := false
+	hasV2Namespace := false
 	for _, set := range sets {
-		if set.GetName() == util.NamespaceLabelPrefix+util.KubeAllNamespacesFlagV2 {
-			hasAnchor = true
+		if (set.GetType() == pb.SetType_KEYLABELOFNAMESPACE || set.GetType() == pb.SetType_KEYVALUELABELOFNAMESPACE) &&
+			strings.HasPrefix(set.GetName(), util.NamespaceLabelPrefix) {
+			hasV2Namespace = true
 			break
 		}
 	}
-	if !hasAnchor {
+	if !hasV2Namespace {
 		return true, nil
 	}
 
@@ -380,11 +384,14 @@ func evaluateSetInfo(
 
 	switch setInfo.Type {
 	case pb.SetType_KEYVALUELABELOFNAMESPACE:
+		if strings.HasPrefix(setInfo.GetName(), util.NamespaceLabelPrefix) {
+			return matchKEYLABELOFNAMESPACE(pod, npmCache, setInfo)
+		}
 		return matchKEYVALUELABELOFNAMESPACE(pod, npmCache, setInfo), nil
 	case pb.SetType_NESTEDLABELOFPOD:
 		return matchNESTEDLABELOFPOD(pod, setInfo), nil
 	case pb.SetType_KEYLABELOFNAMESPACE:
-		return matchKEYLABELOFNAMESPACE(pod, npmCache, setInfo), nil
+		return matchKEYLABELOFNAMESPACE(pod, npmCache, setInfo)
 	case pb.SetType_NAMESPACE:
 		return matchNAMESPACE(pod, setInfo), nil
 	case pb.SetType_KEYVALUELABELOFPOD:
@@ -441,22 +448,30 @@ func matchNESTEDLABELOFPOD(pod *common.NpmPod, setInfo *pb.RuleResponse_SetInfo)
 	return true
 }
 
-func matchKEYLABELOFNAMESPACE(pod *common.NpmPod, npmCache common.GenericCache, setInfo *pb.RuleResponse_SetInfo) bool {
+func matchKEYLABELOFNAMESPACE(pod *common.NpmPod, npmCache common.GenericCache, setInfo *pb.RuleResponse_SetInfo) (bool, error) {
 	if setInfo.GetName() == util.NamespaceLabelPrefix+util.KubeAllNamespacesFlagV2 {
 		_, namespaceExists := npmCache.GetNamespaceLabels(pod.Namespace)
-		return setInfo.GetIncluded() == (pod.Namespace != "" && namespaceExists)
+		return setInfo.GetIncluded() == (pod.Namespace != "" && namespaceExists), nil
+	}
+	if strings.HasPrefix(setInfo.GetName(), util.NamespaceLabelPrefix) {
+		labels, _ := npmCache.GetNamespaceLabels(pod.Namespace)
+		matches, err := matchPrefixedLabelSet(labels, setInfo.GetName(), util.NamespaceLabelPrefix)
+		if err != nil {
+			return false, err
+		}
+		return matches == setInfo.GetIncluded(), nil
 	}
 	srcNamespace := pod.Namespace
 	key := strings.Split(strings.TrimPrefix(setInfo.Name, util.NamespaceLabelPrefix), ":")
 	included := npmCache.GetNamespaceLabel(srcNamespace, key[0])
 	if included != "" && included == key[1] {
-		return setInfo.Included
+		return setInfo.GetIncluded(), nil
 	}
 	if setInfo.Included {
 		// if key does not exist but required in rule
-		return false
+		return false, nil
 	}
-	return true
+	return true, nil
 }
 
 func matchNAMESPACE(pod *common.NpmPod, setInfo *pb.RuleResponse_SetInfo) bool {

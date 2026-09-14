@@ -10,7 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const anchorPeerNamespace = "peer"
+const (
+	anchorPeerNamespace   = "peer"
+	anchorTargetNamespace = "target"
+	matchedTeamValue      = "blue"
+	otherLabelValue       = "other"
+)
 
 func TestV2NamespaceAggregateMatch(t *testing.T) {
 	cache := &common.Cache{NsMap: map[string]*common.Namespace{anchorPeerNamespace: {}}}
@@ -30,6 +35,86 @@ func TestV2NamespaceAggregateMatch(t *testing.T) {
 	}
 }
 
+func TestV2NamespaceKeyOnlyMatch(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		labels  map[string]string
+		present bool
+	}{
+		{"absent", nil, false},
+		{"empty value", map[string]string{"feature": ""}, true},
+		{"nonempty value", map[string]string{"feature": "enabled"}, true},
+	} {
+		for _, included := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/included=%t", test.name, included), func(t *testing.T) {
+				cache := &common.Cache{NsMap: map[string]*common.Namespace{
+					anchorPeerNamespace: {LabelsMap: test.labels},
+				}}
+				set := &pb.RuleResponse_SetInfo{
+					Name: util.NamespaceLabelPrefix + "feature", Type: pb.SetType_KEYLABELOFNAMESPACE, Included: included,
+				}
+				matched, err := evaluateSetInfo("src", set, &common.NpmPod{Namespace: anchorPeerNamespace}, &pb.RuleResponse{}, cache)
+				require.NoError(t, err)
+				require.Equal(t, included == test.present, matched)
+			})
+		}
+	}
+}
+
+func TestV1NamespaceMatchingIsUnchanged(t *testing.T) {
+	cache := &common.Cache{NsMap: map[string]*common.Namespace{
+		util.NamespacePrefix + anchorPeerNamespace: {LabelsMap: map[string]string{"team": matchedTeamValue}},
+	}}
+	pod := &common.NpmPod{
+		Namespace: anchorPeerNamespace,
+		Labels:    map[string]string{"nslabel-team": matchedTeamValue},
+	}
+	for _, set := range []*pb.RuleResponse_SetInfo{
+		{Name: util.NamespacePrefix + "team:blue", Type: pb.SetType_KEYVALUELABELOFNAMESPACE, Included: true},
+		{Name: "nslabel-team:blue", Type: pb.SetType_KEYVALUELABELOFPOD, Included: true},
+	} {
+		matched, err := matchNamespaceAnchorConditions("src", pod, []*pb.RuleResponse_SetInfo{set}, &pb.RuleResponse{}, cache)
+		require.NoError(t, err)
+		require.True(t, matched, "the v2 pre-check must leave v1 metadata alone")
+		matched, err = evaluateSetInfo("src", set, pod, &pb.RuleResponse{}, cache)
+		require.NoError(t, err)
+		require.True(t, matched)
+	}
+}
+
+func TestV2MixedNamespaceConditionsAreConjunctive(t *testing.T) {
+	for _, tenant := range []string{"x", "y", otherLabelValue} {
+		for _, positiveFirst := range []bool{true, false} {
+			t.Run(fmt.Sprintf("tenant=%s/positiveFirst=%t", tenant, positiveFirst), func(t *testing.T) {
+				cache := &common.Cache{NsMap: map[string]*common.Namespace{
+					anchorPeerNamespace: {LabelsMap: map[string]string{"team": matchedTeamValue, "tenant": tenant}},
+				}}
+				positive := &pb.RuleResponse_SetInfo{Name: util.NamespaceLabelPrefix + "team:blue", Type: pb.SetType_KEYLABELOFNAMESPACE, Included: true}
+				excludeX := &pb.RuleResponse_SetInfo{Name: util.NamespaceLabelPrefix + "tenant:x", Type: pb.SetType_KEYLABELOFNAMESPACE}
+				excludeY := &pb.RuleResponse_SetInfo{Name: util.NamespaceLabelPrefix + "tenant:y", Type: pb.SetType_KEYLABELOFNAMESPACE}
+				sets := []*pb.RuleResponse_SetInfo{positive, excludeX, excludeY}
+				if !positiveFirst {
+					sets = []*pb.RuleResponse_SetInfo{excludeX, excludeY, positive}
+				}
+				allow := &pb.RuleResponse{Allowed: true, SrcList: sets}
+				deny := &pb.RuleResponse{DstList: []*pb.RuleResponse_SetInfo{{
+					Name: util.NamespacePrefix + anchorTargetNamespace, Type: pb.SetType_NAMESPACE, Included: true,
+				}}}
+				hits, _, _, err := getHitRules(
+					&common.NpmPod{Namespace: anchorPeerNamespace}, &common.NpmPod{Namespace: anchorTargetNamespace},
+					map[*pb.RuleResponse]struct{}{allow: {}, deny: {}}, cache,
+				)
+				require.NoError(t, err)
+				want := []*pb.RuleResponse{deny}
+				if tenant == otherLabelValue {
+					want = append(want, allow)
+				}
+				require.ElementsMatch(t, want, hits)
+			})
+		}
+	}
+}
+
 func TestNamespaceAnchorRulesRequireEveryNamespaceMatch(t *testing.T) {
 	orders := [][3]int{{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}}
 	for _, direction := range []pb.Direction{pb.Direction_INGRESS, pb.Direction_EGRESS} {
@@ -37,7 +122,7 @@ func TestNamespaceAnchorRulesRequireEveryNamespaceMatch(t *testing.T) {
 			for _, order := range orders {
 				t.Run(fmt.Sprintf("%s/tenant=%q/order=%v", direction, tenant, order), func(t *testing.T) {
 					peer := &common.NpmPod{Namespace: anchorPeerNamespace}
-					target := &common.NpmPod{Namespace: "target"}
+					target := &common.NpmPod{Namespace: anchorTargetNamespace}
 					cache := &common.Cache{
 						NsMap: map[string]*common.Namespace{
 							anchorPeerNamespace: {LabelsMap: map[string]string{"tenant": tenant}},
@@ -58,7 +143,7 @@ func TestNamespaceAnchorRulesRequireEveryNamespaceMatch(t *testing.T) {
 					}
 					peerMatches := []*pb.RuleResponse_SetInfo{allMatches[order[0]], allMatches[order[1]], allMatches[order[2]]}
 					targetMatches := []*pb.RuleResponse_SetInfo{{
-						Name: util.NamespacePrefix + "target", HashedSetName: "target", Type: pb.SetType_NAMESPACE, Included: true,
+						Name: util.NamespacePrefix + anchorTargetNamespace, HashedSetName: anchorTargetNamespace, Type: pb.SetType_NAMESPACE, Included: true,
 					}}
 					allow := &pb.RuleResponse{Allowed: true, Direction: direction, Chain: "allow"}
 					deny := &pb.RuleResponse{Direction: direction, Chain: "deny"}
@@ -103,7 +188,7 @@ func TestNamespaceAnchorConditionsDistinguishLabelPresence(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			cache := &common.Cache{NsMap: map[string]*common.Namespace{
 				anchorPeerNamespace:                        {LabelsMap: test.labels},
-				util.NamespacePrefix + anchorPeerNamespace: {LabelsMap: map[string]string{util.KubeAllNamespacesFlag: "other"}},
+				util.NamespacePrefix + anchorPeerNamespace: {LabelsMap: map[string]string{util.KubeAllNamespacesFlag: otherLabelValue}},
 			}}
 			sets := []*pb.RuleResponse_SetInfo{
 				{Name: util.NamespaceLabelPrefix + util.KubeAllNamespacesFlag, Type: pb.SetType_KEYLABELOFNAMESPACE},
@@ -118,15 +203,15 @@ func TestNamespaceAnchorConditionsDistinguishLabelPresence(t *testing.T) {
 
 func TestNamespaceAnchorDoesNotOverridePodSelection(t *testing.T) {
 	cache := &common.Cache{NsMap: map[string]*common.Namespace{anchorPeerNamespace: {}}}
-	peer := &common.NpmPod{Namespace: anchorPeerNamespace, Labels: map[string]string{"app": "other"}}
-	target := &common.NpmPod{Namespace: "target"}
+	peer := &common.NpmPod{Namespace: anchorPeerNamespace, Labels: map[string]string{"app": otherLabelValue}}
+	target := &common.NpmPod{Namespace: anchorTargetNamespace}
 	converter := &Converter{EnableV2NPM: true}
 	podSet := &pb.RuleResponse_SetInfo{
 		Name: util.PodLabelPrefix + "app:required", Included: true,
 	}
 	podSet.Type, _ = converter.getSetTypeV2(podSet.GetName())
 	targetSet := &pb.RuleResponse_SetInfo{
-		Name: util.NamespacePrefix + "target", Type: pb.SetType_NAMESPACE, Included: true,
+		Name: util.NamespacePrefix + anchorTargetNamespace, Type: pb.SetType_NAMESPACE, Included: true,
 	}
 	allow := &pb.RuleResponse{
 		Allowed: true,

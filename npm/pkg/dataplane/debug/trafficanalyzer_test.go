@@ -65,16 +65,9 @@ func TestGetNetworkTuple(t *testing.T) {
 		dst: &common.Input{Content: "x/b", Type: common.NSPODNAME},
 	}
 
+	// The TCP/80 rules require destination namespace y or z as well as the pod label.
+	// Destination x/b must not be reported as a hit just because its pod label matches.
 	expected0 := []*Tuple{
-		{
-			RuleType:  "ALLOWED",
-			Direction: "EGRESS",
-			SrcIP:     "10.224.0.17",
-			SrcPort:   "ANY",
-			DstIP:     "10.224.0.20",
-			DstPort:   "80",
-			Protocol:  "tcp",
-		},
 		{
 			RuleType:  "ALLOWED",
 			Direction: "EGRESS",
@@ -91,15 +84,6 @@ func TestGetNetworkTuple(t *testing.T) {
 			SrcPort:   "ANY",
 			DstIP:     "ANY",
 			DstPort:   "53",
-			Protocol:  "tcp",
-		},
-		{
-			RuleType:  "ALLOWED",
-			Direction: "EGRESS",
-			SrcIP:     "10.224.0.17",
-			SrcPort:   "ANY",
-			DstIP:     "10.224.0.20",
-			DstPort:   "80",
 			Protocol:  "tcp",
 		},
 		{
