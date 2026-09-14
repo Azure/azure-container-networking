@@ -1,0 +1,117 @@
+package debug
+
+import (
+	"fmt"
+	"testing"
+
+	common "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
+	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/pb"
+	"github.com/Azure/azure-container-networking/npm/util"
+	"github.com/stretchr/testify/require"
+)
+
+const anchorPeerNamespace = "peer"
+
+func TestV2NamespaceAggregateMatch(t *testing.T) {
+	cache := &common.Cache{NsMap: map[string]*common.Namespace{anchorPeerNamespace: {}}}
+	for _, namespace := range []string{anchorPeerNamespace, "", "missing"} {
+		for _, included := range []bool{true, false} {
+			t.Run(fmt.Sprintf("namespace=%q/included=%t", namespace, included), func(t *testing.T) {
+				set := &pb.RuleResponse_SetInfo{
+					Name:     util.NamespaceLabelPrefix + util.KubeAllNamespacesFlagV2,
+					Type:     pb.SetType_KEYLABELOFNAMESPACE,
+					Included: included,
+				}
+				matched, err := evaluateSetInfo("src", set, &common.NpmPod{Namespace: namespace}, &pb.RuleResponse{}, cache)
+				require.NoError(t, err)
+				require.Equal(t, included == (namespace == anchorPeerNamespace), matched)
+			})
+		}
+	}
+}
+
+func TestNamespaceAnchorRulesRequireEveryNamespaceMatch(t *testing.T) {
+	orders := [][3]int{{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}}
+	for _, direction := range []pb.Direction{pb.Direction_INGRESS, pb.Direction_EGRESS} {
+		for _, tenant := range []string{"a", "b", "good", ""} {
+			for _, order := range orders {
+				t.Run(fmt.Sprintf("%s/tenant=%q/order=%v", direction, tenant, order), func(t *testing.T) {
+					peer := &common.NpmPod{Namespace: anchorPeerNamespace}
+					target := &common.NpmPod{Namespace: "target"}
+					cache := &common.Cache{
+						NsMap: map[string]*common.Namespace{
+							anchorPeerNamespace: {LabelsMap: map[string]string{"tenant": tenant}},
+						},
+					}
+
+					allMatches := []*pb.RuleResponse_SetInfo{
+						{Name: util.NamespaceLabelPrefix + "tenant:a", HashedSetName: "tenant-a", Type: pb.SetType_KEYVALUELABELOFNAMESPACE},
+						{Name: util.NamespaceLabelPrefix + "tenant:b", HashedSetName: "tenant-b", Type: pb.SetType_KEYVALUELABELOFNAMESPACE},
+						{
+							Name: util.NamespaceLabelPrefix + util.KubeAllNamespacesFlagV2, HashedSetName: "aggregate",
+							Type: pb.SetType_KEYLABELOFNAMESPACE, Included: true,
+						},
+					}
+					converter := &Converter{EnableV2NPM: true}
+					for _, set := range allMatches {
+						set.Type, _ = converter.getSetTypeV2(set.GetName())
+					}
+					peerMatches := []*pb.RuleResponse_SetInfo{allMatches[order[0]], allMatches[order[1]], allMatches[order[2]]}
+					targetMatches := []*pb.RuleResponse_SetInfo{{
+						Name: util.NamespacePrefix + "target", HashedSetName: "target", Type: pb.SetType_NAMESPACE, Included: true,
+					}}
+					allow := &pb.RuleResponse{Allowed: true, Direction: direction, Chain: "allow"}
+					deny := &pb.RuleResponse{Direction: direction, Chain: "deny"}
+					src, dst := peer, target
+					if direction == pb.Direction_INGRESS {
+						allow.SrcList, allow.DstList = peerMatches, targetMatches
+						deny.DstList = targetMatches
+					} else {
+						src, dst = target, peer
+						allow.SrcList, allow.DstList = targetMatches, peerMatches
+						deny.SrcList = targetMatches
+					}
+					rules := map[*pb.RuleResponse]struct{}{allow: {}, deny: {}}
+					hits, _, _, err := getHitRules(src, dst, rules, cache)
+					require.NoError(t, err)
+					want := []*pb.RuleResponse{deny}
+					if tenant != "a" && tenant != "b" {
+						want = append(want, allow)
+					}
+					require.ElementsMatch(t, want, hits)
+
+					peer.Namespace = ""
+					hits, _, _, err = getHitRules(src, dst, rules, cache)
+					require.NoError(t, err)
+					require.ElementsMatch(t, []*pb.RuleResponse{deny}, hits, "the aggregate must not match an external endpoint")
+				})
+			}
+		}
+	}
+}
+
+func TestNamespaceAnchorConditionsDistinguishLabelPresence(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		labels map[string]string
+		want   bool
+	}{
+		{"missing label", map[string]string{}, true},
+		{"empty value", map[string]string{util.KubeAllNamespacesFlag: ""}, false},
+		{"nonempty value", map[string]string{util.KubeAllNamespacesFlag: "yes"}, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cache := &common.Cache{NsMap: map[string]*common.Namespace{
+				anchorPeerNamespace:                        {LabelsMap: test.labels},
+				util.NamespacePrefix + anchorPeerNamespace: {LabelsMap: map[string]string{util.KubeAllNamespacesFlag: "other"}},
+			}}
+			sets := []*pb.RuleResponse_SetInfo{
+				{Name: util.NamespaceLabelPrefix + util.KubeAllNamespacesFlag, Type: pb.SetType_KEYLABELOFNAMESPACE},
+				{Name: util.NamespaceLabelPrefix + util.KubeAllNamespacesFlagV2, Type: pb.SetType_KEYLABELOFNAMESPACE, Included: true},
+			}
+			matched, err := matchNamespaceAnchorConditions(&common.NpmPod{Namespace: anchorPeerNamespace}, sets, cache)
+			require.NoError(t, err)
+			require.Equal(t, test.want, matched)
+		})
+	}
+}

@@ -690,9 +690,10 @@ func TestSyncAddAndUpdateNetPolSurfacesTranslationFailure(t *testing.T) {
 	} else {
 		require.ErrorIs(t, err, translation.ErrUnsupportedIPAddress)
 		require.ErrorIs(t, err, util.ErrUnsupportedIPFamily)
+		require.ErrorIs(t, err, errNetPolTranslationFailure)
 	}
 
-	// The policy must not be recorded as applied, so a later retry still reconciles it.
+	// The policy must not be recorded as applied, so a later policy change reconciles it.
 	netpolKey, keyErr := cache.MetaNamespaceKeyFunc(netPolObj)
 	require.NoError(t, keyErr)
 	require.NotContains(t, f.netPolController.rawNpSpecMap, netpolKey)
@@ -723,5 +724,21 @@ func TestSyncAddAndUpdateNetPolSuppressesUnsupportedFeature(t *testing.T) {
 }
 
 func TestUnsupportedAddressClassificationIsPlatformSpecific(t *testing.T) {
-	require.Equal(t, util.IsWindowsDP(), isUnsupportedTranslationErr(translation.ErrUnsupportedIPAddress))
+	for _, test := range []struct {
+		name    string
+		err     error
+		npmLite bool
+		want    bool
+	}{
+		{"full unclassified address", translation.ErrUnsupportedIPAddress, false, false},
+		{"Lite unclassified address", translation.ErrUnsupportedIPAddress, true, util.IsWindowsDP()},
+		{"full unsupported family", fmt.Errorf("%w: %w", translation.ErrUnsupportedIPAddress, util.ErrUnsupportedIPFamily), false, util.IsWindowsDP()},
+		{"Lite unsupported family", fmt.Errorf("%w: %w", translation.ErrUnsupportedIPAddress, util.ErrUnsupportedIPFamily), true, util.IsWindowsDP()},
+		{"full malformed CIDR", fmt.Errorf("%w: %w", translation.ErrUnsupportedIPAddress, util.ErrInvalidCIDR), false, false},
+		{"Lite typed malformed CIDR", fmt.Errorf("%w: %w", translation.ErrUnsupportedIPAddress, util.ErrInvalidCIDR), true, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.want, isUnsupportedTranslationErr(test.err, test.npmLite))
+		})
+	}
 }

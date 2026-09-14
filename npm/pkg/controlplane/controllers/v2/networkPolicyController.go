@@ -186,6 +186,10 @@ func (c *NetworkPolicyController) processNextWorkItem() bool {
 		// Run the syncNetPol, passing it the namespace/name string of the
 		// network policy resource to be synced.
 		if err := c.syncNetPol(key); err != nil {
+			if errors.Is(err, errNetPolTranslationFailure) {
+				c.workqueue.Forget(obj)
+				return fmt.Errorf("error syncing '%s': %w; waiting for a policy change", key, err)
+			}
 			// Put the item back on the workqueue to handle any transient errors.
 			c.workqueue.AddRateLimited(key)
 			return fmt.Errorf("error syncing '%s': %w, requeuing", key, err)
@@ -291,7 +295,7 @@ func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 	// install translated rules into kernel
 	npmNetPolObj, err := translation.TranslatePolicy(netPolObj, c.npmLiteToggle)
 	if err != nil {
-		if isUnsupportedTranslationErr(err) {
+		if isUnsupportedTranslationErr(err, c.npmLiteToggle) {
 			klog.Warningf("NetworkPolicy %s in namespace %s is not translated because it uses a feature this datapath does not support: %s",
 				netPolObj.ObjectMeta.Name, netPolObj.ObjectMeta.Namespace, err.Error())
 
@@ -300,17 +304,14 @@ func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 			return metrics.NoOp, nil
 		}
 
-		// Do not report success here. Reporting success left the policy's selected pods with
-		// no rules at all - not even the default drop the policy implies - while the policy
-		// object appeared to be applied and nothing signalled the failure. Return the error so
-		// it is surfaced and the key is requeued (rate limited) instead.
-		//
-		// The error is deliberately not logged or counted here: processNextWorkItem already
-		// runs the returned error through utilruntime.HandleError and SendErrorLogAndMetric,
-		// so recording it here as well would emit the same failure three times. The wrapped
-		// message names the policy so that single record stays specific.
-		//
-		// The exec time isn't relevant here, so consider a no-op.
+		// Translation depends only on the policy and fixed controller mode. Full NPM
+		// reports deterministic failures without retrying or caching an unapplied spec;
+		// the informer queues changed resource versions. Dataplane errors below remain
+		// retryable, and Lite keeps its existing error handling. The worker reports errors.
+		if !c.npmLiteToggle {
+			return metrics.NoOp, fmt.Errorf("%w %s/%s: %w",
+				errNetPolTranslationFailure, netPolObj.Namespace, netPolObj.Name, err)
+		}
 		return metrics.NoOp, fmt.Errorf("translating network policy %s/%s: %w",
 			netPolObj.Namespace, netPolObj.Name, err)
 	}
@@ -371,12 +372,16 @@ func isUnsupportedWindowsTranslationErr(err error) bool {
 
 // isUnsupportedTranslationErr reports whether err is a deliberate limitation of the datapath
 // or mode NPM is running in, rather than a policy NPM failed to translate. Those limitations
-// cannot resolve on retry, so they stay suppressed with a warning. Every other translation
-// failure is surfaced and requeued, because reporting success would leave the policy's
-// selected pods with no rules while nothing signalled that the policy was never applied.
-func isUnsupportedTranslationErr(err error) bool {
+// stay suppressed with a warning; other failures must be reported without recording success.
+func isUnsupportedTranslationErr(err error, npmLiteToggle bool) bool {
+	if errors.Is(err, util.ErrInvalidCIDR) {
+		return false
+	}
+	// Full NPM supplies a typed cause; only Lite retains unclassified address errors.
+	unsupportedAddress := errors.Is(err, util.ErrUnsupportedIPFamily) ||
+		(npmLiteToggle && errors.Is(err, translation.ErrUnsupportedIPAddress))
 	return isUnsupportedWindowsTranslationErr(err) ||
-		(util.IsWindowsDP() && errors.Is(err, translation.ErrUnsupportedIPAddress)) ||
+		(util.IsWindowsDP() && unsupportedAddress) ||
 		// NPM Lite only supports CIDR peers; a label-selector peer is out of scope there.
 		errors.Is(err, translation.ErrUnsupportedNonCIDR)
 }

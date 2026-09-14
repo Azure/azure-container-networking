@@ -11,30 +11,40 @@ import (
 )
 
 func TestIPBlockNormalizationErrorCauses(t *testing.T) {
+	const (
+		ipv6CIDR      = "2001:db8:2::/48"
+		malformedCIDR = "invalid"
+	)
 	for _, test := range []struct {
-		name  string
-		block networkingv1.IPBlock
-		cause error
+		name                 string
+		block                networkingv1.IPBlock
+		cause                error
+		windowsExceptFailure bool
 	}{
-		{"invalid prefix", networkingv1.IPBlock{CIDR: "192.0.2.0/33"}, util.ErrInvalidCIDR},
-		{"bare address", networkingv1.IPBlock{CIDR: "192.0.2.1"}, util.ErrInvalidCIDR},
-		{"IPv6 prefix", networkingv1.IPBlock{CIDR: "2001:db8:2::/48"}, util.ErrUnsupportedIPFamily},
-		{"mapped IPv6 prefix", networkingv1.IPBlock{CIDR: "::ffff:192.0.2.0/120"}, util.ErrUnsupportedIPFamily},
-		{"invalid exclusion", networkingv1.IPBlock{CIDR: enclosingCIDR, Except: []string{"invalid"}}, util.ErrInvalidCIDR},
-		{"IPv6 exclusion", networkingv1.IPBlock{CIDR: enclosingCIDR, Except: []string{"2001:db8:2::/48"}}, util.ErrUnsupportedIPFamily},
+		{"invalid prefix", networkingv1.IPBlock{CIDR: "192.0.2.0/33"}, util.ErrInvalidCIDR, false},
+		{"bare address", networkingv1.IPBlock{CIDR: "192.0.2.1"}, util.ErrInvalidCIDR, false},
+		{"IPv6 prefix", networkingv1.IPBlock{CIDR: ipv6CIDR}, util.ErrUnsupportedIPFamily, false},
+		{"mapped IPv6 prefix", networkingv1.IPBlock{CIDR: "::ffff:192.0.2.0/120"}, util.ErrUnsupportedIPFamily, false},
+		{"invalid parent with exclusion", networkingv1.IPBlock{CIDR: "192.0.2.0/33", Except: []string{"192.0.2.1/32"}}, util.ErrInvalidCIDR, false},
+		{"IPv6 parent with exclusion", networkingv1.IPBlock{CIDR: ipv6CIDR, Except: []string{"2001:db8:2::1/128"}}, util.ErrUnsupportedIPFamily, false},
+		{"invalid parent and exclusion", networkingv1.IPBlock{CIDR: malformedCIDR, Except: []string{malformedCIDR}}, util.ErrInvalidCIDR, false},
+		{"invalid exclusion", networkingv1.IPBlock{CIDR: enclosingCIDR, Except: []string{malformedCIDR}}, util.ErrInvalidCIDR, true},
+		{"IPv6 exclusion", networkingv1.IPBlock{CIDR: enclosingCIDR, Except: []string{ipv6CIDR}}, util.ErrUnsupportedIPFamily, true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
+			unsupportedExcept := util.IsWindowsDP() && test.windowsExceptFailure
 			before := test.block.DeepCopy()
 			set, info, err := ipBlockRule("normalization", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0, &test.block)
 			require.Nil(t, set)
 			require.Equal(t, policies.SetInfo{}, info)
 			require.Equal(t, before, &test.block)
 
-			if util.IsWindowsDP() && len(test.block.Except) > 0 {
+			if unsupportedExcept {
 				require.ErrorIs(t, err, ErrUnsupportedExceptCIDR)
 			} else {
 				require.ErrorIs(t, err, ErrUnsupportedIPAddress)
 				require.ErrorIs(t, err, test.cause)
+				require.NotErrorIs(t, err, ErrUnsupportedExceptCIDR)
 			}
 
 			for _, direction := range []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress} {
@@ -52,7 +62,7 @@ func TestIPBlockNormalizationErrorCauses(t *testing.T) {
 				}
 				translated, policyErr := TranslatePolicy(policy, false)
 				require.Nil(t, translated)
-				if util.IsWindowsDP() && len(test.block.Except) > 0 {
+				if unsupportedExcept {
 					require.ErrorIs(t, policyErr, ErrUnsupportedExceptCIDR)
 				} else {
 					require.ErrorIs(t, policyErr, ErrUnsupportedIPAddress)

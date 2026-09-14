@@ -140,7 +140,7 @@ func getNetworkTupleCommon(
 
 	ruleResListJSON := make([][]byte, 0)
 	m := protojson.MarshalOptions{
-		Indent: "	",
+		Indent:          "	",
 		EmitUnpopulated: true,
 	}
 	for _, rule := range hitRules {
@@ -227,6 +227,17 @@ func getHitRules(
 	dstSets := make(map[string]*pb.RuleResponse_SetInfo, 0)
 
 	for rule := range rules {
+		srcNamespaceMatch, err := matchNamespaceAnchorConditions(src, rule.GetSrcList(), npmCache)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("evaluating source namespace conditions: %w", err)
+		}
+		dstNamespaceMatch, err := matchNamespaceAnchorConditions(dst, rule.GetDstList(), npmCache)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("evaluating destination namespace conditions: %w", err)
+		}
+		if !srcNamespaceMatch || !dstNamespaceMatch {
+			continue
+		}
 		matchedSrc := false
 		matchedDst := false
 		// evalute all match set in src
@@ -259,7 +270,6 @@ func getHitRules(
 				return nil, nil, nil, fmt.Errorf("error occurred during evaluating destination's set info : %w", err)
 			}
 			if matchedDestination {
-
 				dstSets[setInfo.HashedSetName] = setInfo
 				matchedDst = true
 				break
@@ -283,6 +293,52 @@ func getHitRules(
 		res = append(res, &pb.RuleResponse{Allowed: true})
 	}
 	return res, srcSets, dstSets, nil
+}
+
+// An aggregate match must not override the namespace exclusions beside it.
+// Handle this v2 conjunction without changing legacy matching for unrelated sets.
+func matchNamespaceAnchorConditions(pod *common.NpmPod, sets []*pb.RuleResponse_SetInfo, npmCache common.GenericCache) (bool, error) {
+	hasAnchor := false
+	for _, set := range sets {
+		if set.GetName() == util.NamespaceLabelPrefix+util.KubeAllNamespacesFlagV2 {
+			hasAnchor = true
+			break
+		}
+	}
+	if !hasAnchor {
+		return true, nil
+	}
+
+	labels, namespaceExists := npmCache.GetNamespaceLabels(pod.Namespace)
+	for _, set := range sets {
+		var matches bool
+		switch set.GetType() {
+		case pb.SetType_KEYLABELOFNAMESPACE, pb.SetType_KEYVALUELABELOFNAMESPACE:
+			if set.GetName() == util.NamespaceLabelPrefix+util.KubeAllNamespacesFlagV2 {
+				matches = pod.Namespace != "" && namespaceExists
+			} else {
+				name, ok := strings.CutPrefix(set.GetName(), util.NamespaceLabelPrefix)
+				// The converter uses the same set type for key and key:value namespace sets.
+				key, value, hasValue := strings.Cut(name, ":")
+				if !ok || key == "" {
+					return false, fmt.Errorf("namespace label set %q: %w", set.GetName(), common.ErrInvalidInput)
+				}
+				actual, exists := labels[key]
+				matches = exists && (!hasValue || actual == value)
+			}
+		case pb.SetType_NAMESPACE:
+			matches = set.GetName() == util.NamespacePrefix+pod.Namespace
+		case pb.SetType_KEYLABELOFPOD, pb.SetType_KEYVALUELABELOFPOD, pb.SetType_NAMEDPORTS,
+			pb.SetType_NESTEDLABELOFPOD, pb.SetType_CIDRBLOCKS, pb.SetType_UNKNOWN:
+			continue
+		default:
+			return false, fmt.Errorf("namespace condition type %v: %w", set.GetType(), common.ErrSetType)
+		}
+		if matches != set.GetIncluded() {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 // evalute an ipset to find out whether the pod's attributes match with the set
@@ -358,6 +414,10 @@ func matchNESTEDLABELOFPOD(pod *common.NpmPod, setInfo *pb.RuleResponse_SetInfo)
 }
 
 func matchKEYLABELOFNAMESPACE(pod *common.NpmPod, npmCache common.GenericCache, setInfo *pb.RuleResponse_SetInfo) bool {
+	if setInfo.GetName() == util.NamespaceLabelPrefix+util.KubeAllNamespacesFlagV2 {
+		_, namespaceExists := npmCache.GetNamespaceLabels(pod.Namespace)
+		return setInfo.GetIncluded() == (pod.Namespace != "" && namespaceExists)
+	}
 	srcNamespace := pod.Namespace
 	key := strings.Split(strings.TrimPrefix(setInfo.Name, util.NamespaceLabelPrefix), ":")
 	included := npmCache.GetNamespaceLabel(srcNamespace, key[0])

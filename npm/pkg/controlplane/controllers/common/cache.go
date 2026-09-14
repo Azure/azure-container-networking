@@ -46,6 +46,7 @@ const (
 type GenericCache interface {
 	GetPod(*Input) (*NpmPod, error)
 	GetNamespaceLabel(namespace string, key string) string
+	GetNamespaceLabels(namespace string) (map[string]string, bool)
 	GetListMap() map[string]string
 	GetSetMap() map[string]string
 }
@@ -84,6 +85,15 @@ func (c *Cache) GetNamespaceLabel(namespace, labelkey string) string {
 		return c.NsMap[namespace].LabelsMap[labelkey]
 	}
 	return ""
+}
+
+// GetNamespaceLabels distinguishes a missing namespace from one with no labels.
+func (c *Cache) GetNamespaceLabels(namespace string) (map[string]string, bool) {
+	ns, ok := c.NsMap[namespace]
+	if !ok || ns == nil {
+		return nil, false
+	}
+	return ns.LabelsMap, true
 }
 
 func (c *Cache) GetSetMap() map[string]string {

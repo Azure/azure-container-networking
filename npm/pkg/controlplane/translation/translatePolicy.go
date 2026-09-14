@@ -227,8 +227,8 @@ func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSe
 		return nil, fmt.Errorf("ipBlock %q: %w: %w", ipBlockRule.CIDR, ErrUnsupportedIPAddress, err)
 	}
 
-	// The Windows datapath refuses an except before any of it is canonicalized, exactly as
-	// it did before, so the validation below is reached on the Linux path only.
+	// Parent validation takes precedence, as it did in ipBlockRule before normalization
+	// moved here. Windows rejects the unsupported Except feature without parsing its CIDRs.
 	if util.IsWindowsDP() && len(ipBlockRule.Except) > 0 {
 		return nil, ErrUnsupportedExceptCIDR
 	}
