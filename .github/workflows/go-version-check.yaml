@@ -375,7 +375,7 @@ jobs:
           echo "::notice::Created issue $ISSUE_URL and assigned to Copilot"
 
   # ═══════════════════════════════════════════════════════════════════
-  # Backport: Create issue for Copilot to apply Tier 1/2 to release/v1.7
+  # Backport: Create issue for Copilot to apply Tier 1/2 to release/v1.8
   # ═══════════════════════════════════════════════════════════════════
   backport-release:
     needs: [check-go-update, auto-bump]
@@ -389,7 +389,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        branch: [release/v1.7]
+        branch: [release/v1.8]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -783,16 +783,16 @@ jobs:
           - [ ] \`make dockerfiles\` output matches committed files
           - [ ] No new \`replace\` directives (unless necessary and explained)
           - [ ] FIPS/crypto config correct per MS Go docs for THIS specific version
-          - [ ] **Backport PR created for \`release/v1.7\`**
+          - [ ] **Backport PR created for \`release/v1.8\`**
 
-          ### Backport to \`release/v1.7\`
+          ### Backport to \`release/v1.8\`
 
-          After the master PR is complete, create a **second PR** targeting \`release/v1.7\`:
-          1. Check out \`release/v1.7\`
+          After the master PR is complete, create a **second PR** targeting \`release/v1.8\`:
+          1. Check out \`release/v1.8\`
           2. Apply the same Go version + SHA changes
-          3. If \`release/v1.7\` is missing prerequisites (based on your analysis), add those too
+          3. If \`release/v1.8\` is missing prerequisites (based on your analysis), add those too
           4. Run \`make dockerfiles\` and \`go mod tidy\` on that branch
-          5. Title: \`chore(release/v1.7): upgrade Go ${GO_MINOR} → ${LATEST_MINOR}\`
+          5. Title: \`chore(release/v1.8): upgrade Go ${GO_MINOR} → ${LATEST_MINOR}\`
           6. Verify \`go build ./...\` passes on release branch
 
           > **Note:** The release branch may have different dependency versions than master.
