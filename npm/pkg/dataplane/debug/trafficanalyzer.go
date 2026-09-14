@@ -227,11 +227,11 @@ func getHitRules(
 	dstSets := make(map[string]*pb.RuleResponse_SetInfo, 0)
 
 	for rule := range rules {
-		srcNamespaceMatch, err := matchNamespaceAnchorConditions(src, rule.GetSrcList(), npmCache)
+		srcNamespaceMatch, err := matchNamespaceAnchorConditions("src", src, rule.GetSrcList(), rule, npmCache)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("evaluating source namespace conditions: %w", err)
 		}
-		dstNamespaceMatch, err := matchNamespaceAnchorConditions(dst, rule.GetDstList(), npmCache)
+		dstNamespaceMatch, err := matchNamespaceAnchorConditions("dst", dst, rule.GetDstList(), rule, npmCache)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("evaluating destination namespace conditions: %w", err)
 		}
@@ -295,9 +295,9 @@ func getHitRules(
 	return res, srcSets, dstSets, nil
 }
 
-// An aggregate match must not override the namespace exclusions beside it.
+// An aggregate match must not override the other peer conditions beside it.
 // Handle this v2 conjunction without changing legacy matching for unrelated sets.
-func matchNamespaceAnchorConditions(pod *common.NpmPod, sets []*pb.RuleResponse_SetInfo, npmCache common.GenericCache) (bool, error) {
+func matchNamespaceAnchorConditions(origin string, pod *common.NpmPod, sets []*pb.RuleResponse_SetInfo, rule *pb.RuleResponse, npmCache common.GenericCache) (bool, error) {
 	hasAnchor := false
 	for _, set := range sets {
 		if set.GetName() == util.NamespaceLabelPrefix+util.KubeAllNamespacesFlagV2 {
@@ -317,20 +317,38 @@ func matchNamespaceAnchorConditions(pod *common.NpmPod, sets []*pb.RuleResponse_
 			if set.GetName() == util.NamespaceLabelPrefix+util.KubeAllNamespacesFlagV2 {
 				matches = pod.Namespace != "" && namespaceExists
 			} else {
-				name, ok := strings.CutPrefix(set.GetName(), util.NamespaceLabelPrefix)
 				// The converter uses the same set type for key and key:value namespace sets.
-				key, value, hasValue := strings.Cut(name, ":")
-				if !ok || key == "" {
-					return false, fmt.Errorf("namespace label set %q: %w", set.GetName(), common.ErrInvalidInput)
+				var err error
+				matches, err = matchPrefixedLabelSet(labels, set.GetName(), util.NamespaceLabelPrefix)
+				if err != nil {
+					return false, err
 				}
-				actual, exists := labels[key]
-				matches = exists && (!hasValue || actual == value)
 			}
 		case pb.SetType_NAMESPACE:
 			matches = set.GetName() == util.NamespacePrefix+pod.Namespace
-		case pb.SetType_KEYLABELOFPOD, pb.SetType_KEYVALUELABELOFPOD, pb.SetType_NAMEDPORTS,
-			pb.SetType_NESTEDLABELOFPOD, pb.SetType_CIDRBLOCKS, pb.SetType_UNKNOWN:
+		case pb.SetType_KEYLABELOFPOD, pb.SetType_KEYVALUELABELOFPOD:
+			var err error
+			matches, err = matchPrefixedLabelSet(pod.Labels, set.GetName(), util.PodLabelPrefix)
+			if err != nil {
+				return false, err
+			}
+		case pb.SetType_NAMEDPORTS:
+			if !matchNAMEDPORTS(pod, set, rule, origin) {
+				return false, nil
+			}
 			continue
+		case pb.SetType_NESTEDLABELOFPOD:
+			// Current nested identities carry a policy/key, not their allowed values.
+			// Only older value-encoded names can be evaluated from this cache format.
+			if strings.Count(set.GetName(), util.IpsetLabelDelimter) < 2 {
+				return false, fmt.Errorf("missing nested label values for %q: %w", set.GetName(), common.ErrInvalidInput)
+			}
+			if !matchNESTEDLABELOFPOD(pod, set) {
+				return false, nil
+			}
+			continue
+		case pb.SetType_CIDRBLOCKS, pb.SetType_UNKNOWN:
+			return false, fmt.Errorf("unsupported anchored set %q: %w", set.GetName(), common.ErrSetType)
 		default:
 			return false, fmt.Errorf("namespace condition type %v: %w", set.GetType(), common.ErrSetType)
 		}
@@ -339,6 +357,16 @@ func matchNamespaceAnchorConditions(pod *common.NpmPod, sets []*pb.RuleResponse_
 		}
 	}
 	return true, nil
+}
+
+func matchPrefixedLabelSet(labels map[string]string, setName, prefix string) (bool, error) {
+	name, ok := strings.CutPrefix(setName, prefix)
+	key, value, hasValue := strings.Cut(name, ":")
+	if !ok || key == "" {
+		return false, fmt.Errorf("label set %q: %w", setName, common.ErrInvalidInput)
+	}
+	actual, exists := labels[key]
+	return exists && (!hasValue || actual == value), nil
 }
 
 // evalute an ipset to find out whether the pod's attributes match with the set

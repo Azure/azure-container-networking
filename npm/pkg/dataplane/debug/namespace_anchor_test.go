@@ -109,9 +109,78 @@ func TestNamespaceAnchorConditionsDistinguishLabelPresence(t *testing.T) {
 				{Name: util.NamespaceLabelPrefix + util.KubeAllNamespacesFlag, Type: pb.SetType_KEYLABELOFNAMESPACE},
 				{Name: util.NamespaceLabelPrefix + util.KubeAllNamespacesFlagV2, Type: pb.SetType_KEYLABELOFNAMESPACE, Included: true},
 			}
-			matched, err := matchNamespaceAnchorConditions(&common.NpmPod{Namespace: anchorPeerNamespace}, sets, cache)
+			matched, err := matchNamespaceAnchorConditions("src", &common.NpmPod{Namespace: anchorPeerNamespace}, sets, &pb.RuleResponse{}, cache)
 			require.NoError(t, err)
 			require.Equal(t, test.want, matched)
+		})
+	}
+}
+
+func TestNamespaceAnchorDoesNotOverridePodSelection(t *testing.T) {
+	cache := &common.Cache{NsMap: map[string]*common.Namespace{anchorPeerNamespace: {}}}
+	peer := &common.NpmPod{Namespace: anchorPeerNamespace, Labels: map[string]string{"app": "other"}}
+	target := &common.NpmPod{Namespace: "target"}
+	converter := &Converter{EnableV2NPM: true}
+	podSet := &pb.RuleResponse_SetInfo{
+		Name: util.PodLabelPrefix + "app:required", Included: true,
+	}
+	podSet.Type, _ = converter.getSetTypeV2(podSet.GetName())
+	targetSet := &pb.RuleResponse_SetInfo{
+		Name: util.NamespacePrefix + "target", Type: pb.SetType_NAMESPACE, Included: true,
+	}
+	allow := &pb.RuleResponse{
+		Allowed: true,
+		SrcList: []*pb.RuleResponse_SetInfo{
+			{Name: util.NamespaceLabelPrefix + util.KubeAllNamespacesFlagV2, Type: pb.SetType_KEYLABELOFNAMESPACE, Included: true},
+			podSet,
+		},
+		DstList: []*pb.RuleResponse_SetInfo{targetSet},
+	}
+	deny := &pb.RuleResponse{DstList: []*pb.RuleResponse_SetInfo{targetSet}}
+	rules := map[*pb.RuleResponse]struct{}{allow: {}, deny: {}}
+	hits, _, _, err := getHitRules(peer, target, rules, cache)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []*pb.RuleResponse{deny}, hits)
+
+	peer.Labels["app"] = "required"
+	hits, _, _, err = getHitRules(peer, target, rules, cache)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []*pb.RuleResponse{allow, deny}, hits)
+}
+
+func TestNamespaceAnchorConditionsReportIncompleteSets(t *testing.T) {
+	cache := &common.Cache{NsMap: map[string]*common.Namespace{anchorPeerNamespace: {}}}
+	anchor := &pb.RuleResponse_SetInfo{
+		Name: util.NamespaceLabelPrefix + util.KubeAllNamespacesFlagV2, Type: pb.SetType_KEYLABELOFNAMESPACE, Included: true,
+	}
+	for _, test := range []struct {
+		name  string
+		set   *pb.RuleResponse_SetInfo
+		cause error
+	}{
+		{
+			"nested identity without values",
+			&pb.RuleResponse_SetInfo{Name: util.NestedLabelPrefix + "policy:key", Type: pb.SetType_NESTEDLABELOFPOD, Included: true},
+			common.ErrInvalidInput,
+		},
+		{
+			"unknown set type",
+			&pb.RuleResponse_SetInfo{Name: "unknown", Type: pb.SetType_UNKNOWN, Included: true},
+			common.ErrSetType,
+		},
+		{
+			"missing label key",
+			&pb.RuleResponse_SetInfo{Name: util.PodLabelPrefix + ":value", Type: pb.SetType_KEYLABELOFPOD, Included: true},
+			common.ErrInvalidInput,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			matched, err := matchNamespaceAnchorConditions(
+				"src", &common.NpmPod{Namespace: anchorPeerNamespace},
+				[]*pb.RuleResponse_SetInfo{anchor, test.set}, &pb.RuleResponse{}, cache,
+			)
+			require.False(t, matched)
+			require.ErrorIs(t, err, test.cause)
 		})
 	}
 }
