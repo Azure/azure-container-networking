@@ -14,6 +14,8 @@ import (
 	"k8s.io/client-go/util/workqueue"
 )
 
+const namespaceSelectorLabelKey = "tenant"
+
 func newNetPolQueueFixture(t *testing.T, policy *networkingv1.NetworkPolicy, dp *dpmocks.MockGenericDataplane, npmLite bool) *netPolFixture {
 	t.Helper()
 	f := newNetPolFixture(t)
@@ -41,7 +43,7 @@ func TestFullNPMTranslationFailureWaitsForPolicyChange(t *testing.T) {
 	unknownOperator := netPolWithCIDR("192.0.2.0/24")
 	unknownOperator.Spec.Ingress[0].From = []networkingv1.NetworkPolicyPeer{{
 		NamespaceSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{{
-			Key: "tenant", Operator: "Unknown",
+			Key: namespaceSelectorLabelKey, Operator: "Unknown",
 		}}},
 	}}
 

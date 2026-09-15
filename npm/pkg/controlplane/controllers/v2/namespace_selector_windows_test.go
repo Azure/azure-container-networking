@@ -13,10 +13,14 @@ import (
 )
 
 func TestWindowsFullNPMNamespaceNegationIsNotSubmitted(t *testing.T) {
+	const (
+		podLabelKey   = "app"
+		namespaceName = "test"
+	)
 	for _, requirement := range []metav1.LabelSelectorRequirement{
-		{Key: "tenant", Operator: metav1.LabelSelectorOpNotIn, Values: []string{"a"}},
-		{Key: "tenant", Operator: metav1.LabelSelectorOpNotIn, Values: []string{"a", "b"}},
-		{Key: "tenant", Operator: metav1.LabelSelectorOpDoesNotExist},
+		{Key: namespaceSelectorLabelKey, Operator: metav1.LabelSelectorOpNotIn, Values: []string{"a"}},
+		{Key: namespaceSelectorLabelKey, Operator: metav1.LabelSelectorOpNotIn, Values: []string{"a", "b"}},
+		{Key: namespaceSelectorLabelKey, Operator: metav1.LabelSelectorOpDoesNotExist},
 	} {
 		for _, direction := range []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress} {
 			for _, combined := range []bool{false, true} {
@@ -25,10 +29,10 @@ func TestWindowsFullNPMNamespaceNegationIsNotSubmitted(t *testing.T) {
 						NamespaceSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{requirement}},
 					}
 					if combined {
-						peer.PodSelector = &metav1.LabelSelector{MatchLabels: map[string]string{"app": "client"}}
+						peer.PodSelector = &metav1.LabelSelector{MatchLabels: map[string]string{podLabelKey: "client"}}
 					}
 					policy := &networkingv1.NetworkPolicy{
-						ObjectMeta: metav1.ObjectMeta{Name: "namespace-selector", Namespace: "test", ResourceVersion: "1"},
+						ObjectMeta: metav1.ObjectMeta{Name: "namespace-selector", Namespace: namespaceName, ResourceVersion: "1"},
 						Spec:       networkingv1.NetworkPolicySpec{PolicyTypes: []networkingv1.PolicyType{direction}},
 					}
 					if direction == networkingv1.PolicyTypeIngress {
@@ -52,7 +56,7 @@ func TestWindowsFullNPMNamespaceNegationIsNotSubmitted(t *testing.T) {
 
 					corrected := policy.DeepCopy()
 					corrected.ResourceVersion = "2"
-					positive := metav1.LabelSelectorRequirement{Key: "tenant", Operator: metav1.LabelSelectorOpExists}
+					positive := metav1.LabelSelectorRequirement{Key: namespaceSelectorLabelKey, Operator: metav1.LabelSelectorOpExists}
 					if direction == networkingv1.PolicyTypeIngress {
 						corrected.Spec.Ingress[0].From[0].NamespaceSelector.MatchExpressions[0] = positive
 					} else {
