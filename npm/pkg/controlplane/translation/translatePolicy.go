@@ -159,22 +159,17 @@ func exceptCidr(exceptCidr string) string {
 }
 
 // deDuplicateExcept removes redundant elements and returns a slice which has only unique
-// elements, canonicalizing each except CIDR first so two spellings of the same block collapse
-// to one entry. A non-IPv4 except is left untouched; the direct-rule caller validates it
-// separately and fails closed rather than silently dropping the exclusion.
+// elements, preserving each except's original spelling. Canonicalization for the ipset path
+// lives in canonicalizeExcepts; this helper is used by the direct-rule path, which validates
+// each entry with IsIPV4 and fails closed, so it must not change that path's raw-string
+// validation (e.g. by collapsing a non-canonical /0 onto a canonical block).
 func deDuplicateExcept(exceptInIPBlock []string) []string {
 	deDupExcepts := []string{}
 	exceptsSet := make(map[string]struct{})
 	for _, except := range exceptInIPBlock {
-		canonical, ok := util.NormalizeCIDR(except)
-		if !ok {
-			// Leave a non-IPv4 except untouched; callers validate it separately and
-			// fail closed rather than silently dropping the exclusion.
-			canonical = except
-		}
-		if _, exist := exceptsSet[canonical]; !exist {
-			deDupExcepts = append(deDupExcepts, canonical)
-			exceptsSet[canonical] = struct{}{}
+		if _, exist := exceptsSet[except]; !exist {
+			deDupExcepts = append(deDupExcepts, except)
+			exceptsSet[except] = struct{}{}
 		}
 	}
 	return deDupExcepts
@@ -205,8 +200,11 @@ func canonicalizeExcepts(parentCIDR string, exceptInIPBlock []string) ([]string,
 			return nil, fmt.Errorf("except %q: %w: %w", except, ErrUnsupportedIPAddress, err)
 		}
 		if excluded.Bits() <= parent.Bits() || !parent.Contains(excluded.Addr()) {
-			return nil, fmt.Errorf("except %q is not a strict subset of %q: %w: %w",
-				except, parentCIDR, ErrUnsupportedIPAddress, ErrInvalidIPBlockExcept)
+			// A non-strict-subset except is a valid IPv4 CIDR, just an invalid relationship,
+			// so classify it with ErrInvalidIPBlockExcept alone rather than the parse/family
+			// ErrUnsupportedIPAddress, so callers and operators can tell the two apart.
+			return nil, fmt.Errorf("except %q is not a strict subset of %q: %w",
+				except, parentCIDR, ErrInvalidIPBlockExcept)
 		}
 		if _, exist := exceptsSet[canonical]; !exist {
 			canonicalExcepts = append(canonicalExcepts, canonical)
@@ -231,7 +229,6 @@ func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSe
 		return nil, ErrUnsupportedIPAddress
 	}
 
-	// de-duplicated Except if there are redundance elements.
 	// Parent validation takes precedence: Windows rejects the unsupported Except feature
 	// without parsing its CIDRs, matching the behavior before normalization moved here.
 	if util.IsWindowsDP() && len(ipBlockRule.Except) > 0 {

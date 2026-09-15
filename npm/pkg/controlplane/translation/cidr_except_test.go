@@ -1,6 +1,7 @@
 package translation
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
@@ -39,9 +40,13 @@ func TestIPBlockExceptFailsClosed(t *testing.T) {
 				require.ErrorIs(t, err, ErrUnsupportedExceptCIDR)
 				return
 			}
-			require.ErrorIs(t, err, ErrUnsupportedIPAddress)
 			require.ErrorIs(t, err, test.cause)
 			require.NotErrorIs(t, err, ErrUnsupportedExceptCIDR)
+			if errors.Is(test.cause, ErrInvalidIPBlockExcept) {
+				// A non-strict-subset except is a relationship failure, not a parse/family
+				// one, so it must not also satisfy errors.Is(err, ErrUnsupportedIPAddress).
+				require.NotErrorIs(t, err, ErrUnsupportedIPAddress)
+			}
 		})
 	}
 }

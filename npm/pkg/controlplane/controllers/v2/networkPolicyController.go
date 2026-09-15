@@ -186,6 +186,14 @@ func (c *NetworkPolicyController) processNextWorkItem() bool {
 		// Run the syncNetPol, passing it the namespace/name string of the
 		// network policy resource to be synced.
 		if err := c.syncNetPol(key); err != nil {
+			if errors.Is(err, errNetPolTranslationFailure) {
+				// A deterministic translation failure will not resolve on retry, so forget it
+				// instead of requeuing with backoff (which would re-emit error logs/metrics
+				// indefinitely). The informer re-enqueues when the policy changes. Only the
+				// transient errors below are rate-limited and retried.
+				c.workqueue.Forget(obj)
+				return fmt.Errorf("error syncing '%s': %w; waiting for a policy change", key, err)
+			}
 			// Put the item back on the workqueue to handle any transient errors.
 			c.workqueue.AddRateLimited(key)
 			return fmt.Errorf("error syncing '%s': %w, requeuing", key, err)
@@ -303,9 +311,15 @@ func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 		// Do not report success here. Reporting success left the policy's selected pods with
 		// no rules at all - not even the default drop the policy implies - while the policy
 		// object appeared to be applied and nothing signalled the failure. Return the wrapped
-		// error so it is surfaced and the key is requeued (rate limited). processNextWorkItem is
-		// the sole error logger/metric reporter for a failed sync, so nothing is logged or
-		// counted here to avoid duplicate error logs and metrics.
+		// error so it is surfaced and the worker (processNextWorkItem) - the sole error
+		// logger/metric reporter - records it once. For full NPM the failure is deterministic,
+		// so it is tagged terminal (errNetPolTranslationFailure) and the worker forgets it
+		// rather than retrying with backoff; the informer re-enqueues on a policy change. Lite
+		// keeps its existing retry handling.
+		if !c.npmLiteToggle {
+			return metrics.NoOp, fmt.Errorf("%w %s/%s: %w",
+				errNetPolTranslationFailure, netPolObj.Namespace, netPolObj.Name, err)
+		}
 		return metrics.NoOp, fmt.Errorf("[syncAddAndUpdateNetPol] failed to translate NetworkPolicy %s in namespace %s: %w",
 			netPolObj.Name, netPolObj.Namespace, err)
 	}

@@ -687,6 +687,9 @@ func TestSyncAddAndUpdateNetPolSurfacesTranslationFailure(t *testing.T) {
 	_, err := f.netPolController.syncAddAndUpdateNetPol(netPolObj)
 	require.Error(t, err, "a translation failure must be surfaced, not reported as success")
 	require.ErrorIs(t, err, translation.ErrUnsupportedIPAddress)
+	// Full-NPM translation failures are deterministic, so they are tagged terminal and the
+	// worker forgets them instead of retrying with backoff.
+	require.ErrorIs(t, err, errNetPolTranslationFailure)
 
 	// The policy must not be recorded as applied, so a later retry still reconciles it.
 	netpolKey, keyErr := cache.MetaNamespaceKeyFunc(netPolObj)
@@ -716,4 +719,34 @@ func TestSyncAddAndUpdateNetPolSuppressesUnsupportedFeature(t *testing.T) {
 
 	_, err := f.netPolController.syncAddAndUpdateNetPol(netPolObj)
 	require.NoError(t, err, "an unsupported-feature limitation must stay suppressed")
+}
+
+// TestFullNPMTranslationFailureIsForgotten verifies that a deterministic translation failure
+// is forgotten by the worker instead of being requeued with backoff. Requeuing it would retry
+// an unchangeable outcome forever and re-emit error logs/metrics on every attempt; the informer
+// re-enqueues if the policy itself changes.
+func TestFullNPMTranslationFailureIsForgotten(t *testing.T) {
+	// An IPv6 ipBlock cannot be expressed by the IPv4 datapath, so translation fails.
+	netPolObj := netPolWithCIDR("2001:db8::/32")
+
+	f := newNetPolFixture(t)
+	f.netPolLister = append(f.netPolLister, netPolObj)
+	f.kubeobjects = append(f.kubeobjects, netPolObj)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dp := dpmocks.NewMockGenericDataplane(ctrl)
+	f.newNetPolController(stopCh, dp, false)
+	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(0)
+
+	f.netPolController.addNetworkPolicy(netPolObj)
+	require.Equal(t, 1, f.netPolController.workqueue.Len())
+
+	f.netPolController.processNextWorkItem()
+
+	key := getKey(netPolObj, t)
+	require.Zero(t, f.netPolController.workqueue.NumRequeues(key), "a terminal translation failure must not be requeued")
+	require.Equal(t, 0, f.netPolController.workqueue.Len(), "a terminal translation failure must not be re-enqueued")
 }
