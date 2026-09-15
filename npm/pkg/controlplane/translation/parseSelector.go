@@ -241,23 +241,30 @@ func namespaceSelectorWork(nsSelector *metav1.LabelSelector) (branches, matches 
 			branches, matches, maxTotalSelectorMatches, ErrTooManySelectorMatches)
 	}
 	for _, requirement := range nsSelector.MatchExpressions {
-		switch requirement.Operator {
-		case metav1.LabelSelectorOpIn, metav1.LabelSelectorOpNotIn:
-			if len(requirement.Values) == 0 {
-				return 0, 0, ErrEmptyMatchExpressionValues
-			}
-			for _, value := range requirement.Values {
-				if !isValidLabelValue(value) {
-					return 0, 0, ErrInvalidMatchExpressionValues
-				}
-			}
-		case metav1.LabelSelectorOpExists, metav1.LabelSelectorOpDoesNotExist:
-		default:
-			return 0, 0, fmt.Errorf("operator %q on key %q: %w",
-				requirement.Operator, requirement.Key, ErrUnsupportedMatchExpressionOperator)
+		if err := validateMatchExpression(requirement); err != nil {
+			return 0, 0, err
 		}
 	}
 	return branches, matches, nil
+}
+
+func validateMatchExpression(requirement metav1.LabelSelectorRequirement) error {
+	switch requirement.Operator {
+	case metav1.LabelSelectorOpIn, metav1.LabelSelectorOpNotIn:
+		if len(requirement.Values) == 0 {
+			return ErrEmptyMatchExpressionValues
+		}
+		for _, value := range requirement.Values {
+			if !isValidLabelValue(value) {
+				return ErrInvalidMatchExpressionValues
+			}
+		}
+	case metav1.LabelSelectorOpExists, metav1.LabelSelectorOpDoesNotExist:
+	default:
+		return fmt.Errorf("operator %q on key %q: %w",
+			requirement.Operator, requirement.Key, ErrUnsupportedMatchExpressionOperator)
+	}
+	return nil
 }
 
 // zipMatchExprs adds one alternative for each value to every existing branch.

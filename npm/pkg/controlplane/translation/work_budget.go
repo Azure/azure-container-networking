@@ -151,12 +151,15 @@ func podSelectorWork(selector *metav1.LabelSelector) (matches, members int, err 
 			matches, maxSelectorMatches, ErrTooManySelectorMatches)
 	}
 	for _, requirement := range selector.MatchExpressions {
-		if unsupportedOpsInWindows(requirement.Operator) {
-			return 0, 0, ErrUnsupportedNegativeMatch
-		}
 		if len(requirement.Values) > maxSelectorMatches {
 			return 0, 0, fmt.Errorf("pod requirement %q has %d values, past the %d limit: %w",
 				requirement.Key, len(requirement.Values), maxSelectorMatches, ErrTooManySelectorMatches)
+		}
+		if err := validateMatchExpression(requirement); err != nil {
+			return 0, 0, err
+		}
+		if unsupportedOpsInWindows(requirement.Operator) {
+			return 0, 0, ErrUnsupportedNegativeMatch
 		}
 		if len(requirement.Values) > 1 {
 			if len(requirement.Values) > maxTotalPolicyMatches-members {

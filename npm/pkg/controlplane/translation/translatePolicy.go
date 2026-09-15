@@ -3,6 +3,7 @@ package translation
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"strconv"
 	"strings"
 
@@ -191,14 +192,18 @@ func deDuplicateExcept(exceptInIPBlock []string) []string {
 	return deDupExcepts
 }
 
-// canonicalizeExcepts returns the except CIDRs in canonical form, with duplicates removed.
+// canonicalizeExcepts validates strict subsets and returns canonical, deduplicated except CIDRs.
 // Canonicalizing first means two spellings of the same block (e.g. "10.1.2.0/24" and
 // "10.1.2.3/24") collapse to one entry, and that an except can be compared against the
 // all-addresses split entries below. An except that is not an IPv4 CIDR cannot be programmed,
 // so it fails the translation rather than being carried into the set: dropping the exclusion
 // would widen the allow, and keeping it would take the whole set down at restore time. This is
 // used only on the ipset path.
-func canonicalizeExcepts(exceptInIPBlock []string) ([]string, error) {
+func canonicalizeExcepts(parentCIDR string, exceptInIPBlock []string) ([]string, error) {
+	parent, err := netip.ParsePrefix(parentCIDR)
+	if err != nil {
+		return nil, fmt.Errorf("ipBlock %q: %w: %w", parentCIDR, ErrUnsupportedIPAddress, err)
+	}
 	canonicalExcepts := []string{}
 	exceptsSet := make(map[string]struct{})
 	for _, except := range exceptInIPBlock {
@@ -206,9 +211,13 @@ func canonicalizeExcepts(exceptInIPBlock []string) ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("except %q: %w: %w", except, ErrUnsupportedIPAddress, err)
 		}
-		// An all-addresses exclusion cannot be a strict subset of any IPv4 CIDR.
-		if canonical == "0.0.0.0/0" {
-			return nil, fmt.Errorf("except %q: %w: %w", except, ErrUnsupportedIPAddress, ErrInvalidIPBlockExcept)
+		excluded, err := netip.ParsePrefix(canonical)
+		if err != nil {
+			return nil, fmt.Errorf("except %q: %w: %w", except, ErrUnsupportedIPAddress, err)
+		}
+		if excluded.Bits() <= parent.Bits() || !parent.Contains(excluded.Addr()) {
+			return nil, fmt.Errorf("except %q is not a strict subset of %q: %w: %w",
+				except, parentCIDR, ErrUnsupportedIPAddress, ErrInvalidIPBlockExcept)
 		}
 		if _, exist := exceptsSet[canonical]; !exist {
 			canonicalExcepts = append(canonicalExcepts, canonical)
@@ -240,7 +249,7 @@ func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSe
 	}
 
 	// Canonicalize and deduplicate exclusions before comparing with the split entries.
-	deDupExcepts, err := canonicalizeExcepts(ipBlockRule.Except)
+	deDupExcepts, err := canonicalizeExcepts(cidr, ipBlockRule.Except)
 	if err != nil {
 		return nil, err
 	}
