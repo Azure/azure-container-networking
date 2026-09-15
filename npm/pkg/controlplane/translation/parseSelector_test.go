@@ -9,6 +9,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// tenantLabelKey is a shared label key used across the selector translation tests.
+const tenantLabelKey = "tenant"
+
 func TestFlattenNameSpaceSelectorCases(t *testing.T) {
 	firstSelector := &metav1.LabelSelector{}
 
@@ -608,7 +611,7 @@ func TestFlattenNameSpaceSelectorMultiValueNotIn(t *testing.T) {
 	selector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
 			{
-				Key:      "tenant",
+				Key:      tenantLabelKey,
 				Operator: metav1.LabelSelectorOpNotIn,
 				Values:   []string{"x", "y"},
 			},
@@ -622,12 +625,12 @@ func TestFlattenNameSpaceSelectorMultiValueNotIn(t *testing.T) {
 		{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
 				{
-					Key:      "tenant",
+					Key:      tenantLabelKey,
 					Operator: metav1.LabelSelectorOpNotIn,
 					Values:   []string{"x"},
 				},
 				{
-					Key:      "tenant",
+					Key:      tenantLabelKey,
 					Operator: metav1.LabelSelectorOpNotIn,
 					Values:   []string{"y"},
 				},
@@ -645,7 +648,7 @@ func TestFlattenNameSpaceSelectorMixedInAndNotIn(t *testing.T) {
 	selector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
 			{
-				Key:      "tenant",
+				Key:      tenantLabelKey,
 				Operator: metav1.LabelSelectorOpNotIn,
 				Values:   []string{"x", "y"},
 			},
@@ -669,11 +672,13 @@ func TestFlattenNameSpaceSelectorMixedInAndNotIn(t *testing.T) {
 			require.Len(t, req.Values, 1, "every requirement must be single-value after flatten")
 			switch req.Operator {
 			case metav1.LabelSelectorOpNotIn:
-				require.Equal(t, "tenant", req.Key)
+				require.Equal(t, tenantLabelKey, req.Key)
 				notInValues = append(notInValues, req.Values[0])
 			case metav1.LabelSelectorOpIn:
 				require.Equal(t, "role", req.Key)
 				inValues = append(inValues, req.Values[0])
+			case metav1.LabelSelectorOpExists, metav1.LabelSelectorOpDoesNotExist:
+				t.Fatalf("unexpected operator %s", req.Operator)
 			default:
 				t.Fatalf("unexpected operator %s", req.Operator)
 			}
@@ -690,7 +695,7 @@ func TestFlattenNameSpaceSelectorUnsupportedOperator(t *testing.T) {
 	selector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
 			{
-				Key:      "tenant",
+				Key:      tenantLabelKey,
 				Operator: metav1.LabelSelectorOperator("Frobnicate"),
 				Values:   []string{"x"},
 			},
@@ -709,7 +714,7 @@ func TestFlattenNameSpaceSelectorEmptyValues(t *testing.T) {
 		selector := &metav1.LabelSelector{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
 				{
-					Key:      "tenant",
+					Key:      tenantLabelKey,
 					Operator: op,
 					Values:   []string{},
 				},

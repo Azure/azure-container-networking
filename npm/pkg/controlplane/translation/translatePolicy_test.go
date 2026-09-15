@@ -1278,7 +1278,7 @@ func TestNameSpaceSelectorMultiValueNotIn(t *testing.T) {
 	selector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
 			{
-				Key:      "tenant",
+				Key:      tenantLabelKey,
 				Operator: metav1.LabelSelectorOpNotIn,
 				Values:   []string{"x", "y"},
 			},
@@ -1308,7 +1308,7 @@ func TestNameSpaceSelectorMatchLabelsAndMultiValueNotIn(t *testing.T) {
 	selector := &metav1.LabelSelector{
 		MatchLabels: map[string]string{"team": "blue"},
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			{Key: "tenant", Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x", "y"}},
+			{Key: tenantLabelKey, Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x", "y"}},
 		},
 	}
 
@@ -1389,14 +1389,19 @@ func TestTranslatePolicyMultiValueNotInConjunction(t *testing.T) {
 			ports:     []networkingv1.NetworkPolicyPort{tcpPort},
 			peerList:  func(acl *policies.ACLPolicy) []policies.SetInfo { return acl.SrcList },
 		},
+		{
+			name:      "egress-with-port",
+			direction: networkingv1.PolicyTypeEgress,
+			ports:     []networkingv1.NetworkPolicyPort{tcpPort},
+			peerList:  func(acl *policies.ACLPolicy) []policies.SetInfo { return acl.DstList },
+		},
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			pol := nsNotInPolicy("victim", "default", "tenant", tt.direction, tt.ports, "attacker", "quarantine")
+			pol := nsNotInPolicy("victim", "default", tenantLabelKey, tt.direction, tt.ports, "attacker", "quarantine")
 			npmNetPol, err := TranslatePolicy(pol, false)
 			require.NoError(t, err)
 

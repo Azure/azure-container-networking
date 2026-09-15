@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -150,8 +149,12 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelS
 		default:
 			// Fail closed: an unknown operator must not silently drop the requirement
 			// and widen the selector. Kubernetes only admits In/NotIn/Exists/DoesNotExist.
-			log.Errorf("unsupported operator [%s] for selector [%v] requirement", req.Operator, *nsSelector)
-			return nil, ErrUnsupportedMatchExpressionOperator
+			// Return the operator and key with the error so the controller logs it once,
+			// rather than emitting a second log line here. The key and operator identify
+			// the requirement without embedding the whole selector, which a hostile input
+			// could make arbitrarily large.
+			return nil, fmt.Errorf("operator %q on key %q: %w",
+				req.Operator, req.Key, ErrUnsupportedMatchExpressionOperator)
 		}
 	}
 
