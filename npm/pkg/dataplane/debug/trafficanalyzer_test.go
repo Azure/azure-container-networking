@@ -50,6 +50,7 @@ func TestGetInputType(t *testing.T) {
 }
 
 func TestGetNetworkTuple(t *testing.T) {
+	const selectedPodIP = "10.224.0.70"
 	type srcDstPair struct {
 		src *common.Input
 		dst *common.Input
@@ -61,7 +62,7 @@ func TestGetNetworkTuple(t *testing.T) {
 	}
 
 	i0 := &srcDstPair{
-		src: &common.Input{Content: "y/b", Type: common.NSPODNAME},
+		src: &common.Input{Content: "y/a", Type: common.NSPODNAME},
 		dst: &common.Input{Content: "x/b", Type: common.NSPODNAME},
 	}
 
@@ -71,7 +72,7 @@ func TestGetNetworkTuple(t *testing.T) {
 		{
 			RuleType:  "ALLOWED",
 			Direction: "EGRESS",
-			SrcIP:     "10.224.0.17",
+			SrcIP:     selectedPodIP,
 			SrcPort:   "ANY",
 			DstIP:     "ANY",
 			DstPort:   "53",
@@ -80,7 +81,7 @@ func TestGetNetworkTuple(t *testing.T) {
 		{
 			RuleType:  "ALLOWED",
 			Direction: "EGRESS",
-			SrcIP:     "10.224.0.17",
+			SrcIP:     selectedPodIP,
 			SrcPort:   "ANY",
 			DstIP:     "ANY",
 			DstPort:   "53",
@@ -89,7 +90,7 @@ func TestGetNetworkTuple(t *testing.T) {
 		{
 			RuleType:  "NOT ALLOWED",
 			Direction: "EGRESS",
-			SrcIP:     "10.224.0.17",
+			SrcIP:     selectedPodIP,
 			SrcPort:   "ANY",
 			DstIP:     "ANY",
 			DstPort:   "ANY",

@@ -857,7 +857,9 @@ func TranslatePolicy(npObj *networkingv1.NetworkPolicy, npmLiteToggle bool) (*po
 	return npmNetPol, nil
 }
 
-// maxACLsPerPolicy bounds how many ACLs a single NetworkPolicy may translate into. Each ACL
+// maxACLsPerPolicy bounds generated ACL work on the full-NPM v2 ipset path.
+// The Windows Lite direct-rule allocator is outside this work-budget guarantee;
+// the final total check does not bound that allocator's intermediate work. Each ACL
 // becomes one iptables rule, and the count multiplies rather than adds: every flattened
 // namespaceSelector branch is emitted once per port in the rule, and that product is summed
 // across every peer and every rule in the policy. Bounding the flattened selector count on

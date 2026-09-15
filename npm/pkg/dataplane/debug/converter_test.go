@@ -99,7 +99,7 @@ func TestGetProtobufRulesFromIptableFileV2(t *testing.T) {
 		},
 	}
 
-	hitrules, _, _, err := getHitRules(srcPod, dstPod, rules, c.NPMCache)
+	hitrules, _, _, err := getHitRules(srcPod, dstPod, rules, c.NPMCache, c.EnableV2NPM)
 	require.NoError(t, err)
 	log.Printf("hitrules %+v", hitrules)
 	if err != nil {

@@ -96,7 +96,7 @@ func (c *Converter) GetNetworkTuple(src, dst *common.Input, config *npmconfig.Co
 
 	// after we have all rules from the AZURE-NPM chains in the filter table, get the network tuples of src and dst
 
-	return getNetworkTupleCommon(src, dst, c.NPMCache, allRules)
+	return getNetworkTupleCommon(src, dst, c.NPMCache, allRules, c.EnableV2NPM)
 }
 
 // GetNetworkTupleFile read from NPM cache and iptables-save files and
@@ -112,7 +112,7 @@ func (c *Converter) GetNetworkTupleFile( //nolint:gocritic
 		return nil, nil, nil, nil, fmt.Errorf("error occurred during get network tuple : %w", err)
 	}
 
-	return getNetworkTupleCommon(src, dst, c.NPMCache, allRules)
+	return getNetworkTupleCommon(src, dst, c.NPMCache, allRules, c.EnableV2NPM)
 }
 
 // Common function.
@@ -120,6 +120,7 @@ func getNetworkTupleCommon(
 	src, dst *common.Input,
 	npmCache common.GenericCache,
 	allRules map[*pb.RuleResponse]struct{},
+	enableV2NPM bool,
 ) ([][]byte, []*TupleAndRule, map[string]*pb.RuleResponse_SetInfo, map[string]*pb.RuleResponse_SetInfo, error) {
 
 	srcPod, err := npmCache.GetPod(src)
@@ -133,7 +134,7 @@ func getNetworkTupleCommon(
 	}
 
 	// find all rules where the source pod and dest pod exist
-	hitRules, srcSets, dstSets, err := getHitRules(srcPod, dstPod, allRules, npmCache)
+	hitRules, srcSets, dstSets, err := getHitRules(srcPod, dstPod, allRules, npmCache, enableV2NPM)
 	if err != nil {
 		return nil, nil, srcSets, dstSets, fmt.Errorf("%w", err)
 	}
@@ -220,6 +221,7 @@ func getHitRules(
 	src, dst *common.NpmPod,
 	rules map[*pb.RuleResponse]struct{},
 	npmCache common.GenericCache,
+	enableV2NPM bool,
 ) ([]*pb.RuleResponse, map[string]*pb.RuleResponse_SetInfo, map[string]*pb.RuleResponse_SetInfo, error) {
 
 	res := make([]*pb.RuleResponse, 0)
@@ -227,14 +229,14 @@ func getHitRules(
 	dstSets := make(map[string]*pb.RuleResponse_SetInfo, 0)
 
 	for rule := range rules {
-		srcNamespaceMatch, err := matchNamespaceAnchorConditions("src", src, rule.GetSrcList(), rule, npmCache)
+		srcNamespaceMatch, err := matchNamespaceAnchorConditions("src", src, rule.GetSrcList(), rule, npmCache, enableV2NPM)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("evaluating source namespace conditions: %w", err)
 		}
 		if !srcNamespaceMatch {
 			continue
 		}
-		dstNamespaceMatch, err := matchNamespaceAnchorConditions("dst", dst, rule.GetDstList(), rule, npmCache)
+		dstNamespaceMatch, err := matchNamespaceAnchorConditions("dst", dst, rule.GetDstList(), rule, npmCache, enableV2NPM)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("evaluating destination namespace conditions: %w", err)
 		}
@@ -250,7 +252,7 @@ func getHitRules(
 				break
 			}
 
-			matchedSource, err := evaluateSetInfo("src", setInfo, src, rule, npmCache)
+			matchedSource, err := evaluateSetInfo("src", setInfo, src, rule, npmCache, enableV2NPM)
 			if err != nil {
 				return nil, nil, nil, fmt.Errorf("error occurred during evaluating source's set info : %w", err)
 			}
@@ -268,7 +270,7 @@ func getHitRules(
 				break
 			}
 
-			matchedDestination, err := evaluateSetInfo("dst", setInfo, dst, rule, npmCache)
+			matchedDestination, err := evaluateSetInfo("dst", setInfo, dst, rule, npmCache, enableV2NPM)
 			if err != nil {
 				return nil, nil, nil, fmt.Errorf("error occurred during evaluating destination's set info : %w", err)
 			}
@@ -299,12 +301,15 @@ func getHitRules(
 }
 
 // V2 namespace conditions are conjunctive, whether or not an aggregate was needed.
-// The namespace-label prefix and type keep legacy v1 matching outside this path.
-func matchNamespaceAnchorConditions(origin string, pod *common.NpmPod, sets []*pb.RuleResponse_SetInfo, rule *pb.RuleResponse, npmCache common.GenericCache) (bool, error) {
+// The converter's explicit mode keeps user-controlled v1 names outside this path.
+func matchNamespaceAnchorConditions(origin string, pod *common.NpmPod, sets []*pb.RuleResponse_SetInfo, rule *pb.RuleResponse, npmCache common.GenericCache, enableV2NPM bool) (bool, error) {
+	if !enableV2NPM {
+		return true, nil
+	}
 	hasV2Namespace := false
 	for _, set := range sets {
-		if (set.GetType() == pb.SetType_KEYLABELOFNAMESPACE || set.GetType() == pb.SetType_KEYVALUELABELOFNAMESPACE) &&
-			strings.HasPrefix(set.GetName(), util.NamespaceLabelPrefix) {
+		if set.GetType() == pb.SetType_NAMESPACE ||
+			set.GetType() == pb.SetType_KEYLABELOFNAMESPACE || set.GetType() == pb.SetType_KEYVALUELABELOFNAMESPACE {
 			hasV2Namespace = true
 			break
 		}
@@ -342,15 +347,11 @@ func matchNamespaceAnchorConditions(origin string, pod *common.NpmPod, sets []*p
 			}
 			continue
 		case pb.SetType_NESTEDLABELOFPOD:
-			// Current nested identities carry a policy/key, not their allowed values.
-			// Only older value-encoded names can be evaluated from this cache format.
-			if strings.Count(set.GetName(), util.IpsetLabelDelimter) < 2 {
-				return false, fmt.Errorf("missing nested label values for %q: %w", set.GetName(), common.ErrInvalidInput)
+			var err error
+			matches, err = matchV2NestedLabelSet(pod.Labels, set.GetName())
+			if err != nil {
+				return false, err
 			}
-			if !matchNESTEDLABELOFPOD(pod, set) {
-				return false, nil
-			}
-			continue
 		case pb.SetType_CIDRBLOCKS, pb.SetType_UNKNOWN:
 			return false, fmt.Errorf("unsupported anchored set %q: %w", set.GetName(), common.ErrSetType)
 		default:
@@ -373,6 +374,25 @@ func matchPrefixedLabelSet(labels map[string]string, setName, prefix string) (bo
 	return exists && (!hasValue || actual == value), nil
 }
 
+func matchV2NestedLabelSet(labels map[string]string, setName string) (bool, error) {
+	name, ok := strings.CutPrefix(setName, util.NestedLabelPrefix)
+	parts := strings.Split(name, util.IpsetLabelDelimter)
+	// V2 encodes policyKey:labelKey:value...; neither identity can contain ':'.
+	if !ok || len(parts) < 4 || parts[0] == "" || parts[1] == "" {
+		return false, fmt.Errorf("nested label set %q: %w", setName, common.ErrInvalidInput)
+	}
+	actual, exists := labels[parts[1]]
+	if !exists {
+		return false, nil
+	}
+	for _, expected := range parts[2:] {
+		if actual == expected {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // evalute an ipset to find out whether the pod's attributes match with the set
 func evaluateSetInfo(
 	origin string,
@@ -380,23 +400,45 @@ func evaluateSetInfo(
 	pod *common.NpmPod,
 	rule *pb.RuleResponse,
 	npmCache common.GenericCache,
+	enableV2NPM bool,
 ) (bool, error) {
 
 	switch setInfo.Type {
 	case pb.SetType_KEYVALUELABELOFNAMESPACE:
-		if strings.HasPrefix(setInfo.GetName(), util.NamespaceLabelPrefix) {
-			return matchKEYLABELOFNAMESPACE(pod, npmCache, setInfo)
+		if enableV2NPM {
+			return matchKEYLABELOFNAMESPACE(pod, npmCache, setInfo, true)
 		}
 		return matchKEYVALUELABELOFNAMESPACE(pod, npmCache, setInfo), nil
 	case pb.SetType_NESTEDLABELOFPOD:
+		if enableV2NPM {
+			matches, err := matchV2NestedLabelSet(pod.Labels, setInfo.GetName())
+			if err != nil {
+				return false, err
+			}
+			return matches == setInfo.GetIncluded(), nil
+		}
 		return matchNESTEDLABELOFPOD(pod, setInfo), nil
 	case pb.SetType_KEYLABELOFNAMESPACE:
-		return matchKEYLABELOFNAMESPACE(pod, npmCache, setInfo)
+		return matchKEYLABELOFNAMESPACE(pod, npmCache, setInfo, enableV2NPM)
 	case pb.SetType_NAMESPACE:
 		return matchNAMESPACE(pod, setInfo), nil
 	case pb.SetType_KEYVALUELABELOFPOD:
+		if enableV2NPM {
+			matches, err := matchPrefixedLabelSet(pod.Labels, setInfo.GetName(), util.PodLabelPrefix)
+			if err != nil {
+				return false, err
+			}
+			return matches == setInfo.GetIncluded(), nil
+		}
 		return matchKEYVALUELABELOFPOD(pod, setInfo), nil
 	case pb.SetType_KEYLABELOFPOD:
+		if enableV2NPM {
+			matches, err := matchPrefixedLabelSet(pod.Labels, setInfo.GetName(), util.PodLabelPrefix)
+			if err != nil {
+				return false, err
+			}
+			return matches == setInfo.GetIncluded(), nil
+		}
 		return matchKEYLABELOFPOD(pod, setInfo), nil
 	case pb.SetType_NAMEDPORTS:
 		return matchNAMEDPORTS(pod, setInfo, rule, origin), nil
@@ -448,12 +490,12 @@ func matchNESTEDLABELOFPOD(pod *common.NpmPod, setInfo *pb.RuleResponse_SetInfo)
 	return true
 }
 
-func matchKEYLABELOFNAMESPACE(pod *common.NpmPod, npmCache common.GenericCache, setInfo *pb.RuleResponse_SetInfo) (bool, error) {
-	if setInfo.GetName() == util.NamespaceLabelPrefix+util.KubeAllNamespacesFlagV2 {
+func matchKEYLABELOFNAMESPACE(pod *common.NpmPod, npmCache common.GenericCache, setInfo *pb.RuleResponse_SetInfo, enableV2NPM bool) (bool, error) {
+	if enableV2NPM && setInfo.GetName() == util.NamespaceLabelPrefix+util.KubeAllNamespacesFlagV2 {
 		_, namespaceExists := npmCache.GetNamespaceLabels(pod.Namespace)
 		return setInfo.GetIncluded() == (pod.Namespace != "" && namespaceExists), nil
 	}
-	if strings.HasPrefix(setInfo.GetName(), util.NamespaceLabelPrefix) {
+	if enableV2NPM {
 		labels, _ := npmCache.GetNamespaceLabels(pod.Namespace)
 		matches, err := matchPrefixedLabelSet(labels, setInfo.GetName(), util.NamespaceLabelPrefix)
 		if err != nil {

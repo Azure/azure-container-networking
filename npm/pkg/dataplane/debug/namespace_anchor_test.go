@@ -27,7 +27,7 @@ func TestV2NamespaceAggregateMatch(t *testing.T) {
 					Type:     pb.SetType_KEYLABELOFNAMESPACE,
 					Included: included,
 				}
-				matched, err := evaluateSetInfo("src", set, &common.NpmPod{Namespace: namespace}, &pb.RuleResponse{}, cache)
+				matched, err := evaluateSetInfo("src", set, &common.NpmPod{Namespace: namespace}, &pb.RuleResponse{}, cache, true)
 				require.NoError(t, err)
 				require.Equal(t, included == (namespace == anchorPeerNamespace), matched)
 			})
@@ -53,7 +53,7 @@ func TestV2NamespaceKeyOnlyMatch(t *testing.T) {
 				set := &pb.RuleResponse_SetInfo{
 					Name: util.NamespaceLabelPrefix + "feature", Type: pb.SetType_KEYLABELOFNAMESPACE, Included: included,
 				}
-				matched, err := evaluateSetInfo("src", set, &common.NpmPod{Namespace: anchorPeerNamespace}, &pb.RuleResponse{}, cache)
+				matched, err := evaluateSetInfo("src", set, &common.NpmPod{Namespace: anchorPeerNamespace}, &pb.RuleResponse{}, cache, true)
 				require.NoError(t, err)
 				require.Equal(t, included == test.present, matched)
 			})
@@ -73,10 +73,10 @@ func TestV1NamespaceMatchingIsUnchanged(t *testing.T) {
 		{Name: util.NamespacePrefix + "team:blue", Type: pb.SetType_KEYVALUELABELOFNAMESPACE, Included: true},
 		{Name: "nslabel-team:blue", Type: pb.SetType_KEYVALUELABELOFPOD, Included: true},
 	} {
-		matched, err := matchNamespaceAnchorConditions("src", pod, []*pb.RuleResponse_SetInfo{set}, &pb.RuleResponse{}, cache)
+		matched, err := matchNamespaceAnchorConditions("src", pod, []*pb.RuleResponse_SetInfo{set}, &pb.RuleResponse{}, cache, false)
 		require.NoError(t, err)
 		require.True(t, matched, "the v2 pre-check must leave v1 metadata alone")
-		matched, err = evaluateSetInfo("src", set, pod, &pb.RuleResponse{}, cache)
+		matched, err = evaluateSetInfo("src", set, pod, &pb.RuleResponse{}, cache, false)
 		require.NoError(t, err)
 		require.True(t, matched)
 	}
@@ -102,7 +102,7 @@ func TestV2MixedNamespaceConditionsAreConjunctive(t *testing.T) {
 				}}}
 				hits, _, _, err := getHitRules(
 					&common.NpmPod{Namespace: anchorPeerNamespace}, &common.NpmPod{Namespace: anchorTargetNamespace},
-					map[*pb.RuleResponse]struct{}{allow: {}, deny: {}}, cache,
+					map[*pb.RuleResponse]struct{}{allow: {}, deny: {}}, cache, true,
 				)
 				require.NoError(t, err)
 				want := []*pb.RuleResponse{deny}
@@ -157,7 +157,7 @@ func TestNamespaceAnchorRulesRequireEveryNamespaceMatch(t *testing.T) {
 						deny.SrcList = targetMatches
 					}
 					rules := map[*pb.RuleResponse]struct{}{allow: {}, deny: {}}
-					hits, _, _, err := getHitRules(src, dst, rules, cache)
+					hits, _, _, err := getHitRules(src, dst, rules, cache, true)
 					require.NoError(t, err)
 					want := []*pb.RuleResponse{deny}
 					if tenant != "a" && tenant != "b" {
@@ -166,7 +166,7 @@ func TestNamespaceAnchorRulesRequireEveryNamespaceMatch(t *testing.T) {
 					require.ElementsMatch(t, want, hits)
 
 					peer.Namespace = ""
-					hits, _, _, err = getHitRules(src, dst, rules, cache)
+					hits, _, _, err = getHitRules(src, dst, rules, cache, true)
 					require.NoError(t, err)
 					require.ElementsMatch(t, []*pb.RuleResponse{deny}, hits, "the aggregate must not match an external endpoint")
 				})
@@ -194,7 +194,7 @@ func TestNamespaceAnchorConditionsDistinguishLabelPresence(t *testing.T) {
 				{Name: util.NamespaceLabelPrefix + util.KubeAllNamespacesFlag, Type: pb.SetType_KEYLABELOFNAMESPACE},
 				{Name: util.NamespaceLabelPrefix + util.KubeAllNamespacesFlagV2, Type: pb.SetType_KEYLABELOFNAMESPACE, Included: true},
 			}
-			matched, err := matchNamespaceAnchorConditions("src", &common.NpmPod{Namespace: anchorPeerNamespace}, sets, &pb.RuleResponse{}, cache)
+			matched, err := matchNamespaceAnchorConditions("src", &common.NpmPod{Namespace: anchorPeerNamespace}, sets, &pb.RuleResponse{}, cache, true)
 			require.NoError(t, err)
 			require.Equal(t, test.want, matched)
 		})
@@ -223,12 +223,12 @@ func TestNamespaceAnchorDoesNotOverridePodSelection(t *testing.T) {
 	}
 	deny := &pb.RuleResponse{DstList: []*pb.RuleResponse_SetInfo{targetSet}}
 	rules := map[*pb.RuleResponse]struct{}{allow: {}, deny: {}}
-	hits, _, _, err := getHitRules(peer, target, rules, cache)
+	hits, _, _, err := getHitRules(peer, target, rules, cache, true)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []*pb.RuleResponse{deny}, hits)
 
 	peer.Labels["app"] = "required"
-	hits, _, _, err = getHitRules(peer, target, rules, cache)
+	hits, _, _, err = getHitRules(peer, target, rules, cache, true)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []*pb.RuleResponse{allow, deny}, hits)
 }
@@ -262,7 +262,7 @@ func TestNamespaceAnchorConditionsReportIncompleteSets(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			matched, err := matchNamespaceAnchorConditions(
 				"src", &common.NpmPod{Namespace: anchorPeerNamespace},
-				[]*pb.RuleResponse_SetInfo{anchor, test.set}, &pb.RuleResponse{}, cache,
+				[]*pb.RuleResponse_SetInfo{anchor, test.set}, &pb.RuleResponse{}, cache, true,
 			)
 			require.False(t, matched)
 			require.ErrorIs(t, err, test.cause)
