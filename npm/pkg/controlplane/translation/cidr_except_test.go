@@ -26,11 +26,10 @@ func TestIPBlockExceptFailsClosed(t *testing.T) {
 		{"equal except", networkingv1.IPBlock{CIDR: parent, Except: []string{parent}}, ErrInvalidIPBlockExcept},
 		{"noncanonical equal except", networkingv1.IPBlock{CIDR: parent, Except: []string{"10.1.2.3/8"}}, ErrInvalidIPBlockExcept},
 		{"broader except", networkingv1.IPBlock{CIDR: "10.1.0.0/16", Except: []string{parent}}, ErrInvalidIPBlockExcept},
-		{"outside except", networkingv1.IPBlock{CIDR: parent, Except: []string{"192.0.2.0/24"}}, ErrInvalidIPBlockExcept},
-		{"all-addresses except", networkingv1.IPBlock{CIDR: "0.0.0.0/0", Except: []string{"0.0.0.0/0"}}, ErrInvalidIPBlockExcept},
-		{"noncanonical all-addresses except", networkingv1.IPBlock{CIDR: "10.0.0.0/0", Except: []string{"10.0.0.0/0"}}, ErrInvalidIPBlockExcept},
+		{"outside except", networkingv1.IPBlock{CIDR: parent, Except: []string{outsideExceptCIDR}}, ErrInvalidIPBlockExcept},
+		{"all-addresses except", networkingv1.IPBlock{CIDR: allAddressesCIDR, Except: []string{allAddressesCIDR}}, ErrInvalidIPBlockExcept},
+		{"noncanonical all-addresses except", networkingv1.IPBlock{CIDR: nonCanonAllAddrCIDR, Except: []string{nonCanonAllAddrCIDR}}, ErrInvalidIPBlockExcept},
 	} {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			set, info, err := ipBlockRule("except", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0, &test.block)
 			require.Nil(t, set)

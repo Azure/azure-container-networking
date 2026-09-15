@@ -24,6 +24,11 @@ const (
 	appLabelKey      string = "app"
 	enclosingCIDR    string = "10.244.1.0/24"
 	exceptedHostBits string = "10.244.1.106/32"
+
+	allAddressesCIDR    string = "0.0.0.0/0"
+	nonCanonAllAddrCIDR string = "10.0.0.0/0"
+	outsideExceptCIDR   string = "192.0.2.0/24"
+	lowerHalfNomatch    string = "0.0.0.0/1 nomatch"
 )
 
 var namedPortPolicyKey = fmt.Sprintf("%s/%s", defaultNS, namedPortStr)
@@ -647,7 +652,7 @@ func TestIPBlockIPSet(t *testing.T) {
 				CIDR:   "0.0.0.0/0",
 				Except: []string{"10.0.0.0/1"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test:in-ns:default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1 nomatch", "128.0.0.0/1"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("test:in-ns:default-0-0IN", ipsets.CIDRBlocks, []string{lowerHalfNomatch, "128.0.0.0/1"}...),
 			skipWindows:     true,
 		},
 		{
@@ -3506,11 +3511,10 @@ func ipBlockPolicy(name, ns, cidr string) *networkingv1.NetworkPolicy {
 func TestTranslatePolicyNonCanonicalAllAddressesCIDR(t *testing.T) {
 	t.Parallel()
 
-	canonical, err := TranslatePolicy(ipBlockPolicy("victim", "default", "0.0.0.0/0"), false)
+	canonical, err := TranslatePolicy(ipBlockPolicy("victim", "default", allAddressesCIDR), false)
 	require.NoError(t, err)
 
-	for _, cidr := range []string{"10.0.0.0/0", "255.255.255.255/0"} {
-		cidr := cidr
+	for _, cidr := range []string{nonCanonAllAddrCIDR, "255.255.255.255/0"} {
 		t.Run(cidr, func(t *testing.T) {
 			t.Parallel()
 
@@ -3521,7 +3525,7 @@ func TestTranslatePolicyNonCanonicalAllAddressesCIDR(t *testing.T) {
 			// The policy must be indistinguishable from the canonical spelling: same
 			// ipset members (the 0.0.0.0/0 split) and the same ACLs.
 			require.Equal(t, canonical.RuleIPSets, npmNetPol.RuleIPSets)
-			require.Equal(t, len(canonical.ACLs), len(npmNetPol.ACLs))
+			require.Len(t, npmNetPol.ACLs, len(canonical.ACLs))
 
 			// Most importantly the default drop must exist, since its absence is what
 			// left the selected pods unisolated.
@@ -3542,7 +3546,6 @@ func TestTranslatePolicyInvalidCIDRStillFails(t *testing.T) {
 	t.Parallel()
 
 	for _, cidr := range []string{"2001:db8::/32", "10.0.0.0/33", "not-a-cidr/0"} {
-		cidr := cidr
 		t.Run(cidr, func(t *testing.T) {
 			t.Parallel()
 			npmNetPol, err := TranslatePolicy(ipBlockPolicy("victim", "default", cidr), false)
