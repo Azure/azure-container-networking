@@ -515,21 +515,25 @@ func TestHashedNameGoldenVectors(t *testing.T) {
 	}
 }
 
-// TestIsIPV4 covers address and CIDR forms. The CIDR cases matter most: a block whose host
-// bits are set (e.g. "10.0.0.0/0") denotes the same addresses as its canonical form and must
-// be accepted, because rejecting it fails the whole policy translation and leaves the
-// policy's selected pods with no rules at all.
+// CIDR literals reused across the IsIPV4/NormalizeCIDR cases, named to satisfy goconst.
+const (
+	cidrAllV4  = "0.0.0.0/0"
+	cidrHost32 = "10.0.0.1/32"
+	cidrLan24  = "10.1.2.0/24"
+)
+
+// TestIsIPV4 covers address and CIDR forms. IsIPV4 deliberately rejects a /0 block whose
+// address text is not literally "0.0.0.0" (e.g. "10.0.0.0/0"); such a block is valid and
+// denotes the same addresses, so callers on the ipBlock path canonicalize with NormalizeCIDR
+// before validating rather than relying on IsIPV4 to accept the spelling.
 func TestIsIPV4(t *testing.T) {
 	valid := []string{
 		"10.0.0.1",
 		"0.0.0.0",
 		"10.0.0.0/24",
-		"0.0.0.0/0",
-		// non-canonical spellings of valid IPv4 blocks
-		"10.0.0.0/0",
-		"255.255.255.255/0",
+		cidrAllV4,
 		"10.1.2.3/24",
-		"10.0.0.1/32",
+		cidrHost32,
 	}
 	for _, ip := range valid {
 		require.True(t, IsIPV4(ip), "IsIPV4(%q) must be true", ip)
@@ -541,6 +545,9 @@ func TestIsIPV4(t *testing.T) {
 		"10.0.0.256",
 		"10.0.0.0/33",
 		"10.0.0.0/",
+		// non-canonical /0 spellings are rejected on text; callers canonicalize first
+		"10.0.0.0/0",
+		"255.255.255.255/0",
 		"2001:db8::1",
 		"2001:db8::/32",
 		"::/0",
@@ -554,14 +561,14 @@ func TestIsIPV4(t *testing.T) {
 // against a well-known block and hand the canonical form to the kernel.
 func TestNormalizeCIDR(t *testing.T) {
 	canonical := map[string]string{
-		"0.0.0.0/0":         "0.0.0.0/0",
-		"10.0.0.0/0":        "0.0.0.0/0",
-		"255.255.255.255/0": "0.0.0.0/0",
+		cidrAllV4:           cidrAllV4,
+		"10.0.0.0/0":        cidrAllV4,
+		"255.255.255.255/0": cidrAllV4,
 		"10.0.0.0/1":        "0.0.0.0/1",
 		"200.0.0.0/1":       "128.0.0.0/1",
-		"10.1.2.3/24":       "10.1.2.0/24",
-		"10.1.2.0/24":       "10.1.2.0/24",
-		"10.0.0.1/32":       "10.0.0.1/32",
+		"10.1.2.3/24":       cidrLan24,
+		cidrLan24:           cidrLan24,
+		cidrHost32:          cidrHost32,
 	}
 	for in, want := range canonical {
 		got, ok := NormalizeCIDR(in)

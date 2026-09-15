@@ -61,3 +61,41 @@ func TestIPBlockValidStrictSubsetExceptIsCanonicalized(t *testing.T) {
 	require.Contains(t, set.Members, exceptCidr("10.1.2.0/24"))
 	require.NotContains(t, set.Members, exceptCidr("10.1.2.3/24"))
 }
+
+// TestIPBlockAllAddressesMixedExcepts verifies the member-building loop keeps split
+// replacements and appended nomatch members in separate slots when an all-addresses parent
+// is combined with a mix of split-half and ordinary exceptions, in any order. A split half
+// (canonicalized 0.0.0.0/1 or 128.0.0.0/1) turns its base slot into a nomatch in place, while
+// an ordinary exception is appended; because the loop index advances once per exception and
+// the base count drops once per split, ordinary exceptions are always written past the base
+// slots and never overwrite a split half.
+func TestIPBlockAllAddressesMixedExcepts(t *testing.T) {
+	if util.IsWindowsDP() {
+		t.Skip("Except is unsupported on the Windows datapath")
+	}
+	for _, except := range [][]string{
+		{lowerHalfAltCIDR, outsideExceptCIDR},             // split-half (non-canonical) then ordinary
+		{outsideExceptCIDR, lowerHalfAltCIDR},             // ordinary then split-half
+		{lowerHalfCIDR, upperHalfCIDR, outsideExceptCIDR}, // both halves then ordinary
+		{outsideExceptCIDR, lowerHalfCIDR, "203.0.113.0/24"},
+	} {
+		set, err := ipBlockIPSet("p", defaultNS, policies.Ingress, 0, 0,
+			&networkingv1.IPBlock{CIDR: nonCanonAllAddrCIDR, Except: except})
+		require.NoError(t, err)
+
+		var lowerHalf, upperHalf int
+		for _, m := range set.Members {
+			require.NotEmpty(t, m, "no member slot may be left empty for except %v -> %v", except, set.Members)
+			switch m {
+			case lowerHalfCIDR, lowerHalfNomatch:
+				lowerHalf++
+			case upperHalfCIDR, upperHalfNomatch:
+				upperHalf++
+			}
+		}
+		// Each half of the split must survive exactly once; a dropped or overwritten slot
+		// would leave part of the parent block unrepresented.
+		require.Equal(t, 1, lowerHalf, "lower /1 half must appear exactly once for except %v -> %v", except, set.Members)
+		require.Equal(t, 1, upperHalf, "upper /1 half must appear exactly once for except %v -> %v", except, set.Members)
+	}
+}

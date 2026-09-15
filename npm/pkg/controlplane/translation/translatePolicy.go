@@ -298,10 +298,7 @@ func ipBlockRule(policyName, ns string, direction policies.Direction, matchType 
 		return nil, policies.SetInfo{}, nil
 	}
 
-	if !util.IsIPV4(ipBlockRule.CIDR) {
-		return nil, policies.SetInfo{}, ErrUnsupportedIPAddress
-	}
-
+	// The set builder validates and normalizes the CIDR once, before creating any members.
 	ipBlockIPSet, err := ipBlockIPSet(policyName, ns, direction, ipBlockSetIndex, ipBlockPeerIndex, ipBlockRule)
 	if err != nil {
 		return nil, policies.SetInfo{}, err

@@ -29,6 +29,10 @@ const (
 	nonCanonAllAddrCIDR string = "10.0.0.0/0"
 	outsideExceptCIDR   string = "192.0.2.0/24"
 	lowerHalfNomatch    string = "0.0.0.0/1 nomatch"
+	lowerHalfCIDR       string = "0.0.0.0/1"
+	lowerHalfAltCIDR    string = "10.0.0.0/1"
+	upperHalfCIDR       string = "128.0.0.0/1"
+	upperHalfNomatch    string = "128.0.0.0/1 nomatch"
 )
 
 var namedPortPolicyKey = fmt.Sprintf("%s/%s", defaultNS, namedPortStr)
