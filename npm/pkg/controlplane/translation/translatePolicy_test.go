@@ -1365,6 +1365,13 @@ func nsNotInPolicy(name, ns, key string, direction networkingv1.PolicyType, port
 func TestTranslatePolicyMultiValueNotInConjunction(t *testing.T) {
 	t.Parallel()
 
+	// A negative namespaceSelector is rejected on the Windows dataplane during translation
+	// (see TestTranslatePolicyRejectsNegativeNamespaceSelectorOnWindows), so the rendered-ACL
+	// conjunction is only produced on Linux.
+	if util.IsWindowsDP() {
+		t.Skip("negative namespaceSelectors are not supported on the Windows dataplane")
+	}
+
 	tcpPort := networkingv1.NetworkPolicyPort{Port: &intstr.IntOrString{Type: intstr.Int, IntVal: 80}}
 
 	tests := []struct {

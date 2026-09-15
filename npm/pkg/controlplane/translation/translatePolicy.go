@@ -528,6 +528,13 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy,
 			continue
 		}
 
+		// A negative namespaceSelector requirement has no Windows dataplane representation.
+		// Reject it during translation, before any dataplane change, so an update cannot tear
+		// down a working policy and only then fail to add its replacement. No-op on Linux.
+		if err := rejectUnsupportedWindowsNSSelector(peer.NamespaceSelector); err != nil {
+			return err
+		}
+
 		// #2.2 handle nameSpaceSelector and port if exist
 		if peer.PodSelector == nil && peer.NamespaceSelector != nil {
 			// Before translating NamespaceSelector, flattenNameSpaceSelector function call should be called

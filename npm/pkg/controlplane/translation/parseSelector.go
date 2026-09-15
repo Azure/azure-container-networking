@@ -371,6 +371,24 @@ func unsupportedOpsInWindows(op metav1.LabelSelectorOperator) bool {
 		(op == metav1.LabelSelectorOpNotIn || op == metav1.LabelSelectorOpDoesNotExist)
 }
 
+// rejectUnsupportedWindowsNSSelector fails closed when a namespaceSelector carries a negative
+// requirement that the Windows dataplane cannot represent. A namespace match renders as a set
+// condition and a negated set has no HNS equivalent, so a multi-value NotIn (or DoesNotExist)
+// must be rejected during translation. Rejecting here, before the dataplane is touched, also
+// keeps an update from tearing down a working policy and only then failing to add its
+// replacement. It is a no-op on Linux and for a nil or positive-only selector.
+func rejectUnsupportedWindowsNSSelector(selector *metav1.LabelSelector) error {
+	if selector == nil {
+		return nil
+	}
+	for _, req := range selector.MatchExpressions {
+		if unsupportedOpsInWindows(req.Operator) {
+			return ErrUnsupportedNegativeMatch
+		}
+	}
+	return nil
+}
+
 // isValidLabelValue ensures the string is empty or satisfies validLabelRegex.
 // Given that v != "", ReplaceAllString() would yield "" when v matches this regex exactly once.
 func isValidLabelValue(v string) bool {
