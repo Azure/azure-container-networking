@@ -262,6 +262,9 @@ func getHitRules(
 				if !enableV2NPM {
 					break
 				}
+			} else if enableV2NPM {
+				matchedSrc = false
+				break
 			}
 		}
 
@@ -282,6 +285,9 @@ func getHitRules(
 				if !enableV2NPM {
 					break
 				}
+			} else if enableV2NPM {
+				matchedDst = false
+				break
 			}
 		}
 
