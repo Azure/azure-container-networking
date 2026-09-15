@@ -73,6 +73,11 @@ func (acl *ACLPolicy) convertToAclSettings(aclID string) (*NPMACLPolSettings, er
 			return policySettings, ErrNegativeMatchsNotSupported
 		}
 	}
+	for _, setInfo := range acl.DstList {
+		if !setInfo.Included {
+			return policySettings, ErrNegativeMatchsNotSupported
+		}
+	}
 
 	if !acl.checkIPSets() {
 		return policySettings, ErrNamedPortsNotSupported

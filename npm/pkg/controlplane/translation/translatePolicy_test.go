@@ -1521,6 +1521,11 @@ func TestTranslatePolicyNegationOnlyNamespaceSelector(t *testing.T) {
 
 			pol := nsNotInPolicy("victim", "default", tenantLabelKey, tt.direction, nil, "x")
 			npmNetPol, err := TranslatePolicy(pol, false)
+			if util.IsWindowsDP() {
+				require.ErrorIs(t, err, ErrUnsupportedNegativeMatch)
+				require.Nil(t, npmNetPol)
+				return
+			}
 			require.NoError(t, err)
 
 			var theAllow *policies.ACLPolicy
@@ -1619,6 +1624,11 @@ func TestTranslatePolicyMultiValueNotInConjunction(t *testing.T) {
 
 			pol := nsNotInPolicy("victim", "default", tenantLabelKey, tt.direction, tt.ports, "attacker", "quarantine")
 			npmNetPol, err := TranslatePolicy(pol, false)
+			if util.IsWindowsDP() {
+				require.ErrorIs(t, err, ErrUnsupportedNegativeMatch)
+				require.Nil(t, npmNetPol)
+				return
+			}
 			require.NoError(t, err)
 
 			excluded := map[string]bool{"tenant:attacker": true, "tenant:quarantine": true}
@@ -4043,6 +4053,11 @@ func TestTranslatePolicyNegationOnlyOperators(t *testing.T) {
 				t.Parallel()
 
 				npmNetPol, err := TranslatePolicy(nsExprPolicy("victim", "default", dir.direction, op.req), false)
+				if util.IsWindowsDP() {
+					require.ErrorIs(t, err, ErrUnsupportedNegativeMatch)
+					require.Nil(t, npmNetPol)
+					return
+				}
 				require.NoError(t, err)
 
 				var allowACLs int

@@ -91,58 +91,8 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelS
 		return []metav1.LabelSelector{}, nil
 	}
 
-	// Bound how many matches this selector produces, before anything is allocated and before
-	// the matchLabels-only shortcut below, since those labels each become a match too. A
-	// multi-value NotIn stays inside a single selector, so it is invisible to both the
-	// selector-count bound further down and the per-policy rule budget, yet every one of its
-	// values becomes its own IPSet and its own condition on one rule.
-	matches := len(nsSelector.MatchLabels)
-	branches := 1
-	hasPositiveMatch := len(nsSelector.MatchLabels) > 0
-	for _, req := range nsSelector.MatchExpressions {
-		switch req.Operator {
-		case metav1.LabelSelectorOpNotIn:
-			// each excluded value is carried as its own negated match
-			matches += len(req.Values)
-		case metav1.LabelSelectorOpIn:
-			// one match per branch, and a multi-value In fans out into branches
-			matches++
-			hasPositiveMatch = true
-			if len(req.Values) > 1 {
-				// the branch count is bounded on its own terms first, so a selector that
-				// fans out too far still reports that rather than the total below.
-				// Divide rather than multiply so the product cannot overflow.
-				if len(req.Values) > maxFlattenedNSSelectors/branches {
-					return nil, fmt.Errorf("key %q with %d values expands past the %d selector limit: %w",
-						req.Key, len(req.Values), maxFlattenedNSSelectors, ErrTooManyFlattenedSelectors)
-				}
-				branches *= len(req.Values)
-			}
-		case metav1.LabelSelectorOpExists:
-			matches++
-			hasPositiveMatch = true
-		case metav1.LabelSelectorOpDoesNotExist:
-			matches++
-		default:
-			// an unknown operator, which the loop below rejects
-			matches++
-		}
-	}
-	if !hasPositiveMatch {
-		// parseNSSelector anchors a selector that matches only negatively with the
-		// all-namespaces set, so that match counts too
-		matches++
-	}
-	if matches > maxSelectorMatches {
-		return nil, fmt.Errorf("selector expands into %d matches, past the %d limit: %w",
-			matches, maxSelectorMatches, ErrTooManySelectorMatches)
-	}
-	// Each branch repeats every match, so the cost is the product rather than either factor.
-	// The branch count alone is bounded further down and the rule count by the policy budget,
-	// but neither sees a wide selector repeated across many branches.
-	if matches > maxTotalSelectorMatches/branches {
-		return nil, fmt.Errorf("selector expands into %d branches of %d matches, past the %d total match limit: %w",
-			branches, matches, maxTotalSelectorMatches, ErrTooManySelectorMatches)
+	if _, _, err := namespaceSelectorWork(nsSelector); err != nil {
+		return nil, err
 	}
 
 	if len(nsSelector.MatchExpressions) == 0 {
@@ -168,15 +118,6 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelS
 		// Exists/DoesNotExist carry no values and are added to baseSelector directly.
 		switch {
 		case req.Operator == metav1.LabelSelectorOpIn:
-			if len(req.Values) == 0 {
-				return nil, ErrEmptyMatchExpressionValues
-			}
-			for _, v := range req.Values {
-				if !isValidLabelValue(v) {
-					return nil, ErrInvalidMatchExpressionValues
-				}
-			}
-
 			if len(req.Values) == 1 {
 				// for length 1, add the matchExpr to baseSelector
 				baseSelector.MatchExpressions = append(baseSelector.MatchExpressions, req)
@@ -187,15 +128,6 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelS
 				multiValueMatchExprs = append(multiValueMatchExprs, req)
 			}
 		case req.Operator == metav1.LabelSelectorOpNotIn:
-			if len(req.Values) == 0 {
-				return nil, ErrEmptyMatchExpressionValues
-			}
-			for _, v := range req.Values {
-				if !isValidLabelValue(v) {
-					return nil, ErrInvalidMatchExpressionValues
-				}
-			}
-
 			if len(req.Values) == 1 {
 				// for length 1, add the matchExpr to baseSelector
 				baseSelector.MatchExpressions = append(baseSelector.MatchExpressions, req)
@@ -269,11 +201,66 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelS
 	return flatNsSelectors, nil
 }
 
-// zipMatchExprs helps with zipping a given matchExpr with given baseLabelSelectors
-// this func will loop over each baseSelector in the slice,
-// deepCopies each baseSelector, combines with given matchExpr by looping over each value
-// and creating a new LabelSelector with given baseSelector and value matchExpr
-// then returns a new slice of these zipped LabelSelectors
+// namespaceSelectorWork counts expansion before allocating selectors, sets, or ACLs.
+func namespaceSelectorWork(nsSelector *metav1.LabelSelector) (branches, matches int, err error) {
+	matches = len(nsSelector.MatchLabels)
+	branches = 1
+	hasPositiveMatch := len(nsSelector.MatchLabels) > 0
+	for _, req := range nsSelector.MatchExpressions {
+		switch req.Operator {
+		case metav1.LabelSelectorOpNotIn:
+			matches += len(req.Values)
+		case metav1.LabelSelectorOpIn:
+			matches++
+			hasPositiveMatch = true
+			if len(req.Values) > 1 {
+				if len(req.Values) > maxFlattenedNSSelectors/branches {
+					return 0, 0, fmt.Errorf("key %q with %d values expands past the %d selector limit: %w",
+						req.Key, len(req.Values), maxFlattenedNSSelectors, ErrTooManyFlattenedSelectors)
+				}
+				branches *= len(req.Values)
+			}
+		case metav1.LabelSelectorOpExists:
+			matches++
+			hasPositiveMatch = true
+		case metav1.LabelSelectorOpDoesNotExist:
+			matches++
+		default:
+			matches++
+		}
+	}
+	if !hasPositiveMatch {
+		matches++
+	}
+	if matches > maxSelectorMatches {
+		return 0, 0, fmt.Errorf("selector expands into %d matches, past the %d limit: %w",
+			matches, maxSelectorMatches, ErrTooManySelectorMatches)
+	}
+	if matches > maxTotalSelectorMatches/branches {
+		return 0, 0, fmt.Errorf("selector expands into %d branches of %d matches, past the %d total match limit: %w",
+			branches, matches, maxTotalSelectorMatches, ErrTooManySelectorMatches)
+	}
+	for _, requirement := range nsSelector.MatchExpressions {
+		switch requirement.Operator {
+		case metav1.LabelSelectorOpIn, metav1.LabelSelectorOpNotIn:
+			if len(requirement.Values) == 0 {
+				return 0, 0, ErrEmptyMatchExpressionValues
+			}
+			for _, value := range requirement.Values {
+				if !isValidLabelValue(value) {
+					return 0, 0, ErrInvalidMatchExpressionValues
+				}
+			}
+		case metav1.LabelSelectorOpExists, metav1.LabelSelectorOpDoesNotExist:
+		default:
+			return 0, 0, fmt.Errorf("operator %q on key %q: %w",
+				requirement.Operator, requirement.Key, ErrUnsupportedMatchExpressionOperator)
+		}
+	}
+	return branches, matches, nil
+}
+
+// zipMatchExprs adds one alternative for each value to every existing branch.
 func zipMatchExprs(baseSelectors []metav1.LabelSelector, matchExpr metav1.LabelSelectorRequirement) []metav1.LabelSelector {
 	zippedLabelSelectors := []metav1.LabelSelector{}
 	for _, selector := range baseSelectors {

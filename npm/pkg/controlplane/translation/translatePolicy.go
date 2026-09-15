@@ -56,6 +56,8 @@ var (
 	// willing to program. ACL count multiplies rather than adds: flattened selector branches are
 	// emitted per port, summed across peers and rules, so bounding selectors alone is not enough.
 	ErrTooManyACLs = errors.New("network policy expands into too many rules")
+	// ErrTooManyPolicyMatches covers combined selectors and replication across ACLs.
+	ErrTooManyPolicyMatches = errors.New("network policy expands into too many set matches")
 	// ErrUnsupportedIPAddress is returned when an unsupported IP address, such as IPV6, is used
 	ErrUnsupportedIPAddress = errors.New("unsupported IP address")
 	// ErrInvalidIPBlockExcept is returned for an exclusion that cannot be a strict subset.
@@ -813,6 +815,11 @@ func parseNodeEgressPorts(annotations map[string]string) []int32 {
 // TranslatePolicy translates networkpolicy object to NPMNetworkPolicy object
 // and returns the NPMNetworkPolicy object.
 func TranslatePolicy(npObj *networkingv1.NetworkPolicy, npmLiteToggle bool) (*policies.NPMNetworkPolicy, error) {
+	if !npmLiteToggle {
+		if err := validateFullPolicyWork(npObj); err != nil {
+			return nil, fmt.Errorf("network policy %s/%s: %w", npObj.Namespace, npObj.Name, err)
+		}
+	}
 	netPolName := npObj.Name
 	npmNetPol := policies.NewNPMNetworkPolicy(netPolName, npObj.Namespace)
 
