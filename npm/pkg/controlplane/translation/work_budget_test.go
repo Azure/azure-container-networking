@@ -119,6 +119,9 @@ func TestSelectedPodAndNestedMemberBudgets(t *testing.T) {
 	}
 	translated, err := TranslatePolicy(policy, false)
 	require.ErrorIs(t, err, ErrTooManySelectorMatches)
+	require.ErrorContains(t, err, fmt.Sprintf("selected pod selector expands into %d matches including its namespace anchor, past the %d limit",
+		maxSelectorMatches+1, maxSelectorMatches))
+	require.NotContains(t, err.Error(), "namespaceSelector")
 	require.Nil(t, translated)
 
 	policy.Spec.PodSelector = metav1.LabelSelector{}

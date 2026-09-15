@@ -22,7 +22,8 @@ func validateFullPolicyWork(policy *networkingv1.NetworkPolicy) error {
 		return err
 	}
 	if selectedMatches >= maxSelectorMatches {
-		return fmt.Errorf("selected pods require a namespace match: %w", ErrTooManySelectorMatches)
+		return fmt.Errorf("selected pod selector expands into %d matches including its namespace anchor, past the %d limit: %w",
+			selectedMatches+1, maxSelectorMatches, ErrTooManySelectorMatches)
 	}
 	budget := policyWorkBudget{matches: selectedMatches + selectedMembers + 1}
 	if budget.matches > maxTotalPolicyMatches {

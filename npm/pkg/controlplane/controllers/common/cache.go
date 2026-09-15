@@ -46,7 +46,6 @@ const (
 type GenericCache interface {
 	GetPod(*Input) (*NpmPod, error)
 	GetNamespaceLabel(namespace string, key string) string
-	GetNamespaceLabels(namespace string) (map[string]string, bool)
 	GetListMap() map[string]string
 	GetSetMap() map[string]string
 }

@@ -1,6 +1,7 @@
 package debug
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -310,6 +311,21 @@ func getHitRules(
 	return res, srcSets, dstSets, nil
 }
 
+type namespaceLabelReader interface {
+	GetNamespaceLabels(namespace string) (map[string]string, bool)
+}
+
+var errNamespaceLabelsUnavailable = errors.New("diagnostic cache does not support namespace label lookup")
+
+func namespaceLabels(npmCache common.GenericCache, namespace string) (labels map[string]string, exists bool, err error) {
+	reader, ok := npmCache.(namespaceLabelReader)
+	if !ok {
+		return nil, false, errNamespaceLabelsUnavailable
+	}
+	labels, exists = reader.GetNamespaceLabels(namespace)
+	return labels, exists, nil
+}
+
 // V2 selector conditions are conjunctive, whether or not an aggregate was needed.
 // The converter's explicit mode keeps user-controlled v1 names outside this path.
 func matchNamespaceAnchorConditions(origin string, pod *common.NpmPod, sets []*pb.RuleResponse_SetInfo, rule *pb.RuleResponse, npmCache common.GenericCache, enableV2NPM bool) (bool, error) {
@@ -328,7 +344,10 @@ func matchNamespaceAnchorConditions(origin string, pod *common.NpmPod, sets []*p
 		return true, nil
 	}
 
-	labels, namespaceExists := npmCache.GetNamespaceLabels(pod.Namespace)
+	labels, namespaceExists, err := namespaceLabels(npmCache, pod.Namespace)
+	if err != nil {
+		return false, err
+	}
 	for _, set := range sets {
 		var matches bool
 		switch set.GetType() {
@@ -501,12 +520,14 @@ func matchNESTEDLABELOFPOD(pod *common.NpmPod, setInfo *pb.RuleResponse_SetInfo)
 }
 
 func matchKEYLABELOFNAMESPACE(pod *common.NpmPod, npmCache common.GenericCache, setInfo *pb.RuleResponse_SetInfo, enableV2NPM bool) (bool, error) {
-	if enableV2NPM && setInfo.GetName() == util.NamespaceLabelPrefix+util.KubeAllNamespacesFlagV2 {
-		_, namespaceExists := npmCache.GetNamespaceLabels(pod.Namespace)
-		return setInfo.GetIncluded() == (pod.Namespace != "" && namespaceExists), nil
-	}
 	if enableV2NPM {
-		labels, _ := npmCache.GetNamespaceLabels(pod.Namespace)
+		labels, namespaceExists, err := namespaceLabels(npmCache, pod.Namespace)
+		if err != nil {
+			return false, err
+		}
+		if setInfo.GetName() == util.NamespaceLabelPrefix+util.KubeAllNamespacesFlagV2 {
+			return setInfo.GetIncluded() == (pod.Namespace != "" && namespaceExists), nil
+		}
 		matches, err := matchPrefixedLabelSet(labels, setInfo.GetName(), util.NamespaceLabelPrefix)
 		if err != nil {
 			return false, err
