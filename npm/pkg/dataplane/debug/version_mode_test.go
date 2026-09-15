@@ -43,7 +43,7 @@ func TestV2PodOnlyPeerRequiresNamespace(t *testing.T) {
 	}}}
 	rules := map[*pb.RuleResponse]struct{}{allow: {}, deny: {}}
 	for _, namespace := range []string{anchorPeerNamespace, "different"} {
-		peer := &common.NpmPod{Namespace: namespace, Labels: map[string]string{"app": "shared"}}
+		peer := &common.NpmPod{Namespace: namespace, Labels: map[string]string{diagnosticAppLabelKey: "shared"}}
 		hits, _, _, err := getHitRules(peer, target, rules, &common.Cache{}, true)
 		require.NoError(t, err)
 		want := []*pb.RuleResponse{deny}
@@ -55,7 +55,7 @@ func TestV2PodOnlyPeerRequiresNamespace(t *testing.T) {
 }
 
 func TestV2PodConditionsWithoutNamespaceAreConjunctive(t *testing.T) {
-	peer := &common.NpmPod{Namespace: anchorPeerNamespace, Labels: map[string]string{"app": "shared", "role": otherLabelValue}}
+	peer := &common.NpmPod{Namespace: anchorPeerNamespace, Labels: map[string]string{diagnosticAppLabelKey: "shared", "role": otherLabelValue}}
 	allow := &pb.RuleResponse{Allowed: true, SrcList: []*pb.RuleResponse_SetInfo{
 		{Name: util.PodLabelPrefix + "app:shared", Type: pb.SetType_KEYLABELOFPOD, Included: true},
 		{Name: util.PodLabelPrefix + "role:required", Type: pb.SetType_KEYLABELOFPOD, Included: true},
@@ -75,7 +75,7 @@ func TestV2PodConditionsWithoutNamespaceAreConjunctive(t *testing.T) {
 }
 
 func TestV2NestedSelectorUsesTranslatedLabelKey(t *testing.T) {
-	const labelKey = "app"
+	const labelKey = diagnosticAppLabelKey
 	policy := &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{Name: "nested", Namespace: anchorPeerNamespace},
 		Spec: networkingv1.NetworkPolicySpec{

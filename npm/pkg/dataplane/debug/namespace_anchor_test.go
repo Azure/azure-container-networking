@@ -15,6 +15,7 @@ const (
 	anchorTargetNamespace = "target"
 	matchedTeamValue      = "blue"
 	otherLabelValue       = "other"
+	diagnosticAppLabelKey = "app"
 )
 
 func TestV2NamespaceAggregateMatch(t *testing.T) {
@@ -203,7 +204,7 @@ func TestNamespaceAnchorConditionsDistinguishLabelPresence(t *testing.T) {
 
 func TestNamespaceAnchorDoesNotOverridePodSelection(t *testing.T) {
 	cache := &common.Cache{NsMap: map[string]*common.Namespace{anchorPeerNamespace: {}}}
-	peer := &common.NpmPod{Namespace: anchorPeerNamespace, Labels: map[string]string{"app": otherLabelValue}}
+	peer := &common.NpmPod{Namespace: anchorPeerNamespace, Labels: map[string]string{diagnosticAppLabelKey: otherLabelValue}}
 	target := &common.NpmPod{Namespace: anchorTargetNamespace}
 	converter := &Converter{EnableV2NPM: true}
 	podSet := &pb.RuleResponse_SetInfo{
@@ -227,7 +228,7 @@ func TestNamespaceAnchorDoesNotOverridePodSelection(t *testing.T) {
 	require.NoError(t, err)
 	require.ElementsMatch(t, []*pb.RuleResponse{deny}, hits)
 
-	peer.Labels["app"] = "required"
+	peer.Labels[diagnosticAppLabelKey] = "required"
 	hits, _, _, err = getHitRules(peer, target, rules, cache, true)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []*pb.RuleResponse{allow, deny}, hits)
