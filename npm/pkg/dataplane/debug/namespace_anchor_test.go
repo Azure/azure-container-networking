@@ -16,6 +16,7 @@ const (
 	matchedTeamValue      = "blue"
 	otherLabelValue       = "other"
 	diagnosticAppLabelKey = "app"
+	diagnosticSharedValue = "shared"
 )
 
 func TestV2NamespaceAggregateMatch(t *testing.T) {

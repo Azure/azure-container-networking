@@ -259,7 +259,9 @@ func getHitRules(
 			if matchedSource {
 				matchedSrc = true
 				srcSets[setInfo.HashedSetName] = setInfo
-				break
+				if !enableV2NPM {
+					break
+				}
 			}
 		}
 
@@ -277,7 +279,9 @@ func getHitRules(
 			if matchedDestination {
 				dstSets[setInfo.HashedSetName] = setInfo
 				matchedDst = true
-				break
+				if !enableV2NPM {
+					break
+				}
 			}
 		}
 
@@ -308,7 +312,8 @@ func matchNamespaceAnchorConditions(origin string, pod *common.NpmPod, sets []*p
 	}
 	hasSelectorCondition := false
 	for _, set := range sets {
-		if set.GetType() != pb.SetType_CIDRBLOCKS && set.GetType() != pb.SetType_UNKNOWN {
+		if set.GetType() != pb.SetType_CIDRBLOCKS && set.GetType() != pb.SetType_UNKNOWN &&
+			set.GetType() != pb.SetType_NAMEDPORTS {
 			hasSelectorCondition = true
 			break
 		}

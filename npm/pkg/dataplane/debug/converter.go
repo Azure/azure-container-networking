@@ -23,6 +23,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/pkg/models"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/pkg/errors"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -286,36 +287,48 @@ func (c *Converter) pbRuleList(ipTable *NPMIPtable.Table) (map[*pb.RuleResponse]
 	}
 
 	if c.EnableV2NPM {
-		parentRules := make([]*pb.RuleResponse, 0)
-		for childRule := range allRulesInNPMChains {
-
-			// if rule is a string-int, we need to find the parent jump
-			// to add the src for egress and dst for ingress
-			if strings.HasPrefix(childRule.Chain, EgressChainPrefix) {
-				for parentRule := range allRulesInNPMChains {
-					if strings.HasPrefix(parentRule.Chain, EgressChain) && parentRule.JumpTo == childRule.Chain {
-						childRule.SrcList = append(childRule.SrcList, parentRule.SrcList...)
-						childRule.Comment = parentRule.Comment
-						parentRules = append(parentRules, parentRule)
-					}
-				}
-			}
-			if strings.HasPrefix(childRule.Chain, IngressChainPrefix) {
-				for parentRule := range allRulesInNPMChains {
-					if strings.HasPrefix(parentRule.Chain, IngressChain) && parentRule.JumpTo == childRule.Chain {
-						childRule.DstList = append(childRule.DstList, parentRule.DstList...)
-						childRule.Comment = parentRule.Comment
-						parentRules = append(parentRules, parentRule)
-					}
-				}
-			}
-		}
-		for _, parentRule := range parentRules {
-			delete(allRulesInNPMChains, parentRule)
-		}
+		return mergeV2ParentBranches(allRulesInNPMChains), nil
 	}
 
 	return allRulesInNPMChains, nil
+}
+
+func mergeV2ParentBranches(rules map[*pb.RuleResponse]struct{}) map[*pb.RuleResponse]struct{} {
+	result := make(map[*pb.RuleResponse]struct{}, len(rules))
+	parents := make(map[*pb.RuleResponse]struct{})
+	for child := range rules {
+		matchedParent := false
+		for parent := range rules {
+			if parent.JumpTo != child.GetChain() {
+				continue
+			}
+			egress := strings.HasPrefix(child.GetChain(), EgressChainPrefix) && strings.HasPrefix(parent.GetChain(), EgressChain)
+			ingress := strings.HasPrefix(child.GetChain(), IngressChainPrefix) && strings.HasPrefix(parent.GetChain(), IngressChain)
+			if !egress && !ingress {
+				continue
+			}
+			// Separate jumps are alternatives, not additional conditions on one path.
+			branch := proto.CloneOf(child)
+			branch.JumpTo = child.JumpTo
+			parentBranch := proto.CloneOf(parent)
+			if egress {
+				branch.SrcList = append(branch.GetSrcList(), parentBranch.GetSrcList()...)
+			} else {
+				branch.DstList = append(branch.GetDstList(), parentBranch.GetDstList()...)
+			}
+			branch.Comment = parent.Comment
+			result[branch] = struct{}{}
+			parents[parent] = struct{}{}
+			matchedParent = true
+		}
+		if !matchedParent {
+			result[child] = struct{}{}
+		}
+	}
+	for parent := range parents {
+		delete(result, parent)
+	}
+	return result
 }
 
 func (c *Converter) getRulesFromChain(iptableChain *NPMIPtable.Chain) ([]*pb.RuleResponse, error) {
