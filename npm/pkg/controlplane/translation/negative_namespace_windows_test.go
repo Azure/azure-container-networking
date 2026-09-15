@@ -26,7 +26,7 @@ func TestTranslatePolicyRejectsNegativeNamespaceSelectorOnWindows(t *testing.T) 
 						NamespaceSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{requirement}},
 					}
 					if combined {
-						peer.PodSelector = &metav1.LabelSelector{MatchLabels: map[string]string{"app": "client"}}
+						peer.PodSelector = &metav1.LabelSelector{MatchLabels: map[string]string{appLabelKey: "client"}}
 					}
 					policy := &networkingv1.NetworkPolicy{
 						ObjectMeta: metav1.ObjectMeta{Name: "ns-negative", Namespace: defaultNS},

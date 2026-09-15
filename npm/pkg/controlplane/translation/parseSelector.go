@@ -87,20 +87,14 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelS
 	notInExpanded := false
 	multiValueMatchExprs := []metav1.LabelSelectorRequirement{}
 	for _, req := range nsSelector.MatchExpressions {
+		if err := validateMatchExpression(req); err != nil {
+			return nil, err
+		}
 		// In/NotIn requirements carry the values; single-value requirements are added to
 		// baseSelector as-is, while multi-value requirements are handled per operator below.
 		// Exists/DoesNotExist carry no values and are added to baseSelector directly.
 		switch {
 		case req.Operator == metav1.LabelSelectorOpIn:
-			if len(req.Values) == 0 {
-				return nil, ErrEmptyMatchExpressionValues
-			}
-			for _, v := range req.Values {
-				if !isValidLabelValue(v) {
-					return nil, ErrInvalidMatchExpressionValues
-				}
-			}
-
 			if len(req.Values) == 1 {
 				// for length 1, add the matchExpr to baseSelector
 				baseSelector.MatchExpressions = append(baseSelector.MatchExpressions, req)
@@ -111,15 +105,6 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelS
 				multiValueMatchExprs = append(multiValueMatchExprs, req)
 			}
 		case req.Operator == metav1.LabelSelectorOpNotIn:
-			if len(req.Values) == 0 {
-				return nil, ErrEmptyMatchExpressionValues
-			}
-			for _, v := range req.Values {
-				if !isValidLabelValue(v) {
-					return nil, ErrInvalidMatchExpressionValues
-				}
-			}
-
 			if len(req.Values) == 1 {
 				// for length 1, add the matchExpr to baseSelector
 				baseSelector.MatchExpressions = append(baseSelector.MatchExpressions, req)
@@ -325,17 +310,14 @@ func parsePodSelector(policyKey string, selector *metav1.LabelSelector) ([]label
 		var setType ipsets.SetType
 		var members []string
 		op := req.Operator
+		if err := validateMatchExpression(req); err != nil {
+			return nil, err
+		}
 		if unsupportedOpsInWindows(op) {
 			return nil, ErrUnsupportedNegativeMatch
 		}
 		switch op {
 		case metav1.LabelSelectorOpIn, metav1.LabelSelectorOpNotIn:
-			for _, v := range req.Values {
-				if !isValidLabelValue(v) {
-					return nil, ErrInvalidMatchExpressionValues
-				}
-			}
-
 			// "(!) + matchKey + : + matchVal" case
 			if len(req.Values) == 1 {
 				setName = util.GetIpSetFromLabelKV(req.Key, req.Values[0])
@@ -385,6 +367,30 @@ func rejectUnsupportedWindowsNSSelector(selector *metav1.LabelSelector) error {
 		if unsupportedOpsInWindows(req.Operator) {
 			return ErrUnsupportedNegativeMatch
 		}
+	}
+	return nil
+}
+
+// validateMatchExpression fails closed on a matchExpression that Kubernetes would not admit or
+// that NPM cannot translate: an operator other than In/NotIn/Exists/DoesNotExist, an In/NotIn
+// with no values, or a value that is not a valid label. Dropping such a requirement would
+// silently widen the selector (e.g. a dropped NotIn), so it is rejected instead. This is
+// platform-agnostic and is applied to both namespaceSelectors and podSelectors.
+func validateMatchExpression(req metav1.LabelSelectorRequirement) error {
+	switch req.Operator {
+	case metav1.LabelSelectorOpIn, metav1.LabelSelectorOpNotIn:
+		if len(req.Values) == 0 {
+			return ErrEmptyMatchExpressionValues
+		}
+		for _, v := range req.Values {
+			if !isValidLabelValue(v) {
+				return ErrInvalidMatchExpressionValues
+			}
+		}
+	case metav1.LabelSelectorOpExists, metav1.LabelSelectorOpDoesNotExist:
+	default:
+		return fmt.Errorf("operator %q on key %q: %w",
+			req.Operator, req.Key, ErrUnsupportedMatchExpressionOperator)
 	}
 	return nil
 }

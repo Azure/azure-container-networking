@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -760,5 +761,60 @@ func TestIsValidLabel(t *testing.T) {
 
 	for _, b := range bad {
 		require.False(t, isValidLabelValue(b), "string was [%s]", b)
+	}
+}
+
+// TestParsePodSelectorFailsClosed verifies that a podSelector matchExpression that Kubernetes
+// would not admit fails closed instead of emitting a malformed set: an unsupported operator
+// (which would otherwise leave a zero-value SetInfo) and an empty In/NotIn value list (which
+// would otherwise produce a set with no members). This mirrors the namespaceSelector guard.
+func TestParsePodSelectorFailsClosed(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		req  metav1.LabelSelectorRequirement
+		err  error
+	}{
+		{"unsupported operator", metav1.LabelSelectorRequirement{Key: appLabelKey, Operator: "Superset", Values: []string{"a"}}, ErrUnsupportedMatchExpressionOperator},
+		{"empty In", metav1.LabelSelectorRequirement{Key: appLabelKey, Operator: metav1.LabelSelectorOpIn}, ErrEmptyMatchExpressionValues},
+		{"empty NotIn", metav1.LabelSelectorRequirement{Key: appLabelKey, Operator: metav1.LabelSelectorOpNotIn}, ErrEmptyMatchExpressionValues},
+		{"invalid value", metav1.LabelSelectorRequirement{Key: appLabelKey, Operator: metav1.LabelSelectorOpIn, Values: []string{"bad value"}}, ErrInvalidMatchExpressionValues},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			selector := &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{test.req}}
+			parsed, err := parsePodSelector("ns/policy", selector)
+			require.ErrorIs(t, err, test.err)
+			require.Nil(t, parsed)
+		})
+	}
+}
+
+// TestTranslatePolicyPodSelectorFailsClosed verifies the podSelector guard surfaces through the
+// full translation path for both the selected pods and a peer podSelector, in both directions.
+func TestTranslatePolicyPodSelectorFailsClosed(t *testing.T) {
+	bad := metav1.LabelSelectorRequirement{Key: appLabelKey, Operator: metav1.LabelSelectorOpIn} // empty In
+	for _, direction := range []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress} {
+		for _, position := range []string{"selected", "peer"} {
+			t.Run(string(direction)+"/"+position, func(t *testing.T) {
+				policy := &networkingv1.NetworkPolicy{
+					ObjectMeta: metav1.ObjectMeta{Name: "podsel", Namespace: defaultNS},
+					Spec:       networkingv1.NetworkPolicySpec{PolicyTypes: []networkingv1.PolicyType{direction}},
+				}
+				badSelector := metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{bad}}
+				peer := networkingv1.NetworkPolicyPeer{PodSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"role": "x"}}}
+				if position == "selected" {
+					policy.Spec.PodSelector = badSelector
+				} else {
+					peer.PodSelector = &badSelector
+				}
+				if direction == networkingv1.PolicyTypeIngress {
+					policy.Spec.Ingress = []networkingv1.NetworkPolicyIngressRule{{From: []networkingv1.NetworkPolicyPeer{peer}}}
+				} else {
+					policy.Spec.Egress = []networkingv1.NetworkPolicyEgressRule{{To: []networkingv1.NetworkPolicyPeer{peer}}}
+				}
+				translated, err := TranslatePolicy(policy, false)
+				require.ErrorIs(t, err, ErrEmptyMatchExpressionValues)
+				require.Nil(t, translated)
+			})
+		}
 	}
 }
