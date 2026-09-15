@@ -54,6 +54,26 @@ func TestV2PodOnlyPeerRequiresNamespace(t *testing.T) {
 	}
 }
 
+func TestV2PodConditionsWithoutNamespaceAreConjunctive(t *testing.T) {
+	peer := &common.NpmPod{Namespace: anchorPeerNamespace, Labels: map[string]string{"app": "shared", "role": otherLabelValue}}
+	allow := &pb.RuleResponse{Allowed: true, SrcList: []*pb.RuleResponse_SetInfo{
+		{Name: util.PodLabelPrefix + "app:shared", Type: pb.SetType_KEYLABELOFPOD, Included: true},
+		{Name: util.PodLabelPrefix + "role:required", Type: pb.SetType_KEYLABELOFPOD, Included: true},
+	}}
+	deny := &pb.RuleResponse{DstList: []*pb.RuleResponse_SetInfo{{
+		Name: util.NamespacePrefix + anchorTargetNamespace, Type: pb.SetType_NAMESPACE, Included: true,
+	}}}
+	target := &common.NpmPod{Namespace: anchorTargetNamespace}
+	rules := map[*pb.RuleResponse]struct{}{allow: {}, deny: {}}
+	hits, _, _, err := getHitRules(peer, target, rules, &common.Cache{}, true)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []*pb.RuleResponse{deny}, hits)
+	peer.Labels["role"] = "required"
+	hits, _, _, err = getHitRules(peer, target, rules, &common.Cache{}, true)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []*pb.RuleResponse{allow, deny}, hits)
+}
+
 func TestV2NestedSelectorUsesTranslatedLabelKey(t *testing.T) {
 	const labelKey = "app"
 	policy := &networkingv1.NetworkPolicy{

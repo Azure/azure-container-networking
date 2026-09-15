@@ -375,8 +375,8 @@ COMMIT
 -A AZURE-NPM-EGRESS -m set --match-set azure-npm-4272224941 src -m set --match-set azure-npm-2064349730 src -m comment --comment "EGRESS-POLICY-kube-system/konnectivity-agent-FROM-podlabel-app:konnectivity-agent-AND-ns-kube-system-IN-ns-kube-system" -j AZURE-NPM-EGRESS-3618314628
 -A AZURE-NPM-EGRESS -m mark --mark 0x5000 -m comment --comment DROP-ON-EGRESS-DROP-MARK-0x5000 -j DROP
 -A AZURE-NPM-EGRESS -m mark --mark 0x2000 -m comment --comment ACCEPT-ON-INGRESS-ALLOW-MARK-0x2000 -j AZURE-NPM-ACCEPT
--A AZURE-NPM-EGRESS-2697641196 -p tcp -m tcp --dport 80 -m set --match-set azure-npm-2146053937 dst -m set --match-set azure-npm-2682470511 dst -m comment --comment "ALLOW-TO-nslabel-ns:y-AND-nestedlabel-pod:a:b-ON-TCP-TO-PORT-80" -j AZURE-NPM-ACCEPT
--A AZURE-NPM-EGRESS-2697641196 -p tcp -m tcp --dport 80 -m set --match-set azure-npm-2095721080 dst -m set --match-set azure-npm-2682470511 dst -m comment --comment "ALLOW-TO-nslabel-ns:z-AND-nestedlabel-pod:a:b-ON-TCP-TO-PORT-80" -j AZURE-NPM-ACCEPT
+-A AZURE-NPM-EGRESS-2697641196 -p tcp -m tcp --dport 80 -m set --match-set azure-npm-2146053937 dst -m set --match-set azure-npm-5p1pifvksz7fldlldq08 dst -m comment --comment "ALLOW-TO-nslabel-ns:y-AND-nestedlabel-y/test-policy:pod:a:b-ON-TCP-TO-PORT-80" -j AZURE-NPM-ACCEPT
+-A AZURE-NPM-EGRESS-2697641196 -p tcp -m tcp --dport 80 -m set --match-set azure-npm-2095721080 dst -m set --match-set azure-npm-5p1pifvksz7fldlldq08 dst -m comment --comment "ALLOW-TO-nslabel-ns:z-AND-nestedlabel-y/test-policy:pod:a:b-ON-TCP-TO-PORT-80" -j AZURE-NPM-ACCEPT
 -A AZURE-NPM-EGRESS-2697641196 -p udp -m udp --dport 53 -m comment --comment ALLOW-ALL-ON-UDP-TO-PORT-53 -j AZURE-NPM-ACCEPT
 -A AZURE-NPM-EGRESS-2697641196 -p tcp -m tcp --dport 53 -m comment --comment ALLOW-ALL-ON-TCP-TO-PORT-53 -j AZURE-NPM-ACCEPT
 -A AZURE-NPM-EGRESS-2697641196 -m comment --comment DROP-ALL -j MARK --set-xmark 0x5000/0xffffffff
@@ -384,8 +384,8 @@ COMMIT
 -A AZURE-NPM-INGRESS -m set --match-set azure-npm-2064349730 dst -m comment --comment "INGRESS-POLICY-kube-system/default-deny-ingress-TO-ns-kube-system-IN-ns-kube-system" -j AZURE-NPM-INGRESS-3750705395
 -A AZURE-NPM-INGRESS -m set --match-set azure-npm-3922407721 dst -m set --match-set azure-npm-2837910840 dst -m comment --comment "INGRESS-POLICY-y/base-TO-podlabel-pod:a-AND-ns-y-IN-ns-y" -j AZURE-NPM-INGRESS-2697641196
 -A AZURE-NPM-INGRESS -m mark --mark 0x4000 -m comment --comment DROP-ON-INGRESS-DROP-MARK-0x4000 -j DROP
--A AZURE-NPM-INGRESS-2697641196 -p tcp -m tcp --dport 80 -m set --match-set azure-npm-2129276318 src -m set --match-set azure-npm-55798953 src -m comment --comment "ALLOW-FROM-nslabel-ns:x-AND-nestedlabel-pod:b:c-ON-TCP-TO-PORT-80" -j AZURE-NPM-INGRESS-ALLOW-MARK
--A AZURE-NPM-INGRESS-2697641196 -p tcp -m tcp --dport 80 -m set --match-set azure-npm-2146053937 src -m set --match-set azure-npm-55798953 src -m comment --comment "ALLOW-FROM-nslabel-ns:y-AND-nestedlabel-pod:b:c-ON-TCP-TO-PORT-80" -j AZURE-NPM-INGRESS-ALLOW-MARK
+-A AZURE-NPM-INGRESS-2697641196 -p tcp -m tcp --dport 80 -m set --match-set azure-npm-2129276318 src -m set --match-set azure-npm-67n0hp4c1th5oiesg5w0 src -m comment --comment "ALLOW-FROM-nslabel-ns:x-AND-nestedlabel-y/test-policy:pod:b:c-ON-TCP-TO-PORT-80" -j AZURE-NPM-INGRESS-ALLOW-MARK
+-A AZURE-NPM-INGRESS-2697641196 -p tcp -m tcp --dport 80 -m set --match-set azure-npm-2146053937 src -m set --match-set azure-npm-67n0hp4c1th5oiesg5w0 src -m comment --comment "ALLOW-FROM-nslabel-ns:y-AND-nestedlabel-y/test-policy:pod:b:c-ON-TCP-TO-PORT-80" -j AZURE-NPM-INGRESS-ALLOW-MARK
 -A AZURE-NPM-INGRESS-2697641196 -m comment --comment DROP-ALL -j MARK --set-xmark 0x4000/0xffffffff
 -A AZURE-NPM-INGRESS-3750705395 -m comment --comment DROP-ALL -j MARK --set-xmark 0x4000/0xffffffff
 -A AZURE-NPM-INGRESS-ALLOW-MARK -m comment --comment SET-INGRESS-ALLOW-MARK-0x2000 -j MARK --set-xmark 0x2000/0xffffffff

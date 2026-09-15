@@ -300,21 +300,20 @@ func getHitRules(
 	return res, srcSets, dstSets, nil
 }
 
-// V2 namespace conditions are conjunctive, whether or not an aggregate was needed.
+// V2 selector conditions are conjunctive, whether or not an aggregate was needed.
 // The converter's explicit mode keeps user-controlled v1 names outside this path.
 func matchNamespaceAnchorConditions(origin string, pod *common.NpmPod, sets []*pb.RuleResponse_SetInfo, rule *pb.RuleResponse, npmCache common.GenericCache, enableV2NPM bool) (bool, error) {
 	if !enableV2NPM {
 		return true, nil
 	}
-	hasV2Namespace := false
+	hasSelectorCondition := false
 	for _, set := range sets {
-		if set.GetType() == pb.SetType_NAMESPACE ||
-			set.GetType() == pb.SetType_KEYLABELOFNAMESPACE || set.GetType() == pb.SetType_KEYVALUELABELOFNAMESPACE {
-			hasV2Namespace = true
+		if set.GetType() != pb.SetType_CIDRBLOCKS && set.GetType() != pb.SetType_UNKNOWN {
+			hasSelectorCondition = true
 			break
 		}
 	}
-	if !hasV2Namespace {
+	if !hasSelectorCondition {
 		return true, nil
 	}
 

@@ -14,6 +14,8 @@ func TestIPBlockNormalizationErrorCauses(t *testing.T) {
 	const (
 		ipv6CIDR      = "2001:db8:2::/48"
 		malformedCIDR = "invalid"
+		allAddresses  = "0.0.0.0/0"
+		hostBitsZero  = "10.0.0.0/0"
 	)
 	for _, test := range []struct {
 		name                 string
@@ -30,6 +32,8 @@ func TestIPBlockNormalizationErrorCauses(t *testing.T) {
 		{"invalid parent and exclusion", networkingv1.IPBlock{CIDR: malformedCIDR, Except: []string{malformedCIDR}}, util.ErrInvalidCIDR, false},
 		{"invalid exclusion", networkingv1.IPBlock{CIDR: enclosingCIDR, Except: []string{malformedCIDR}}, util.ErrInvalidCIDR, true},
 		{"IPv6 exclusion", networkingv1.IPBlock{CIDR: enclosingCIDR, Except: []string{ipv6CIDR}}, util.ErrUnsupportedIPFamily, true},
+		{"all-addresses exclusion", networkingv1.IPBlock{CIDR: allAddresses, Except: []string{allAddresses}}, ErrInvalidIPBlockExcept, true},
+		{"noncanonical all-addresses exclusion", networkingv1.IPBlock{CIDR: hostBitsZero, Except: []string{hostBitsZero}}, ErrInvalidIPBlockExcept, true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			unsupportedExcept := util.IsWindowsDP() && test.windowsExceptFailure

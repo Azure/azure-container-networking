@@ -58,6 +58,8 @@ var (
 	ErrTooManyACLs = errors.New("network policy expands into too many rules")
 	// ErrUnsupportedIPAddress is returned when an unsupported IP address, such as IPV6, is used
 	ErrUnsupportedIPAddress = errors.New("unsupported IP address")
+	// ErrInvalidIPBlockExcept is returned for an exclusion that cannot be a strict subset.
+	ErrInvalidIPBlockExcept = errors.New("ipBlock except must be a strict subset of its CIDR")
 	// ErrUnsupportedNonCIDR is returned when non-CIDR blocks are passed in with NPM Lite enabled. NPM Lite allows deny-all and allow-all policies
 	ErrUnsupportedNonCIDR = errors.New("Non-CIDR blocks, named ports, and ingress/egress namespace/pod selectors are not supported when NPM Lite is enabled, allowing only CIDR-based policies")
 )
@@ -203,6 +205,10 @@ func canonicalizeExcepts(exceptInIPBlock []string) ([]string, error) {
 		canonical, err := util.NormalizeCIDR(except)
 		if err != nil {
 			return nil, fmt.Errorf("except %q: %w: %w", except, ErrUnsupportedIPAddress, err)
+		}
+		// An all-addresses exclusion cannot be a strict subset of any IPv4 CIDR.
+		if canonical == "0.0.0.0/0" {
+			return nil, fmt.Errorf("except %q: %w: %w", except, ErrUnsupportedIPAddress, ErrInvalidIPBlockExcept)
 		}
 		if _, exist := exceptsSet[canonical]; !exist {
 			canonicalExcepts = append(canonicalExcepts, canonical)
