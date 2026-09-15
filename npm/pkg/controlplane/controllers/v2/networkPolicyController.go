@@ -374,7 +374,7 @@ func isUnsupportedWindowsTranslationErr(err error) bool {
 // or mode NPM is running in, rather than a policy NPM failed to translate. Those limitations
 // stay suppressed with a warning; other failures must be reported without recording success.
 func isUnsupportedTranslationErr(err error, npmLiteToggle bool) bool {
-	if errors.Is(err, util.ErrInvalidCIDR) {
+	if errors.Is(err, util.ErrInvalidCIDR) || errors.Is(err, translation.ErrInvalidIPBlockExcept) {
 		return false
 	}
 	// Full NPM supplies a typed cause; only Lite retains unclassified address errors.

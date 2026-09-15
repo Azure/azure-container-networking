@@ -31,3 +31,11 @@ func TestV2NestedFixtureIdentitiesMatchKernelNames(t *testing.T) {
 	}
 	require.Equal(t, 2, count)
 }
+
+func TestV2AggregateFixtureUsesCurrentIdentity(t *testing.T) {
+	converter := &Converter{EnableV2NPM: true}
+	require.NoError(t, converter.NpmCacheFromFile(npmCacheFileV2))
+	metadata := ipsets.NewIPSetMetadata(util.KubeAllNamespacesFlagV2, ipsets.KeyLabelOfNamespace)
+	require.Contains(t, converter.NPMCache.GetSetMap(), metadata.GetHashedName())
+	require.Equal(t, metadata.GetPrefixName(), converter.NPMCache.GetSetMap()[metadata.GetHashedName()])
+}

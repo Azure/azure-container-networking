@@ -736,6 +736,8 @@ func TestUnsupportedAddressClassificationIsPlatformSpecific(t *testing.T) {
 		{"Lite unsupported family", fmt.Errorf("%w: %w", translation.ErrUnsupportedIPAddress, util.ErrUnsupportedIPFamily), true, util.IsWindowsDP()},
 		{"full malformed CIDR", fmt.Errorf("%w: %w", translation.ErrUnsupportedIPAddress, util.ErrInvalidCIDR), false, false},
 		{"Lite typed malformed CIDR", fmt.Errorf("%w: %w", translation.ErrUnsupportedIPAddress, util.ErrInvalidCIDR), true, false},
+		{"full invalid exclusion", fmt.Errorf("%w: %w", translation.ErrUnsupportedIPAddress, translation.ErrInvalidIPBlockExcept), false, false},
+		{"Lite typed invalid exclusion", fmt.Errorf("%w: %w", translation.ErrUnsupportedIPAddress, translation.ErrInvalidIPBlockExcept), true, false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			require.Equal(t, test.want, isUnsupportedTranslationErr(test.err, test.npmLite))
