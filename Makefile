@@ -118,16 +118,49 @@ TOOLS_GO_MOD = $(REPO_ROOT)/tools.go.mod
 
 
 # Default target
+# These binaries are portable release archives (bins/*.tgz, *.zip) installed
+# directly onto arbitrary hosts/nodes, not baked into a specific controlled
+# Docker base image. So, unlike cni.sh/cns.sh (which target the AzureLinux
+# distroless image and can safely require GOEXPERIMENT=ms_nocgo_opensslcrypto,
+# Microsoft's FIPS-capable OpenSSL backend), Linux builds here must not assume
+# the target host has that OpenSSL library available. MS_GO_NOSYSTEMCRYPTO=1
+# disables the build image's ambient GOEXPERIMENT=systemcrypto default (which
+# requires CGO_ENABLED=1 and was silently aborting every Linux binary here,
+# starting with acncli) and falls back to the standard, portable Go crypto
+# backend instead - the same choice npm.sh makes for the same reason. This is
+# a no-op on a plain upstream/OSS Go toolchain.
 all-binaries-platforms: ## Make all platform binaries
-	@for goos in "$(GOOSES)"; do \
+	@set -e; \
+	for goos in "$(GOOSES)"; do \
 		for goarch in "$(GOARCHES)"; do \
-			make all-binaries GOOS=$$goos GOARCH=$$goarch; \
+			if [ "$$goos" = "linux" ]; then \
+				MS_GO_NOSYSTEMCRYPTO=1 make all-binaries GOOS=$$goos GOARCH=$$goarch; \
+			else \
+				make all-binaries GOOS=$$goos GOARCH=$$goarch; \
+			fi; \
 		done \
 	done
 
 # OS specific binaries/images
 ifeq ($(GOOS),linux)
-all-binaries: acncli azure-cni-plugin azure-cns azure-npm azure-ipam azure-ip-masq-merger azure-iptables-monitor ipv6-hp-bpf azure-block-iptables cilium-log-collector
+# ipv6-hp-bpf, azure-block-iptables, and cilium-log-collector are
+# intentionally excluded here. Unlike the other prerequisites, none of the
+# three has ever been published as a standalone portable release archive (0
+# assets across all GitHub releases checked, including their own
+# per-component release tags e.g. cilium-log-collector/v0.0.4). Each is only
+# ever consumed baked into its own container image, built independently of
+# this Makefile's *-binary targets: ipv6-hp-bpf and cilium-log-collector each
+# have their own Dockerfile with an inline "go build"/"go generate" that
+# compiles natively per-arch via Docker buildx (not a host cross-toolchain),
+# and azure-block-iptables is built by a wholly separate script
+# (.pipelines/build/scripts/azure-iptables-monitor.sh) baked into the
+# azure-iptables-monitor image - neither path touches all-binaries at all.
+# Building them here only exercises host cross-compilation (bpf2go host-tool
+# GOARCH inheritance, CGO_ENABLED=1 c-shared cross-sysroot gaps) for archives
+# nothing downloads, so they're skipped rather than fixed for a release
+# artifact that was never real. Their standalone `make <target>` recipes
+# remain available and correct for local/manual use.
+all-binaries: acncli azure-cni-plugin azure-cns azure-npm azure-ipam azure-ip-masq-merger azure-iptables-monitor
 all-images: npm-image cns-image cni-manager-image azure-ip-masq-merger-image azure-iptables-monitor-image ipv6-hp-bpf-image cilium-log-collector
 else
 all-binaries: azure-cni-plugin azure-cns azure-npm
@@ -191,8 +224,42 @@ azure-ipam-binary:
 	cd $(AZURE_IPAM_DIR) && CGO_ENABLED=0 go build -v -o $(AZURE_IPAM_BUILD_DIR)/azure-ipam$(EXE_EXT) -ldflags "-X github.com/Azure/azure-container-networking/azure-ipam/internal/buildinfo.Version=$(AZURE_IPAM_VERSION) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
 
 # Build the ipv6-hp-bpf binary.
+# glibc's gnu/stubs.h only pulls in gnu/stubs-64.h when __x86_64__ (or
+# __aarch64__, on arm64 hosts) is defined; clang's "bpf"/"bpfel"/"bpfeb"
+# targets used by bpf2go don't define any host arch macro, so without this
+# override it falls through to gnu/stubs-32.h, which AzureLinux/CBL-Mariner
+# build agents don't ship (no 32-bit support at all). This is a
+# host-toolchain issue, not a target-platform one: bpf2go's clang invocation
+# always runs on and parses headers from the *build host* (today, always an
+# amd64 AzureLinux agent) regardless of GOARCH, since GOOS=linux GOARCH=arm64
+# is cross-compiled from that same amd64 host. So this must be keyed off the
+# host architecture (UNAME_M), not GOARCH - otherwise the arm64 iteration
+# would skip the workaround and hit the same failure. The aarch64 branch
+# below is defensive for a hypothetical arm64 build host (not currently used
+# by ADO, but would hit the identical gnu/stubs.h gap if ever adopted).
+# Defining __x86_64__/__aarch64__ via BPF2GO_CFLAGS is a no-op for the
+# generated BPF bytecode itself and only affects this glibc header
+# preprocessing branch.
+#
+# "go generate" here runs "go run github.com/cilium/ebpf/cmd/bpf2go ... -target
+# bpfel,bpfeb ..." (see pkg/egress/gen.go, pkg/ingress/gen.go): the eBPF
+# bytecode target is an explicit, architecture-neutral bpf2go flag, wholly
+# unrelated to GOARCH/GOOS. But "go run" builds and executes the bpf2go tool
+# itself as a *host* binary; when cross-compiling (GOARCH=arm64 on an amd64
+# host, as all-binaries-platforms does), an inherited GOARCH=arm64 makes "go
+# run" build bpf2go for arm64 and then fail to execute it natively on the
+# amd64 host ("exec format error"). GOARCH/GOOS must therefore be unset only
+# for this go generate step; the go build below still needs them to produce
+# the correct target-arch ipv6-hp-bpf binary.
+UNAME_M := $(shell uname -m)
 ipv6-hp-bpf-binary: bpf-lib
-	cd $(IPV6_HP_BPF_DIR) && CGO_ENABLED=0 go generate ./...
+ifeq ($(UNAME_M),x86_64)
+	cd $(IPV6_HP_BPF_DIR) && CGO_ENABLED=0 env -u GOARCH -u GOOS BPF2GO_CFLAGS="-D__x86_64__" go generate ./...
+else ifneq (,$(filter aarch64 arm64,$(UNAME_M)))
+	cd $(IPV6_HP_BPF_DIR) && CGO_ENABLED=0 env -u GOARCH -u GOOS BPF2GO_CFLAGS="-D__aarch64__" go generate ./...
+else
+	cd $(IPV6_HP_BPF_DIR) && CGO_ENABLED=0 env -u GOARCH -u GOOS go generate ./...
+endif
 	cd $(IPV6_HP_BPF_DIR)/cmd/ipv6-hp-bpf && CGO_ENABLED=0 go build -v -o $(IPV6_HP_BPF_BUILD_DIR)/ipv6-hp-bpf$(EXE_EXT) -ldflags "-X main.version=$(IPV6_HP_BPF_VERSION) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
 
 # Libraries for bpf
@@ -206,8 +273,19 @@ else ifeq ($(GOARCH),arm64)
 endif
 
 # Build the azure-block-iptables binary.
+# Same host-vs-target-arch issues as ipv6-hp-bpf-binary above: bpf2go's clang
+# invocation needs BPF2GO_CFLAGS="-D__x86_64__" on an x86_64 host to avoid the
+# gnu/stubs-32.h AzureLinux failure, and "go generate" must run with GOARCH/
+# GOOS unset so the ephemeral bpf2go host tool isn't cross-compiled and fails
+# to execute when GOARCH=arm64 is inherited from all-binaries-platforms.
 azure-block-iptables-binary: bpf-lib
-	cd $(AZURE_BLOCK_IPTABLES_DIR) && CGO_ENABLED=0 go generate ./...
+ifeq ($(UNAME_M),x86_64)
+	cd $(AZURE_BLOCK_IPTABLES_DIR) && CGO_ENABLED=0 env -u GOARCH -u GOOS BPF2GO_CFLAGS="-D__x86_64__" go generate ./...
+else ifneq (,$(filter aarch64 arm64,$(UNAME_M)))
+	cd $(AZURE_BLOCK_IPTABLES_DIR) && CGO_ENABLED=0 env -u GOARCH -u GOOS BPF2GO_CFLAGS="-D__aarch64__" go generate ./...
+else
+	cd $(AZURE_BLOCK_IPTABLES_DIR) && CGO_ENABLED=0 env -u GOARCH -u GOOS go generate ./...
+endif
 	cd $(AZURE_BLOCK_IPTABLES_DIR)/cmd/azure-block-iptables && CGO_ENABLED=0 go build -v -o $(AZURE_BLOCK_IPTABLES_BUILD_DIR)/azure-block-iptables$(EXE_EXT) -ldflags "-X main.version=$(AZURE_BLOCK_IPTABLES_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI network binary.
