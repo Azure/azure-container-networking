@@ -382,10 +382,19 @@ func isUnsupportedWindowsTranslationErr(err error) bool {
 // isUnsupportedTranslationErr reports whether err is a deliberate limitation of the datapath
 // or mode NPM is running in, rather than a policy NPM failed to translate. Those limitations
 // cannot resolve on retry, so they stay suppressed with a warning. Every other translation
-// failure is surfaced and requeued, because reporting success would leave the policy's
-// selected pods with no rules while nothing signalled that the policy was never applied.
+// failure is surfaced and, for full NPM, terminally forgotten (not retried), because reporting
+// success would leave the policy's selected pods with no rules while nothing signalled that the
+// policy was never applied.
 func isUnsupportedTranslationErr(err error) bool {
+	// A malformed CIDR is a caller error, not a datapath limitation, so never suppress it -
+	// even on Windows, where an unsupported IP family and a malformed CIDR both surface under
+	// translation.ErrUnsupportedIPAddress.
+	if errors.Is(err, util.ErrInvalidCIDR) || errors.Is(err, translation.ErrInvalidIPBlockExcept) {
+		return false
+	}
 	return isUnsupportedWindowsTranslationErr(err) ||
+		// A valid but unsupported IP family (e.g. IPv6) is a Windows datapath limitation.
+		(util.IsWindowsDP() && errors.Is(err, util.ErrUnsupportedIPFamily)) ||
 		// NPM Lite only supports CIDR peers; a label-selector peer is out of scope there.
 		errors.Is(err, translation.ErrUnsupportedNonCIDR)
 }

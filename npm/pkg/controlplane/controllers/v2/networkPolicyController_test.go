@@ -787,3 +787,20 @@ func TestFullNPMTranslationFailureRecoversOnUpdate(t *testing.T) {
 
 	require.Contains(t, f.netPolController.rawNpSpecMap, key, "the corrected policy must be reconciled and cached")
 }
+
+// TestIsUnsupportedTranslationErrClassification verifies the family-vs-syntax classification:
+// a valid but unsupported IP family (e.g. IPv6) is a datapath limitation suppressed only on
+// Windows, while a malformed CIDR is a caller error that is never suppressed. Both surface under
+// translation.ErrUnsupportedIPAddress, so the typed util cause is what distinguishes them.
+func TestIsUnsupportedTranslationErrClassification(t *testing.T) {
+	familyErr := fmt.Errorf("ipBlock: %w: %w", translation.ErrUnsupportedIPAddress, util.ErrUnsupportedIPFamily)
+	syntaxErr := fmt.Errorf("ipBlock: %w: %w", translation.ErrUnsupportedIPAddress, util.ErrInvalidCIDR)
+
+	// An unsupported IP family is suppressed only on the Windows datapath.
+	require.Equal(t, util.IsWindowsDP(), isUnsupportedTranslationErr(familyErr),
+		"unsupported IP family suppression must be Windows-only")
+	// A malformed CIDR is never suppressed, on any datapath.
+	require.False(t, isUnsupportedTranslationErr(syntaxErr), "a malformed CIDR must not be suppressed")
+	// A non-CIDR peer under Lite is always suppressed.
+	require.True(t, isUnsupportedTranslationErr(translation.ErrUnsupportedNonCIDR))
+}

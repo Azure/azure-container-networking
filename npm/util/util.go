@@ -34,6 +34,13 @@ const (
 
 var ErrEmptyNodeIP = errors.New("error: node IP is empty")
 
+var (
+	// ErrInvalidCIDR identifies a CIDR that cannot be parsed.
+	ErrInvalidCIDR = errors.New("util: invalid CIDR")
+	// ErrUnsupportedIPFamily identifies a valid CIDR outside the supported IPv4 family.
+	ErrUnsupportedIPFamily = errors.New("util: unsupported IP family")
+)
+
 // regex to get minor version
 var re = regexp.MustCompile("[0-9]+")
 
@@ -365,15 +372,20 @@ func SliceToString(list []string) string {
 
 // NormalizeCIDR returns the canonical form of an IPv4 CIDR, i.e. the block with its host
 // bits cleared, so "10.0.0.0/0" becomes "0.0.0.0/0" and "10.1.2.3/24" becomes "10.1.2.0/24".
-// It reports false when s is not an IPv4 CIDR. Callers must normalize before comparing a
-// CIDR against a well-known block or handing it to the kernel, because a non-canonical
-// spelling denotes the same block but does not compare equal and is not accepted by ipset.
-func NormalizeCIDR(s string) (string, bool) {
+// It distinguishes an unparseable CIDR (ErrInvalidCIDR) from a valid CIDR outside the IPv4
+// family (ErrUnsupportedIPFamily) so callers can apply different reporting/suppression policy.
+// Callers must normalize before comparing a CIDR against a well-known block or handing it to
+// the kernel, because a non-canonical spelling denotes the same block but does not compare
+// equal and is not accepted by ipset.
+func NormalizeCIDR(s string) (string, error) {
 	prefix, err := netip.ParsePrefix(s)
-	if err != nil || !prefix.Addr().Is4() {
-		return "", false
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", ErrInvalidCIDR, err)
 	}
-	return prefix.Masked().String(), true
+	if !prefix.Addr().Is4() {
+		return "", ErrUnsupportedIPFamily
+	}
+	return prefix.Masked().String(), nil
 }
 
 // IsIPV4 returns true when ip is an IPv4 address or an IPv4 CIDR block.

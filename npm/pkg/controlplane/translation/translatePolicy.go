@@ -191,9 +191,10 @@ func canonicalizeExcepts(parentCIDR string, exceptInIPBlock []string) ([]string,
 	canonicalExcepts := []string{}
 	exceptsSet := make(map[string]struct{})
 	for _, except := range exceptInIPBlock {
-		canonical, ok := util.NormalizeCIDR(except)
-		if !ok {
-			return nil, fmt.Errorf("except %q: %w", except, ErrUnsupportedIPAddress)
+		canonical, err := util.NormalizeCIDR(except)
+		if err != nil {
+			// Preserve the typed parse-vs-family cause under the translation sentinel.
+			return nil, fmt.Errorf("except %q: %w: %w", except, ErrUnsupportedIPAddress, err)
 		}
 		excluded, err := netip.ParsePrefix(canonical)
 		if err != nil {
@@ -230,9 +231,12 @@ func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSe
 			return nil, ErrUnsupportedIPAddress
 		}
 	} else {
-		normalized, ok := util.NormalizeCIDR(cidr)
-		if !ok {
-			return nil, ErrUnsupportedIPAddress
+		normalized, err := util.NormalizeCIDR(cidr)
+		if err != nil {
+			// Preserve the typed parse-vs-family cause (util.ErrInvalidCIDR /
+			// util.ErrUnsupportedIPFamily) under the translation sentinel so the controller can
+			// suppress an unsupported family on Windows but still surface a malformed CIDR.
+			return nil, fmt.Errorf("ipBlock %q: %w: %w", cidr, ErrUnsupportedIPAddress, err)
 		}
 		cidr = normalized
 	}

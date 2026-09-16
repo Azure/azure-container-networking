@@ -571,14 +571,22 @@ func TestNormalizeCIDR(t *testing.T) {
 		cidrHost32:          cidrHost32,
 	}
 	for in, want := range canonical {
-		got, ok := NormalizeCIDR(in)
-		require.True(t, ok, "NormalizeCIDR(%q) must succeed", in)
+		got, err := NormalizeCIDR(in)
+		require.NoError(t, err, "NormalizeCIDR(%q) must succeed", in)
 		require.Equal(t, want, got, "NormalizeCIDR(%q)", in)
 	}
 
-	for _, in := range []string{"", "10.0.0.1", "not-a-cidr", "10.0.0.0/33", "2001:db8::/32", "::/0"} {
-		got, ok := NormalizeCIDR(in)
-		require.False(t, ok, "NormalizeCIDR(%q) must fail", in)
+	// Invalid syntax and unsupported family are distinct, typed causes.
+	for in, wantErr := range map[string]error{
+		"":              ErrInvalidCIDR,
+		"10.0.0.1":      ErrInvalidCIDR,
+		"not-a-cidr":    ErrInvalidCIDR,
+		"10.0.0.0/33":   ErrInvalidCIDR,
+		"2001:db8::/32": ErrUnsupportedIPFamily,
+		"::/0":          ErrUnsupportedIPFamily,
+	} {
+		got, err := NormalizeCIDR(in)
+		require.ErrorIs(t, err, wantErr, "NormalizeCIDR(%q) cause", in)
 		require.Empty(t, got)
 	}
 }
