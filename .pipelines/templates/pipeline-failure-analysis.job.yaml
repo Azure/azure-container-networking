@@ -24,6 +24,10 @@ parameters:
 jobs:
   - job: pipelineFailureAnalysis_${{ parameters.scope }}
     displayName: "Pipeline Failure Analysis (${{ parameters.scope }})"
+    # MITIGATION (temporary): the failure-analysis agent is disabled while its
+    # Azure OpenAI credential handling is being fixed. Remove this condition to
+    # re-enable; the job otherwise runs whenever the stage's condition is met.
+    condition: false
     pool:
       type: linux
       isCustom: true
