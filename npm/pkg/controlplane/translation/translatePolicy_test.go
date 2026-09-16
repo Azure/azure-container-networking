@@ -33,6 +33,7 @@ const (
 	lowerHalfAltCIDR    string = "10.0.0.0/1"
 	upperHalfCIDR       string = "128.0.0.0/1"
 	upperHalfNomatch    string = "128.0.0.0/1 nomatch"
+	privateBlock8       string = "10.0.0.0/8"
 )
 
 var namedPortPolicyKey = fmt.Sprintf("%s/%s", defaultNS, namedPortStr)

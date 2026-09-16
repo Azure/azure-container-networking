@@ -16,7 +16,7 @@ import (
 // or take the whole set down at ipset restore time (an unprogrammable member). Kubernetes rejects
 // these at admission, so this is defense in depth on the datapath's own boundary.
 func TestIPBlockExceptFailsClosed(t *testing.T) {
-	const parent = "10.0.0.0/8"
+	const parent = privateBlock8
 	for _, test := range []struct {
 		name  string
 		block networkingv1.IPBlock
@@ -59,7 +59,7 @@ func TestIPBlockValidStrictSubsetExceptIsCanonicalized(t *testing.T) {
 		t.Skip("Except is unsupported on the Windows datapath")
 	}
 	set, _, err := ipBlockRule("except", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0,
-		&networkingv1.IPBlock{CIDR: "10.0.0.0/8", Except: []string{"10.1.2.3/24"}}, false)
+		&networkingv1.IPBlock{CIDR: privateBlock8, Except: []string{"10.1.2.3/24"}}, false)
 	require.NoError(t, err)
 	require.NotNil(t, set)
 	// "10.1.2.3/24" denotes the block "10.1.2.0/24"; it must be programmed in canonical form.
@@ -120,7 +120,32 @@ func TestIPBlockLitePreservesRawValidation(t *testing.T) {
 
 	// A non-strict-subset except does not trigger the strict-subset validation under Lite.
 	set, err := ipBlockIPSet("p", defaultNS, policies.Ingress, 0, 0,
-		&networkingv1.IPBlock{CIDR: "10.1.0.0/16", Except: []string{"10.0.0.0/8"}}, true)
+		&networkingv1.IPBlock{CIDR: "10.1.0.0/16", Except: []string{privateBlock8}}, true)
 	require.NoError(t, err)
 	require.NotNil(t, set)
+}
+
+// TestIPBlockEquivalentExceptsDeduplicated verifies canonical-key deduplication on the ipset
+// path: two equivalent spellings of the same except block collapse to a single nomatch member.
+// The plain duplicate test only covers identical raw strings, so this guards the canonical dedup
+// in canonicalizeExcepts against reintroducing duplicate members for equivalent CIDRs.
+func TestIPBlockEquivalentExceptsDeduplicated(t *testing.T) {
+	if util.IsWindowsDP() {
+		t.Skip("Except is unsupported on the Windows datapath")
+	}
+	// "10.1.2.0/24" and "10.1.2.3/24" denote the same block; only one nomatch must be emitted.
+	set, err := ipBlockIPSet("p", defaultNS, policies.Ingress, 0, 0,
+		&networkingv1.IPBlock{CIDR: privateBlock8, Except: []string{"10.1.2.0/24", "10.1.2.3/24"}}, false)
+	require.NoError(t, err)
+	require.NotNil(t, set)
+
+	var nomatches int
+	for _, m := range set.Members {
+		if m == exceptCidr("10.1.2.0/24") {
+			nomatches++
+		}
+	}
+	require.Equal(t, 1, nomatches, "equivalent except spellings must collapse to one nomatch member: %v", set.Members)
+	// Members are: the parent block + exactly one nomatch entry.
+	require.Len(t, set.Members, 2, "members must be parent + single deduplicated except: %v", set.Members)
 }
