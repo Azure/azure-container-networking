@@ -1460,9 +1460,15 @@ func TestNameSpaceSelectorWithPositiveMatchIsUnchanged(t *testing.T) {
 // resulting allow decision carries the all-namespaces set, so the rule cannot be
 // satisfied by an address outside the cluster. Egress is the impactful direction (an
 // unscoped negation lets a selected pod reach arbitrary external hosts), but ingress is
-// covered too since the compiler is direction-agnostic.
+// covered too since the compiler is direction-agnostic. This asserts the Linux ACL shape;
+// the Windows dataplane cannot represent a negated namespace set, so translation rejects a
+// negative namespaceSelector there (covered by TestTranslatePolicyRejectsNegativeNamespaceSelectorOnWindows).
 func TestTranslatePolicyNegationOnlyNamespaceSelector(t *testing.T) {
 	t.Parallel()
+
+	if util.IsWindowsDP() {
+		t.Skip("negative namespaceSelectors are not supported on the Windows dataplane")
+	}
 
 	tests := []struct {
 		name      string
