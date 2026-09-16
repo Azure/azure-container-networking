@@ -45,3 +45,35 @@ func TestTranslatePolicyRejectsNegativeNamespaceSelectorOnWindows(t *testing.T) 
 		}
 	}
 }
+
+// TestTranslatePolicyMalformedNamespaceSelectorReportsValidationErrorOnWindows verifies that on
+// Windows a malformed negative namespaceSelector (empty or invalid NotIn) reports the specific
+// invalid-spec error, not ErrUnsupportedNegativeMatch, so validation is consistent with the
+// podSelector path.
+func TestTranslatePolicyMalformedNamespaceSelectorReportsValidationErrorOnWindows(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		req  metav1.LabelSelectorRequirement
+		want error
+	}{
+		{"empty NotIn", metav1.LabelSelectorRequirement{Key: tenantLabelKey, Operator: metav1.LabelSelectorOpNotIn}, ErrEmptyMatchExpressionValues},
+		{"invalid NotIn value", metav1.LabelSelectorRequirement{Key: tenantLabelKey, Operator: metav1.LabelSelectorOpNotIn, Values: []string{"bad value"}}, ErrInvalidMatchExpressionValues},
+		{"unsupported operator", metav1.LabelSelectorRequirement{Key: tenantLabelKey, Operator: "Superset", Values: []string{"a"}}, ErrUnsupportedMatchExpressionOperator},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			policy := &networkingv1.NetworkPolicy{
+				ObjectMeta: metav1.ObjectMeta{Name: "ns-malformed", Namespace: defaultNS},
+				Spec: networkingv1.NetworkPolicySpec{
+					PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+					Ingress: []networkingv1.NetworkPolicyIngressRule{{From: []networkingv1.NetworkPolicyPeer{
+						{NamespaceSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{test.req}}},
+					}}},
+				},
+			}
+			translated, err := TranslatePolicy(policy, false)
+			require.ErrorIs(t, err, test.want)
+			require.NotErrorIs(t, err, ErrUnsupportedNegativeMatch)
+			require.Nil(t, translated)
+		})
+	}
+}

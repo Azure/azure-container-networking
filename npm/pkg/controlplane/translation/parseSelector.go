@@ -353,17 +353,22 @@ func unsupportedOpsInWindows(op metav1.LabelSelectorOperator) bool {
 		(op == metav1.LabelSelectorOpNotIn || op == metav1.LabelSelectorOpDoesNotExist)
 }
 
-// rejectUnsupportedWindowsNSSelector fails closed when a namespaceSelector carries a negative
-// requirement that the Windows dataplane cannot represent. A namespace match renders as a set
-// condition and a negated set has no HNS equivalent, so a multi-value NotIn (or DoesNotExist)
-// must be rejected during translation. Rejecting here, before the dataplane is touched, also
-// keeps an update from tearing down a working policy and only then failing to add its
-// replacement. It is a no-op on Linux and for a nil or positive-only selector.
+// rejectUnsupportedWindowsNSSelector validates each namespaceSelector requirement and then, on
+// Windows, fails closed on a negative requirement the dataplane cannot represent. Validation runs
+// first (mirroring parsePodSelector) so a malformed requirement reports the specific invalid-spec
+// error rather than being masked as an unsupported negative match. A namespace match renders as a
+// set condition and a negated set has no HNS equivalent, so a multi-value NotIn (or DoesNotExist)
+// must be rejected during translation. Rejecting here, before the dataplane is touched, also keeps
+// an update from tearing down a working policy and only then failing to add its replacement. The
+// Windows check is a no-op on Linux and for a nil or positive-only selector.
 func rejectUnsupportedWindowsNSSelector(selector *metav1.LabelSelector) error {
 	if selector == nil {
 		return nil
 	}
 	for _, req := range selector.MatchExpressions {
+		if err := validateMatchExpression(req); err != nil {
+			return err
+		}
 		if unsupportedOpsInWindows(req.Operator) {
 			return ErrUnsupportedNegativeMatch
 		}
