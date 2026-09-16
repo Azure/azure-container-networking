@@ -56,6 +56,13 @@ stages:
     jobs:
       - job: digest
         displayName: "Aggregate + synthesize + notify"
+        # MITIGATION (temporary): the failure-analysis agent is disabled while its
+        # Azure OpenAI credential handling is being fixed. This pipeline is not
+        # currently onboarded as an ADO build definition, so it does not run; the
+        # gate keeps that true if it is onboarded before the mitigation is lifted.
+        # To re-enable, revert BOTH this condition and the AZURE_OPENAI_API_KEY
+        # mapping in the "Synthesize weekly trends" step below.
+        condition: false
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         variables:
@@ -114,7 +121,9 @@ stages:
             env:
               AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
               AZURE_OPENAI_DEPLOYMENT: $(AZURE_OPENAI_DEPLOYMENT)
-              AZURE_OPENAI_API_KEY: $(AZURE_OPENAI_API_KEY)
+              # MITIGATION (temporary): API key intentionally not mapped, so the
+              # agent cannot authenticate even if this job is somehow executed.
+              # Restore this together with the job's condition above when re-enabling.
               AZURE_OPENAI_API_VERSION: $(AZURE_OPENAI_API_VERSION)
 
           # Attach weekly-report.md to this run's Summary tab (Extensions/Summary)
