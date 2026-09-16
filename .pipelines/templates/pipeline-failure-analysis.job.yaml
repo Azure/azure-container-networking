@@ -166,7 +166,8 @@ jobs:
         env:
           AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
           AZURE_OPENAI_DEPLOYMENT: $(AZURE_OPENAI_DEPLOYMENT)
-          AZURE_OPENAI_API_KEY: $(AZURE_OPENAI_API_KEY)
+          # MITIGATION (temporary): API key intentionally not mapped, so the agent
+          # cannot authenticate even if this job is somehow executed.
           AZURE_OPENAI_API_VERSION: $(AZURE_OPENAI_API_VERSION)
           GITHUB_TOKEN: $(GITHUB_TOKEN)
 
