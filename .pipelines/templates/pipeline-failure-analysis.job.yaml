@@ -25,8 +25,14 @@ jobs:
   - job: pipelineFailureAnalysis_${{ parameters.scope }}
     displayName: "Pipeline Failure Analysis (${{ parameters.scope }})"
     # MITIGATION (temporary): the failure-analysis agent is disabled while its
-    # Azure OpenAI credential handling is being fixed. Remove this condition to
-    # re-enable; the job otherwise runs whenever the stage's condition is met.
+    # Azure OpenAI credential handling is being fixed.
+    # To re-enable, BOTH changes below must be reverted together:
+    #   1. remove this condition (the job then runs whenever the stage's
+    #      condition is met);
+    #   2. restore the AZURE_OPENAI_API_KEY mapping in the "Run failure analysis
+    #      (non-live)" step's env block (or switch that step to workload identity).
+    # Reverting only the condition leaves the agent without a credential and it
+    # will fail with "azure openai endpoint, deployment, and api key are required".
     condition: false
     pool:
       type: linux
@@ -167,7 +173,8 @@ jobs:
           AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
           AZURE_OPENAI_DEPLOYMENT: $(AZURE_OPENAI_DEPLOYMENT)
           # MITIGATION (temporary): API key intentionally not mapped, so the agent
-          # cannot authenticate even if this job is somehow executed.
+          # cannot authenticate even if this job is somehow executed. Restore this
+          # together with the job's condition above when re-enabling.
           AZURE_OPENAI_API_VERSION: $(AZURE_OPENAI_API_VERSION)
           GITHUB_TOKEN: $(GITHUB_TOKEN)
 
