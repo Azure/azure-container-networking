@@ -179,59 +179,66 @@ jobs:
         env:
           SYSTEM_PULLREQUEST_TARGETBRANCH: $(System.PullRequest.TargetBranch)
 
-      - script: |
-          set -euo pipefail
-
-          INPUT_DIR="$(Agent.TempDirectory)/evidence"
-          OUTPUT_DIR="$(Agent.TempDirectory)/analysis"
-          mkdir -p "$INPUT_DIR" "$OUTPUT_DIR"
-
-          if [ -z "${AZURE_OPENAI_ENDPOINT:-}" ] || [ -z "${AZURE_OPENAI_DEPLOYMENT:-}" ]; then
-            echo "##[warning]Azure OpenAI credentials not configured; the agent will emit an analysis_failed incident preserving raw evidence."
-          fi
-
-          EXTRA_FLAGS=""
-
-          # --dry-run only suppresses PR write-back, not analysis.
-          if [ "${SUPPRESS_PR_WRITEBACK:-}" = "true" ]; then
-            EXTRA_FLAGS="$EXTRA_FLAGS --dry-run"
-          fi
-
-          if [ "${{ parameters.live }}" = "True" ] || [ "${{ parameters.live }}" = "true" ]; then
-            EXTRA_FLAGS="$EXTRA_FLAGS --live"
-          fi
-
-          if [ -s "$(Agent.TempDirectory)/change.diff" ]; then
-            EXTRA_FLAGS="$EXTRA_FLAGS --diff-file $(Agent.TempDirectory)/change.diff"
-          fi
-
-          # MVP demo: knowledge-store incident memory/dedupe/prior context is
-          # intentionally disabled in the pipeline. The code remains in place;
-          # re-enable after AOAI analysis and GitHub upsert are proven.
-          # if [ -n "${{ parameters.knowledgeDb }}" ]; then
-          #   EXTRA_FLAGS="$EXTRA_FLAGS --knowledge-db ${{ parameters.knowledgeDb }}"
-          # fi
-
-          # MVP demo: flakiness analytics requires a persistent knowledge store
-          # and repeated runs, so leave it disabled for the first demo.
-          # if [ -n "${{ parameters.flakinessOutput }}" ]; then
-          #   EXTRA_FLAGS="$EXTRA_FLAGS --flakiness-output ${{ parameters.flakinessOutput }}"
-          # fi
-
-          cd "$(Build.SourcesDirectory)/tools/failure-agent"
-          go run . \
-            --input "$INPUT_DIR" \
-            --output "$OUTPUT_DIR" \
-            --signatures signatures/signatures.yaml \
-            --cluster-name "${{ parameters.clusterName }}" \
-            --os "${{ parameters.os }}" \
-            --cni "${{ parameters.cni }}" \
-            $EXTRA_FLAGS
+      # Runs under AzureCLI@2 so DefaultAzureCredential can pick up the federated
+      # workload-identity token; no Azure OpenAI API key is passed to the agent.
+      - task: AzureCLI@2
         displayName: "Run failure analysis"
+        inputs:
+          azureSubscription: acn-dalec-test
+          scriptType: bash
+          scriptLocation: inlineScript
+          addSpnToEnvironment: true
+          inlineScript: |
+            set -euo pipefail
+
+            INPUT_DIR="$(Agent.TempDirectory)/evidence"
+            OUTPUT_DIR="$(Agent.TempDirectory)/analysis"
+            mkdir -p "$INPUT_DIR" "$OUTPUT_DIR"
+
+            if [ -z "${AZURE_OPENAI_ENDPOINT:-}" ] || [ -z "${AZURE_OPENAI_DEPLOYMENT:-}" ]; then
+              echo "##[warning]Azure OpenAI is not configured; the agent will emit an analysis_failed incident preserving raw evidence."
+            fi
+
+            EXTRA_FLAGS=""
+
+            # --dry-run only suppresses PR write-back, not analysis.
+            if [ "${SUPPRESS_PR_WRITEBACK:-}" = "true" ]; then
+              EXTRA_FLAGS="$EXTRA_FLAGS --dry-run"
+            fi
+
+            if [ "${{ parameters.live }}" = "True" ] || [ "${{ parameters.live }}" = "true" ]; then
+              EXTRA_FLAGS="$EXTRA_FLAGS --live"
+            fi
+
+            if [ -s "$(Agent.TempDirectory)/change.diff" ]; then
+              EXTRA_FLAGS="$EXTRA_FLAGS --diff-file $(Agent.TempDirectory)/change.diff"
+            fi
+
+            # MVP demo: knowledge-store incident memory/dedupe/prior context is
+            # intentionally disabled in the pipeline. The code remains in place;
+            # re-enable after AOAI analysis and GitHub upsert are proven.
+            # if [ -n "${{ parameters.knowledgeDb }}" ]; then
+            #   EXTRA_FLAGS="$EXTRA_FLAGS --knowledge-db ${{ parameters.knowledgeDb }}"
+            # fi
+
+            # MVP demo: flakiness analytics requires a persistent knowledge store
+            # and repeated runs, so leave it disabled for the first demo.
+            # if [ -n "${{ parameters.flakinessOutput }}" ]; then
+            #   EXTRA_FLAGS="$EXTRA_FLAGS --flakiness-output ${{ parameters.flakinessOutput }}"
+            # fi
+
+            cd "$(Build.SourcesDirectory)/tools/failure-agent"
+            go run . \
+              --input "$INPUT_DIR" \
+              --output "$OUTPUT_DIR" \
+              --signatures signatures/signatures.yaml \
+              --cluster-name "${{ parameters.clusterName }}" \
+              --os "${{ parameters.os }}" \
+              --cni "${{ parameters.cni }}" \
+              $EXTRA_FLAGS
         env:
           AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
           AZURE_OPENAI_DEPLOYMENT: $(AZURE_OPENAI_DEPLOYMENT)
-          AZURE_OPENAI_API_KEY: $(AZURE_OPENAI_API_KEY)
           AZURE_OPENAI_API_VERSION: $(AZURE_OPENAI_API_VERSION)
           GITHUB_TOKEN: $(GITHUB_TOKEN)
 

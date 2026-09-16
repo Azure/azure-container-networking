@@ -33,6 +33,7 @@ import (
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/signatures"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/store"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/weekly"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"go.uber.org/zap"
 )
 
@@ -498,13 +499,28 @@ func buildClassifier(opts options) classifier {
 }
 
 // buildCompleter constructs the Azure OpenAI ChatCompleter shared by the per-run
-// classifier and the weekly-trends synthesis. It returns an error (rather than a
-// fallback) when the endpoint, deployment, or key is missing.
+// classifier and the weekly-trends synthesis. It prefers Entra ID (workload
+// identity) and falls back to an API key when one is still configured. It
+// returns an error (rather than a fallback) when the endpoint or deployment is
+// missing, or when no usable credential is available.
 func buildCompleter(opts options) (classify.ChatCompleter, error) {
-	if opts.aoaiEndpoint == "" || opts.aoaiDeployment == "" || opts.aoaiAPIKey == "" {
-		return nil, errors.New("azure openai endpoint, deployment, and api key are required for analysis")
+	if opts.aoaiEndpoint == "" || opts.aoaiDeployment == "" {
+		return nil, errors.New("azure openai endpoint and deployment are required for analysis")
 	}
-	client, err := classify.NewAzureClient(opts.aoaiEndpoint, opts.aoaiDeployment, opts.aoaiAPIVersion, opts.aoaiAPIKey)
+
+	if opts.aoaiAPIKey != "" {
+		client, err := classify.NewAzureClient(opts.aoaiEndpoint, opts.aoaiDeployment, opts.aoaiAPIVersion, opts.aoaiAPIKey)
+		if err != nil {
+			return nil, fmt.Errorf("configuring azure openai client: %w", err)
+		}
+		return client, nil
+	}
+
+	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	if err != nil {
+		return nil, fmt.Errorf("configuring azure credential: %w", err)
+	}
+	client, err := classify.NewAzureClientWithCredential(opts.aoaiEndpoint, opts.aoaiDeployment, opts.aoaiAPIVersion, cred)
 	if err != nil {
 		return nil, fmt.Errorf("configuring azure openai client: %w", err)
 	}

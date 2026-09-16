@@ -127,42 +127,49 @@ jobs:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
 
       # Run the failure-agent in non-live mode against the collected ADO logs.
-      - script: |
-          set -euo pipefail
-
-          INPUT_DIR="$(Agent.TempDirectory)/evidence"
-          OUTPUT_DIR="$(Agent.TempDirectory)/analysis"
-          mkdir -p "$OUTPUT_DIR"
-
-          if [ -z "${AZURE_OPENAI_ENDPOINT:-}" ] || [ -z "${AZURE_OPENAI_DEPLOYMENT:-}" ]; then
-            echo "##[warning]Azure OpenAI credentials not configured; the agent will emit an analysis_failed incident preserving raw evidence."
-          fi
-
-          EXTRA_FLAGS=""
-
-          if [ "${{ parameters.dryRun }}" = "True" ] || [ "${{ parameters.dryRun }}" = "true" ]; then
-            EXTRA_FLAGS="$EXTRA_FLAGS --dry-run"
-          fi
-
-          PIPELINE_OVERRIDE=""
-          if [ -n "${{ parameters.pipeline }}" ]; then
-            PIPELINE_OVERRIDE="--pipeline ${{ parameters.pipeline }}"
-          fi
-
-          cd "$(Build.SourcesDirectory)/tools/failure-agent"
-          go run . \
-            --input "$INPUT_DIR" \
-            --output "$OUTPUT_DIR" \
-            --signatures signatures/signatures.yaml \
-            --live=false \
-            --privileged=false \
-            $PIPELINE_OVERRIDE \
-            $EXTRA_FLAGS
+      # Runs under AzureCLI@2 so DefaultAzureCredential can pick up the federated
+      # workload-identity token; no Azure OpenAI API key is passed to the agent.
+      - task: AzureCLI@2
         displayName: "Run failure analysis (non-live)"
+        inputs:
+          azureSubscription: acn-dalec-test
+          scriptType: bash
+          scriptLocation: inlineScript
+          addSpnToEnvironment: true
+          inlineScript: |
+            set -euo pipefail
+
+            INPUT_DIR="$(Agent.TempDirectory)/evidence"
+            OUTPUT_DIR="$(Agent.TempDirectory)/analysis"
+            mkdir -p "$OUTPUT_DIR"
+
+            if [ -z "${AZURE_OPENAI_ENDPOINT:-}" ] || [ -z "${AZURE_OPENAI_DEPLOYMENT:-}" ]; then
+              echo "##[warning]Azure OpenAI is not configured; the agent will emit an analysis_failed incident preserving raw evidence."
+            fi
+
+            EXTRA_FLAGS=""
+
+            if [ "${{ parameters.dryRun }}" = "True" ] || [ "${{ parameters.dryRun }}" = "true" ]; then
+              EXTRA_FLAGS="$EXTRA_FLAGS --dry-run"
+            fi
+
+            PIPELINE_OVERRIDE=""
+            if [ -n "${{ parameters.pipeline }}" ]; then
+              PIPELINE_OVERRIDE="--pipeline ${{ parameters.pipeline }}"
+            fi
+
+            cd "$(Build.SourcesDirectory)/tools/failure-agent"
+            go run . \
+              --input "$INPUT_DIR" \
+              --output "$OUTPUT_DIR" \
+              --signatures signatures/signatures.yaml \
+              --live=false \
+              --privileged=false \
+              $PIPELINE_OVERRIDE \
+              $EXTRA_FLAGS
         env:
           AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
           AZURE_OPENAI_DEPLOYMENT: $(AZURE_OPENAI_DEPLOYMENT)
-          AZURE_OPENAI_API_KEY: $(AZURE_OPENAI_API_KEY)
           AZURE_OPENAI_API_VERSION: $(AZURE_OPENAI_API_VERSION)
           GITHUB_TOKEN: $(GITHUB_TOKEN)
 
