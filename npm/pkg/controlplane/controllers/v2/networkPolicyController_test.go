@@ -750,3 +750,40 @@ func TestFullNPMTranslationFailureIsForgotten(t *testing.T) {
 	require.Zero(t, f.netPolController.workqueue.NumRequeues(key), "a terminal translation failure must not be requeued")
 	require.Equal(t, 0, f.netPolController.workqueue.Len(), "a terminal translation failure must not be re-enqueued")
 }
+
+// TestFullNPMTranslationFailureRecoversOnUpdate verifies the failure-to-correction path: after
+// a deterministic translation failure is forgotten (not cached, not retried), a newer resource
+// version that translates cleanly is reconciled and cached. Without this the policy could stay
+// permanently unapplied once forgotten.
+func TestFullNPMTranslationFailureRecoversOnUpdate(t *testing.T) {
+	invalid := netPolWithCIDR("2001:db8::/32") // IPv6 -> translation fails
+	invalid.ResourceVersion = "1"
+
+	f := newNetPolFixture(t)
+	f.netPolLister = append(f.netPolLister, invalid)
+	f.kubeobjects = append(f.kubeobjects, invalid)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dp := dpmocks.NewMockGenericDataplane(ctrl)
+	f.newNetPolController(stopCh, dp, false)
+
+	// The invalid policy fails translation: nothing programmed, nothing cached, item forgotten.
+	f.netPolController.addNetworkPolicy(invalid)
+	f.netPolController.processNextWorkItem()
+	key, keyErr := cache.MetaNamespaceKeyFunc(invalid)
+	require.NoError(t, keyErr)
+	require.NotContains(t, f.netPolController.rawNpSpecMap, key)
+
+	// A newer resource version with a valid CIDR must reconcile and be cached.
+	valid := netPolWithCIDR("10.0.0.0/24")
+	valid.ResourceVersion = "2"
+	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(1)
+	require.NoError(t, f.kubeInformer.Networking().V1().NetworkPolicies().Informer().GetIndexer().Update(valid))
+	f.netPolController.updateNetworkPolicy(invalid, valid)
+	f.netPolController.processNextWorkItem()
+
+	require.Contains(t, f.netPolController.rawNpSpecMap, key, "the corrected policy must be reconciled and cached")
+}

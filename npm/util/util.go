@@ -369,11 +369,11 @@ func SliceToString(list []string) string {
 // CIDR against a well-known block or handing it to the kernel, because a non-canonical
 // spelling denotes the same block but does not compare equal and is not accepted by ipset.
 func NormalizeCIDR(s string) (string, bool) {
-	_, network, err := net.ParseCIDR(s)
-	if err != nil || network.IP.To4() == nil || len(network.Mask) != net.IPv4len {
+	prefix, err := netip.ParsePrefix(s)
+	if err != nil || !prefix.Addr().Is4() {
 		return "", false
 	}
-	return network.String(), true
+	return prefix.Masked().String(), true
 }
 
 // IsIPV4 returns true when ip is an IPv4 address or an IPv4 CIDR block.
