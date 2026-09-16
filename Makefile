@@ -122,7 +122,7 @@ all-binaries-platforms: ## Make all platform binaries
 	@set -e; \
 	for goos in "$(GOOSES)"; do \
 		for goarch in "$(GOARCHES)"; do \
-			make all-binaries GOOS=$$goos GOARCH=$$goarch; \
+			$(MAKE) all-binaries GOOS=$$goos GOARCH=$$goarch; \
 		done \
 	done
 
