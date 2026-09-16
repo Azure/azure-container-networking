@@ -128,42 +128,17 @@ all-binaries-platforms: ## Make all platform binaries
 
 # OS specific binaries/images
 ifeq ($(GOOS),linux)
-# These binaries are portable release archives (bins/*.tgz, *.zip) installed
-# directly onto arbitrary hosts/nodes, not baked into a specific controlled
-# Docker base image. So, unlike cni.sh/cns.sh (which target the AzureLinux
-# distroless image and can safely require GOEXPERIMENT=ms_nocgo_opensslcrypto,
-# Microsoft's FIPS-capable OpenSSL backend), Linux builds here must not assume
-# the target host has that OpenSSL library available. MS_GO_NOSYSTEMCRYPTO=1
-# disables the build image's ambient GOEXPERIMENT=systemcrypto default (which
-# requires CGO_ENABLED=1 and was silently aborting every Linux binary here,
-# starting with acncli, since every one of these builds with CGO_ENABLED=0)
-# and falls back to the standard, portable Go crypto backend instead - the
-# same choice npm.sh makes for the same reason. This is a no-op on a plain
-# upstream/OSS Go toolchain.
-# Set as a target-specific variable (not in the all-binaries-platforms
-# recipe above) so it's exported to every prerequisite's recipe - acncli,
-# azure-cni-plugin, etc. - regardless of entry point: both the
-# all-binaries-platforms matrix wrapper above and a direct
-# `make all-binaries` on Linux (the entry point README.md documents) get the
-# same opt-out.
+# These binaries run on arbitrary hosts, so we can't assume Microsoft's
+# FIPS OpenSSL backend is present. MS_GO_NOSYSTEMCRYPTO=1 opts out of the
+# build image's ambient GOEXPERIMENT=systemcrypto default, which was
+# silently failing every CGO_ENABLED=0 Linux binary here. Exported as a
+# target-specific variable so it applies to all-binaries regardless of
+# entry point (all-binaries-platforms or a direct `make all-binaries`).
 all-binaries: export MS_GO_NOSYSTEMCRYPTO := 1
-# ipv6-hp-bpf, azure-block-iptables, and cilium-log-collector are
-# intentionally excluded here. Unlike the other prerequisites, none of the
-# three has ever been published as a standalone portable release archive (0
-# assets across all GitHub releases checked, including their own
-# per-component release tags e.g. cilium-log-collector/v0.0.4). Each is only
-# ever consumed baked into its own container image, built independently of
-# this Makefile's *-binary targets: ipv6-hp-bpf and cilium-log-collector each
-# have their own Dockerfile with an inline "go build"/"go generate" that
-# compiles natively per-arch via Docker buildx (not a host cross-toolchain),
-# and azure-block-iptables is built by a wholly separate script
-# (.pipelines/build/scripts/azure-iptables-monitor.sh) baked into the
-# azure-iptables-monitor image - neither path touches all-binaries at all.
-# Building them here only exercises host cross-compilation (bpf2go host-tool
-# GOARCH inheritance, CGO_ENABLED=1 c-shared cross-sysroot gaps) for archives
-# nothing downloads, so they're skipped rather than fixed for a release
-# artifact that was never real. Their standalone `make <target>` recipes
-# remain available and correct for local/manual use.
+# ipv6-hp-bpf, azure-block-iptables, and cilium-log-collector are excluded:
+# they're never published as standalone release archives, only built into
+# their own container images via separate Docker/script paths. Their
+# standalone `make <target>` recipes still work for local/manual use.
 all-binaries: acncli azure-cni-plugin azure-cns azure-npm azure-ipam azure-ip-masq-merger azure-iptables-monitor
 all-images: npm-image cns-image cni-manager-image azure-ip-masq-merger-image azure-iptables-monitor-image ipv6-hp-bpf-image cilium-log-collector
 else
