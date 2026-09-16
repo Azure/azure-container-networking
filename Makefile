@@ -118,6 +118,16 @@ TOOLS_GO_MOD = $(REPO_ROOT)/tools.go.mod
 
 
 # Default target
+all-binaries-platforms: ## Make all platform binaries
+	@set -e; \
+	for goos in "$(GOOSES)"; do \
+		for goarch in "$(GOARCHES)"; do \
+			make all-binaries GOOS=$$goos GOARCH=$$goarch; \
+		done \
+	done
+
+# OS specific binaries/images
+ifeq ($(GOOS),linux)
 # These binaries are portable release archives (bins/*.tgz, *.zip) installed
 # directly onto arbitrary hosts/nodes, not baked into a specific controlled
 # Docker base image. So, unlike cni.sh/cns.sh (which target the AzureLinux
@@ -126,23 +136,17 @@ TOOLS_GO_MOD = $(REPO_ROOT)/tools.go.mod
 # the target host has that OpenSSL library available. MS_GO_NOSYSTEMCRYPTO=1
 # disables the build image's ambient GOEXPERIMENT=systemcrypto default (which
 # requires CGO_ENABLED=1 and was silently aborting every Linux binary here,
-# starting with acncli) and falls back to the standard, portable Go crypto
-# backend instead - the same choice npm.sh makes for the same reason. This is
-# a no-op on a plain upstream/OSS Go toolchain.
-all-binaries-platforms: ## Make all platform binaries
-	@set -e; \
-	for goos in "$(GOOSES)"; do \
-		for goarch in "$(GOARCHES)"; do \
-			if [ "$$goos" = "linux" ]; then \
-				MS_GO_NOSYSTEMCRYPTO=1 make all-binaries GOOS=$$goos GOARCH=$$goarch; \
-			else \
-				make all-binaries GOOS=$$goos GOARCH=$$goarch; \
-			fi; \
-		done \
-	done
-
-# OS specific binaries/images
-ifeq ($(GOOS),linux)
+# starting with acncli, since every one of these builds with CGO_ENABLED=0)
+# and falls back to the standard, portable Go crypto backend instead - the
+# same choice npm.sh makes for the same reason. This is a no-op on a plain
+# upstream/OSS Go toolchain.
+# Set as a target-specific variable (not in the all-binaries-platforms
+# recipe above) so it's exported to every prerequisite's recipe - acncli,
+# azure-cni-plugin, etc. - regardless of entry point: both the
+# all-binaries-platforms matrix wrapper above and a direct
+# `make all-binaries` on Linux (the entry point README.md documents) get the
+# same opt-out.
+all-binaries: export MS_GO_NOSYSTEMCRYPTO := 1
 # ipv6-hp-bpf, azure-block-iptables, and cilium-log-collector are
 # intentionally excluded here. Unlike the other prerequisites, none of the
 # three has ever been published as a standalone portable release archive (0
