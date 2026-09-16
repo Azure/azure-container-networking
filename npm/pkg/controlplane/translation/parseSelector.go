@@ -378,8 +378,9 @@ func rejectUnsupportedWindowsNSSelector(selector *metav1.LabelSelector) error {
 
 // validateMatchExpression fails closed on a matchExpression that Kubernetes would not admit or
 // that NPM cannot translate: an operator other than In/NotIn/Exists/DoesNotExist, an In/NotIn
-// with no values, or a value that is not a valid label. Dropping such a requirement would
-// silently widen the selector (e.g. a dropped NotIn), so it is rejected instead. This is
+// with no values, an Exists/DoesNotExist that carries values, or a value that is not a valid
+// label. Dropping or ignoring such a requirement would silently widen the selector (e.g. a
+// dropped NotIn, or Exists values that parse ignores), so it is rejected instead. This is
 // platform-agnostic and is applied to both namespaceSelectors and podSelectors.
 func validateMatchExpression(req metav1.LabelSelectorRequirement) error {
 	switch req.Operator {
@@ -393,6 +394,9 @@ func validateMatchExpression(req metav1.LabelSelectorRequirement) error {
 			}
 		}
 	case metav1.LabelSelectorOpExists, metav1.LabelSelectorOpDoesNotExist:
+		if len(req.Values) != 0 {
+			return ErrValuesWithExistsOperator
+		}
 	default:
 		return fmt.Errorf("operator %q on key %q: %w",
 			req.Operator, req.Key, ErrUnsupportedMatchExpressionOperator)

@@ -25,8 +25,9 @@ var (
 	errUnknownPortType = errors.New("unknown port Type")
 	// ErrUnsupportedNamedPort is returned when named port translation feature is used in windows.
 	ErrUnsupportedNamedPort = errors.New("unsupported namedport translation features used on windows")
-	// ErrUnsupportedNegativeMatch is returned when negative match translation feature is used in windows.
-	ErrUnsupportedNegativeMatch = errors.New("unsupported NotExist operator translation features used on windows")
+	// ErrUnsupportedNegativeMatch is returned when a negative match operator (NotIn or
+	// DoesNotExist) is used on the Windows dataplane, which cannot represent a negated set.
+	ErrUnsupportedNegativeMatch = errors.New("unsupported negative match operator (NotIn or DoesNotExist) used on windows")
 	// ErrUnsupportedExceptCIDR is returned when Except CIDR block translation feature is used in windows.
 	ErrUnsupportedExceptCIDR = errors.New("unsupported Except CIDR block translation features used on windows")
 	// ErrUnsupportedSCTP is returned when SCTP protocol is used in windows.
@@ -39,6 +40,10 @@ var (
 	// Kubernetes rejects such requirements; NPM fails closed rather than dropping the requirement,
 	// which could otherwise widen a selector (e.g. a dropped NotIn) or yield no rules at all.
 	ErrEmptyMatchExpressionValues = errors.New("matchExpression requirements with In or NotIn must have at least one value")
+	// ErrValuesWithExistsOperator is returned when an Exists or DoesNotExist matchExpression carries
+	// values. Kubernetes requires those operators to have no values; NPM fails closed rather than
+	// translating the requirement as a valid key condition while ignoring the supplied values.
+	ErrValuesWithExistsOperator = errors.New("matchExpression requirements with Exists or DoesNotExist must have no values")
 	// ErrUnsupportedMatchExpressionOperator is returned when a matchExpression uses an operator that is
 	// none of In, NotIn, Exists or DoesNotExist. NPM fails closed rather than dropping the requirement,
 	// which could otherwise silently widen the selector.

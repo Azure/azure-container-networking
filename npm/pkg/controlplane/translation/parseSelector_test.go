@@ -778,6 +778,8 @@ func TestParsePodSelectorFailsClosed(t *testing.T) {
 		{"empty In", metav1.LabelSelectorRequirement{Key: appLabelKey, Operator: metav1.LabelSelectorOpIn}, ErrEmptyMatchExpressionValues},
 		{"empty NotIn", metav1.LabelSelectorRequirement{Key: appLabelKey, Operator: metav1.LabelSelectorOpNotIn}, ErrEmptyMatchExpressionValues},
 		{"invalid value", metav1.LabelSelectorRequirement{Key: appLabelKey, Operator: metav1.LabelSelectorOpIn, Values: []string{"bad value"}}, ErrInvalidMatchExpressionValues},
+		{"Exists with values", metav1.LabelSelectorRequirement{Key: appLabelKey, Operator: metav1.LabelSelectorOpExists, Values: []string{"x"}}, ErrValuesWithExistsOperator},
+		{"DoesNotExist with values", metav1.LabelSelectorRequirement{Key: appLabelKey, Operator: metav1.LabelSelectorOpDoesNotExist, Values: []string{"x"}}, ErrValuesWithExistsOperator},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			selector := &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{test.req}}
@@ -816,5 +818,21 @@ func TestTranslatePolicyPodSelectorFailsClosed(t *testing.T) {
 				require.Nil(t, translated)
 			})
 		}
+	}
+}
+
+// TestFlattenNameSpaceSelectorExistsWithValues verifies the namespaceSelector path also fails
+// closed when an Exists/DoesNotExist requirement carries values, which Kubernetes forbids and
+// which parse would otherwise translate as a bare key condition, ignoring the values.
+func TestFlattenNameSpaceSelectorExistsWithValues(t *testing.T) {
+	for _, op := range []metav1.LabelSelectorOperator{metav1.LabelSelectorOpExists, metav1.LabelSelectorOpDoesNotExist} {
+		t.Run(string(op), func(t *testing.T) {
+			selector := &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
+				{Key: tenantLabelKey, Operator: op, Values: []string{"x"}},
+			}}
+			flattened, err := flattenNameSpaceSelector(selector)
+			require.ErrorIs(t, err, ErrValuesWithExistsOperator)
+			require.Nil(t, flattened)
+		})
 	}
 }
