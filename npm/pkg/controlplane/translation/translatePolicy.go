@@ -215,32 +215,46 @@ func canonicalizeExcepts(parentCIDR string, exceptInIPBlock []string) ([]string,
 }
 
 // ipBlockIPSet return translatedIPSet based based on ipBlockRule.
-func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSetIndex, ipBlockPeerIndex int, ipBlockRule *networkingv1.IPBlock) (*ipsets.TranslatedIPSet, error) {
+func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSetIndex, ipBlockPeerIndex int, ipBlockRule *networkingv1.IPBlock, npmLiteToggle bool) (*ipsets.TranslatedIPSet, error) {
 	if ipBlockRule == nil || ipBlockRule.CIDR == "" {
 		return nil, nil
 	}
 
-	// Canonicalize the CIDR before it is compared or handed to the kernel. A block spelled
-	// with host bits set (e.g. "10.0.0.0/0") denotes the same addresses as its canonical form
-	// but does not compare equal to it, so without this the all-addresses block below would
-	// not be recognized and the literal would be rejected by ipset.
-	cidr, ok := util.NormalizeCIDR(ipBlockRule.CIDR)
-	if !ok {
-		return nil, ErrUnsupportedIPAddress
+	// Full NPM canonicalizes the CIDR before it is compared or handed to the kernel, so a
+	// block spelled with host bits set (e.g. "10.0.0.0/0") is recognized as the block it
+	// denotes instead of being rejected. NPM Lite is out of scope for this change, so it keeps
+	// the original IsIPV4 gate and the raw spelling.
+	cidr := ipBlockRule.CIDR
+	if npmLiteToggle {
+		if !util.IsIPV4(cidr) {
+			return nil, ErrUnsupportedIPAddress
+		}
+	} else {
+		normalized, ok := util.NormalizeCIDR(cidr)
+		if !ok {
+			return nil, ErrUnsupportedIPAddress
+		}
+		cidr = normalized
 	}
 
 	// Parent validation takes precedence: Windows rejects the unsupported Except feature
-	// without parsing its CIDRs, matching the behavior before normalization moved here.
+	// without parsing its CIDRs.
 	if util.IsWindowsDP() && len(ipBlockRule.Except) > 0 {
 		return nil, ErrUnsupportedExceptCIDR
 	}
 
-	// Canonicalize, validate strict-subset, and deduplicate exclusions before comparing with
-	// the split entries below. An invalid or non-strict-subset except fails the translation
-	// rather than being carried untouched into the set.
-	deDupExcepts, err := canonicalizeExcepts(cidr, ipBlockRule.Except)
-	if err != nil {
-		return nil, err
+	// Full NPM canonicalizes, validates strict-subset, and deduplicates exclusions before
+	// comparing with the split entries below. NPM Lite keeps its raw-string deduplication so
+	// its validation is unchanged.
+	var deDupExcepts []string
+	if npmLiteToggle {
+		deDupExcepts = deDuplicateExcept(ipBlockRule.Except)
+	} else {
+		var err error
+		deDupExcepts, err = canonicalizeExcepts(cidr, ipBlockRule.Except)
+		if err != nil {
+			return nil, err
+		}
 	}
 	lenOfDeDupExcepts := len(deDupExcepts)
 
@@ -289,14 +303,14 @@ func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSe
 // ipBlockRule translates IPBlock field in networkpolicy object to translatedIPSet and SetInfo.
 // ipBlockSetIndex parameter is used to diffentiate ipBlock fields in one networkpolicy object.
 func ipBlockRule(policyName, ns string, direction policies.Direction, matchType policies.MatchType, ipBlockSetIndex, ipBlockPeerIndex int,
-	ipBlockRule *networkingv1.IPBlock,
+	ipBlockRule *networkingv1.IPBlock, npmLiteToggle bool,
 ) (*ipsets.TranslatedIPSet, policies.SetInfo, error) { //nolint // gofumpt
 	if ipBlockRule == nil || ipBlockRule.CIDR == "" {
 		return nil, policies.SetInfo{}, nil
 	}
 
 	// The set builder validates and normalizes the CIDR once, before creating any members.
-	ipBlockIPSet, err := ipBlockIPSet(policyName, ns, direction, ipBlockSetIndex, ipBlockPeerIndex, ipBlockRule)
+	ipBlockIPSet, err := ipBlockIPSet(policyName, ns, direction, ipBlockSetIndex, ipBlockPeerIndex, ipBlockRule, npmLiteToggle)
 	if err != nil {
 		return nil, policies.SetInfo{}, err
 	}
@@ -556,7 +570,7 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy,
 					continue
 				}
 
-				ipBlockIPSet, ipBlockSetInfo, err := ipBlockRule(netPolName, npmNetPol.Namespace, direction, matchType, ruleIndex, peerIdx, peer.IPBlock)
+				ipBlockIPSet, ipBlockSetInfo, err := ipBlockRule(netPolName, npmNetPol.Namespace, direction, matchType, ruleIndex, peerIdx, peer.IPBlock, npmLiteToggle)
 				if err != nil {
 					return err
 				}

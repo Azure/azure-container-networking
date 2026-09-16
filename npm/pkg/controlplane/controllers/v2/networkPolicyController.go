@@ -308,20 +308,21 @@ func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 			return metrics.NoOp, nil
 		}
 
-		// Do not report success here. Reporting success left the policy's selected pods with
-		// no rules at all - not even the default drop the policy implies - while the policy
-		// object appeared to be applied and nothing signalled the failure. Return the wrapped
-		// error so it is surfaced and the worker (processNextWorkItem) - the sole error
-		// logger/metric reporter - records it once. For full NPM the failure is deterministic,
-		// so it is tagged terminal (errNetPolTranslationFailure) and the worker forgets it
-		// rather than retrying with backoff; the informer re-enqueues on a policy change. Lite
-		// keeps its existing retry handling.
+		// Do not report success here for full NPM. Reporting success left the policy's
+		// selected pods with no rules at all - not even the default drop the policy implies -
+		// while the policy object appeared to be applied and nothing signalled the failure.
+		// A full-NPM translation failure is deterministic, so it is surfaced (the worker -
+		// processNextWorkItem - is the sole error logger/metric reporter) and tagged terminal
+		// (errNetPolTranslationFailure) so the worker forgets it rather than retrying with
+		// backoff; the informer re-enqueues on a policy change.
 		if !c.npmLiteToggle {
 			return metrics.NoOp, fmt.Errorf("%w %s/%s: %w",
 				errNetPolTranslationFailure, netPolObj.Namespace, netPolObj.Name, err)
 		}
-		return metrics.NoOp, fmt.Errorf("[syncAddAndUpdateNetPol] failed to translate NetworkPolicy %s in namespace %s: %w",
-			netPolObj.Name, netPolObj.Namespace, err)
+		// NPM Lite is out of scope for this change, so its handling is unchanged: a
+		// non-suppressed translation failure stays a silent no-op (no surfaced error, no retry).
+		klog.Errorf("Failed to translate NetworkPolicy %s in namespace %s: %s", netPolObj.Name, netPolObj.Namespace, err.Error())
+		return metrics.NoOp, nil
 	}
 
 	_, policyExisted := c.rawNpSpecMap[netpolKey]

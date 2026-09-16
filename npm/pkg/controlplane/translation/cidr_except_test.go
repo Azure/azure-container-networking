@@ -32,7 +32,7 @@ func TestIPBlockExceptFailsClosed(t *testing.T) {
 		{"noncanonical all-addresses except", networkingv1.IPBlock{CIDR: nonCanonAllAddrCIDR, Except: []string{nonCanonAllAddrCIDR}}, ErrInvalidIPBlockExcept},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			set, info, err := ipBlockRule("except", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0, &test.block)
+			set, info, err := ipBlockRule("except", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0, &test.block, false)
 			require.Nil(t, set)
 			require.Equal(t, policies.SetInfo{}, info)
 			if util.IsWindowsDP() {
@@ -59,7 +59,7 @@ func TestIPBlockValidStrictSubsetExceptIsCanonicalized(t *testing.T) {
 		t.Skip("Except is unsupported on the Windows datapath")
 	}
 	set, _, err := ipBlockRule("except", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0,
-		&networkingv1.IPBlock{CIDR: "10.0.0.0/8", Except: []string{"10.1.2.3/24"}})
+		&networkingv1.IPBlock{CIDR: "10.0.0.0/8", Except: []string{"10.1.2.3/24"}}, false)
 	require.NoError(t, err)
 	require.NotNil(t, set)
 	// "10.1.2.3/24" denotes the block "10.1.2.0/24"; it must be programmed in canonical form.
@@ -85,7 +85,7 @@ func TestIPBlockAllAddressesMixedExcepts(t *testing.T) {
 		{outsideExceptCIDR, lowerHalfCIDR, "203.0.113.0/24"},
 	} {
 		set, err := ipBlockIPSet("p", defaultNS, policies.Ingress, 0, 0,
-			&networkingv1.IPBlock{CIDR: nonCanonAllAddrCIDR, Except: except})
+			&networkingv1.IPBlock{CIDR: nonCanonAllAddrCIDR, Except: except}, false)
 		require.NoError(t, err)
 
 		var lowerHalf, upperHalf int
@@ -103,4 +103,24 @@ func TestIPBlockAllAddressesMixedExcepts(t *testing.T) {
 		require.Equal(t, 1, lowerHalf, "lower /1 half must appear exactly once for except %v -> %v", except, set.Members)
 		require.Equal(t, 1, upperHalf, "upper /1 half must appear exactly once for except %v -> %v", except, set.Members)
 	}
+}
+
+// TestIPBlockLitePreservesRawValidation verifies NPM Lite (out of scope for this change) keeps
+// its original ipBlock handling on the ipset path: a non-canonical /0 is rejected on IsIPV4
+// rather than canonicalized, and a non-strict-subset except is not rejected by the full-NPM
+// strict-subset validation.
+func TestIPBlockLitePreservesRawValidation(t *testing.T) {
+	if util.IsWindowsDP() {
+		t.Skip("Windows Lite uses the direct-rule path, not ipBlockIPSet")
+	}
+	// A non-canonical /0 stays rejected under Lite; full NPM would canonicalize and accept it.
+	_, err := ipBlockIPSet("p", defaultNS, policies.Ingress, 0, 0,
+		&networkingv1.IPBlock{CIDR: nonCanonAllAddrCIDR}, true)
+	require.ErrorIs(t, err, ErrUnsupportedIPAddress)
+
+	// A non-strict-subset except does not trigger the strict-subset validation under Lite.
+	set, err := ipBlockIPSet("p", defaultNS, policies.Ingress, 0, 0,
+		&networkingv1.IPBlock{CIDR: "10.1.0.0/16", Except: []string{"10.0.0.0/8"}}, true)
+	require.NoError(t, err)
+	require.NotNil(t, set)
 }
