@@ -101,12 +101,12 @@ func TestRunRequiresInput(t *testing.T) {
 
 func TestAOAIAPIKeyIsNotRenderedInFlagDefaults(t *testing.T) {
 	const secret = "sentinel-azure-ai-key"
+	t.Setenv("AZURE_OPENAI_API_KEY", secret)
 	var o options
 	fs := flag.NewFlagSet("failure-agent", flag.ContinueOnError)
 	var output bytes.Buffer
 	fs.SetOutput(&output)
-	registerAOAIAPIKeyFlag(fs, &o)
-	o.aoaiAPIKey = secret
+	registerFlags(fs, &o, os.Getenv)
 
 	fs.PrintDefaults()
 
@@ -115,39 +115,61 @@ func TestAOAIAPIKeyIsNotRenderedInFlagDefaults(t *testing.T) {
 	}
 }
 
-func TestRunRedactsAOAIAPIKeyFromEvidenceAndArtifacts(t *testing.T) {
-	const secret = "sentinel-azure-ai-key"
-	input := t.TempDir()
-	if err := os.WriteFile(filepath.Join(input, "task.log"), []byte("Error: request failed with key "+secret), 0o600); err != nil {
-		t.Fatalf("writing evidence: %v", err)
-	}
-	out := t.TempDir()
-	cl := &fakeClassifier{err: errors.New("classification failed for " + secret)}
-	opts := options{
-		input:          input,
-		output:         out,
-		signaturesPath: filepath.Join("signatures", "signatures.yaml"),
-		dryRun:         true,
-		aoaiAPIKey:     secret,
+func TestRunRedactsConfiguredSecretsFromEvidenceAndArtifacts(t *testing.T) {
+	tests := []struct {
+		name      string
+		configure func(t *testing.T, opts *options, secret string)
+	}{
+		{
+			name: "Azure OpenAI API key",
+			configure: func(_ *testing.T, opts *options, secret string) {
+				opts.aoaiAPIKey = secret
+			},
+		},
+		{
+			name: "GitHub token under workload identity",
+			configure: func(t *testing.T, _ *options, secret string) {
+				t.Setenv("GITHUB_TOKEN", secret)
+			},
+		},
 	}
 
-	if err := run(context.Background(), zap.NewNop(), opts, cl, noopStore{}, noopCollector{}, noopCollector{}); err != nil {
-		t.Fatalf("run failed: %v", err)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			const secret = "sentinel-pipeline-secret"
+			input := t.TempDir()
+			if err := os.WriteFile(filepath.Join(input, "task.log"), []byte("Error: request failed with secret "+secret), 0o600); err != nil {
+				t.Fatalf("writing evidence: %v", err)
+			}
+			out := t.TempDir()
+			cl := &fakeClassifier{err: errors.New("classification failed for " + secret)}
+			opts := options{
+				input:          input,
+				output:         out,
+				signaturesPath: filepath.Join("signatures", "signatures.yaml"),
+				dryRun:         true,
+			}
+			tt.configure(t, &opts, secret)
 
-	for _, line := range cl.gotEvidence.TopErrorLines {
-		if strings.Contains(line, secret) {
-			t.Fatal("classifier received the Azure OpenAI API key")
-		}
-	}
-	for _, name := range []string{"report.md", "incident.json"} {
-		data, err := os.ReadFile(filepath.Join(out, name))
-		if err != nil {
-			t.Fatalf("reading %s: %v", name, err)
-		}
-		if strings.Contains(string(data), secret) {
-			t.Fatalf("%s contains the Azure OpenAI API key", name)
-		}
+			if err := run(context.Background(), zap.NewNop(), opts, cl, noopStore{}, noopCollector{}, noopCollector{}); err != nil {
+				t.Fatalf("run failed: %v", err)
+			}
+
+			for _, line := range cl.gotEvidence.TopErrorLines {
+				if strings.Contains(line, secret) {
+					t.Fatal("classifier received a configured secret")
+				}
+			}
+			for _, name := range []string{"report.md", "incident.json"} {
+				data, err := os.ReadFile(filepath.Join(out, name))
+				if err != nil {
+					t.Fatalf("reading %s: %v", name, err)
+				}
+				if strings.Contains(string(data), secret) {
+					t.Fatalf("%s contains a configured secret", name)
+				}
+			}
+		})
 	}
 }
 
