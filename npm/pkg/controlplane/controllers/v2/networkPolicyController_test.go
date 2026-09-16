@@ -667,8 +667,9 @@ func TestAddNetworkPolicyNonCanonicalCIDRIsApplied(t *testing.T) {
 // left the policy's selected pods with no rules while nothing signalled that the policy had
 // never been applied.
 func TestSyncAddAndUpdateNetPolSurfacesTranslationFailure(t *testing.T) {
-	// An IPv6 ipBlock cannot be expressed by the IPv4 datapath, so translation fails.
-	netPolObj := netPolWithCIDR("2001:db8::/32")
+	// A malformed CIDR fails translation on every datapath (unlike an IPv6 block, which is
+	// suppressed as an unsupported family on Windows), so this exercises the terminal path.
+	netPolObj := netPolWithCIDR("10.0.0.0/33")
 
 	f := newNetPolFixture(t)
 	f.netPolLister = append(f.netPolLister, netPolObj)
@@ -726,8 +727,9 @@ func TestSyncAddAndUpdateNetPolSuppressesUnsupportedFeature(t *testing.T) {
 // an unchangeable outcome forever and re-emit error logs/metrics on every attempt; the informer
 // re-enqueues if the policy itself changes.
 func TestFullNPMTranslationFailureIsForgotten(t *testing.T) {
-	// An IPv6 ipBlock cannot be expressed by the IPv4 datapath, so translation fails.
-	netPolObj := netPolWithCIDR("2001:db8::/32")
+	// A malformed CIDR fails translation on every datapath (unlike an IPv6 block, which is
+	// suppressed as an unsupported family on Windows), so this exercises the terminal path.
+	netPolObj := netPolWithCIDR("10.0.0.0/33")
 
 	f := newNetPolFixture(t)
 	f.netPolLister = append(f.netPolLister, netPolObj)
@@ -756,7 +758,7 @@ func TestFullNPMTranslationFailureIsForgotten(t *testing.T) {
 // version that translates cleanly is reconciled and cached. Without this the policy could stay
 // permanently unapplied once forgotten.
 func TestFullNPMTranslationFailureRecoversOnUpdate(t *testing.T) {
-	invalid := netPolWithCIDR("2001:db8::/32") // IPv6 -> translation fails
+	invalid := netPolWithCIDR("10.0.0.0/33") // malformed CIDR -> terminal failure on every datapath
 	invalid.ResourceVersion = "1"
 
 	f := newNetPolFixture(t)
