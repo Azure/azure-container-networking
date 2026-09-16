@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/azure"
 	"github.com/openai/openai-go/v3/shared"
@@ -17,17 +18,24 @@ type AzureClient struct {
 	deployment string
 }
 
+func validateAzureTarget(endpoint, deployment, apiVersion string) error {
+	if endpoint == "" {
+		return errors.New("azure openai endpoint is required")
+	}
+	if deployment == "" {
+		return errors.New("azure openai deployment is required")
+	}
+	if apiVersion == "" {
+		return errors.New("azure openai api version is required")
+	}
+	return nil
+}
+
 // NewAzureClient builds a ChatCompleter for the given Azure OpenAI endpoint and
 // deployment using an API key for authentication.
 func NewAzureClient(endpoint, deployment, apiVersion, apiKey string) (*AzureClient, error) {
-	if endpoint == "" {
-		return nil, errors.New("azure openai endpoint is required")
-	}
-	if deployment == "" {
-		return nil, errors.New("azure openai deployment is required")
-	}
-	if apiVersion == "" {
-		return nil, errors.New("azure openai api version is required")
+	if err := validateAzureTarget(endpoint, deployment, apiVersion); err != nil {
+		return nil, err
 	}
 	if apiKey == "" {
 		return nil, errors.New("azure openai api key is required")
@@ -36,6 +44,23 @@ func NewAzureClient(endpoint, deployment, apiVersion, apiKey string) (*AzureClie
 	client := openai.NewClient(
 		azure.WithEndpoint(endpoint, apiVersion),
 		azure.WithAPIKey(apiKey),
+	)
+	return &AzureClient{client: client, deployment: deployment}, nil
+}
+
+// NewAzureClientWithCredential builds a ChatCompleter that authenticates with an
+// Entra ID token credential, so the agent needs no long-lived API key.
+func NewAzureClientWithCredential(endpoint, deployment, apiVersion string, cred azcore.TokenCredential) (*AzureClient, error) {
+	if err := validateAzureTarget(endpoint, deployment, apiVersion); err != nil {
+		return nil, err
+	}
+	if cred == nil {
+		return nil, errors.New("azure token credential is required")
+	}
+
+	client := openai.NewClient(
+		azure.WithEndpoint(endpoint, apiVersion),
+		azure.WithTokenCredential(cred),
 	)
 	return &AzureClient{client: client, deployment: deployment}, nil
 }

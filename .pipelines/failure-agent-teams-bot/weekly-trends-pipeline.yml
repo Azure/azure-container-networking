@@ -99,22 +99,29 @@ stages:
               SYSTEM_TEAMPROJECT: $(System.TeamProject)
 
           # --- Synthesize the weekly trends digest ----------------------------
-          - script: |
-              set -euo pipefail
-              mkdir -p "$(weeklyOutput)"
-              if [ -z "${AZURE_OPENAI_ENDPOINT:-}" ] || [ -z "${AZURE_OPENAI_DEPLOYMENT:-}" ]; then
-                echo "##[warning]Azure OpenAI credentials not configured; the weekly digest will fall back to a deterministic stats-only summary."
-              fi
-              cd "$(Build.SourcesDirectory)/tools/failure-agent"
-              go run . \
-                --weekly-report "$(weeklyEvidence)" \
-                --output "$(weeklyOutput)" \
-                --weekly-window-days "${{ parameters.windowDays }}"
+          # Runs under AzureCLI@2 so DefaultAzureCredential can pick up the
+          # federated workload-identity token; no API key is passed to the agent.
+          - task: AzureCLI@2
             displayName: "Synthesize weekly trends"
+            inputs:
+              azureSubscription: acn-dalec-test
+              scriptType: bash
+              scriptLocation: inlineScript
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -euo pipefail
+                mkdir -p "$(weeklyOutput)"
+                if [ -z "${AZURE_OPENAI_ENDPOINT:-}" ] || [ -z "${AZURE_OPENAI_DEPLOYMENT:-}" ]; then
+                  echo "##[warning]Azure OpenAI is not configured; the weekly digest will fall back to a deterministic stats-only summary."
+                fi
+                cd "$(Build.SourcesDirectory)/tools/failure-agent"
+                go run . \
+                  --weekly-report "$(weeklyEvidence)" \
+                  --output "$(weeklyOutput)" \
+                  --weekly-window-days "${{ parameters.windowDays }}"
             env:
               AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
               AZURE_OPENAI_DEPLOYMENT: $(AZURE_OPENAI_DEPLOYMENT)
-              AZURE_OPENAI_API_KEY: $(AZURE_OPENAI_API_KEY)
               AZURE_OPENAI_API_VERSION: $(AZURE_OPENAI_API_VERSION)
 
           # Attach weekly-report.md to this run's Summary tab (Extensions/Summary)
