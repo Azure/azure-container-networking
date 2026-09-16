@@ -224,42 +224,8 @@ azure-ipam-binary:
 	cd $(AZURE_IPAM_DIR) && CGO_ENABLED=0 go build -v -o $(AZURE_IPAM_BUILD_DIR)/azure-ipam$(EXE_EXT) -ldflags "-X github.com/Azure/azure-container-networking/azure-ipam/internal/buildinfo.Version=$(AZURE_IPAM_VERSION) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
 
 # Build the ipv6-hp-bpf binary.
-# glibc's gnu/stubs.h only pulls in gnu/stubs-64.h when __x86_64__ (or
-# __aarch64__, on arm64 hosts) is defined; clang's "bpf"/"bpfel"/"bpfeb"
-# targets used by bpf2go don't define any host arch macro, so without this
-# override it falls through to gnu/stubs-32.h, which AzureLinux/CBL-Mariner
-# build agents don't ship (no 32-bit support at all). This is a
-# host-toolchain issue, not a target-platform one: bpf2go's clang invocation
-# always runs on and parses headers from the *build host* (today, always an
-# amd64 AzureLinux agent) regardless of GOARCH, since GOOS=linux GOARCH=arm64
-# is cross-compiled from that same amd64 host. So this must be keyed off the
-# host architecture (UNAME_M), not GOARCH - otherwise the arm64 iteration
-# would skip the workaround and hit the same failure. The aarch64 branch
-# below is defensive for a hypothetical arm64 build host (not currently used
-# by ADO, but would hit the identical gnu/stubs.h gap if ever adopted).
-# Defining __x86_64__/__aarch64__ via BPF2GO_CFLAGS is a no-op for the
-# generated BPF bytecode itself and only affects this glibc header
-# preprocessing branch.
-#
-# "go generate" here runs "go run github.com/cilium/ebpf/cmd/bpf2go ... -target
-# bpfel,bpfeb ..." (see pkg/egress/gen.go, pkg/ingress/gen.go): the eBPF
-# bytecode target is an explicit, architecture-neutral bpf2go flag, wholly
-# unrelated to GOARCH/GOOS. But "go run" builds and executes the bpf2go tool
-# itself as a *host* binary; when cross-compiling (GOARCH=arm64 on an amd64
-# host, as all-binaries-platforms does), an inherited GOARCH=arm64 makes "go
-# run" build bpf2go for arm64 and then fail to execute it natively on the
-# amd64 host ("exec format error"). GOARCH/GOOS must therefore be unset only
-# for this go generate step; the go build below still needs them to produce
-# the correct target-arch ipv6-hp-bpf binary.
-UNAME_M := $(shell uname -m)
 ipv6-hp-bpf-binary: bpf-lib
-ifeq ($(UNAME_M),x86_64)
-	cd $(IPV6_HP_BPF_DIR) && CGO_ENABLED=0 env -u GOARCH -u GOOS BPF2GO_CFLAGS="-D__x86_64__" go generate ./...
-else ifneq (,$(filter aarch64 arm64,$(UNAME_M)))
-	cd $(IPV6_HP_BPF_DIR) && CGO_ENABLED=0 env -u GOARCH -u GOOS BPF2GO_CFLAGS="-D__aarch64__" go generate ./...
-else
-	cd $(IPV6_HP_BPF_DIR) && CGO_ENABLED=0 env -u GOARCH -u GOOS go generate ./...
-endif
+	cd $(IPV6_HP_BPF_DIR) && CGO_ENABLED=0 go generate ./...
 	cd $(IPV6_HP_BPF_DIR)/cmd/ipv6-hp-bpf && CGO_ENABLED=0 go build -v -o $(IPV6_HP_BPF_BUILD_DIR)/ipv6-hp-bpf$(EXE_EXT) -ldflags "-X main.version=$(IPV6_HP_BPF_VERSION) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
 
 # Libraries for bpf
@@ -273,19 +239,8 @@ else ifeq ($(GOARCH),arm64)
 endif
 
 # Build the azure-block-iptables binary.
-# Same host-vs-target-arch issues as ipv6-hp-bpf-binary above: bpf2go's clang
-# invocation needs BPF2GO_CFLAGS="-D__x86_64__" on an x86_64 host to avoid the
-# gnu/stubs-32.h AzureLinux failure, and "go generate" must run with GOARCH/
-# GOOS unset so the ephemeral bpf2go host tool isn't cross-compiled and fails
-# to execute when GOARCH=arm64 is inherited from all-binaries-platforms.
 azure-block-iptables-binary: bpf-lib
-ifeq ($(UNAME_M),x86_64)
-	cd $(AZURE_BLOCK_IPTABLES_DIR) && CGO_ENABLED=0 env -u GOARCH -u GOOS BPF2GO_CFLAGS="-D__x86_64__" go generate ./...
-else ifneq (,$(filter aarch64 arm64,$(UNAME_M)))
-	cd $(AZURE_BLOCK_IPTABLES_DIR) && CGO_ENABLED=0 env -u GOARCH -u GOOS BPF2GO_CFLAGS="-D__aarch64__" go generate ./...
-else
-	cd $(AZURE_BLOCK_IPTABLES_DIR) && CGO_ENABLED=0 env -u GOARCH -u GOOS go generate ./...
-endif
+	cd $(AZURE_BLOCK_IPTABLES_DIR) && CGO_ENABLED=0 go generate ./...
 	cd $(AZURE_BLOCK_IPTABLES_DIR)/cmd/azure-block-iptables && CGO_ENABLED=0 go build -v -o $(AZURE_BLOCK_IPTABLES_BUILD_DIR)/azure-block-iptables$(EXE_EXT) -ldflags "-X main.version=$(AZURE_BLOCK_IPTABLES_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI network binary.
