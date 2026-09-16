@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,14 +25,16 @@ import (
 // be exercised end to end without Azure OpenAI credentials. It records the prior
 // context it was given so tests can assert knowledge injection.
 type fakeClassifier struct {
-	result    model.Classification
-	err       error
-	gotPrior  classify.PriorContext
-	callCount int
+	result      model.Classification
+	err         error
+	gotPrior    classify.PriorContext
+	gotEvidence model.Evidence
+	callCount   int
 }
 
-func (f *fakeClassifier) Classify(_ context.Context, _ model.RunContext, _ model.Evidence, _ model.Fingerprint, _ []model.SignatureMatch, prior classify.PriorContext) (model.Classification, error) {
+func (f *fakeClassifier) Classify(_ context.Context, _ model.RunContext, ev model.Evidence, _ model.Fingerprint, _ []model.SignatureMatch, prior classify.PriorContext) (model.Classification, error) {
 	f.callCount++
+	f.gotEvidence = ev
 	f.gotPrior = prior
 	return f.result, f.err
 }
@@ -92,6 +96,58 @@ func TestRunEndToEnd(t *testing.T) {
 func TestRunRequiresInput(t *testing.T) {
 	if err := run(context.Background(), zap.NewNop(), options{dryRun: true}, &fakeClassifier{}, noopStore{}, noopCollector{}, noopCollector{}); err == nil {
 		t.Fatal("expected error when --input missing")
+	}
+}
+
+func TestAOAIAPIKeyIsNotRenderedInFlagDefaults(t *testing.T) {
+	const secret = "sentinel-azure-ai-key"
+	var o options
+	fs := flag.NewFlagSet("failure-agent", flag.ContinueOnError)
+	var output bytes.Buffer
+	fs.SetOutput(&output)
+	registerAOAIAPIKeyFlag(fs, &o)
+	o.aoaiAPIKey = secret
+
+	fs.PrintDefaults()
+
+	if strings.Contains(output.String(), secret) {
+		t.Fatal("Azure OpenAI API key was rendered in flag defaults")
+	}
+}
+
+func TestRunRedactsAOAIAPIKeyFromEvidenceAndArtifacts(t *testing.T) {
+	const secret = "sentinel-azure-ai-key"
+	input := t.TempDir()
+	if err := os.WriteFile(filepath.Join(input, "task.log"), []byte("Error: request failed with key "+secret), 0o600); err != nil {
+		t.Fatalf("writing evidence: %v", err)
+	}
+	out := t.TempDir()
+	cl := &fakeClassifier{err: errors.New("classification failed for " + secret)}
+	opts := options{
+		input:          input,
+		output:         out,
+		signaturesPath: filepath.Join("signatures", "signatures.yaml"),
+		dryRun:         true,
+		aoaiAPIKey:     secret,
+	}
+
+	if err := run(context.Background(), zap.NewNop(), opts, cl, noopStore{}, noopCollector{}, noopCollector{}); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+
+	for _, line := range cl.gotEvidence.TopErrorLines {
+		if strings.Contains(line, secret) {
+			t.Fatal("classifier received the Azure OpenAI API key")
+		}
+	}
+	for _, name := range []string{"report.md", "incident.json"} {
+		data, err := os.ReadFile(filepath.Join(out, name))
+		if err != nil {
+			t.Fatalf("reading %s: %v", name, err)
+		}
+		if strings.Contains(string(data), secret) {
+			t.Fatalf("%s contains the Azure OpenAI API key", name)
+		}
 	}
 }
 

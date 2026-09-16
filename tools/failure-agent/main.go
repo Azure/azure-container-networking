@@ -131,11 +131,7 @@ func parseFlags() options {
 	flag.BoolVar(&o.dryRun, "dry-run", false, "skip pull-request write-back (analysis still runs)")
 	flag.StringVar(&o.aoaiEndpoint, "aoai-endpoint", os.Getenv("AZURE_OPENAI_ENDPOINT"), "Azure OpenAI endpoint (or AZURE_OPENAI_ENDPOINT)")
 	flag.StringVar(&o.aoaiDeployment, "aoai-deployment", os.Getenv("AZURE_OPENAI_DEPLOYMENT"), "Azure OpenAI deployment name (or AZURE_OPENAI_DEPLOYMENT)")
-	// The default is deliberately empty and resolved from the environment after
-	// parsing: flag.PrintDefaults renders a flag's default value, so seeding it
-	// from the environment leaks the live key into the usage dump that flag.Parse
-	// writes to stderr on any parse error.
-	flag.StringVar(&o.aoaiAPIKey, "aoai-api-key", "", "Azure OpenAI API key (or AZURE_OPENAI_API_KEY)")
+	registerAOAIAPIKeyFlag(flag.CommandLine, &o)
 	flag.StringVar(&o.aoaiAPIVersion, "aoai-api-version", envOrDefault("AZURE_OPENAI_API_VERSION", defaultAOAIAPIVersion), "Azure OpenAI API version (or AZURE_OPENAI_API_VERSION)")
 	flag.DurationVar(&o.timeout, "timeout", defaultTimeout, "overall timeout for LLM classification")
 	flag.StringVar(&o.pipeline, "pipeline", "", "override pipeline name")
@@ -156,6 +152,12 @@ func parseFlags() options {
 		o.aoaiAPIKey = os.Getenv("AZURE_OPENAI_API_KEY")
 	}
 	return o
+}
+
+func registerAOAIAPIKeyFlag(fs *flag.FlagSet, o *options) {
+	// Resolve the environment fallback after parsing because PrintDefaults
+	// renders non-empty defaults into usage output on help and parse errors.
+	fs.StringVar(&o.aoaiAPIKey, "aoai-api-key", "", "Azure OpenAI API key (or AZURE_OPENAI_API_KEY)")
 }
 
 // priorContextLimit caps how many prior incidents of each kind are injected.
@@ -186,12 +188,14 @@ func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, k
 	if err != nil {
 		return fmt.Errorf("parsing evidence: %w", err)
 	}
+	ev = redactEvidence(ev, opts.aoaiAPIKey)
 	logger.Info("evidence collected",
 		zap.Int("files", len(ev.Files)),
 		zap.Int("errorLines", len(ev.TopErrorLines)),
 	)
 
 	if res := lc.Collect(ctx); len(res.Executed) > 0 {
+		redactLiveOutputs(&res, opts.aoaiAPIKey)
 		ev = live.Merge(ev, res)
 		logger.Info("live diagnostics collected",
 			zap.String("event", "live_evidence_collected"),
@@ -212,6 +216,7 @@ func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, k
 	}
 
 	if res := pc.Collect(ctx); len(res.Executed) > 0 {
+		redactLiveOutputs(&res, opts.aoaiAPIKey)
 		ev = live.Merge(ev, res)
 		logger.Info("privileged diagnostics collected",
 			zap.String("event", "privileged_evidence_collected"),
@@ -253,6 +258,7 @@ func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, k
 	classification, classifyErr := cl.Classify(classifyCtx, rc, ev, fp, matches, prior)
 	status := model.StatusAnalyzed
 	if classifyErr != nil {
+		classifyErr = errors.New(redactString(classifyErr.Error(), opts.aoaiAPIKey))
 		logger.Error("llm classification failed",
 			zap.String("event", "llm_failed"),
 			zap.String("fingerprint", fp.Hash),
@@ -291,6 +297,32 @@ func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, k
 		}
 	}
 	return nil
+}
+
+func redactEvidence(ev model.Evidence, secret string) model.Evidence {
+	for i := range ev.TopErrorLines {
+		ev.TopErrorLines[i] = redactString(ev.TopErrorLines[i], secret)
+	}
+	for i := range ev.ErrorSnippets {
+		ev.ErrorSnippets[i].Snippet = redactString(ev.ErrorSnippets[i].Snippet, secret)
+	}
+	for name, excerpt := range ev.Excerpts {
+		ev.Excerpts[name] = redactString(excerpt, secret)
+	}
+	return ev
+}
+
+func redactLiveOutputs(res *live.Result, secret string) {
+	for name, output := range res.Outputs {
+		res.Outputs[name] = redactString(output, secret)
+	}
+}
+
+func redactString(value, secret string) string {
+	if secret == "" {
+		return value
+	}
+	return strings.ReplaceAll(value, secret, "[REDACTED]")
 }
 
 // handleDuplicate is taken when an unresolved incident with the same fingerprint
