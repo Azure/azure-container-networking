@@ -131,7 +131,11 @@ func parseFlags() options {
 	flag.BoolVar(&o.dryRun, "dry-run", false, "skip pull-request write-back (analysis still runs)")
 	flag.StringVar(&o.aoaiEndpoint, "aoai-endpoint", os.Getenv("AZURE_OPENAI_ENDPOINT"), "Azure OpenAI endpoint (or AZURE_OPENAI_ENDPOINT)")
 	flag.StringVar(&o.aoaiDeployment, "aoai-deployment", os.Getenv("AZURE_OPENAI_DEPLOYMENT"), "Azure OpenAI deployment name (or AZURE_OPENAI_DEPLOYMENT)")
-	flag.StringVar(&o.aoaiAPIKey, "aoai-api-key", os.Getenv("AZURE_OPENAI_API_KEY"), "Azure OpenAI API key (or AZURE_OPENAI_API_KEY)")
+	// The default is deliberately empty and resolved from the environment after
+	// parsing: flag.PrintDefaults renders a flag's default value, so seeding it
+	// from the environment leaks the live key into the usage dump that flag.Parse
+	// writes to stderr on any parse error.
+	flag.StringVar(&o.aoaiAPIKey, "aoai-api-key", "", "Azure OpenAI API key (or AZURE_OPENAI_API_KEY)")
 	flag.StringVar(&o.aoaiAPIVersion, "aoai-api-version", envOrDefault("AZURE_OPENAI_API_VERSION", defaultAOAIAPIVersion), "Azure OpenAI API version (or AZURE_OPENAI_API_VERSION)")
 	flag.DurationVar(&o.timeout, "timeout", defaultTimeout, "overall timeout for LLM classification")
 	flag.StringVar(&o.pipeline, "pipeline", "", "override pipeline name")
@@ -148,6 +152,9 @@ func parseFlags() options {
 	flag.StringVar(&o.weeklyReport, "weekly-report", "", "weekly-trends mode: aggregate the incident.json artifacts under this directory and synthesize a trends digest (writes weekly-report.md + weekly-incident.json to --output)")
 	flag.IntVar(&o.weeklyWindow, "weekly-window-days", defaultWeeklyWindowDays, "weekly-trends mode: reporting window in days, surfaced on the digest")
 	flag.Parse()
+	if o.aoaiAPIKey == "" {
+		o.aoaiAPIKey = os.Getenv("AZURE_OPENAI_API_KEY")
+	}
 	return o
 }
 
