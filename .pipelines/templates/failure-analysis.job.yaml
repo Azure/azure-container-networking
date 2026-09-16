@@ -54,9 +54,14 @@ jobs:
     dependsOn:
       - ${{ parameters.dependsOnJob }}
     # MITIGATION (temporary): the failure-analysis agent is disabled while its
-    # Azure OpenAI credential handling is being fixed. Restore the original
-    # condition below to re-enable:
-    #   condition: in(dependencies.${{ parameters.dependsOnJob }}.result, 'Succeeded', 'SucceededWithIssues', 'Failed')
+    # Azure OpenAI credential handling is being fixed.
+    # To re-enable, BOTH changes below must be reverted together:
+    #   1. restore this condition:
+    #      condition: in(dependencies.${{ parameters.dependsOnJob }}.result, 'Succeeded', 'SucceededWithIssues', 'Failed')
+    #   2. restore the AZURE_OPENAI_API_KEY mapping in the "Run failure analysis"
+    #      step's env block (or switch that step to workload identity).
+    # Reverting only the condition leaves the agent without a credential and it
+    # will fail with "azure openai endpoint, deployment, and api key are required".
     # Run only when failedE2ELogs actually executed (succeeded or failed).
     # Skip when it was skipped (test passed, so failedE2ELogs's condition: failed() was not met).
     condition: false
@@ -236,7 +241,8 @@ jobs:
           AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
           AZURE_OPENAI_DEPLOYMENT: $(AZURE_OPENAI_DEPLOYMENT)
           # MITIGATION (temporary): API key intentionally not mapped, so the agent
-          # cannot authenticate even if this job is somehow executed.
+          # cannot authenticate even if this job is somehow executed. Restore this
+          # together with the job's condition above when re-enabling.
           AZURE_OPENAI_API_VERSION: $(AZURE_OPENAI_API_VERSION)
           GITHUB_TOKEN: $(GITHUB_TOKEN)
 
