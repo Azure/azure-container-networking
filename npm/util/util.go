@@ -34,6 +34,13 @@ const (
 
 var ErrEmptyNodeIP = errors.New("error: node IP is empty")
 
+var (
+	// ErrInvalidCIDR identifies a CIDR that cannot be parsed.
+	ErrInvalidCIDR = errors.New("util: invalid CIDR")
+	// ErrUnsupportedIPFamily identifies a valid CIDR outside the supported IPv4 family.
+	ErrUnsupportedIPFamily = errors.New("util: unsupported IP family")
+)
+
 // regex to get minor version
 var re = regexp.MustCompile("[0-9]+")
 
@@ -363,6 +370,31 @@ func SliceToString(list []string) string {
 	return strings.Join(list, SetPolicyDelimiter)
 }
 
+// NormalizeCIDR returns the canonical form of an IPv4 CIDR, i.e. the block with its host
+// bits cleared, so "10.0.0.0/0" becomes "0.0.0.0/0" and "10.1.2.3/24" becomes "10.1.2.0/24".
+// It distinguishes an unparseable CIDR (ErrInvalidCIDR) from a valid CIDR outside the IPv4
+// family (ErrUnsupportedIPFamily) so callers can apply different reporting/suppression policy.
+// Callers must normalize before comparing a CIDR against a well-known block or handing it to
+// the kernel, because a non-canonical spelling denotes the same block but does not compare
+// equal and is not accepted by ipset.
+func NormalizeCIDR(s string) (string, error) {
+	prefix, err := netip.ParsePrefix(s)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", ErrInvalidCIDR, err)
+	}
+	if !prefix.Addr().Is4() {
+		return "", ErrUnsupportedIPFamily
+	}
+	return prefix.Masked().String(), nil
+}
+
+// IsIPV4 returns true when ip is an IPv4 address or an IPv4 CIDR block.
+//
+// Note this rejects a /0 block whose address text is not literally "0.0.0.0", even though such
+// a block is valid and denotes the same addresses. Callers on the Linux ipBlock path must
+// therefore canonicalize with NormalizeCIDR before validating, so a valid block is not refused
+// on spelling alone. This function's behavior is deliberately left unchanged because it is also
+// consumed by the ipset-member and NPM Lite paths, which are not in scope for these changes.
 func IsIPV4(ip string) bool {
 	isIPBlock := strings.Contains(ip, "/")
 	ipOnly := strings.Split(ip, "/")

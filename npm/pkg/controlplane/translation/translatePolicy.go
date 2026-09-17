@@ -3,6 +3,7 @@ package translation
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"strconv"
 	"strings"
 
@@ -50,6 +51,8 @@ var (
 	ErrUnsupportedMatchExpressionOperator = errors.New("unsupported matchExpression operator")
 	// ErrUnsupportedIPAddress is returned when an unsupported IP address, such as IPV6, is used
 	ErrUnsupportedIPAddress = errors.New("unsupported IP address")
+	// ErrInvalidIPBlockExcept is returned for an exclusion that cannot be a strict subset.
+	ErrInvalidIPBlockExcept = errors.New("ipBlock except must be a strict subset of its CIDR")
 	// ErrUnsupportedNonCIDR is returned when non-CIDR blocks are passed in with NPM Lite enabled. NPM Lite allows deny-all and allow-all policies
 	ErrUnsupportedNonCIDR = errors.New("Non-CIDR blocks, named ports, and ingress/egress namespace/pod selectors are not supported when NPM Lite is enabled, allowing only CIDR-based policies")
 )
@@ -168,7 +171,11 @@ func exceptCidr(exceptCidr string) string {
 	return exceptCidr + " " + util.IpsetNomatch
 }
 
-// deDuplicateExcept removes redundance elements and return slices which has only unique element.
+// deDuplicateExcept removes redundant elements and returns a slice which has only unique
+// elements, preserving each except's original spelling. Canonicalization for the ipset path
+// lives in canonicalizeExcepts; this helper is used by the direct-rule path, which validates
+// each entry with IsIPV4 and fails closed, so it must not change that path's raw-string
+// validation (e.g. by collapsing a non-canonical /0 onto a canonical block).
 func deDuplicateExcept(exceptInIPBlock []string) []string {
 	deDupExcepts := []string{}
 	exceptsSet := make(map[string]struct{})
@@ -181,19 +188,92 @@ func deDuplicateExcept(exceptInIPBlock []string) []string {
 	return deDupExcepts
 }
 
+// canonicalizeExcepts validates strict subsets and returns canonical, deduplicated except CIDRs.
+// It is used only on the ipset path. Canonicalizing first means two spellings of the same block
+// (e.g. "10.1.2.0/24" and "10.1.2.3/24") collapse to one entry, and that an except can be
+// compared against the all-addresses split entries below. An except that is not an IPv4 CIDR, or
+// is not a strict subset of its parent, fails the translation rather than being carried into the
+// set: dropping the exclusion would widen the allow, and keeping an unprogrammable member would
+// take the whole set down at restore time. Kubernetes already rejects a non-strict-subset except
+// at admission, so this is defense in depth on the datapath's own boundary.
+func canonicalizeExcepts(parentCIDR string, exceptInIPBlock []string) ([]string, error) {
+	parent, err := netip.ParsePrefix(parentCIDR)
+	if err != nil {
+		return nil, fmt.Errorf("ipBlock %q: %w: %w", parentCIDR, ErrUnsupportedIPAddress, err)
+	}
+	canonicalExcepts := []string{}
+	exceptsSet := make(map[string]struct{})
+	for _, except := range exceptInIPBlock {
+		canonical, err := util.NormalizeCIDR(except)
+		if err != nil {
+			// Preserve the typed parse-vs-family cause under the translation sentinel.
+			return nil, fmt.Errorf("except %q: %w: %w", except, ErrUnsupportedIPAddress, err)
+		}
+		excluded, err := netip.ParsePrefix(canonical)
+		if err != nil {
+			return nil, fmt.Errorf("except %q: %w: %w", except, ErrUnsupportedIPAddress, err)
+		}
+		if excluded.Bits() <= parent.Bits() || !parent.Contains(excluded.Addr()) {
+			// A non-strict-subset except is a valid IPv4 CIDR, just an invalid relationship,
+			// so classify it with ErrInvalidIPBlockExcept alone rather than the parse/family
+			// ErrUnsupportedIPAddress, so callers and operators can tell the two apart.
+			return nil, fmt.Errorf("except %q is not a strict subset of %q: %w",
+				except, parentCIDR, ErrInvalidIPBlockExcept)
+		}
+		if _, exist := exceptsSet[canonical]; !exist {
+			canonicalExcepts = append(canonicalExcepts, canonical)
+			exceptsSet[canonical] = struct{}{}
+		}
+	}
+	return canonicalExcepts, nil
+}
+
 // ipBlockIPSet return translatedIPSet based based on ipBlockRule.
-func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSetIndex, ipBlockPeerIndex int, ipBlockRule *networkingv1.IPBlock) (*ipsets.TranslatedIPSet, error) {
+func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSetIndex, ipBlockPeerIndex int, ipBlockRule *networkingv1.IPBlock, npmLiteToggle bool) (*ipsets.TranslatedIPSet, error) {
 	if ipBlockRule == nil || ipBlockRule.CIDR == "" {
 		return nil, nil
 	}
 
-	// de-duplicated Except if there are redundance elements.
-	deDupExcepts := deDuplicateExcept(ipBlockRule.Except)
-	lenOfDeDupExcepts := len(deDupExcepts)
+	// Full NPM canonicalizes the CIDR before it is compared or handed to the kernel, so a
+	// block spelled with host bits set (e.g. "10.0.0.0/0") is recognized as the block it
+	// denotes instead of being rejected. NPM Lite is out of scope for this change, so it keeps
+	// the original IsIPV4 gate and the raw spelling.
+	cidr := ipBlockRule.CIDR
+	if npmLiteToggle {
+		if !util.IsIPV4(cidr) {
+			return nil, ErrUnsupportedIPAddress
+		}
+	} else {
+		normalized, err := util.NormalizeCIDR(cidr)
+		if err != nil {
+			// Preserve the typed parse-vs-family cause (util.ErrInvalidCIDR /
+			// util.ErrUnsupportedIPFamily) under the translation sentinel so the controller can
+			// suppress an unsupported family on Windows but still surface a malformed CIDR.
+			return nil, fmt.Errorf("ipBlock %q: %w: %w", cidr, ErrUnsupportedIPAddress, err)
+		}
+		cidr = normalized
+	}
 
-	if util.IsWindowsDP() && lenOfDeDupExcepts > 0 {
+	// Parent validation takes precedence: Windows rejects the unsupported Except feature
+	// without parsing its CIDRs.
+	if util.IsWindowsDP() && len(ipBlockRule.Except) > 0 {
 		return nil, ErrUnsupportedExceptCIDR
 	}
+
+	// Full NPM canonicalizes, validates strict-subset, and deduplicates exclusions before
+	// comparing with the split entries below. NPM Lite keeps its raw-string deduplication so
+	// its validation is unchanged.
+	var deDupExcepts []string
+	if npmLiteToggle {
+		deDupExcepts = deDuplicateExcept(ipBlockRule.Except)
+	} else {
+		var err error
+		deDupExcepts, err = canonicalizeExcepts(cidr, ipBlockRule.Except)
+		if err != nil {
+			return nil, err
+		}
+	}
+	lenOfDeDupExcepts := len(deDupExcepts)
 
 	var members []string
 	indexOfMembers := 0
@@ -203,7 +283,7 @@ func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSe
 	// splitCIDRSet has two entries ("0.0.0.0/1" and "128.0.0.0/1") as key.
 	splitCIDRLen := 2
 	splitCIDRSet := make(map[string]int, splitCIDRLen)
-	if ipBlockRule.CIDR == "0.0.0.0/0" {
+	if cidr == "0.0.0.0/0" {
 		// two cidrs (0.0.0.0/1 and 128.0.0.0/1) for 0.0.0.0/0 + except.
 		members = make([]string, lenOfDeDupExcepts+splitCIDRLen)
 		// in case of "0.0.0.0/0", "0.0.0.0/1" or "0.0.0.0/1 nomatch" comes eariler than "128.0.0.0/1" or "128.0.0.0/1 nomatch".
@@ -216,7 +296,7 @@ func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSe
 	} else {
 		// one cidr + except
 		members = make([]string, lenOfDeDupExcepts+1)
-		members[indexOfMembers] = ipBlockRule.CIDR
+		members[indexOfMembers] = cidr
 		indexOfMembers++
 	}
 
@@ -240,17 +320,14 @@ func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSe
 // ipBlockRule translates IPBlock field in networkpolicy object to translatedIPSet and SetInfo.
 // ipBlockSetIndex parameter is used to diffentiate ipBlock fields in one networkpolicy object.
 func ipBlockRule(policyName, ns string, direction policies.Direction, matchType policies.MatchType, ipBlockSetIndex, ipBlockPeerIndex int,
-	ipBlockRule *networkingv1.IPBlock,
+	ipBlockRule *networkingv1.IPBlock, npmLiteToggle bool,
 ) (*ipsets.TranslatedIPSet, policies.SetInfo, error) { //nolint // gofumpt
 	if ipBlockRule == nil || ipBlockRule.CIDR == "" {
 		return nil, policies.SetInfo{}, nil
 	}
 
-	if !util.IsIPV4(ipBlockRule.CIDR) {
-		return nil, policies.SetInfo{}, ErrUnsupportedIPAddress
-	}
-
-	ipBlockIPSet, err := ipBlockIPSet(policyName, ns, direction, ipBlockSetIndex, ipBlockPeerIndex, ipBlockRule)
+	// The set builder validates and normalizes the CIDR once, before creating any members.
+	ipBlockIPSet, err := ipBlockIPSet(policyName, ns, direction, ipBlockSetIndex, ipBlockPeerIndex, ipBlockRule, npmLiteToggle)
 	if err != nil {
 		return nil, policies.SetInfo{}, err
 	}
@@ -510,7 +587,7 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy,
 					continue
 				}
 
-				ipBlockIPSet, ipBlockSetInfo, err := ipBlockRule(netPolName, npmNetPol.Namespace, direction, matchType, ruleIndex, peerIdx, peer.IPBlock)
+				ipBlockIPSet, ipBlockSetInfo, err := ipBlockRule(netPolName, npmNetPol.Namespace, direction, matchType, ruleIndex, peerIdx, peer.IPBlock, npmLiteToggle)
 				if err != nil {
 					return err
 				}

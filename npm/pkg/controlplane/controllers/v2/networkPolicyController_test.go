@@ -9,6 +9,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/metrics/promutil"
+	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/translation"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	dpmocks "github.com/Azure/azure-container-networking/npm/pkg/dataplane/mocks"
 	"github.com/Azure/azure-container-networking/npm/util"
@@ -617,4 +618,191 @@ func TestLabelUpdateNetworkPolicy(t *testing.T) {
 	updateNetPol(t, f, oldNetPolObj, newNetPolObj)
 
 	checkNetPolTestResult("TestUpdateNetPol", f, testCases)
+}
+
+// netPolWithCIDR builds an ingress NetworkPolicy that selects all pods in its namespace and
+// admits the given ipBlock CIDR.
+func netPolWithCIDR(cidr string) *networkingv1.NetworkPolicy {
+	return &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "allow-cidr", Namespace: "test-nwpolicy"},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{
+				{From: []networkingv1.NetworkPolicyPeer{{IPBlock: &networkingv1.IPBlock{CIDR: cidr}}}},
+			},
+		},
+	}
+}
+
+// TestAddNetworkPolicyNonCanonicalCIDRIsApplied verifies that a policy naming the
+// all-addresses block with host bits set is programmed into the dataplane. It used to fail
+// translation, and the controller turned that failure into a successful no-op, so the
+// policy's selected pods were left with no rules at all.
+func TestAddNetworkPolicyNonCanonicalCIDRIsApplied(t *testing.T) {
+	netPolObj := netPolWithCIDR("10.0.0.0/0")
+
+	f := newNetPolFixture(t)
+	f.netPolLister = append(f.netPolLister, netPolObj)
+	f.kubeobjects = append(f.kubeobjects, netPolObj)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dp := dpmocks.NewMockGenericDataplane(ctrl)
+	f.newNetPolController(stopCh, dp, false)
+
+	// The policy must reach the dataplane instead of being dropped during translation.
+	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(1)
+
+	addNetPol(f, netPolObj)
+	checkNetPolTestResult("TestAddNetworkPolicyNonCanonicalCIDRIsApplied", f, []expectedNetPolValues{
+		{1, 0, netPolPromVals{1, 1, 0, 0}},
+	})
+}
+
+// TestSyncAddAndUpdateNetPolSurfacesTranslationFailure verifies that a policy NPM cannot
+// translate is reported as an error rather than as a successful no-op. Reporting success
+// left the policy's selected pods with no rules while nothing signalled that the policy had
+// never been applied.
+func TestSyncAddAndUpdateNetPolSurfacesTranslationFailure(t *testing.T) {
+	// A malformed CIDR fails translation on every datapath (unlike an IPv6 block, which is
+	// suppressed as an unsupported family on Windows), so this exercises the terminal path.
+	netPolObj := netPolWithCIDR("10.0.0.0/33")
+
+	f := newNetPolFixture(t)
+	f.netPolLister = append(f.netPolLister, netPolObj)
+	f.kubeobjects = append(f.kubeobjects, netPolObj)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dp := dpmocks.NewMockGenericDataplane(ctrl)
+	f.newNetPolController(stopCh, dp, false)
+
+	// Nothing may be programmed for a policy that failed to translate.
+	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(0)
+
+	_, err := f.netPolController.syncAddAndUpdateNetPol(netPolObj)
+	require.Error(t, err, "a translation failure must be surfaced, not reported as success")
+	require.ErrorIs(t, err, translation.ErrUnsupportedIPAddress)
+	// Full-NPM translation failures are deterministic, so they are tagged terminal and the
+	// worker forgets them instead of retrying with backoff.
+	require.ErrorIs(t, err, errNetPolTranslationFailure)
+
+	// The policy must not be recorded as applied, so a later retry still reconciles it.
+	netpolKey, keyErr := cache.MetaNamespaceKeyFunc(netPolObj)
+	require.NoError(t, keyErr)
+	require.NotContains(t, f.netPolController.rawNpSpecMap, netpolKey)
+}
+
+// TestSyncAddAndUpdateNetPolSuppressesUnsupportedFeature verifies that a deliberate datapath
+// limitation stays suppressed. Those cannot resolve on retry, so requeuing them forever
+// would be pure churn.
+func TestSyncAddAndUpdateNetPolSuppressesUnsupportedFeature(t *testing.T) {
+	// NPM Lite only supports CIDR peers, so a label-selector peer is out of scope there.
+	netPolObj := createNetPol()
+
+	f := newNetPolFixture(t)
+	f.netPolLister = append(f.netPolLister, netPolObj)
+	f.kubeobjects = append(f.kubeobjects, netPolObj)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dp := dpmocks.NewMockGenericDataplane(ctrl)
+	f.newNetPolController(stopCh, dp, true)
+
+	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(0)
+
+	_, err := f.netPolController.syncAddAndUpdateNetPol(netPolObj)
+	require.NoError(t, err, "an unsupported-feature limitation must stay suppressed")
+}
+
+// TestFullNPMTranslationFailureIsForgotten verifies that a deterministic translation failure
+// is forgotten by the worker instead of being requeued with backoff. Requeuing it would retry
+// an unchangeable outcome forever and re-emit error logs/metrics on every attempt; the informer
+// re-enqueues if the policy itself changes.
+func TestFullNPMTranslationFailureIsForgotten(t *testing.T) {
+	// A malformed CIDR fails translation on every datapath (unlike an IPv6 block, which is
+	// suppressed as an unsupported family on Windows), so this exercises the terminal path.
+	netPolObj := netPolWithCIDR("10.0.0.0/33")
+
+	f := newNetPolFixture(t)
+	f.netPolLister = append(f.netPolLister, netPolObj)
+	f.kubeobjects = append(f.kubeobjects, netPolObj)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dp := dpmocks.NewMockGenericDataplane(ctrl)
+	f.newNetPolController(stopCh, dp, false)
+	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(0)
+
+	f.netPolController.addNetworkPolicy(netPolObj)
+	require.Equal(t, 1, f.netPolController.workqueue.Len())
+
+	f.netPolController.processNextWorkItem()
+
+	key := getKey(netPolObj, t)
+	require.Zero(t, f.netPolController.workqueue.NumRequeues(key), "a terminal translation failure must not be requeued")
+	require.Equal(t, 0, f.netPolController.workqueue.Len(), "a terminal translation failure must not be re-enqueued")
+}
+
+// TestFullNPMTranslationFailureRecoversOnUpdate verifies the failure-to-correction path: after
+// a deterministic translation failure is forgotten (not cached, not retried), a newer resource
+// version that translates cleanly is reconciled and cached. Without this the policy could stay
+// permanently unapplied once forgotten.
+func TestFullNPMTranslationFailureRecoversOnUpdate(t *testing.T) {
+	invalid := netPolWithCIDR("10.0.0.0/33") // malformed CIDR -> terminal failure on every datapath
+	invalid.ResourceVersion = "1"
+
+	f := newNetPolFixture(t)
+	f.netPolLister = append(f.netPolLister, invalid)
+	f.kubeobjects = append(f.kubeobjects, invalid)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dp := dpmocks.NewMockGenericDataplane(ctrl)
+	f.newNetPolController(stopCh, dp, false)
+
+	// The invalid policy fails translation: nothing programmed, nothing cached, item forgotten.
+	f.netPolController.addNetworkPolicy(invalid)
+	f.netPolController.processNextWorkItem()
+	key, keyErr := cache.MetaNamespaceKeyFunc(invalid)
+	require.NoError(t, keyErr)
+	require.NotContains(t, f.netPolController.rawNpSpecMap, key)
+
+	// A newer resource version with a valid CIDR must reconcile and be cached.
+	valid := netPolWithCIDR("10.0.0.0/24")
+	valid.ResourceVersion = "2"
+	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(1)
+	require.NoError(t, f.kubeInformer.Networking().V1().NetworkPolicies().Informer().GetIndexer().Update(valid))
+	f.netPolController.updateNetworkPolicy(invalid, valid)
+	f.netPolController.processNextWorkItem()
+
+	require.Contains(t, f.netPolController.rawNpSpecMap, key, "the corrected policy must be reconciled and cached")
+}
+
+// TestIsUnsupportedTranslationErrClassification verifies the family-vs-syntax classification:
+// a valid but unsupported IP family (e.g. IPv6) is a datapath limitation suppressed only on
+// Windows, while a malformed CIDR is a caller error that is never suppressed. Both surface under
+// translation.ErrUnsupportedIPAddress, so the typed util cause is what distinguishes them.
+func TestIsUnsupportedTranslationErrClassification(t *testing.T) {
+	familyErr := fmt.Errorf("ipBlock: %w: %w", translation.ErrUnsupportedIPAddress, util.ErrUnsupportedIPFamily)
+	syntaxErr := fmt.Errorf("ipBlock: %w: %w", translation.ErrUnsupportedIPAddress, util.ErrInvalidCIDR)
+
+	// An unsupported IP family is suppressed only on the Windows datapath.
+	require.Equal(t, util.IsWindowsDP(), isUnsupportedTranslationErr(familyErr),
+		"unsupported IP family suppression must be Windows-only")
+	// A malformed CIDR is never suppressed, on any datapath.
+	require.False(t, isUnsupportedTranslationErr(syntaxErr), "a malformed CIDR must not be suppressed")
+	// A non-CIDR peer under Lite is always suppressed.
+	require.True(t, isUnsupportedTranslationErr(translation.ErrUnsupportedNonCIDR))
 }

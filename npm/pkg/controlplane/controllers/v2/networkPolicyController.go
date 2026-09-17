@@ -186,6 +186,14 @@ func (c *NetworkPolicyController) processNextWorkItem() bool {
 		// Run the syncNetPol, passing it the namespace/name string of the
 		// network policy resource to be synced.
 		if err := c.syncNetPol(key); err != nil {
+			if errors.Is(err, errNetPolTranslationFailure) {
+				// A deterministic translation failure will not resolve on retry, so forget it
+				// instead of requeuing with backoff (which would re-emit error logs/metrics
+				// indefinitely). The informer re-enqueues when the policy changes. Only the
+				// transient errors below are rate-limited and retried.
+				c.workqueue.Forget(obj)
+				return fmt.Errorf("error syncing '%s': %w; waiting for a policy change", key, err)
+			}
 			// Put the item back on the workqueue to handle any transient errors.
 			c.workqueue.AddRateLimited(key)
 			return fmt.Errorf("error syncing '%s': %w, requeuing", key, err)
@@ -291,8 +299,8 @@ func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 	// install translated rules into kernel
 	npmNetPolObj, err := translation.TranslatePolicy(netPolObj, c.npmLiteToggle)
 	if err != nil {
-		if isUnsupportedWindowsTranslationErr(err) {
-			klog.Warningf("NetworkPolicy %s in namespace %s is not translated because it has unsupported translated features of Windows: %s",
+		if isUnsupportedTranslationErr(err) {
+			klog.Warningf("NetworkPolicy %s in namespace %s is not translated because it uses a feature this datapath does not support: %s",
 				netPolObj.ObjectMeta.Name, netPolObj.ObjectMeta.Namespace, err.Error())
 
 			// We can safely suppress unsupported network policy because re-Queuing will result in same error.
@@ -300,8 +308,20 @@ func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 			return metrics.NoOp, nil
 		}
 
-		klog.Errorf("Failed to translate podSelector in NetworkPolicy %s in namespace %s: %s", netPolObj.ObjectMeta.Name, netPolObj.ObjectMeta.Namespace, err.Error())
-		// The exec time isn't relevant here, so consider a no-op. Returning nil to prevent re-queuing since this is not a transient error.
+		// Do not report success here for full NPM. Reporting success left the policy's
+		// selected pods with no rules at all - not even the default drop the policy implies -
+		// while the policy object appeared to be applied and nothing signalled the failure.
+		// A full-NPM translation failure is deterministic, so it is surfaced (the worker -
+		// processNextWorkItem - is the sole error logger/metric reporter) and tagged terminal
+		// (errNetPolTranslationFailure) so the worker forgets it rather than retrying with
+		// backoff; the informer re-enqueues on a policy change.
+		if !c.npmLiteToggle {
+			return metrics.NoOp, fmt.Errorf("%w %s/%s: %w",
+				errNetPolTranslationFailure, netPolObj.Namespace, netPolObj.Name, err)
+		}
+		// NPM Lite is out of scope for this change, so its handling is unchanged: a
+		// non-suppressed translation failure stays a silent no-op (no surfaced error, no retry).
+		klog.Errorf("Failed to translate NetworkPolicy %s in namespace %s: %s", netPolObj.Name, netPolObj.Namespace, err.Error())
 		return metrics.NoOp, nil
 	}
 
@@ -357,4 +377,24 @@ func isUnsupportedWindowsTranslationErr(err error) bool {
 		errors.Is(err, translation.ErrUnsupportedNegativeMatch) ||
 		errors.Is(err, translation.ErrUnsupportedSCTP) ||
 		errors.Is(err, translation.ErrUnsupportedExceptCIDR)
+}
+
+// isUnsupportedTranslationErr reports whether err is a deliberate limitation of the datapath
+// or mode NPM is running in, rather than a policy NPM failed to translate. Those limitations
+// cannot resolve on retry, so they stay suppressed with a warning. Every other translation
+// failure is surfaced and, for full NPM, terminally forgotten (not retried), because reporting
+// success would leave the policy's selected pods with no rules while nothing signalled that the
+// policy was never applied.
+func isUnsupportedTranslationErr(err error) bool {
+	// A malformed CIDR is a caller error, not a datapath limitation, so never suppress it -
+	// even on Windows, where an unsupported IP family and a malformed CIDR both surface under
+	// translation.ErrUnsupportedIPAddress.
+	if errors.Is(err, util.ErrInvalidCIDR) || errors.Is(err, translation.ErrInvalidIPBlockExcept) {
+		return false
+	}
+	return isUnsupportedWindowsTranslationErr(err) ||
+		// A valid but unsupported IP family (e.g. IPv6) is a Windows datapath limitation.
+		(util.IsWindowsDP() && errors.Is(err, util.ErrUnsupportedIPFamily)) ||
+		// NPM Lite only supports CIDR peers; a label-selector peer is out of scope there.
+		errors.Is(err, translation.ErrUnsupportedNonCIDR)
 }
