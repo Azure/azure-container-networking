@@ -119,15 +119,27 @@ TOOLS_GO_MOD = $(REPO_ROOT)/tools.go.mod
 
 # Default target
 all-binaries-platforms: ## Make all platform binaries
-	@for goos in "$(GOOSES)"; do \
+	@set -e; \
+	for goos in "$(GOOSES)"; do \
 		for goarch in "$(GOARCHES)"; do \
-			make all-binaries GOOS=$$goos GOARCH=$$goarch; \
+			$(MAKE) all-binaries GOOS=$$goos GOARCH=$$goarch; \
 		done \
 	done
 
 # OS specific binaries/images
 ifeq ($(GOOS),linux)
-all-binaries: acncli azure-cni-plugin azure-cns azure-npm azure-ipam azure-ip-masq-merger azure-iptables-monitor ipv6-hp-bpf azure-block-iptables cilium-log-collector
+# These binaries run on arbitrary hosts, so we can't assume Microsoft's
+# FIPS OpenSSL backend is present. MS_GO_NOSYSTEMCRYPTO=1 opts out of the
+# build image's ambient GOEXPERIMENT=systemcrypto default, which was
+# silently failing every CGO_ENABLED=0 Linux binary here. Exported as a
+# target-specific variable so it applies to all-binaries regardless of
+# entry point (all-binaries-platforms or a direct `make all-binaries`).
+all-binaries: export MS_GO_NOSYSTEMCRYPTO := 1
+# ipv6-hp-bpf, azure-block-iptables, and cilium-log-collector are excluded:
+# they're never published as standalone release archives, only built into
+# their own container images via separate Docker/script paths. Their
+# standalone `make <target>` recipes still work for local/manual use.
+all-binaries: acncli azure-cni-plugin azure-cns azure-npm azure-ipam azure-ip-masq-merger azure-iptables-monitor
 all-images: npm-image cns-image cni-manager-image azure-ip-masq-merger-image azure-iptables-monitor-image ipv6-hp-bpf-image cilium-log-collector
 else
 all-binaries: azure-cni-plugin azure-cns azure-npm
