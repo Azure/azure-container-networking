@@ -21,6 +21,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/pkg/errors"
 )
 
@@ -41,12 +42,6 @@ const (
 
 type ncPublishBody struct {
 	UseRNCPublisher bool `json:"useRNCPublisher"`
-}
-
-type ncUnpublishBody struct {
-	UseRNCPublisher bool `json:"useRNCPublisher"`
-	AzID            uint `json:"azID"`
-	AZREnabled      bool `json:"azrEnabled"`
 }
 
 // This file contains implementation of all HTTP APIs which are exposed to external clients.
@@ -1107,7 +1102,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 
 	ctx := r.Context()
 
-	var unpublishBody ncUnpublishBody
+	var unpublishBody nmagent.DeleteContainerRequest
 	var azrNC bool
 	var useRNCPublisher bool
 	err = json.Unmarshal(req.DeleteNetworkContainerRequestBody, &unpublishBody)
