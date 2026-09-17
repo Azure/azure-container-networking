@@ -248,7 +248,9 @@ func (ps *parsedSelectors) addSelector(include bool, setType ipsets.SetType, set
 }
 
 // hasPositiveSelector reports whether any parsed selector is a positive (non-negated) match.
-// Without one, the parsed selectors match purely by negation and constrain nothing.
+// Negated selectors still filter — they exclude the addresses in their sets — but they never
+// establish cluster-namespace membership, so without a positive selector the match is not
+// scoped to namespaces and the all-namespaces intersection below is required.
 func (ps *parsedSelectors) hasPositiveSelector() bool {
 	for _, ls := range ps.labelSelectors {
 		if ls.include {
