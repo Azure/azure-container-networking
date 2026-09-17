@@ -74,9 +74,6 @@ type PutNetworkContainerRequest struct {
 
 	// AZREnabled denotes whether AZR is enabled for network container or not
 	AZREnabled bool
-
-	// UseRNCPublisher denotes whether NC should be published via RNC (used for auth)
-	UseRNCPublisher bool
 }
 
 type internalNC struct {
@@ -86,29 +83,27 @@ type internalNC struct {
 	Version string `json:"version"`
 
 	// The rest of these are copied verbatim from the above struct and should be kept in sync.
-	VNetID          string   `json:"virtualNetworkId"`
-	SubnetName      string   `json:"subnetName"`
-	IPv4Addrs       []string `json:"ipV4Addresses"`
-	Policies        []Policy `json:"policies"`
-	VlanID          int      `json:"vlanId"`
-	GREKey          uint16   `json:"greKey"`
-	AzID            uint     `json:"azID"`
-	AZREnabled      bool     `json:"azrEnabled"`
-	UseRNCPublisher bool     `json:"useRNCPublisher"`
+	VNetID     string   `json:"virtualNetworkId"`
+	SubnetName string   `json:"subnetName"`
+	IPv4Addrs  []string `json:"ipV4Addresses"`
+	Policies   []Policy `json:"policies"`
+	VlanID     int      `json:"vlanId"`
+	GREKey     uint16   `json:"greKey"`
+	AzID       uint     `json:"azID"`
+	AZREnabled bool     `json:"azrEnabled"`
 }
 
 func (p *PutNetworkContainerRequest) MarshalJSON() ([]byte, error) {
 	pBody := internalNC{
-		Version:         strconv.FormatUint(p.Version, 10),
-		VNetID:          p.VNetID,
-		SubnetName:      p.SubnetName,
-		IPv4Addrs:       p.IPv4Addrs,
-		Policies:        p.Policies,
-		VlanID:          p.VlanID,
-		GREKey:          p.GREKey,
-		AzID:            p.AzID,
-		AZREnabled:      p.AZREnabled,
-		UseRNCPublisher: p.UseRNCPublisher,
+		Version:    strconv.FormatUint(p.Version, 10),
+		VNetID:     p.VNetID,
+		SubnetName: p.SubnetName,
+		IPv4Addrs:  p.IPv4Addrs,
+		Policies:   p.Policies,
+		VlanID:     p.VlanID,
+		GREKey:     p.GREKey,
+		AzID:       p.AzID,
+		AZREnabled: p.AZREnabled,
 	}
 
 	body, err := json.Marshal(pBody)
@@ -140,7 +135,6 @@ func (p *PutNetworkContainerRequest) UnmarshalJSON(in []byte) error {
 	p.GREKey = req.GREKey
 	p.AzID = req.AzID
 	p.AZREnabled = req.AZREnabled
-	p.UseRNCPublisher = req.UseRNCPublisher
 
 	return nil
 }
