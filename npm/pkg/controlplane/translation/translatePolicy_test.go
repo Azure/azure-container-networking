@@ -1346,7 +1346,7 @@ func TestNameSpaceSelectorNegationOnlyIsScopedToNamespaces(t *testing.T) {
 			name: "single-value NotIn",
 			selector: &metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{
-					{Key: "tenant", Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x"}},
+					{Key: tenantLabelKey, Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x"}},
 				},
 			},
 			expected: []policies.SetInfo{
@@ -1358,19 +1358,19 @@ func TestNameSpaceSelectorNegationOnlyIsScopedToNamespaces(t *testing.T) {
 			name: "DoesNotExist",
 			selector: &metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{
-					{Key: "tenant", Operator: metav1.LabelSelectorOpDoesNotExist},
+					{Key: tenantLabelKey, Operator: metav1.LabelSelectorOpDoesNotExist},
 				},
 			},
 			expected: []policies.SetInfo{
 				policies.NewSetInfo(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace, included, matchType),
-				policies.NewSetInfo("tenant", ipsets.KeyLabelOfNamespace, nonIncluded, matchType),
+				policies.NewSetInfo(tenantLabelKey, ipsets.KeyLabelOfNamespace, nonIncluded, matchType),
 			},
 		},
 		{
 			name: "NotIn and DoesNotExist together",
 			selector: &metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{
-					{Key: "tenant", Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x"}},
+					{Key: tenantLabelKey, Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x"}},
 					{Key: "team", Operator: metav1.LabelSelectorOpDoesNotExist},
 				},
 			},
@@ -1383,7 +1383,6 @@ func TestNameSpaceSelectorNegationOnlyIsScopedToNamespaces(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			nsSelectorIPSets, nsSelectorList := nameSpaceSelector(matchType, tt.selector)
 			require.ElementsMatch(t, tt.expected, nsSelectorList)
@@ -1416,7 +1415,7 @@ func TestNameSpaceSelectorWithPositiveMatchIsUnchanged(t *testing.T) {
 			selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{"team": "blue"},
 				MatchExpressions: []metav1.LabelSelectorRequirement{
-					{Key: "tenant", Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x"}},
+					{Key: tenantLabelKey, Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x"}},
 				},
 			},
 			expected: []policies.SetInfo{
@@ -1429,7 +1428,7 @@ func TestNameSpaceSelectorWithPositiveMatchIsUnchanged(t *testing.T) {
 			selector: &metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{
 					{Key: "team", Operator: metav1.LabelSelectorOpExists},
-					{Key: "tenant", Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x"}},
+					{Key: tenantLabelKey, Operator: metav1.LabelSelectorOpNotIn, Values: []string{"x"}},
 				},
 			},
 			expected: []policies.SetInfo{
@@ -1447,7 +1446,6 @@ func TestNameSpaceSelectorWithPositiveMatchIsUnchanged(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			_, nsSelectorList := nameSpaceSelector(matchType, tt.selector)
 			require.ElementsMatch(t, tt.expected, nsSelectorList)
@@ -1491,11 +1489,10 @@ func TestTranslatePolicyNegationOnlyNamespaceSelector(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			pol := nsNotInPolicy("victim", "default", "tenant", tt.direction, nil, "x")
+			pol := nsNotInPolicy("victim", "default", tenantLabelKey, tt.direction, nil, "x")
 			npmNetPol, err := TranslatePolicy(pol, false)
 			require.NoError(t, err)
 
