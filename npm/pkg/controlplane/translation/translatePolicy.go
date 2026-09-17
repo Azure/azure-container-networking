@@ -25,8 +25,9 @@ var (
 	errUnknownPortType = errors.New("unknown port Type")
 	// ErrUnsupportedNamedPort is returned when named port translation feature is used in windows.
 	ErrUnsupportedNamedPort = errors.New("unsupported namedport translation features used on windows")
-	// ErrUnsupportedNegativeMatch is returned when negative match translation feature is used in windows.
-	ErrUnsupportedNegativeMatch = errors.New("unsupported NotExist operator translation features used on windows")
+	// ErrUnsupportedNegativeMatch is returned when a negative match operator (NotIn or
+	// DoesNotExist) is used on the Windows dataplane, which cannot represent a negated set.
+	ErrUnsupportedNegativeMatch = errors.New("unsupported negative match operator (NotIn or DoesNotExist) used on windows")
 	// ErrUnsupportedExceptCIDR is returned when Except CIDR block translation feature is used in windows.
 	ErrUnsupportedExceptCIDR = errors.New("unsupported Except CIDR block translation features used on windows")
 	// ErrUnsupportedSCTP is returned when SCTP protocol is used in windows.
@@ -35,6 +36,18 @@ var (
 	ErrInvalidMatchExpressionValues = errors.New(
 		"matchExpression label values must be an empty string or consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character",
 	)
+	// ErrEmptyMatchExpressionValues is returned when an In or NotIn matchExpression carries no values.
+	// Kubernetes rejects such requirements; NPM fails closed rather than dropping the requirement,
+	// which could otherwise widen a selector (e.g. a dropped NotIn) or yield no rules at all.
+	ErrEmptyMatchExpressionValues = errors.New("matchExpression requirements with In or NotIn must have at least one value")
+	// ErrValuesWithExistsOperator is returned when an Exists or DoesNotExist matchExpression carries
+	// values. Kubernetes requires those operators to have no values; NPM fails closed rather than
+	// translating the requirement as a valid key condition while ignoring the supplied values.
+	ErrValuesWithExistsOperator = errors.New("matchExpression requirements with Exists or DoesNotExist must have no values")
+	// ErrUnsupportedMatchExpressionOperator is returned when a matchExpression uses an operator that is
+	// none of In, NotIn, Exists or DoesNotExist. NPM fails closed rather than dropping the requirement,
+	// which could otherwise silently widen the selector.
+	ErrUnsupportedMatchExpressionOperator = errors.New("unsupported matchExpression operator")
 	// ErrUnsupportedIPAddress is returned when an unsupported IP address, such as IPV6, is used
 	ErrUnsupportedIPAddress = errors.New("unsupported IP address")
 	// ErrUnsupportedNonCIDR is returned when non-CIDR blocks are passed in with NPM Lite enabled. NPM Lite allows deny-all and allow-all policies
@@ -518,6 +531,13 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy,
 		// if there is no PodSelector or NamespaceSelector in peer, no need to run the rest of codes.
 		if peer.PodSelector == nil && peer.NamespaceSelector == nil {
 			continue
+		}
+
+		// A negative namespaceSelector requirement has no Windows dataplane representation.
+		// Reject it during translation, before any dataplane change, so an update cannot tear
+		// down a working policy and only then fail to add its replacement. No-op on Linux.
+		if err := rejectUnsupportedWindowsNSSelector(peer.NamespaceSelector); err != nil {
+			return err
 		}
 
 		// #2.2 handle nameSpaceSelector and port if exist
