@@ -965,6 +965,11 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 		useRNCPublisher = true
 	}
 
+	if useRNCPublisher && req.SubnetName == "" {
+		http.Error(w, fmt.Sprintf("subnet name is required in network %s when useRNCPublisher is true", req.NetworkID), http.StatusBadRequest)
+		return
+	}
+
 	joinResp, err := service.wsproxy.JoinNetwork(ctx, req.NetworkID, useRNCPublisher) //nolint:govet // ok to shadow
 	if err != nil {
 		resp := cns.PublishNetworkContainerResponse{
@@ -1121,6 +1126,11 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 		if unpublishBody.UseRNCPublisher {
 			useRNCPublisher = true
 		}
+	}
+
+	if useRNCPublisher && req.SubnetName == "" {
+		http.Error(w, fmt.Sprintf("subnet name is required in network %s when useRNCPublisher is true", req.NetworkID), http.StatusBadRequest)
+		return
 	}
 
 	/* For AZR scenarios, if NMAgent is restarted, it loses state and does not know what VNETs to subscribe to.
