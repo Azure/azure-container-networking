@@ -1172,8 +1172,6 @@ func validateDesiredIPAddresses(desiredIPs []string) error {
 func (service *HTTPRestService) EndpointHandlerAPI(w http.ResponseWriter, r *http.Request) {
 	opName := "endpointHandler"
 	logger.Printf("[EndpointHandlerAPI] EndpointHandlerAPI received request with http Method %s", r.Method)
-	service.Lock()
-	defer service.Unlock()
 	// Check if CNS is managing the CNI statefile
 	if service.Options[common.OptManageEndpointState] == false {
 		response := cns.Response{
@@ -1186,6 +1184,8 @@ func (service *HTTPRestService) EndpointHandlerAPI(w http.ResponseWriter, r *htt
 	}
 	switch r.Method {
 	case http.MethodGet:
+		service.Lock()
+		defer service.Unlock()
 		service.GetEndpointHandler(w, r)
 	case http.MethodPatch:
 		service.UpdateEndpointHandler(w, r)

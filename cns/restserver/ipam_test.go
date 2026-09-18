@@ -1,14 +1,18 @@
 package restserver
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"net/netip"
 	"strconv"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
@@ -17,6 +21,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/middlewares"
 	"github.com/Azure/azure-container-networking/cns/middlewares/mock"
 	"github.com/Azure/azure-container-networking/cns/types"
+	acn "github.com/Azure/azure-container-networking/common"
 	nma "github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/pkg/errors"
@@ -412,76 +417,184 @@ func TestUpdateEndpointStateTreatsIPv4MappedAddressAsIPv4(t *testing.T) {
 	assert.Equal(t, net.IPv4len*8, bits)
 }
 
-func TestEndpointStateDirectWritesAreSerialized(t *testing.T) {
+const (
+	testUpdateEndpointID    = "update-endpoint"
+	testDeleteEndpointID    = "delete-endpoint"
+	testOldHNSEndpointID    = "old-hns-endpoint"
+	testNewHNSEndpointID    = "new-hns-endpoint"
+	testDeleteHNSEndpointID = "delete-hns-endpoint"
+)
+
+func TestEndpointHandlerAPIPatchCompletes(t *testing.T) {
 	svc := getTestService(cns.KubernetesCRD)
-	deleteEndpointID := "delete-endpoint"
-	updateEndpointID := "update-endpoint"
+	svc.Options[acn.OptManageEndpointState] = true
+	endpointID := testUpdateEndpointID
 	svc.EndpointState = map[string]*EndpointInfo{
-		deleteEndpointID: {
+		endpointID: {
 			IfnameToIPMap: map[string]*IPInfo{
-				InfraInterfaceName: {HnsEndpointID: "delete-hns-endpoint"},
-			},
-		},
-		updateEndpointID: {
-			IfnameToIPMap: map[string]*IPInfo{
-				InfraInterfaceName: {HnsEndpointID: "old-hns-endpoint"},
+				InfraInterfaceName: {HnsEndpointID: testOldHNSEndpointID},
 			},
 		},
 	}
 	require.NoError(t, svc.EndpointStateStore.Write(EndpointStoreKey, svc.EndpointState))
-	blockingStore := &blockingEndpointWriteStore{
-		KeyValueStore:     svc.EndpointStateStore,
-		firstWriteStarted: make(chan struct{}),
-		releaseFirstWrite: make(chan struct{}),
+	req := map[string]*IPInfo{
+		InfraInterfaceName: {HnsEndpointID: testNewHNSEndpointID},
 	}
-	svc.EndpointStateStore = blockingStore
+	body, err := json.Marshal(req) //nolint:musttag // request uses the existing endpoint handler contract
+	require.NoError(t, err)
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodPatch, cns.EndpointPath+endpointID, bytes.NewReader(body))
+	recorder := httptest.NewRecorder()
 
-	deleteDone := make(chan error, 1)
+	handlerDone := make(chan struct{})
 	go func() {
-		deleteDone <- svc.DeleteEndpointStateHelper(deleteEndpointID)
+		svc.EndpointHandlerAPI(recorder, request)
+		close(handlerDone)
 	}()
-	<-blockingStore.firstWriteStarted
+	requireEndpointTestSignal(t, handlerDone)
 
-	updateDone := make(chan error, 1)
+	var response cns.Response
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
+	require.Equal(t, types.Success, response.ReturnCode)
+	assert.Equal(t, testNewHNSEndpointID, svc.EndpointState[endpointID].IfnameToIPMap[InfraInterfaceName].HnsEndpointID)
+}
+
+func TestEndpointHandlerAPIDeleteCompletes(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	svc.Options[acn.OptManageEndpointState] = true
+	endpointID := testDeleteEndpointID
+	svc.EndpointState = map[string]*EndpointInfo{
+		endpointID: {
+			IfnameToIPMap: map[string]*IPInfo{
+				InfraInterfaceName: {HnsEndpointID: testDeleteHNSEndpointID},
+			},
+		},
+	}
+	require.NoError(t, svc.EndpointStateStore.Write(EndpointStoreKey, svc.EndpointState))
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, cns.EndpointPath+endpointID, http.NoBody)
+	recorder := httptest.NewRecorder()
+
+	handlerDone := make(chan struct{})
 	go func() {
-		updateDone <- svc.UpdateEndpointHelper(updateEndpointID, map[string]*IPInfo{
-			InfraInterfaceName: {HnsEndpointID: "new-hns-endpoint"},
+		svc.EndpointHandlerAPI(recorder, request)
+		close(handlerDone)
+	}()
+	requireEndpointTestSignal(t, handlerDone)
+
+	var response cns.Response
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
+	require.Equal(t, types.Success, response.ReturnCode)
+	assert.NotContains(t, svc.EndpointState, endpointID)
+}
+
+func TestEndpointStateDirectWritesAreSerialized(t *testing.T) {
+	tests := []struct {
+		name      string
+		firstCall func(*HTTPRestService) error
+		nextCall  func(*HTTPRestService) error
+	}{
+		{
+			name: "delete blocks update",
+			firstCall: func(svc *HTTPRestService) error {
+				return svc.DeleteEndpointStateHelper(testDeleteEndpointID)
+			},
+			nextCall: func(svc *HTTPRestService) error {
+				return svc.UpdateEndpointHelper(testUpdateEndpointID, map[string]*IPInfo{
+					InfraInterfaceName: {HnsEndpointID: testNewHNSEndpointID},
+				})
+			},
+		},
+		{
+			name: "update blocks delete",
+			firstCall: func(svc *HTTPRestService) error {
+				return svc.UpdateEndpointHelper(testUpdateEndpointID, map[string]*IPInfo{
+					InfraInterfaceName: {HnsEndpointID: testNewHNSEndpointID},
+				})
+			},
+			nextCall: func(svc *HTTPRestService) error {
+				return svc.DeleteEndpointStateHelper(testDeleteEndpointID)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := getTestService(cns.KubernetesCRD)
+			svc.EndpointState = map[string]*EndpointInfo{
+				testDeleteEndpointID: {
+					IfnameToIPMap: map[string]*IPInfo{
+						InfraInterfaceName: {HnsEndpointID: testDeleteHNSEndpointID},
+					},
+				},
+				testUpdateEndpointID: {
+					IfnameToIPMap: map[string]*IPInfo{
+						InfraInterfaceName: {HnsEndpointID: testOldHNSEndpointID},
+					},
+				},
+			}
+			require.NoError(t, svc.EndpointStateStore.Write(EndpointStoreKey, svc.EndpointState))
+			blockingStore := &blockingEndpointWriteStore{
+				KeyValueStore:     svc.EndpointStateStore,
+				firstWriteStarted: make(chan struct{}),
+				nextWriteStarted:  make(chan struct{}),
+				releaseFirstWrite: make(chan struct{}),
+			}
+			svc.EndpointStateStore = blockingStore
+
+			firstDone := make(chan error, 1)
+			go func() {
+				firstDone <- tt.firstCall(svc)
+			}()
+			requireEndpointTestSignal(t, blockingStore.firstWriteStarted)
+
+			lockHeld := !svc.TryLock()
+			if !lockHeld {
+				svc.Unlock()
+			}
+
+			nextCallStarted := make(chan struct{})
+			nextDone := make(chan error, 1)
+			go func() {
+				close(nextCallStarted)
+				nextDone <- tt.nextCall(svc)
+			}()
+			requireEndpointTestSignal(t, nextCallStarted)
+
+			nextReachedStore := false
+			select {
+			case <-blockingStore.nextWriteStarted:
+				nextReachedStore = true
+			default:
+			}
+
+			close(blockingStore.releaseFirstWrite)
+			require.NoError(t, requireEndpointTestResult(t, firstDone))
+			require.NoError(t, requireEndpointTestResult(t, nextDone))
+
+			require.True(t, lockHeld, "first endpoint-state helper did not hold the service lock")
+			require.False(t, nextReachedStore, "next endpoint-state helper reached the store while the first write was blocked")
+			assert.NotContains(t, svc.EndpointState, testDeleteEndpointID)
+			assert.Equal(t, testNewHNSEndpointID, svc.EndpointState[testUpdateEndpointID].IfnameToIPMap[InfraInterfaceName].HnsEndpointID)
+			var persisted map[string]*EndpointInfo
+			require.NoError(t, svc.EndpointStateStore.Read(EndpointStoreKey, &persisted))
+			assert.NotContains(t, persisted, testDeleteEndpointID)
+			assert.Equal(t, testNewHNSEndpointID, persisted[testUpdateEndpointID].IfnameToIPMap[InfraInterfaceName].HnsEndpointID)
 		})
-	}()
-
-	lockHeld := !svc.TryLock()
-	if !lockHeld {
-		svc.Unlock()
-		require.NoError(t, <-updateDone)
 	}
-	close(blockingStore.releaseFirstWrite)
-	require.NoError(t, <-deleteDone)
-	if lockHeld {
-		require.NoError(t, <-updateDone)
-	}
-
-	require.True(t, lockHeld, "direct endpoint-state write did not hold the service lock")
-	assert.NotContains(t, svc.EndpointState, deleteEndpointID)
-	assert.Equal(t, "new-hns-endpoint", svc.EndpointState[updateEndpointID].IfnameToIPMap[InfraInterfaceName].HnsEndpointID)
-	var persisted map[string]*EndpointInfo
-	require.NoError(t, svc.EndpointStateStore.Read(EndpointStoreKey, &persisted))
-	assert.NotContains(t, persisted, deleteEndpointID)
-	assert.Equal(t, "new-hns-endpoint", persisted[updateEndpointID].IfnameToIPMap[InfraInterfaceName].HnsEndpointID)
 }
 
 func TestEndpointStateUntransactedWritesUseCallerLock(t *testing.T) {
 	svc := getTestService(cns.KubernetesCRD)
-	deleteEndpointID := "delete-endpoint"
-	updateEndpointID := "update-endpoint"
+	deleteEndpointID := testDeleteEndpointID
+	updateEndpointID := testUpdateEndpointID
 	svc.EndpointState = map[string]*EndpointInfo{
 		deleteEndpointID: {
 			IfnameToIPMap: map[string]*IPInfo{
-				InfraInterfaceName: {HnsEndpointID: "delete-hns-endpoint"},
+				InfraInterfaceName: {HnsEndpointID: testDeleteHNSEndpointID},
 			},
 		},
 		updateEndpointID: {
 			IfnameToIPMap: map[string]*IPInfo{
-				InfraInterfaceName: {HnsEndpointID: "old-hns-endpoint"},
+				InfraInterfaceName: {HnsEndpointID: testOldHNSEndpointID},
 			},
 		},
 	}
@@ -502,21 +615,21 @@ func TestEndpointStateUntransactedWritesUseCallerLock(t *testing.T) {
 			return
 		}
 		writeDone <- svc.updateEndpointUntransacted(updateEndpointID, map[string]*IPInfo{
-			InfraInterfaceName: {HnsEndpointID: "new-hns-endpoint"},
+			InfraInterfaceName: {HnsEndpointID: testNewHNSEndpointID},
 		})
 	}()
-	<-blockingStore.firstWriteStarted
+	requireEndpointTestSignal(t, blockingStore.firstWriteStarted)
 
 	lockHeld := !svc.TryLock()
 	if !lockHeld {
 		svc.Unlock()
 	}
 	close(blockingStore.releaseFirstWrite)
-	require.NoError(t, <-writeDone)
+	require.NoError(t, requireEndpointTestResult(t, writeDone))
 
 	require.True(t, lockHeld, "untransacted endpoint-state write did not use the caller lock")
 	assert.NotContains(t, svc.EndpointState, deleteEndpointID)
-	assert.Equal(t, "new-hns-endpoint", svc.EndpointState[updateEndpointID].IfnameToIPMap[InfraInterfaceName].HnsEndpointID)
+	assert.Equal(t, testNewHNSEndpointID, svc.EndpointState[updateEndpointID].IfnameToIPMap[InfraInterfaceName].HnsEndpointID)
 }
 
 type endpointWriteCountingStore struct {
@@ -548,19 +661,53 @@ func (s endpointWriteFailStore) Write(string, interface{}) error {
 type blockingEndpointWriteStore struct {
 	store.KeyValueStore
 	firstWriteStarted chan struct{}
+	nextWriteStarted  chan struct{}
 	releaseFirstWrite chan struct{}
 	endpointWrites    atomic.Int32
 }
 
 func (s *blockingEndpointWriteStore) Write(key string, value interface{}) error {
-	if key == EndpointStoreKey && s.endpointWrites.Add(1) == 1 {
-		close(s.firstWriteStarted)
-		<-s.releaseFirstWrite
+	if key == EndpointStoreKey {
+		switch s.endpointWrites.Add(1) {
+		case 1:
+			close(s.firstWriteStarted)
+			<-s.releaseFirstWrite
+		case 2:
+			if s.nextWriteStarted != nil {
+				close(s.nextWriteStarted)
+			}
+		}
 	}
 	if err := s.KeyValueStore.Write(key, value); err != nil {
 		return fmt.Errorf("writing key %q: %w", key, err)
 	}
 	return nil
+}
+
+const endpointTestTimeout = 5 * time.Second
+
+func requireEndpointTestSignal(t *testing.T, signal <-chan struct{}) {
+	t.Helper()
+	timer := time.NewTimer(endpointTestTimeout)
+	defer timer.Stop()
+	select {
+	case <-signal:
+	case <-timer.C:
+		t.Fatal("endpoint-state test timed out while waiting for a signal")
+	}
+}
+
+func requireEndpointTestResult(t *testing.T, result <-chan error) error {
+	t.Helper()
+	timer := time.NewTimer(endpointTestTimeout)
+	defer timer.Stop()
+	select {
+	case err := <-result:
+		return err
+	case <-timer.C:
+		t.Fatal("endpoint-state test timed out while waiting for an operation")
+		return nil
+	}
 }
 
 // assign the available IP to the new pod
