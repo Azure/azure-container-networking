@@ -3,6 +3,7 @@ package restserver
 import (
 	"fmt"
 	"net"
+	"net/netip"
 	"strconv"
 	"testing"
 
@@ -64,7 +65,7 @@ func BenchmarkCloneEndpointState(b *testing.B) {
 					IfnameToIPMap: map[string]*IPInfo{
 						InfraInterfaceName: {
 							IPv4: []net.IPNet{{IP: net.IP{10, 0, 0, 1}, Mask: net.CIDRMask(24, 32)}},
-							IPv6: []net.IPNet{{IP: net.IP{0x20, 1, 0xd, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}, Mask: net.CIDRMask(64, 128)}},
+							IPv6: []net.IPNet{{IP: net.IP(netip.MustParseAddr("2001:db8::1").AsSlice()), Mask: net.CIDRMask(64, 128)}},
 						},
 					},
 				}
