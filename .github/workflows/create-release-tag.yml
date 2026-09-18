@@ -203,6 +203,9 @@ jobs:
       id-token: write
     env:
       TEAMS_RELEASE_CHANNEL_ID: "19:ad6cb6596adf4850910e9be3e8a7f9ab@thread.skype"
+      TEAMS_TEAM_ID: "1eb27b57-8ace-4f0e-a9a9-e6db4e9829b7"
+      NOTIFIER_URL: https://acn-notifier-bot.azurewebsites.net
+      NOTIFIER_AUDIENCE: api://3976eca5-3f9d-4528-987f-c20c1f9f27f7
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
