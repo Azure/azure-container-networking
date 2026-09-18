@@ -590,17 +590,18 @@ When upgrading Go, verify compatibility with AKS supported Kubernetes versions:
 
 ### Working Directory (MANDATORY — read before you edit anything)
 
-**If you are the GitHub Copilot coding agent running on a GitHub Actions runner, do ALL work in `$GITHUB_WORKSPACE`. Do NOT create a git worktree.**
+**If `$GITHUB_WORKSPACE` is set, work there instead of a worktree.** Only that path is committed and pushed; edits made anywhere else are silently discarded.
 
-`agents.md` instructs local CLI sessions to work in a dedicated worktree because the local repo root is shared between concurrent sessions. That does **not** apply to you: the cloud runner is a single-session ephemeral container, and your commit/push step only sees `$GITHUB_WORKSPACE`. Work done in a worktree elsewhere on disk is **silently discarded**, producing a PR with a detailed description and zero files.
-
-This has already caused two empty PRs (#4756, #4833). Verify before you start:
+Verify before you start, and run every later command from there:
 
 ```bash
-cd "$GITHUB_WORKSPACE" && pwd && git rev-parse --show-toplevel
+set -euo pipefail
+: "${GITHUB_WORKSPACE:?not set — do not fall back to \$HOME}"
+cd "$GITHUB_WORKSPACE"
+[ "$(git rev-parse --show-toplevel)" = "$PWD" ] || {
+  echo "FATAL: $PWD is not the git toplevel"; exit 1
+}
 ```
-
-Both must print the same path, and every later command must run from there.
 
 ### Pre-Submit Cleanup (MANDATORY)
 
@@ -632,7 +633,13 @@ done
 **Never write a PR description describing changes you have not committed.** Before your final `report_progress` / PR update, prove the branch is non-empty:
 
 ```bash
+set -euo pipefail
+: "${GITHUB_WORKSPACE:?not set — do not fall back to \$HOME}"
 cd "$GITHUB_WORKSPACE"
+[ "$(git rev-parse --show-toplevel)" = "$PWD" ] || {
+  echo "FATAL: $PWD is not the git toplevel"; exit 1
+}
+
 git status --short
 git diff --stat origin/master...HEAD
 

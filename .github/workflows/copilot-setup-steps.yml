@@ -36,15 +36,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          # The coding agent has twice done all its work inside a git worktree
-          # outside $GITHUB_WORKSPACE (#4756, #4833). Only $GITHUB_WORKSPACE is
-          # committed and pushed, so that work was silently discarded and the PR
-          # landed with zero files.
-          #
-          # agents.md tells local CLI sessions to use a worktree, which is
-          # correct there (one clone shared by concurrent sessions) and wrong
-          # here. Instructions alone did not reliably stop it, so this removes
-          # the capability rather than asking.
+          # Only $GITHUB_WORKSPACE is committed and pushed, so work done in a
+          # worktree elsewhere on disk is silently discarded. Instructions alone
+          # do not reliably prevent this, so remove the capability.
           #
           # /usr/local/bin precedes /usr/bin in PATH, so this shim intercepts
           # every PATH-resolved `git` for the rest of the job, including the

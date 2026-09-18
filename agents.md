@@ -110,14 +110,9 @@ code.
 
 ## 6. PR Workflow
 
-> **Exception — GitHub Copilot coding agent (cloud):** if you are running as the
-> Copilot coding agent on a GitHub Actions runner (i.e. `$GITHUB_ACTIONS` is
-> `true` and the repo is checked out at `$GITHUB_WORKSPACE`), **do NOT create a
-> worktree.** Do all work directly in `$GITHUB_WORKSPACE`. That environment is a
-> single-session ephemeral container, so there is nothing to collide with, and
-> the agent's commit/push step only ever sees `$GITHUB_WORKSPACE` — work done in
-> a worktree elsewhere on disk is silently discarded and produces an empty PR.
-> The rest of this section applies to local Copilot CLI sessions only.
+> **Exception:** if `$GITHUB_WORKSPACE` is set, work there instead of a
+> worktree — only that path is committed and pushed, so edits made anywhere else
+> are silently discarded. The rest of this section applies to local sessions.
 
 **All local agent work MUST happen in a dedicated git worktree, never in the shared repo root.** The repo root is shared across concurrent agent sessions; mutating it causes parallel branches, working trees, and build artifacts (`output/`, `bin/`) to collide. From the repo root, create a worktree under the active session folder before touching files:
 
