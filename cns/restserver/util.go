@@ -100,24 +100,22 @@ func (service *HTTPRestService) saveState() error {
 func (service *HTTPRestService) restoreState() error {
 	logger.Printf("[Azure CNS] restoreState")
 
-	// Skip if a store is not provided.
 	if service.store == nil {
 		logger.Printf("[Azure CNS]  store not initialized.")
-		return nil
-	}
-
-	// Read any persisted state.
-	err := service.store.Read(storeKey, &service.state)
-	if err != nil {
-		if err == store.ErrKeyNotFound {
-			// Nothing to restore.
-			logger.Printf("[Azure CNS]  No state to restore.\n")
-		} else {
-			logger.Errorf("[Azure CNS]  Failed to restore state, err:%v. Removing azure-cns.json", err)
-			service.store.Remove()
-		}
 	} else {
-		logger.Printf("[Azure CNS]  Restored state, %+v\n", service.state) //nolint:staticcheck // TODO: migrate to zap
+		// Read any persisted state.
+		err := service.store.Read(storeKey, &service.state)
+		if err != nil {
+			if errors.Is(err, store.ErrKeyNotFound) {
+				// Nothing to restore.
+				logger.Printf("[Azure CNS]  No state to restore.\n") //nolint:staticcheck // TODO: migrate to zap
+			} else {
+				logger.Errorf("[Azure CNS]  Failed to restore state, err:%v. Removing azure-cns.json", err) //nolint:staticcheck // TODO: migrate to zap
+				service.store.Remove()
+			}
+		} else {
+			logger.Printf("[Azure CNS]  Restored state, %+v\n", service.state) //nolint:staticcheck // TODO: migrate to zap
+		}
 	}
 
 	if service.Options[acn.OptManageEndpointState] == true {

@@ -123,6 +123,7 @@ func TestContainsNC(t *testing.T) {
 func TestRestoreState(t *testing.T) {
 	tests := []struct {
 		name                 string
+		nilMainStore         bool
 		writeMainState       bool
 		manageEndpointState  bool
 		nilEndpointStore     bool
@@ -131,6 +132,12 @@ func TestRestoreState(t *testing.T) {
 	}{
 		{
 			name:                 "endpoint state restored when main state read fails",
+			manageEndpointState:  true,
+			wantEndpointRestored: true,
+		},
+		{
+			name:                 "endpoint state restored when main store is nil",
+			nilMainStore:         true,
 			manageEndpointState:  true,
 			wantEndpointRestored: true,
 		},
@@ -154,7 +161,10 @@ func TestRestoreState(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mainStore := store.NewMockStore("")
+			var mainStore store.KeyValueStore
+			if !tt.nilMainStore {
+				mainStore = store.NewMockStore("")
+			}
 			if tt.writeMainState {
 				require.NoError(t, mainStore.Write(storeKey, &httpRestServiceState{}))
 			}

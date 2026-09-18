@@ -333,6 +333,63 @@ func TestUpdateEndpointStateWritesMultiIPStateOnce(t *testing.T) {
 	require.Len(t, ipInfo.IPv6, 1)
 }
 
+func TestUpdateEndpointStatePersistsLaterIPWhenFirstIPExists(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	req := cns.IPConfigsRequest{
+		InfraContainerID: testPod1Info.InfraContainerID(),
+		Ifname:           "eth0",
+	}
+	require.NoError(t, svc.updateEndpointState(req, testPod1Info, []cns.PodIpInfo{
+		{PodIPConfig: cns.IPSubnet{IPAddress: testIP1, PrefixLength: ipPrefixBitsv4}},
+	}))
+
+	countingStore := &endpointWriteCountingStore{KeyValueStore: svc.EndpointStateStore}
+	svc.EndpointStateStore = countingStore
+	podIPInfo := []cns.PodIpInfo{
+		{PodIPConfig: cns.IPSubnet{IPAddress: testIP1, PrefixLength: ipPrefixBitsv4}},
+		{PodIPConfig: cns.IPSubnet{IPAddress: testIP1v6, PrefixLength: ipPrefixBitsv6}},
+	}
+
+	err := svc.updateEndpointState(req, testPod1Info, podIPInfo)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, countingStore.endpointWrites)
+	ipInfo := svc.EndpointState[testPod1Info.InfraContainerID()].IfnameToIPMap[req.Ifname]
+	require.Len(t, ipInfo.IPv4, 1)
+	require.Len(t, ipInfo.IPv6, 1)
+	var persisted map[string]*EndpointInfo
+	require.NoError(t, svc.EndpointStateStore.Read(EndpointStoreKey, &persisted))
+	persistedIPInfo := persisted[testPod1Info.InfraContainerID()].IfnameToIPMap[req.Ifname]
+	require.Len(t, persistedIPInfo.IPv4, 1)
+	require.Len(t, persistedIPInfo.IPv6, 1)
+}
+
+func TestUpdateEndpointStateDoesNotChangeStateWhenWriteFails(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	endpointStore := svc.EndpointStateStore
+	req := cns.IPConfigsRequest{
+		InfraContainerID: testPod1Info.InfraContainerID(),
+		Ifname:           "eth0",
+	}
+	require.NoError(t, svc.updateEndpointState(req, testPod1Info, []cns.PodIpInfo{
+		{PodIPConfig: cns.IPSubnet{IPAddress: testIP1, PrefixLength: ipPrefixBitsv4}},
+	}))
+	wantEndpointState := cloneEndpointState(svc.EndpointState)
+	var wantPersistedState map[string]*EndpointInfo
+	require.NoError(t, endpointStore.Read(EndpointStoreKey, &wantPersistedState))
+
+	svc.EndpointStateStore = endpointWriteFailStore{KeyValueStore: endpointStore, err: errForcedEndpointStateWrite}
+	err := svc.updateEndpointState(req, testPod1Info, []cns.PodIpInfo{
+		{PodIPConfig: cns.IPSubnet{IPAddress: testIP1v6, PrefixLength: ipPrefixBitsv6}},
+	})
+
+	require.ErrorIs(t, err, errForcedEndpointStateWrite)
+	require.Equal(t, wantEndpointState, svc.EndpointState)
+	var gotPersistedState map[string]*EndpointInfo
+	require.NoError(t, endpointStore.Read(EndpointStoreKey, &gotPersistedState))
+	require.Equal(t, wantPersistedState, gotPersistedState)
+}
+
 type endpointWriteCountingStore struct {
 	store.KeyValueStore
 	endpointWrites int
@@ -346,6 +403,17 @@ func (s *endpointWriteCountingStore) Write(key string, value interface{}) error 
 		return fmt.Errorf("writing key %q: %w", key, err)
 	}
 	return nil
+}
+
+var errForcedEndpointStateWrite = errors.New("forced endpoint state write failure")
+
+type endpointWriteFailStore struct {
+	store.KeyValueStore
+	err error
+}
+
+func (s endpointWriteFailStore) Write(string, interface{}) error {
+	return s.err
 }
 
 // assign the available IP to the new pod

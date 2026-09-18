@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testEndpointMACAddress = "00:11:22:33:44:55"
+
 func TestCloneEndpointState(t *testing.T) {
 	t.Parallel()
 	state := map[string]*EndpointInfo{
@@ -25,7 +27,7 @@ func TestCloneEndpointState(t *testing.T) {
 					HnsEndpointID:      "endpoint",
 					HnsNetworkID:       "network",
 					HostVethName:       "veth",
-					MacAddress:         "00:11:22:33:44:55",
+					MacAddress:         testEndpointMACAddress,
 					NetworkContainerID: "nc",
 					NICType:            cns.InfraNIC,
 				},
