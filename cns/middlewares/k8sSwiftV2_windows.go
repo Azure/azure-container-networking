@@ -22,6 +22,8 @@ var defaultDenyEgressPolicy policy.Policy = mustGetEndpointPolicy(cns.DirectionT
 
 var defaultDenyIngressPolicy policy.Policy = mustGetEndpointPolicy(cns.DirectionTypeIn)
 
+var errValidateIPConfigsRequest = errors.New("failed to validate IP configs request")
+
 const (
 	defaultGateway = "0.0.0.0"
 )
@@ -179,12 +181,13 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 		// Get MTPNC
 		mtpnc, respCode, message := k.getMTPNC(ctx, podInfo)
 		if respCode != types.Success {
+			err = errValidateIPConfigsRequest
 			return &cns.IPConfigsResponse{
 				Response: cns.Response{
 					ReturnCode: respCode,
 					Message:    message,
 				},
-			}, errors.New("failed to validate IP configs request")
+			}, err
 		}
 
 		//  GetDefaultDenyBool takes in mtpnc and returns the value of defaultDenyACLBool from it
