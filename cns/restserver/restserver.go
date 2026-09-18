@@ -2,6 +2,7 @@ package restserver
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -283,7 +284,9 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 		return err
 	}
 
-	service.restoreState()
+	if err = service.restoreState(); err != nil {
+		return fmt.Errorf("restoring state: %w", err)
+	}
 	err = service.restoreNetworkState()
 	if err != nil {
 		logger.Errorf("[Azure CNS]  Failed to restore network state, err:%v.", err)
