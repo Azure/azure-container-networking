@@ -3,9 +3,11 @@ package nodenetworkconfig
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/metric"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	cnstypes "github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig"
@@ -70,18 +72,40 @@ func NewReconciler(cnscli cnsClient, initializer nodenetworkconfigSink, ipampool
 
 // Reconcile is called on CRD status changes
 func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
+	start := time.Now()
+	var (
+		result    reconcile.Result
+		reconErr  error
+	)
+	defer func() {
+		// Classify the terminal disposition: success on nil error,
+		// requeue when controller-runtime asked for one, error
+		// otherwise.
+		outcome := metric.NNCReconcileResultSuccess
+		switch {
+		case reconErr != nil:
+			outcome = metric.NNCReconcileResultError
+		case result.Requeue || result.RequeueAfter > 0:
+			outcome = metric.NNCReconcileResultRequeue
+		}
+		metric.ObserveNNCReconcile(time.Since(start), outcome)
+	}()
+
 	listenersToNotify := []nodenetworkconfigSink{}
 	nnc, err := r.nnccli.Get(ctx, req.NamespacedName)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			hasNNC.Set(0)
 			logger.Printf("[cns-rc] CRD not found, ignoring %v", err)
-			return reconcile.Result{}, errors.Wrapf(client.IgnoreNotFound(err), "NodeNetworkConfig %v not found", req.NamespacedName)
+			reconErr = errors.Wrapf(client.IgnoreNotFound(err), "NodeNetworkConfig %v not found", req.NamespacedName)
+			return result, reconErr
 		}
 		logger.Errorf("[cns-rc] Error retrieving CRD from cache : %v", err)
-		return reconcile.Result{}, errors.Wrapf(err, "failed to get NodeNetworkConfig %v", req.NamespacedName)
+		reconErr = errors.Wrapf(err, "failed to get NodeNetworkConfig %v", req.NamespacedName)
+		return result, reconErr
 	}
 	hasNNC.Set(1)
+	metric.RecordFirstNNCReceived()
 	logger.Printf("[cns-rc] CRD Spec: %+v", nnc.Spec)
 
 	ipAssignments := 0
@@ -101,7 +125,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	if r.initializer != nil {
 		if err := r.initializer(nnc); err != nil {
 			logger.Errorf("[cns-rc] initializer failed during reconcile: %v", err)
-			return reconcile.Result{}, errors.Wrap(err, "initializer failed during reconcile")
+			reconErr = errors.Wrap(err, "initializer failed during reconcile")
+			return result, reconErr
 		}
 		r.initializer = nil
 	}
@@ -134,14 +159,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		if err != nil {
 			logger.Errorf("[cns-rc] failed to generate CreateNCRequest from NC: %v, assignmentMode %s", err,
 				nnc.Status.NetworkContainers[i].AssignmentMode)
-			return reconcile.Result{}, errors.Wrapf(err, "failed to generate CreateNCRequest from NC "+
+			reconErr = errors.Wrapf(err, "failed to generate CreateNCRequest from NC "+
 				"assignmentMode %s", nnc.Status.NetworkContainers[i].AssignmentMode)
+			return result, reconErr
 		}
 
 		responseCode := r.cnscli.CreateOrUpdateNetworkContainerInternal(req)
 		if err := restserver.ResponseCodeToError(responseCode); err != nil {
 			logger.Errorf("[cns-rc] Error creating or updating NC in reconcile: %v", err)
-			return reconcile.Result{}, errors.Wrap(err, "failed to create or update network container")
+			reconErr = errors.Wrap(err, "failed to create or update network container")
+			return result, reconErr
 		}
 		ipAssignments += len(req.SecondaryIPConfigs)
 	}
@@ -152,7 +179,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	// push the NNC to the registered NNC listeners.
 	for _, l := range listenersToNotify {
 		if err := l(nnc); err != nil {
-			return reconcile.Result{}, errors.Wrap(err, "nnc listener return error during update")
+			reconErr = errors.Wrap(err, "nnc listener return error during update")
+			return result, reconErr
 		}
 	}
 
@@ -161,7 +189,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		close(r.started)
 		logger.Printf("[cns-rc] CNS NNC Reconciler Started")
 	})
-	return reconcile.Result{}, nil
+	return result, nil
 }
 
 // Started blocks until the Reconciler has reconciled at least once,
