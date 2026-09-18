@@ -23,13 +23,14 @@ import (
 )
 
 var (
-	ErrStoreEmpty             = errors.New("empty endpoint state store")
-	ErrParsePodIPFailed       = errors.New("failed to parse pod's ip")
-	ErrNoNCs                  = errors.New("no NCs found in the CNS internal state")
-	ErrOptManageEndpointState = errors.New("CNS is not set to manage the endpoint state")
-	ErrEndpointStateNotFound  = errors.New("endpoint state could not be found in the statefile")
-	ErrGetAllNCResponseEmpty  = errors.New("failed to get NC responses from statefile")
-	ErrEndpointStateUpdate    = errors.New("endpoint state update failed")
+	ErrStoreEmpty                = errors.New("empty endpoint state store")
+	ErrParsePodIPFailed          = errors.New("failed to parse pod's ip")
+	ErrNoNCs                     = errors.New("no NCs found in the CNS internal state")
+	ErrOptManageEndpointState    = errors.New("CNS is not set to manage the endpoint state")
+	ErrEndpointStateNotFound     = errors.New("endpoint state could not be found in the statefile")
+	ErrGetAllNCResponseEmpty     = errors.New("failed to get NC responses from statefile")
+	ErrEndpointStateUpdate       = errors.New("endpoint state update failed")
+	errInconsistentIPConfigState = errors.New("restserver: inconsistent ip config state")
 )
 
 const (
@@ -86,6 +87,9 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 		if errors.Is(err, ErrEndpointStateUpdate) || errors.Is(err, ErrStoreEmpty) {
 			returnCode = types.UnexpectedError
 		}
+		if errors.Is(err, ErrEndpointStateUpdate) {
+			service.podsPendingIPAssignment.Pop(podInfo.Key())
+		}
 		return &cns.IPConfigsResponse{
 			Response: cns.Response{
 				ReturnCode: returnCode,
@@ -113,6 +117,9 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 }
 
 func (service *HTTPRestService) requestIPConfigsWithEndpointState(ctx context.Context, ipconfigsRequest cns.IPConfigsRequest, podInfo cns.PodInfo) ([]cns.PodIpInfo, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("ip config request canceled: %w", err)
+	}
 	if service.EndpointStateStore == nil {
 		return nil, ErrStoreEmpty
 	}
@@ -472,6 +479,9 @@ func (service *HTTPRestService) releaseIPConfigsWithEndpointState(podInfo cns.Po
 	service.Lock()
 	defer service.Unlock()
 
+	if err := service.validateIPConfigReleaseUntransacted(podInfo); err != nil {
+		return err
+	}
 	if err := service.removeEndpointStateUntransacted(podInfo); err != nil {
 		return err
 	}
@@ -859,18 +869,27 @@ func (service *HTTPRestService) releaseIPConfigs(podInfo cns.PodInfo) error {
 	return service.releaseIPConfigsUntransacted(podInfo)
 }
 
+func (service *HTTPRestService) validateIPConfigReleaseUntransacted(podInfo cns.PodInfo) error {
+	for _, ipID := range service.PodIPIDByPodInterfaceKey[podInfo.Key()] {
+		if ipID == "" {
+			continue
+		}
+		if _, exists := service.PodIPConfigState[ipID]; !exists {
+			return fmt.Errorf("ip config %q missing for pod %q: %w", ipID, podInfo.Key(), errInconsistentIPConfigState)
+		}
+	}
+	return nil
+}
+
 func (service *HTTPRestService) releaseIPConfigsUntransacted(podInfo cns.PodInfo) error {
+	if err := service.validateIPConfigReleaseUntransacted(podInfo); err != nil {
+		return err
+	}
 	ipsToBeReleased := make([]cns.IPConfigurationStatus, 0)
 	logger.Printf("[releaseIPConfigs] Releasing pod with key %s", podInfo.Key())
 	for i, ipID := range service.PodIPIDByPodInterfaceKey[podInfo.Key()] {
 		if ipID != "" {
-			if ipconfig, isExist := service.PodIPConfigState[ipID]; isExist {
-				ipsToBeReleased = append(ipsToBeReleased, ipconfig)
-			} else {
-				//nolint:goerr113 // return error
-				return fmt.Errorf("[releaseIPConfigs] Failed to get ipconfig %+v and pod info is %+v. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt",
-					ipconfig.IPAddress, podInfo)
-			}
+			ipsToBeReleased = append(ipsToBeReleased, service.PodIPConfigState[ipID])
 		} else {
 			logger.Errorf("[releaseIPConfigs] releaseIPConfigs could not find ipID at index %d for pod [%+v]", i, podInfo)
 		}

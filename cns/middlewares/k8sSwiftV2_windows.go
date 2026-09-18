@@ -162,6 +162,19 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 			}
 			return ipConfigsResp, err
 		}
+		if err != nil {
+			return ipConfigsResp, err
+		}
+
+		// If the pod is v2, release the default IP config when later middleware processing fails.
+		defer func() {
+			if err != nil {
+				_, err = failureHandler(ctx, req)
+				if err != nil {
+					logger.Errorf("failed to release default IP config : %v", err) //nolint:staticcheck // will migrate to logger/v2
+				}
+			}
+		}()
 
 		// Get MTPNC
 		mtpnc, respCode, message := k.getMTPNC(ctx, podInfo)
@@ -188,18 +201,6 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 		}
 
 		// If the pod is v2, get the infra IP configs from the handler first and then add the SWIFTv2 IP config
-		defer func() {
-			// Release the default IP config if there is an error
-			if err != nil {
-				_, err = failureHandler(ctx, req)
-				if err != nil {
-					logger.Errorf("failed to release default IP config : %v", err)
-				}
-			}
-		}()
-		if err != nil {
-			return ipConfigsResp, err
-		}
 		ipConfigResult, err := k.getIPConfig(ctx, podInfo)
 		if err != nil {
 			return &cns.IPConfigsResponse{
