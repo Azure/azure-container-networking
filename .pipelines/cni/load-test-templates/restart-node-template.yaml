@@ -14,6 +14,8 @@ steps:
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
+        set -euo pipefail
+
         clusterName=${{ parameters.clusterName }}
         region=${{ parameters.region }}
 
@@ -21,9 +23,7 @@ steps:
         make -C ./hack/aks azcfg AZCLI=az REGION=${region}
 
         echo "Restarting the nodes"
-        for val in $(az vmss list -g MC_${clusterName}_${clusterName}_${region} --query "[].name" -o tsv); do
-          make -C ./hack/aks restart-vmss AZCLI=az CLUSTER=${clusterName} REGION=${region} VMSS_NAME=$val
-        done
+        bash .pipelines/cni/load-test-templates/restart-nodes.sh
         kubectl get pods -n kube-system -owide
 
         if ! [ ${{ parameters.cni }} = 'cniv1' ]; then
@@ -36,19 +36,31 @@ steps:
         fi
 
         echo "Ensure Load-Test deployment pods are marked as ready"
-        kubectl rollout status deploy -n load-test
+        if [ ${{ parameters.os }} = 'windows' ]; then
+          deployment=win-load-test
+        else
+          deployment=load-test
+        fi
+        kubectl rollout status deployment/${deployment} -n load-test --timeout=20m
     name: "RestartNodes"
     displayName: "Restart Nodes"
 
   - ${{ if contains(parameters.os, 'windows') }}:
     - script: |
+        set -euo pipefail
+
         kubectl apply -f test/integration/manifests/load/privileged-daemonset-windows.yaml
         kubectl rollout status -n kube-system ds privileged-daemonset
 
         kubectl get pod -n kube-system -l app=privileged-daemonset,os=windows -owide
-        pods=`kubectl get pod -n kube-system -l app=privileged-daemonset,os=windows --no-headers | awk '{print $1}'`
-        for pod in $pods; do
-          kubectl exec -i -n kube-system $pod -- powershell "Restart-service kubeproxy"
+        mapfile -t pods < <(kubectl get pod -n kube-system -l app=privileged-daemonset,os=windows -o name)
+        if ((${#pods[@]} == 0)); then
+          echo "no privileged Windows pods found" >&2
+          exit 1
+        fi
+        for pod in "${pods[@]}"; do
+          kubectl exec -i -n kube-system "${pod#pod/}" -- powershell.exe -NoProfile -NonInteractive -Command \
+            '$ErrorActionPreference = "Stop"; Restart-Service kubeproxy -ErrorAction Stop; $service = Get-Service kubeproxy -ErrorAction Stop; if ($service.Status -ne "Running") { throw "kubeproxy is not running" }'
         done
       name: kubeproxy
       displayName: Restart Kubeproxy on Windows nodes

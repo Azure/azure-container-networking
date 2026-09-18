@@ -14,13 +14,13 @@ import (
 )
 
 var privilegedDaemonSetPathMap = map[string]string{
-	"windows": "../manifests/load/privileged-daemonset-windows.yaml",
-	"linux":   "../manifests/load/privileged-daemonset.yaml",
+	windowsOS: "../manifests/load/privileged-daemonset-windows.yaml",
+	linuxOS:   "../manifests/load/privileged-daemonset.yaml",
 }
 
 var nodeSelectorMap = map[string]string{
-	"windows": "kubernetes.io/os=windows",
-	"linux":   "kubernetes.io/os=linux",
+	windowsOS: "kubernetes.io/os=windows",
+	linuxOS:   "kubernetes.io/os=linux",
 }
 
 // IPv4 overlay Linux and windows nodes must have this label
@@ -35,6 +35,8 @@ var dualstackOverlayNodeLabels = map[string]string{
 }
 
 const (
+	windowsOS                = "windows"
+	linuxOS                  = "linux"
 	privilegedLabelSelector  = "app=privileged-daemonset"
 	privilegedNamespace      = "kube-system"
 	IPv4ExpectedIPCount      = 1
@@ -76,13 +78,15 @@ func CreateValidator(ctx context.Context, clientset *kubernetes.Clientset, confi
 
 	var checks []check
 	switch os {
-	case "windows":
+	case windowsOS:
 		checks = windowsChecksMap[cni]
-		err := acnk8s.RestartKubeProxyService(ctx, clientset, privilegedNamespace, privilegedLabelSelector, config)
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to restart kubeproxy")
+		if !restartCase {
+			err := acnk8s.RestartKubeProxyService(ctx, clientset, privilegedNamespace, privilegedLabelSelector, config)
+			if err != nil {
+				return nil, errors.Wrapf(err, "failed to restart kubeproxy")
+			}
 		}
-	case "linux":
+	case linuxOS:
 		checks = linuxChecksMap[cni]
 	default:
 		return nil, errors.Errorf("unsupported os: %s", os)
@@ -98,6 +102,10 @@ func CreateValidator(ctx context.Context, clientset *kubernetes.Clientset, confi
 		os:                os,
 		poolLabelSelector: poolLabelSelector,
 	}, nil
+}
+
+func canSkipEmptyRestartState(os string, restartCase bool) bool {
+	return restartCase && os != windowsOS
 }
 
 // nodeSelector returns the label selector used to pick candidate nodes. It
@@ -119,7 +127,7 @@ func (v *Validator) Validate(ctx context.Context) error {
 		return errors.Wrapf(err, "failed to validate state file")
 	}
 
-	if v.os == "linux" {
+	if v.os == linuxOS {
 		// We are restarting the systmemd network and checking that the connectivity works after the restart. For more details: https://github.com/cilium/cilium/issues/18706
 		log.Printf("Validating the restart network scenario")
 		err = v.validateRestartNetwork(ctx)
@@ -168,7 +176,7 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 			if err != nil {
 				return false, errors.Wrapf(err, "failed to get pod ips from state file on node %v", node.Name)
 			}
-			if len(filePodIps) == 0 && v.restartCase {
+			if len(filePodIps) == 0 && canSkipEmptyRestartState(v.os, v.restartCase) {
 				log.Printf("No pods found on node %s", node.Name)
 				return true, nil
 			}
@@ -278,7 +286,7 @@ func (v *Validator) ValidateV4OverlayControlPlane(ctx context.Context) error {
 		return errors.Wrap(err, "failed to validate IPv4 overlay node properties")
 	}
 
-	if v.os == "windows" {
+	if v.os == windowsOS {
 		if err := validateHNSNetworkState(ctx, nodes, v.clientset, v.config); err != nil {
 			return errors.Wrap(err, "failed to validate IPv4 overlay HNS network state")
 		}
@@ -297,7 +305,7 @@ func (v *Validator) ValidateDualStackControlPlane(ctx context.Context) error {
 		return errors.Wrap(err, "failed to validate dualstack overlay node properties")
 	}
 
-	if v.os == "windows" {
+	if v.os == windowsOS {
 		if err := validateHNSNetworkState(ctx, nodes, v.clientset, v.config); err != nil {
 			return errors.Wrap(err, "failed to validate dualstack overlay HNS network state")
 		}
