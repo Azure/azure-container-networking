@@ -43,6 +43,7 @@ const (
 	requestPercent      = 100
 	batchSize           = 10
 	initPoolSize        = 10
+	ncIDMismatchTestIP  = "10.0.0.6"
 	ncID                = "6a07155a-32d7-49af-872f-1e70ee366dc0"
 	imdsNCID            = "6a07155a-32d7-49af-872f-1e70ee36imds"
 )
@@ -56,6 +57,28 @@ func TestCreateOrUpdateNetworkContainerInternal(t *testing.T) {
 	setOrchestratorTypeInternal(cns.KubernetesCRD)
 	// NC version set as -1 which is the same as default host version value.
 	validateCreateOrUpdateNCInternal(t, 2, "-1")
+}
+
+func TestCreateOrUpdateNetworkContainerInternalDetectsNCIDMismatch(t *testing.T) {
+	restartService()
+	setEnv(t)
+	setOrchestratorTypeInternal(cns.KubernetesCRD)
+
+	existingNCID := "existing-nc"
+	newNCID := "new-nc"
+	ipID := "ip-1"
+	ipAddress := ncIDMismatchTestIP
+
+	svc.PodIPConfigState[ipID] = newPodState(ipAddress, ipID, existingNCID, types.Available, 0)
+
+	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{
+		ipID: newSecondaryIPConfig(ipAddress, 0),
+	}
+
+	req := generateNetworkContainerRequest(secondaryIPConfigs, newNCID, "0")
+	returnCode := svc.CreateOrUpdateNetworkContainerInternal(req)
+
+	assert.Equal(t, types.InconsistentIPConfigState, returnCode)
 }
 
 // TestReconcileNCStatePrimaryIPChangeShouldFail tests that reconciling NC state with
