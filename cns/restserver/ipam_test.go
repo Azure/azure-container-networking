@@ -779,6 +779,76 @@ func TestRepeatedReleaseDoesNotExtendDeleteIntentLifetime(t *testing.T) {
 	require.True(t, first.Equal(second), "repeated delete must not extend the intent TTL: %s != %s", first, second)
 }
 
+func TestRecordEndpointDeleteIntentPrunesOnlyCompletedExpiredIntents(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	enableManagedEndpointState(svc)
+	now := time.Date(2026, time.September, 18, 12, 0, 0, 0, time.UTC)
+	expiredAt := now.Add(-endpointDeleteIntentTTL - time.Minute)
+	activeAt := now.Add(-time.Minute)
+	exactContainerID := "exact-container"
+	legacyContainerID := "87654321-abcd-abcd-abcd-abcdef012345"
+	legacyEndpointID := "87654321-eth0"
+	activeContainerID := "active-container"
+	completedContainerID := "completed-container"
+	newContainerID := "new-container"
+
+	svc.EndpointState = map[string]*EndpointInfo{
+		exactContainerID: {PodName: "exact"},
+		legacyEndpointID: {PodName: "legacy"},
+	}
+	svc.EndpointDeleteIntents = map[string]EndpointDeleteIntent{
+		exactContainerID:     {CreatedAt: expiredAt},
+		legacyContainerID:    {CreatedAt: expiredAt},
+		activeContainerID:    {CreatedAt: activeAt},
+		completedContainerID: {CreatedAt: expiredAt},
+	}
+
+	require.NoError(t, svc.recordEndpointDeleteIntentLocked(newContainerID, now))
+	require.NotContains(t, svc.EndpointDeleteIntents, completedContainerID)
+	require.Equal(t, expiredAt, svc.EndpointDeleteIntents[exactContainerID].CreatedAt)
+	require.Equal(t, expiredAt, svc.EndpointDeleteIntents[legacyContainerID].CreatedAt)
+	require.Equal(t, activeAt, svc.EndpointDeleteIntents[activeContainerID].CreatedAt)
+	require.Equal(t, now, svc.EndpointDeleteIntents[newContainerID].CreatedAt)
+
+	later := now.Add(time.Minute)
+	require.NoError(t, svc.recordEndpointDeleteIntentLocked(newContainerID, later))
+	require.Equal(t, now, svc.EndpointDeleteIntents[newContainerID].CreatedAt)
+	require.NoError(t, svc.recordEndpointDeleteIntentLocked(exactContainerID, later))
+	require.Equal(t, expiredAt, svc.EndpointDeleteIntents[exactContainerID].CreatedAt)
+
+	var stored map[string]EndpointDeleteIntent
+	require.NoError(t, svc.EndpointStateStore.Read(EndpointDeleteIntentStoreKey, &stored))
+	require.Equal(t, svc.EndpointDeleteIntents, stored)
+}
+
+func TestRecordEndpointDeleteIntentPruningWriteFailureIsAtomic(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	enableManagedEndpointState(svc)
+	now := time.Date(2026, time.September, 18, 12, 0, 0, 0, time.UTC)
+	completedContainerID := "completed-container"
+	activeContainerID := "active-container"
+	original := map[string]EndpointDeleteIntent{
+		completedContainerID: {CreatedAt: now.Add(-endpointDeleteIntentTTL - time.Minute)},
+		activeContainerID:    {CreatedAt: now.Add(-time.Minute)},
+	}
+	svc.EndpointDeleteIntents = cloneEndpointDeleteIntents(original)
+	require.NoError(t, svc.EndpointStateStore.Write(EndpointDeleteIntentStoreKey, original))
+	endpointStore := svc.EndpointStateStore
+	svc.EndpointStateStore = keyWriteFailStore{
+		KeyValueStore: endpointStore,
+		failKey:       EndpointDeleteIntentStoreKey,
+		err:           errForcedDeleteIntentWrite,
+	}
+
+	err := svc.recordEndpointDeleteIntentLocked("new-container", now)
+	require.ErrorIs(t, err, errForcedDeleteIntentWrite)
+	require.Equal(t, original, svc.EndpointDeleteIntents)
+
+	var stored map[string]EndpointDeleteIntent
+	require.NoError(t, endpointStore.Read(EndpointDeleteIntentStoreKey, &stored))
+	require.Equal(t, original, stored)
+}
+
 func TestExpiredDeleteIntentIsPrunedAndDoesNotBlockAdd(t *testing.T) {
 	svc := getTestService(cns.KubernetesCRD)
 	enableManagedEndpointState(svc)
