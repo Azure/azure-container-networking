@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/classify"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/collect"
@@ -18,6 +20,7 @@ import (
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/model"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/store"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 	_ "modernc.org/sqlite"
 )
 
@@ -27,16 +30,35 @@ import (
 type fakeClassifier struct {
 	result      model.Classification
 	err         error
+	gotContext  model.RunContext
 	gotPrior    classify.PriorContext
 	gotEvidence model.Evidence
 	callCount   int
 }
 
-func (f *fakeClassifier) Classify(_ context.Context, _ model.RunContext, ev model.Evidence, _ model.Fingerprint, _ []model.SignatureMatch, prior classify.PriorContext) (model.Classification, error) {
+func (f *fakeClassifier) Classify(_ context.Context, rc model.RunContext, ev model.Evidence, _ model.Fingerprint, _ []model.SignatureMatch, prior classify.PriorContext) (model.Classification, error) {
 	f.callCount++
+	f.gotContext = rc
 	f.gotEvidence = ev
 	f.gotPrior = prior
 	return f.result, f.err
+}
+
+type priorKnowledgeStore struct {
+	noopStore
+	resolved []store.Incident
+}
+
+func (s priorKnowledgeStore) PriorByFingerprint(context.Context, string, string, int) ([]store.Incident, []store.Incident, error) {
+	return s.resolved, nil, nil
+}
+
+type staticCollector struct {
+	result live.Result
+}
+
+func (c staticCollector) Collect(context.Context) live.Result {
+	return c.result
 }
 
 // TestRunEndToEnd exercises collect -> fingerprint -> signatures -> classify ->
@@ -115,6 +137,56 @@ func TestAOAIAPIKeyIsNotRenderedInFlagDefaults(t *testing.T) {
 	}
 }
 
+func TestResolveAOAIAPIKeyPreservesExplicitFlagPrecedence(t *testing.T) {
+	const envKey = "environment-key"
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "omitted uses environment", want: envKey},
+		{name: "explicit empty wins", args: []string{"--aoai-api-key="}, want: ""},
+		{name: "explicit value wins", args: []string{"--aoai-api-key=flag-key"}, want: "flag-key"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var o options
+			fs := flag.NewFlagSet("failure-agent", flag.ContinueOnError)
+			registerFlags(fs, &o, func(name string) string {
+				if name == "AZURE_OPENAI_API_KEY" {
+					return envKey
+				}
+				return ""
+			})
+			if err := fs.Parse(tt.args); err != nil {
+				t.Fatalf("parsing flags: %v", err)
+			}
+			resolveAOAIAPIKey(fs, &o, func(string) string { return envKey })
+			if o.aoaiAPIKey != tt.want {
+				t.Fatalf("API key: got %q, want %q", o.aoaiAPIKey, tt.want)
+			}
+		})
+	}
+}
+
+func TestConfiguredSecretsIncludesOverriddenEnvironmentKey(t *testing.T) {
+	const (
+		flagKey = "flag-api-key"
+		envKey  = "environment-api-key"
+	)
+	secrets := configuredSecrets(options{aoaiAPIKey: flagKey}, func(name string) string {
+		if name == "AZURE_OPENAI_API_KEY" {
+			return envKey
+		}
+		return ""
+	})
+	got := strings.Join(secrets, " ")
+	if !strings.Contains(got, flagKey) || !strings.Contains(got, envKey) {
+		t.Fatalf("configured secrets %q do not include both API key sources", got)
+	}
+}
+
 func TestRunRedactsConfiguredSecretsFromEvidenceAndArtifacts(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -138,7 +210,7 @@ func TestRunRedactsConfiguredSecretsFromEvidenceAndArtifacts(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			const secret = "sentinel-pipeline-secret"
 			input := t.TempDir()
-			if err := os.WriteFile(filepath.Join(input, "task.log"), []byte("Error: request failed with secret "+secret), 0o600); err != nil {
+			if err := os.WriteFile(filepath.Join(input, "task-"+secret+".log"), []byte("Error: request failed with secret "+secret), 0o600); err != nil {
 				t.Fatalf("writing evidence: %v", err)
 			}
 			out := t.TempDir()
@@ -155,10 +227,8 @@ func TestRunRedactsConfiguredSecretsFromEvidenceAndArtifacts(t *testing.T) {
 				t.Fatalf("run failed: %v", err)
 			}
 
-			for _, line := range cl.gotEvidence.TopErrorLines {
-				if strings.Contains(line, secret) {
-					t.Fatal("classifier received a configured secret")
-				}
+			if strings.Contains(fmt.Sprintf("%#v", cl.gotEvidence), secret) {
+				t.Fatal("classifier received a configured secret in evidence")
 			}
 			for _, name := range []string{"report.md", "incident.json"} {
 				data, err := os.ReadFile(filepath.Join(out, name))
@@ -170,6 +240,120 @@ func TestRunRedactsConfiguredSecretsFromEvidenceAndArtifacts(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestRunRedactsAllClassifierAndLoggingBoundaries(t *testing.T) {
+	const secret = "sentinel-boundary-secret"
+	t.Setenv("GITHUB_TOKEN", secret)
+
+	input := t.TempDir()
+	if err := os.WriteFile(filepath.Join(input, "error-"+secret+".log"), []byte("Error: evidence contains "+secret), 0o600); err != nil {
+		t.Fatalf("writing evidence: %v", err)
+	}
+	diffFile := filepath.Join(t.TempDir(), "change.diff")
+	diff := "diff --git a/file b/file\n--- a/file\n+++ b/file\n@@ -1 +1 @@\n-old\n+" + secret + "\n"
+	if err := os.WriteFile(diffFile, []byte(diff), 0o600); err != nil {
+		t.Fatalf("writing diff: %v", err)
+	}
+
+	cl := &fakeClassifier{result: model.Classification{
+		Category:         model.CategoryPipelineInfraConfig,
+		Confidence:       0.8,
+		RootCauseSummary: "model output " + secret,
+		TopEvidence:      []string{"model evidence " + secret},
+		CausalChain: []model.CausalHop{{
+			Step:     "model step " + secret,
+			Citation: "model citation " + secret,
+		}},
+		Source: "llm",
+	}}
+	ks := priorKnowledgeStore{resolved: []store.Incident{{
+		Fingerprint: "prior-" + secret,
+		Category:    string(model.CategoryPipelineInfraConfig),
+		Summary:     "prior summary " + secret,
+		ProposedFix: "prior fix " + secret,
+		Status:      store.StatusValidatedResolved,
+	}}}
+	collector := staticCollector{result: live.Result{
+		Executed: [][]string{{"kubectl", "get", "pods"}},
+		Outputs:  map[string]string{"diagnostic-" + secret: "live output " + secret},
+	}}
+	core, observed := observer.New(zap.DebugLevel)
+	out := t.TempDir()
+	opts := options{
+		input:          input,
+		output:         out,
+		signaturesPath: filepath.Join("signatures", "signatures.yaml"),
+		diffFile:       diffFile,
+		dryRun:         true,
+	}
+
+	if err := run(context.Background(), zap.New(core), opts, cl, ks, collector, noopCollector{}); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+
+	for name, value := range map[string]any{
+		"run context": cl.gotContext,
+		"evidence":    cl.gotEvidence,
+		"prior":       cl.gotPrior,
+		"logs":        observed.All(),
+	} {
+		if strings.Contains(fmt.Sprintf("%#v", value), secret) {
+			t.Fatalf("%s contains configured secret", name)
+		}
+	}
+	for _, name := range []string{"report.md", "incident.json"} {
+		data, err := os.ReadFile(filepath.Join(out, name))
+		if err != nil {
+			t.Fatalf("reading %s: %v", name, err)
+		}
+		if strings.Contains(string(data), secret) {
+			t.Fatalf("%s contains configured secret", name)
+		}
+	}
+}
+
+func TestRunWeeklyRedactsPriorIncidentAndOutput(t *testing.T) {
+	const secret = "sentinel-weekly-secret"
+	t.Setenv("GITHUB_TOKEN", secret)
+	input := t.TempDir()
+	incidentDir := filepath.Join(input, "artifact")
+	if err := os.MkdirAll(incidentDir, 0o755); err != nil {
+		t.Fatalf("creating incident directory: %v", err)
+	}
+	data, err := json.Marshal(model.Incident{
+		GeneratedAt:      time.Now(),
+		PipelineName:     "pipeline-" + secret,
+		Fingerprint:      "fingerprint-" + secret,
+		Category:         model.CategoryPipelineInfraConfig,
+		RootCauseSummary: "weekly source " + secret,
+		AnalysisStatus:   model.StatusAnalyzed,
+	})
+	if err != nil {
+		t.Fatalf("marshaling incident: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(incidentDir, "incident.json"), data, 0o600); err != nil {
+		t.Fatalf("writing incident: %v", err)
+	}
+	out := t.TempDir()
+
+	if err := runWeekly(context.Background(), zap.NewNop(), options{
+		weeklyReport: input,
+		weeklyWindow: 7,
+		output:       out,
+	}); err != nil {
+		t.Fatalf("running weekly aggregation: %v", err)
+	}
+
+	for _, name := range []string{"weekly-report.md", "weekly-incident.json"} {
+		output, err := os.ReadFile(filepath.Join(out, name))
+		if err != nil {
+			t.Fatalf("reading %s: %v", name, err)
+		}
+		if strings.Contains(string(output), secret) {
+			t.Fatalf("%s contains configured secret", name)
+		}
 	}
 }
 

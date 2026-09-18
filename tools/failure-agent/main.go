@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/live"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/model"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/publish"
+	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/redact"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/report"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/signatures"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/store"
@@ -127,9 +128,7 @@ func parseFlags() options {
 	var o options
 	registerFlags(flag.CommandLine, &o, os.Getenv)
 	flag.Parse()
-	if o.aoaiAPIKey == "" {
-		o.aoaiAPIKey = os.Getenv("AZURE_OPENAI_API_KEY")
-	}
+	resolveAOAIAPIKey(flag.CommandLine, &o, os.Getenv)
 	return o
 }
 
@@ -160,6 +159,18 @@ func registerFlags(fs *flag.FlagSet, o *options, getenv func(string) string) {
 	fs.IntVar(&o.weeklyWindow, "weekly-window-days", defaultWeeklyWindowDays, "weekly-trends mode: reporting window in days, surfaced on the digest")
 }
 
+func resolveAOAIAPIKey(fs *flag.FlagSet, o *options, getenv func(string) string) {
+	provided := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "aoai-api-key" {
+			provided = true
+		}
+	})
+	if !provided {
+		o.aoaiAPIKey = getenv("AZURE_OPENAI_API_KEY")
+	}
+}
+
 // priorContextLimit caps how many prior incidents of each kind are injected.
 const priorContextLimit = 3
 
@@ -167,6 +178,7 @@ func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, k
 	if opts.input == "" {
 		return errors.New("--input is required")
 	}
+	redactor := redact.New(configuredSecrets(opts, os.Getenv)...)
 
 	rc := collect.FromEnv(os.Getenv)
 	applyOverrides(&rc, opts)
@@ -183,20 +195,20 @@ func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, k
 			)
 		}
 	}
+	redactor.Apply(&rc)
 
 	ev, err := collect.ParseEvidence(opts.input)
 	if err != nil {
 		return fmt.Errorf("parsing evidence: %w", err)
 	}
-	secrets := configuredSecrets(opts, os.Getenv)
-	redactEvidence(&ev, secrets)
+	redactor.Apply(&ev)
 	logger.Info("evidence collected",
 		zap.Int("files", len(ev.Files)),
 		zap.Int("errorLines", len(ev.TopErrorLines)),
 	)
 
 	if res := lc.Collect(ctx); len(res.Executed) > 0 {
-		redactLiveOutputs(&res, secrets)
+		redactor.Apply(&res)
 		ev = live.Merge(ev, res)
 		logger.Info("live diagnostics collected",
 			zap.String("event", "live_evidence_collected"),
@@ -217,7 +229,7 @@ func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, k
 	}
 
 	if res := pc.Collect(ctx); len(res.Executed) > 0 {
-		redactLiveOutputs(&res, secrets)
+		redactor.Apply(&res)
 		ev = live.Merge(ev, res)
 		logger.Info("privileged diagnostics collected",
 			zap.String("event", "privileged_evidence_collected"),
@@ -242,25 +254,29 @@ func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, k
 		return err
 	}
 	matches := sigSet.Match(rc, ev)
+	redactor.Apply(&matches)
 
 	// Skip duplicate work when an unresolved incident with the same fingerprint
 	// already exists (e.g. a PR is already open for this failure).
 	if active, err := ks.ActiveByFingerprint(ctx, fp.Hash); err != nil {
 		logger.Warn("knowledge lookup failed; proceeding without dedupe", zap.Error(err))
 	} else if active != nil {
+		redactor.Apply(active)
 		return handleDuplicate(ctx, logger, opts, rc, fp, matches, ev, ks, active)
 	}
 
 	prior := priorContext(ctx, logger, ks, fp.Hash)
+	redactor.Apply(&prior)
 
 	classifyCtx, cancel := context.WithTimeout(ctx, opts.timeout)
 	defer cancel()
 
 	classification, classifyErr := cl.Classify(classifyCtx, rc, ev, fp, matches, prior)
+	redactor.Apply(&classification)
 	status := model.StatusAnalyzed
 	classifyErrText := ""
 	if classifyErr != nil {
-		classifyErrText = redactString(classifyErr.Error(), secrets)
+		classifyErrText = redactor.String(classifyErr.Error())
 		logger.Error("llm classification failed",
 			zap.String("event", "llm_failed"),
 			zap.String("fingerprint", fp.Hash),
@@ -302,50 +318,13 @@ func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, k
 }
 
 func configuredSecrets(opts options, getenv func(string) string) []string {
-	candidates := []string{
+	return []string{
 		opts.aoaiAPIKey,
+		getenv("AZURE_OPENAI_API_KEY"),
 		getenv("GITHUB_TOKEN"),
 		getenv("FAA_STORAGE_CONNECTION_STRING"),
 		getenv("idToken"),
 	}
-	secrets := make([]string, 0, len(candidates))
-	seen := make(map[string]struct{}, len(candidates))
-	for _, secret := range candidates {
-		if secret == "" {
-			continue
-		}
-		if _, ok := seen[secret]; ok {
-			continue
-		}
-		seen[secret] = struct{}{}
-		secrets = append(secrets, secret)
-	}
-	return secrets
-}
-
-func redactEvidence(ev *model.Evidence, secrets []string) {
-	for i := range ev.TopErrorLines {
-		ev.TopErrorLines[i] = redactString(ev.TopErrorLines[i], secrets)
-	}
-	for i := range ev.ErrorSnippets {
-		ev.ErrorSnippets[i].Snippet = redactString(ev.ErrorSnippets[i].Snippet, secrets)
-	}
-	for name, excerpt := range ev.Excerpts {
-		ev.Excerpts[name] = redactString(excerpt, secrets)
-	}
-}
-
-func redactLiveOutputs(res *live.Result, secrets []string) {
-	for name, output := range res.Outputs {
-		res.Outputs[name] = redactString(output, secrets)
-	}
-}
-
-func redactString(value string, secrets []string) string {
-	for _, secret := range secrets {
-		value = strings.ReplaceAll(value, secret, "[REDACTED]")
-	}
-	return value
 }
 
 // handleDuplicate is taken when an unresolved incident with the same fingerprint
@@ -586,6 +565,8 @@ func runWeekly(ctx context.Context, logger *zap.Logger, opts options) error {
 	if err != nil {
 		return fmt.Errorf("loading weekly incidents: %w", err)
 	}
+	redactor := redact.New(configuredSecrets(opts, os.Getenv)...)
+	redactor.Apply(&incidents)
 	stats := weekly.Aggregate(incidents)
 	logger.Info("weekly incidents aggregated",
 		zap.String("event", "weekly_aggregated"),
@@ -601,15 +582,19 @@ func runWeekly(ctx context.Context, logger *zap.Logger, opts options) error {
 		synthCtx, cancel := context.WithTimeout(ctx, opts.timeout)
 		defer cancel()
 		if synth, sErr := weekly.Synthesize(synthCtx, client, stats, incidents); sErr != nil {
-			logger.Warn("weekly synthesis failed; emitting deterministic weekly digest", zap.Error(sErr))
+			logger.Warn("weekly synthesis failed; emitting deterministic weekly digest",
+				zap.String("error", redactor.String(sErr.Error())),
+			)
 		} else {
 			summary = synth
 		}
 	}
+	redactor.Apply(&summary)
 
 	now := time.Now()
 	windowStart := now.AddDate(0, 0, -opts.weeklyWindow)
 	wi := weekly.Build(now, windowStart, opts.weeklyWindow, stats, summary)
+	redactor.Apply(&wi)
 	if err := weekly.WriteFiles(opts.output, wi); err != nil {
 		return err
 	}
