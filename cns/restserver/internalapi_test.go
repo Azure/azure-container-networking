@@ -585,7 +585,7 @@ func TestCreateOrUpdateNetworkContainerInternal_MalformedVersionFailsWithoutMuta
 	malformedReq := &cns.CreateNetworkContainerRequest{
 		NetworkContainerid:   testNCID,
 		NetworkContainerType: dockerContainerType,
-		Version:              "not-a-number",
+		Version:              malformedNCVersion,
 		IPConfiguration: cns.IPConfiguration{
 			IPSubnet: cns.IPSubnet{IPAddress: primaryIP, PrefixLength: subnetPrfixLength},
 		},
@@ -598,6 +598,23 @@ func TestCreateOrUpdateNetworkContainerInternal_MalformedVersionFailsWithoutMuta
 
 	assert.Equal(t, types.UnsupportedNCVersion, returnCode, "a malformed version must be rejected")
 	assert.Equal(t, "10", svc.state.ContainerStatus[testNCID].CreateNetworkContainerRequest.Version, "stored version must not be mutated")
+}
+
+func TestValidateNetworkContainerGoalStateRejectsMalformedVersionForUnknownNC(t *testing.T) {
+	restartService()
+	setEnv(t)
+	setOrchestratorTypeInternal(cns.KubernetesCRD)
+	svc.state.ContainerStatus = nil
+
+	req := &cns.CreateNetworkContainerRequest{
+		NetworkContainerid: "new-nc",
+		Version:            malformedNCVersion,
+	}
+
+	returnCode := svc.ValidateNetworkContainerGoalState(req, true)
+
+	assert.Equal(t, types.UnsupportedNCVersion, returnCode)
+	assert.Nil(t, svc.state.ContainerStatus)
 }
 
 // TestCreateOrUpdateNetworkContainerInternal_RejectedStaleReplayLeavesAssignedIPUnchanged verifies

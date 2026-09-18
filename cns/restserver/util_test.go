@@ -23,6 +23,7 @@ const (
 	versionValidationDNSServer          = "10.0.0.10"
 	versionValidationMACAddress         = "00:11:22:33:44:55"
 	versionValidationInitialVersion     = 2
+	malformedNCVersion                  = "not-a-number"
 )
 
 // TestSaveNetworkContainerGoalStateRejectsVersionRegression, TestSaveNetworkContainerGoalStateAcceptsVersionAdvance,
@@ -72,6 +73,44 @@ func TestSaveNetworkContainerGoalStateAcceptsIdenticalVersionReplay(t *testing.T
 	assert.Equal(t, types.Success, returnCode)
 	assert.Empty(t, message)
 	assertCommittedGoalVersion(t, svc, "2")
+}
+
+func TestSaveNetworkContainerGoalStateRejectsMalformedVersionForNewNCWithoutMutation(t *testing.T) {
+	svc := &HTTPRestService{
+		state: &httpRestServiceState{
+			OrchestratorType: cns.KubernetesCRD,
+		},
+	}
+	req := cns.CreateNetworkContainerRequest{
+		NetworkContainerid: versionValidationNCID,
+		Version:            malformedNCVersion,
+	}
+
+	returnCode, message := svc.saveNetworkContainerGoalState(req, true)
+
+	assert.Equal(t, types.UnsupportedNCVersion, returnCode)
+	assert.Contains(t, message, "invalid incoming nc version")
+	assert.Nil(t, svc.state.ContainerStatus)
+}
+
+func TestSaveNetworkContainerGoalStateAcceptsRetainedIPReplay(t *testing.T) {
+	svc, committed := newVersionValidationService(t)
+	advanced := cloneCreateNetworkContainerRequest(committed)
+	advanced.Version = "3"
+	config := advanced.SecondaryIPConfigs["ip-id-1"]
+	config.NCVersion = 3
+	advanced.SecondaryIPConfigs["ip-id-1"] = config
+
+	returnCode, message := svc.saveNetworkContainerGoalState(advanced, true)
+	require.Equal(t, types.Success, returnCode)
+	require.Empty(t, message)
+	require.Equal(t, 2, svc.state.ContainerStatus[versionValidationNCID].CreateNetworkContainerRequest.SecondaryIPConfigs["ip-id-1"].NCVersion)
+
+	returnCode, message = svc.saveNetworkContainerGoalState(cloneCreateNetworkContainerRequest(advanced), true)
+
+	assert.Equal(t, types.Success, returnCode)
+	assert.Empty(t, message)
+	assertCommittedGoalVersion(t, svc, "3")
 }
 
 func TestSaveNetworkContainerGoalStateAcceptsIdenticalVersionReplayAfterRestore(t *testing.T) {
@@ -184,14 +223,6 @@ func TestSaveNetworkContainerGoalStateRejectsEqualVersionGoalDrift(t *testing.T)
 			mutate: func(req *cns.CreateNetworkContainerRequest) {
 				config := req.SecondaryIPConfigs["ip-id-1"]
 				config.IPAddress = versionValidationChangedSecondaryIP
-				req.SecondaryIPConfigs["ip-id-1"] = config
-			},
-		},
-		{
-			name: "secondary IP NC version",
-			mutate: func(req *cns.CreateNetworkContainerRequest) {
-				config := req.SecondaryIPConfigs["ip-id-1"]
-				config.NCVersion++
 				req.SecondaryIPConfigs["ip-id-1"] = config
 			},
 		},

@@ -618,11 +618,12 @@ func (service *HTTPRestService) ValidateNetworkContainerGoalState(
 	defer service.Unlock()
 
 	existingNCStatus, ok := service.state.ContainerStatus[req.NetworkContainerid]
-	if !ok {
-		return types.Success
+	existingRequest := cns.CreateNetworkContainerRequest{}
+	if ok {
+		existingRequest = existingNCStatus.CreateNetworkContainerRequest
 	}
 
-	returnCode, returnMessage := validateNCGoalVersion(existingNCStatus.CreateNetworkContainerRequest, *req)
+	returnCode, returnMessage := validateNCGoalVersion(existingRequest, *req)
 	if returnCode != types.Success {
 		logger.Errorf("%s", returnMessage) //nolint:staticcheck // will migrate to logger/v2
 	}

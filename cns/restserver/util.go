@@ -158,21 +158,25 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(
 		vfpUpdateComplete          bool
 	)
 
+	existingNCStatus, ok := service.state.ContainerStatus[req.NetworkContainerid]
+	if validateVersion {
+		existingRequest := cns.CreateNetworkContainerRequest{}
+		if ok {
+			existingRequest = existingNCStatus.CreateNetworkContainerRequest
+		}
+		if returnCode, returnMessage := validateNCGoalVersion(existingRequest, req); returnCode != types.Success {
+			return returnCode, returnMessage
+		}
+	}
+
 	if service.state.ContainerStatus == nil {
 		service.state.ContainerStatus = make(map[string]containerstatus)
 	}
 
-	existingNCStatus, ok := service.state.ContainerStatus[req.NetworkContainerid]
 	if ok {
 		hostVersion = existingNCStatus.HostVersion
 		existingSecondaryIPConfigs = existingNCStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
 		vfpUpdateComplete = existingNCStatus.VfpUpdateComplete
-
-		if validateVersion {
-			if returnCode, returnMessage := validateNCGoalVersion(existingNCStatus.CreateNetworkContainerRequest, req); returnCode != types.Success {
-				return returnCode, returnMessage
-			}
-		}
 	}
 
 	if req.NetworkContainerid == nodesubnet.NodeSubnetNCID {
@@ -329,7 +333,13 @@ func equalNNCNetworkProgrammingGoal(existing, incoming cns.CreateNetworkContaine
 		existing.NCStatus == incoming.NCStatus &&
 		existing.NetworkInterfaceInfo == incoming.NetworkInterfaceInfo &&
 		equalIPConfiguration(existing.IPConfiguration, incoming.IPConfiguration) &&
-		maps.Equal(existing.SecondaryIPConfigs, incoming.SecondaryIPConfigs)
+		equalSecondaryIPGoals(existing.SecondaryIPConfigs, incoming.SecondaryIPConfigs)
+}
+
+func equalSecondaryIPGoals(existing, incoming map[string]cns.SecondaryIPConfig) bool {
+	return maps.EqualFunc(existing, incoming, func(existingConfig, incomingConfig cns.SecondaryIPConfig) bool {
+		return existingConfig.IPAddress == incomingConfig.IPAddress
+	})
 }
 
 func equalIPConfiguration(existing, incoming cns.IPConfiguration) bool {
