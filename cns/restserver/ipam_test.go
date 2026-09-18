@@ -663,6 +663,7 @@ func TestRequestIPConfigsRollsBackAssignmentWhenEndpointWriteFails(t *testing.T)
 	require.Equal(t, types.Available, ipState.GetState())
 	require.Empty(t, svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()])
 	require.Empty(t, svc.EndpointState)
+	require.Equal(t, time.Duration(-1), svc.podsPendingIPAssignment.Pop(testPod1Info.Key()))
 }
 
 func TestRequestIPConfigsDoesNotReleaseExistingAssignmentWhenEndpointWriteFails(t *testing.T) {
@@ -685,6 +686,52 @@ func TestRequestIPConfigsDoesNotReleaseExistingAssignmentWhenEndpointWriteFails(
 	ipState := svc.PodIPConfigState[testIPID1]
 	require.Equal(t, types.Assigned, ipState.GetState())
 	require.Equal(t, []string{testIPID1}, svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()])
+}
+
+func TestReleasePreflightPreservesEndpointState(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	enableManagedEndpointState(svc)
+	require.NoError(t, seedAvailableIPs(t, svc, testNCID, map[string]string{testIPID1: testIP1}))
+	req := newTestIPConfigsRequest(t, testPod1Info)
+	_, err := svc.requestIPConfigHandlerHelper(t.Context(), req)
+	require.NoError(t, err)
+	before := cloneEndpointState(svc.EndpointState)
+	ids := append([]string(nil), svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()]...)
+	ids = append(ids, "missing")
+	svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()] = ids
+	countingStore := &endpointWriteCountingStore{KeyValueStore: svc.EndpointStateStore}
+	svc.EndpointStateStore = countingStore
+
+	_, err = svc.ReleaseIPConfigHandlerHelper(t.Context(), req)
+	require.ErrorIs(t, err, errInconsistentIPConfigState)
+	require.Zero(t, countingStore.endpointWrites)
+	require.Equal(t, before, svc.EndpointState)
+	persisted := map[string]*EndpointInfo{}
+	require.NoError(t, svc.EndpointStateStore.Read(EndpointStoreKey, &persisted))
+	require.Equal(t, before, persisted)
+	ipState := svc.PodIPConfigState[testIPID1]
+	require.Equal(t, types.Assigned, ipState.GetState())
+	require.Equal(t, ids, svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()])
+}
+
+func TestCanceledRequestDoesNotWaitForServiceLock(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	enableManagedEndpointState(svc)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	svc.Lock()
+	defer svc.Unlock()
+	done := make(chan error, 1)
+	go func() {
+		_, err := svc.requestIPConfigsWithEndpointState(ctx, cns.IPConfigsRequest{}, testPod1Info)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(time.Second):
+		t.Fatal("canceled request waited for the service lock")
+	}
 }
 
 func TestCanceledRequestDoesNotAssignIP(t *testing.T) {
@@ -719,7 +766,10 @@ func TestConcurrentAddThenDeleteLeavesNoAssignment(t *testing.T) {
 		addDone <- err
 	}()
 	<-blockingStore.entered
-	require.False(t, svc.TryLock(), "ADD must hold the service lock while endpoint state is persisted")
+	if svc.TryLock() {
+		svc.Unlock()
+		t.Fatal("ADD must hold the service lock while endpoint state is persisted")
+	}
 
 	deleteStarted := make(chan struct{})
 	deleteDone := make(chan error, 1)
