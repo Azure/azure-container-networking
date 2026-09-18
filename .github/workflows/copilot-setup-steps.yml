@@ -36,9 +36,18 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Only $GITHUB_WORKSPACE is committed and pushed, so work done in a
-          # worktree elsewhere on disk is silently discarded. Instructions alone
-          # do not reliably prevent this, so remove the capability.
+          # Only $GITHUB_WORKSPACE is committed and pushed, so a worktree of the
+          # workspace repo placed elsewhere on disk is silently discarded.
+          # Instructions alone do not reliably prevent this, so remove the
+          # capability for that repo.
+          #
+          # Scope: this guards the workspace checkout. It does not, and cannot,
+          # stop a process from cloning another repo elsewhere and working
+          # there — `git clone` is legitimate, and any real git binary can be
+          # copied. That failure mode is not worktree-specific (editing files in
+          # an unrelated clone loses them just the same); it is covered by the
+          # instructions and by the final `git diff` check against the target
+          # branch before reporting completion.
           #
           # /usr/local/bin precedes /usr/bin in PATH, so this shim intercepts
           # every PATH-resolved `git` for the rest of the job, including the
@@ -127,12 +136,14 @@ jobs:
           sudo cp /usr/local/lib/git-guard/git-shim /usr/bin/git
           sudo chmod 755 /usr/local/bin/git /usr/bin/git
 
-          # Enforcement backstop, below every user-invocable entry point.
-          # `git worktree add` must create $GIT_DIR/worktrees/<name>; making
-          # that path a non-directory makes the operation fail no matter which
-          # git binary is invoked, so a preserved or freshly copied binary is
-          # not an escape hatch. `git worktree list` and all other read paths
-          # are unaffected.
+          # Enforcement backstop for the workspace repo, below every
+          # user-invocable entry point. `git worktree add` must create
+          # $GIT_DIR/worktrees/<name>; making that path a non-directory makes
+          # the operation fail for this repo no matter which git binary is
+          # invoked, so a preserved or freshly copied binary is not an escape
+          # hatch here. `git worktree list` and all other read paths are
+          # unaffected. Other repositories keep their own $GIT_DIR and are out
+          # of scope, as described above.
           if [ -e "$GITHUB_WORKSPACE/.git/worktrees" ]; then
             sudo rm -rf "$GITHUB_WORKSPACE/.git/worktrees"
           fi
@@ -165,10 +176,13 @@ jobs:
           blocked git -c core.pager=cat -C "$GITHUB_WORKSPACE" worktree add /tmp/guard-probe-5
           blocked git --git-dir "$GITHUB_WORKSPACE/.git" worktree add /tmp/guard-probe-6
           # Absolute-path invocation must not be an escape hatch.
+          # Every probe here targets the workspace repo, which is the invariant
+          # being enforced. Probes 1-8 also confirm the shim intercepts the
+          # PATH-resolved and absolute-path spellings for any repo.
           blocked /usr/bin/git worktree add /tmp/guard-probe-7
           blocked /usr/local/bin/git worktree add /tmp/guard-probe-8
-          # Neither is any other real git binary: the preserved copy, git's own
-          # dispatch path, or a fresh copy the agent makes for itself.
+          # Non-shimmed real binaries are covered for this repo by the sentinel:
+          # the preserved copy, git's own dispatch path, and a fresh copy.
           blocked /usr/local/lib/git-guard/git.real -C "$GITHUB_WORKSPACE" worktree add /tmp/guard-probe-9
           blocked /usr/lib/git-core/git -C "$GITHUB_WORKSPACE" worktree add /tmp/guard-probe-10
           cp /usr/local/lib/git-guard/git.real /tmp/guard-probe-git
@@ -182,7 +196,7 @@ jobs:
             fi
           done
 
-          echo "✓ git worktree add blocked (11 variants, incl. absolute paths and copied binaries); all other git subcommands pass through"
+          echo "✓ git worktree add blocked for $GITHUB_WORKSPACE (11 variants, incl. absolute paths and copied binaries); all other git subcommands pass through"
 
       - name: Pre-download module dependencies (before firewall activates)
         run: |
