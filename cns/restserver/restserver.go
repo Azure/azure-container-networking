@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -114,6 +115,7 @@ type HTTPRestService struct {
 	EndpointStateStore         store.KeyValueStore
 	cniConflistGenerator       CNIConflistGenerator
 	generateCNIConflistOnce    sync.Once
+	cniConflistGenerated       atomic.Bool
 	IPConfigsHandlerMiddleware cns.IPConfigsHandlerMiddleware
 	PnpIDByMacAddress          map[string]string
 	imdsClient                 imdsClient
@@ -415,7 +417,13 @@ func (service *HTTPRestService) MustGenerateCNIConflistOnce() {
 		if err := service.cniConflistGenerator.Close(); err != nil {
 			panic("unable to close the cni conflist output stream: " + err.Error())
 		}
+		service.cniConflistGenerated.Store(true)
 	})
+}
+
+// CNIConflistGenerated reports whether generation and output publication both succeeded.
+func (service *HTTPRestService) CNIConflistGenerated() bool {
+	return service.cniConflistGenerated.Load()
 }
 
 func (service *HTTPRestService) AttachIPConfigsHandlerMiddleware(middleware cns.IPConfigsHandlerMiddleware) {
