@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -142,7 +144,10 @@ func (service *HTTPRestService) restoreState() {
 	}
 }
 
-func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetworkContainerRequest) (types.ResponseCode, string) { //nolint // legacy
+func (service *HTTPRestService) saveNetworkContainerGoalState(
+	req cns.CreateNetworkContainerRequest,
+	validateVersion bool,
+) (responseCode types.ResponseCode, message string) {
 	// we don't want to overwrite what other calls may have written
 	service.Lock()
 	defer service.Unlock()
@@ -153,11 +158,21 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 		vfpUpdateComplete          bool
 	)
 
+	existingNCStatus, ok := service.state.ContainerStatus[req.NetworkContainerid]
+	if validateVersion {
+		existingRequest := cns.CreateNetworkContainerRequest{}
+		if ok {
+			existingRequest = existingNCStatus.CreateNetworkContainerRequest
+		}
+		if returnCode, returnMessage := validateNCGoalVersion(existingRequest, req); returnCode != types.Success {
+			return returnCode, returnMessage
+		}
+	}
+
 	if service.state.ContainerStatus == nil {
 		service.state.ContainerStatus = make(map[string]containerstatus)
 	}
 
-	existingNCStatus, ok := service.state.ContainerStatus[req.NetworkContainerid]
 	if ok {
 		hostVersion = existingNCStatus.HostVersion
 		existingSecondaryIPConfigs = existingNCStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
@@ -252,6 +267,86 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 
 	service.saveState()
 	return 0, ""
+}
+
+// validateNCGoalVersion rejects an incoming NC goal state that would regress the previously
+// committed DNC/NNC version for this NC, or that claims the same version as what's already
+// committed but with different content (a goal changed "under" a version that should be immutable).
+// Without this check, a stale/replayed NC payload could move the stored version backwards and
+// cause secondary IPs that were already released (and removed from PodIPConfigState) to be
+// resurrected as Available.
+func validateNCGoalVersion(
+	existing,
+	incoming cns.CreateNetworkContainerRequest,
+) (responseCode types.ResponseCode, message string) {
+	incomingVersion, err := strconv.Atoi(incoming.Version)
+	if err != nil {
+		return types.UnsupportedNCVersion, fmt.Sprintf(
+			"invalid incoming nc version %q for nc %s: %v",
+			incoming.Version,
+			incoming.NetworkContainerid,
+			err,
+		)
+	}
+
+	// Older CNS state and NCs previously stored by non-versioned paths may not have a
+	// committed version. Treat the first authoritative dynamic update as the baseline.
+	if existing.Version == "" {
+		return types.Success, ""
+	}
+
+	existingVersion, err := strconv.Atoi(existing.Version)
+	if err != nil {
+		return types.UnsupportedNCVersion, fmt.Sprintf(
+			"invalid committed nc version %q for nc %s: %v",
+			existing.Version,
+			incoming.NetworkContainerid,
+			err,
+		)
+	}
+
+	switch {
+	case incomingVersion < existingVersion:
+		return types.UnsupportedNCVersion, fmt.Sprintf(
+			"nc %s version regressed from %d to %d",
+			incoming.NetworkContainerid,
+			existingVersion,
+			incomingVersion,
+		)
+	case incomingVersion == existingVersion && !equalNNCNetworkProgrammingGoal(existing, incoming):
+		return types.InconsistentIPConfigState, fmt.Sprintf(
+			"nc %s goal changed without version advance at version %d",
+			incoming.NetworkContainerid,
+			incomingVersion,
+		)
+	default:
+		return types.Success, ""
+	}
+}
+
+// equalNNCNetworkProgrammingGoal compares the fields populated by the NNC conversion path.
+// Version is compared separately, and authorization tokens are not persisted.
+func equalNNCNetworkProgrammingGoal(existing, incoming cns.CreateNetworkContainerRequest) bool {
+	return existing.NetworkContainerid == incoming.NetworkContainerid &&
+		existing.NetworkContainerType == incoming.NetworkContainerType &&
+		existing.HostPrimaryIP == incoming.HostPrimaryIP &&
+		existing.NetworkInterfaceInfo == incoming.NetworkInterfaceInfo &&
+		equalIPConfiguration(existing.IPConfiguration, incoming.IPConfiguration) &&
+		equalSecondaryIPGoals(existing.SecondaryIPConfigs, incoming.SecondaryIPConfigs)
+}
+
+func equalSecondaryIPGoals(existing, incoming map[string]cns.SecondaryIPConfig) bool {
+	return maps.EqualFunc(existing, incoming, func(existingConfig, incomingConfig cns.SecondaryIPConfig) bool {
+		return existingConfig.IPAddress == incomingConfig.IPAddress
+	})
+}
+
+func equalIPConfiguration(existing, incoming cns.IPConfiguration) bool {
+	return existing.IPSubnet == incoming.IPSubnet &&
+		existing.IPSubnetV6 == incoming.IPSubnetV6 &&
+		slices.Equal(existing.DNSServers, incoming.DNSServers) &&
+		existing.GatewayIPAddress == incoming.GatewayIPAddress &&
+		existing.GatewayIPv6Address == incoming.GatewayIPv6Address
 }
 
 // This func will compute the deltaIpConfigState which needs to be updated (Added or Deleted) from the inmemory map
@@ -1006,7 +1101,7 @@ func (service *HTTPRestService) createNetworkContainers(createNetworkContainerRe
 			}
 		}
 		// Save NC Goal State details
-		saveNcReturnCode, saveNcReturnMessage := service.saveNetworkContainerGoalState(createNcReq)
+		saveNcReturnCode, saveNcReturnMessage := service.saveNetworkContainerGoalState(createNcReq, false)
 		// If NC was created successfully, log NC snapshot.
 		if saveNcReturnCode != types.Success {
 			return cns.Response{

@@ -562,7 +562,7 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 			}
 		}
 
-		returnCode, returnMessage = service.saveNetworkContainerGoalState(req)
+		returnCode, returnMessage = service.saveNetworkContainerGoalState(req, false)
 
 	default:
 		returnMessage = "[Azure CNS] Error. CreateOrUpdateNetworkContainer did not receive a POST."
