@@ -42,15 +42,11 @@ func (service *HTTPRestService) writeEndpointDeleteIntentsLocked(intents map[str
 
 func (service *HTTPRestService) recordEndpointDeleteIntentLocked(containerID string, now time.Time) error {
 	nextIntents := cloneEndpointDeleteIntents(service.EndpointDeleteIntents)
-	for existingContainerID, intent := range nextIntents {
-		if endpointDeleteIntentExpired(intent, now) {
-			delete(nextIntents, existingContainerID)
-		}
-	}
 	// Keep the timestamp of the first delete. A rejected ADD makes the runtime
 	// retry CNI DEL, so refreshing the timestamp here would let those retries
 	// renew the intent indefinitely and permanently block the container.
-	if _, ok := nextIntents[containerID]; !ok {
+	intent, ok := nextIntents[containerID]
+	if !ok || endpointDeleteIntentExpired(intent, now) {
 		nextIntents[containerID] = EndpointDeleteIntent{CreatedAt: now}
 	}
 	return service.writeEndpointDeleteIntentsLocked(nextIntents)
@@ -84,14 +80,13 @@ func (service *HTTPRestService) replayEndpointDeleteIntentsLocked(now time.Time)
 	intentsChanged := false
 	endpointStateChanged := false
 	for containerID, intent := range nextIntents {
+		if endpointKey, ok := resolveEndpointStateKey(nextEndpointState, containerID); ok {
+			delete(nextEndpointState, endpointKey)
+			endpointStateChanged = true
+		}
 		if endpointDeleteIntentExpired(intent, now) {
 			delete(nextIntents, containerID)
 			intentsChanged = true
-			continue
-		}
-		if _, ok := nextEndpointState[containerID]; ok {
-			delete(nextEndpointState, containerID)
-			endpointStateChanged = true
 		}
 	}
 

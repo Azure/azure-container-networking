@@ -100,7 +100,8 @@ func (service *HTTPRestService) cleanupContainerHNSResources(containerID string)
 	logger.Printf("[cleanupContainerHNSResources] cleaning up all HNS resources for container %s", containerID) //nolint:staticcheck // TODO: migrate to zap logger
 
 	var apipaEndpointID string
-	if epInfo, ok := service.EndpointState[containerID]; ok {
+	if endpointKey, ok := resolveEndpointStateKey(service.EndpointState, containerID); ok {
+		epInfo := service.EndpointState[endpointKey]
 		for _, info := range epInfo.IfnameToIPMap {
 			switch { //nolint:staticcheck // DelegatedVMNIC and NodeNetworkInterfaceFrontendNIC share the same underlying value
 			case info.NICType == cns.ApipaNIC:
