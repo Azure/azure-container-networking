@@ -5,6 +5,20 @@ import (
 	"slices"
 )
 
+func resolveEndpointStateKey(state map[string]*EndpointInfo, endpointID string) (string, bool) {
+	if _, ok := state[endpointID]; ok {
+		return endpointID, true
+	}
+	if len(endpointID) < ContainerIDLength {
+		return "", false
+	}
+	legacyEndpointID := endpointID[:ContainerIDLength] + "-" + InfraInterfaceName
+	if _, ok := state[legacyEndpointID]; ok {
+		return legacyEndpointID, true
+	}
+	return "", false
+}
+
 func cloneEndpointState(state map[string]*EndpointInfo) map[string]*EndpointInfo {
 	cloned := make(map[string]*EndpointInfo, len(state))
 	for containerID, endpointInfo := range state {

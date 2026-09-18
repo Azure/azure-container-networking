@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const expiredEndpointID = "expired"
+
 func TestAreNCsPresent(t *testing.T) {
 	present := ncList("present")
 	tests := []struct {
@@ -233,16 +235,20 @@ func TestRestoreStateFailsClosedWhenEndpointStateCannotBeRead(t *testing.T) {
 func TestRestoreStateReplaysAndPrunesEndpointDeleteIntents(t *testing.T) {
 	mainStore := store.NewMockStore("")
 	endpointStore := store.NewMockStore("")
+	legacyContainerID := "12345678-1234-1234-1234-123456789abc"
+	legacyEndpointID := "12345678-eth0"
 	require.NoError(t, endpointStore.Write(EndpointStoreKey, map[string]*EndpointInfo{
-		"current":   {PodName: "current-pod"},
-		"expired":   {PodName: "expired-pod"},
-		"zero":      {PodName: "zero-pod"},
-		"untouched": {PodName: "untouched-pod"},
+		"current":         {PodName: "current-pod"},
+		expiredEndpointID: {PodName: "expired-pod"},
+		"zero":            {PodName: "zero-pod"},
+		legacyEndpointID:  {PodName: "legacy-pod"},
+		"untouched":       {PodName: "untouched-pod"},
 	}))
 	require.NoError(t, endpointStore.Write(EndpointDeleteIntentStoreKey, map[string]EndpointDeleteIntent{
-		"expired": {CreatedAt: time.Now().Add(-endpointDeleteIntentTTL - time.Minute)},
-		"current": {CreatedAt: time.Now()},
-		"zero":    {},
+		expiredEndpointID: {CreatedAt: time.Now().Add(-endpointDeleteIntentTTL - time.Minute)},
+		"current":         {CreatedAt: time.Now()},
+		"zero":            {},
+		legacyContainerID: {CreatedAt: time.Now().Add(-endpointDeleteIntentTTL - time.Minute)},
 	}))
 
 	svc := HTTPRestService{
@@ -259,19 +265,55 @@ func TestRestoreStateReplaysAndPrunesEndpointDeleteIntents(t *testing.T) {
 	require.NoError(t, svc.restoreState())
 
 	require.NotContains(t, svc.EndpointState, "current")
-	require.Contains(t, svc.EndpointState, "expired")
-	require.Contains(t, svc.EndpointState, "zero")
+	require.NotContains(t, svc.EndpointState, expiredEndpointID)
+	require.NotContains(t, svc.EndpointState, "zero")
+	require.NotContains(t, svc.EndpointState, legacyEndpointID)
 	require.Contains(t, svc.EndpointState, "untouched")
 	require.Contains(t, svc.EndpointDeleteIntents, "current")
-	require.NotContains(t, svc.EndpointDeleteIntents, "expired")
+	require.NotContains(t, svc.EndpointDeleteIntents, expiredEndpointID)
 	require.NotContains(t, svc.EndpointDeleteIntents, "zero")
+	require.NotContains(t, svc.EndpointDeleteIntents, legacyContainerID)
 
 	var storedEndpoints map[string]*EndpointInfo
 	require.NoError(t, endpointStore.Read(EndpointStoreKey, &storedEndpoints))
 	require.NotContains(t, storedEndpoints, "current")
-	require.Contains(t, storedEndpoints, "expired")
-	require.Contains(t, storedEndpoints, "zero")
+	require.NotContains(t, storedEndpoints, expiredEndpointID)
+	require.NotContains(t, storedEndpoints, "zero")
+	require.NotContains(t, storedEndpoints, legacyEndpointID)
 	require.Contains(t, storedEndpoints, "untouched")
+}
+
+func TestRestoreStateRetainsDeleteIntentWhenEndpointDeletionCannotBePersisted(t *testing.T) {
+	mainStore := store.NewMockStore("")
+	endpointStore := store.NewMockStore("")
+	require.NoError(t, endpointStore.Write(EndpointStoreKey, map[string]*EndpointInfo{
+		expiredEndpointID: {PodName: "expired-pod"},
+	}))
+	require.NoError(t, endpointStore.Write(EndpointDeleteIntentStoreKey, map[string]EndpointDeleteIntent{
+		expiredEndpointID: {CreatedAt: time.Now().Add(-endpointDeleteIntentTTL - time.Minute)},
+	}))
+
+	svc := HTTPRestService{
+		Service: &cns.Service{
+			Service: &common.Service{Options: map[string]interface{}{acn.OptManageEndpointState: true}},
+		},
+		store:                 mainStore,
+		state:                 &httpRestServiceState{},
+		EndpointStateStore:    endpointWriteFailStore{KeyValueStore: endpointStore},
+		EndpointState:         make(map[string]*EndpointInfo),
+		EndpointDeleteIntents: make(map[string]EndpointDeleteIntent),
+	}
+
+	require.ErrorIs(t, svc.restoreState(), errForcedEndpointWrite)
+	require.Contains(t, svc.EndpointState, expiredEndpointID)
+	require.Contains(t, svc.EndpointDeleteIntents, expiredEndpointID)
+
+	var storedEndpoints map[string]*EndpointInfo
+	require.NoError(t, endpointStore.Read(EndpointStoreKey, &storedEndpoints))
+	require.Contains(t, storedEndpoints, expiredEndpointID)
+	var storedIntents map[string]EndpointDeleteIntent
+	require.NoError(t, endpointStore.Read(EndpointDeleteIntentStoreKey, &storedIntents))
+	require.Contains(t, storedIntents, expiredEndpointID)
 }
 
 func TestRestoreStateToleratesMissingEndpointDeleteIntents(t *testing.T) {
