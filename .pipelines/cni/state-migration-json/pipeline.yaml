@@ -1,0 +1,66 @@
+trigger: none
+pr: none
+
+schedules:
+  - cron: "0 6 * * 0"
+    displayName: "Weekly JSON state lifecycle controls"
+    branches:
+      include:
+        - master
+    always: true
+
+parameters:
+  - name: deleteResources
+    displayName: "Delete test clusters after the run"
+    type: boolean
+    default: true
+  - name: scenarios
+    displayName: "JSON state control scenarios"
+    type: object
+    default:
+      - name: linux_overlay_json
+        displayName: "Linux overlay JSON control"
+        clusterName: "sm-json-linux-$(Build.BuildId)"
+        clusterType: overlay-up
+        os: linux
+        nodeCount: 2
+        nodeCountWin: 0
+        vmSize: Standard_D4s_v5
+        vmSizeWin: Standard_D4s_v5
+        osSKU: Ubuntu
+        osSkuWin: Windows2022
+        scaleup: 10
+        iterations: 2
+      - name: windows_overlay_json
+        displayName: "Windows overlay JSON control"
+        clusterName: "sm-json-win-$(Build.BuildId)"
+        clusterType: overlay-up
+        os: windows
+        nodeCount: 1
+        nodeCountWin: 2
+        vmSize: Standard_D4s_v5
+        vmSizeWin: Standard_D4s_v5
+        osSKU: Ubuntu
+        osSkuWin: Windows2022
+        scaleup: 5
+        iterations: 2
+
+stages:
+  - ${{ each scenario in parameters.scenarios }}:
+    - template: templates/json-control.stages.yaml
+      parameters:
+        name: ${{ scenario.name }}
+        displayName: ${{ scenario.displayName }}
+        clusterName: ${{ scenario.clusterName }}
+        clusterType: ${{ scenario.clusterType }}
+        region: $(LOCATION_AMD64)
+        os: ${{ scenario.os }}
+        nodeCount: ${{ scenario.nodeCount }}
+        nodeCountWin: ${{ scenario.nodeCountWin }}
+        vmSize: ${{ scenario.vmSize }}
+        vmSizeWin: ${{ scenario.vmSizeWin }}
+        osSKU: ${{ scenario.osSKU }}
+        osSkuWin: ${{ scenario.osSkuWin }}
+        scaleup: ${{ scenario.scaleup }}
+        iterations: ${{ scenario.iterations }}
+        deleteResources: ${{ parameters.deleteResources }}
