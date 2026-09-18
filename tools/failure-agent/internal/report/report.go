@@ -180,6 +180,8 @@ func RenderMarkdown(inc model.Incident) string {
 	}
 	fmt.Fprintf(&b, "**Retention recommendation:** `%s` (advisory only — teardown is unaffected)\n\n", inc.RetentionDecision)
 
+	writeEscalation(&b, inc.Escalation)
+
 	fmt.Fprintf(&b, "_Classification source: %s. %d evidence file(s) collected._\n",
 		inc.ClassificationSource, len(inc.EvidenceFiles))
 
@@ -209,6 +211,45 @@ func WriteFiles(dir string, inc model.Incident) error {
 
 func writeRow(b *strings.Builder, key, val string) {
 	fmt.Fprintf(b, "| %s | %s |\n", key, emptyDash(val))
+}
+
+// writeEscalation records the AI gate's ruling on whether this failure warrants
+// a GitHub issue. A decision not to escalate is rendered too: it is reviewed as
+// often as a decision to, and silence would make a declined escalation
+// indistinguishable from a gate that never ran.
+func writeEscalation(b *strings.Builder, e *model.Escalation) {
+	if e == nil {
+		return
+	}
+
+	b.WriteString("### GitHub issue escalation\n\n")
+	switch {
+	case e.Source == model.EscalationSkipped:
+		b.WriteString("_Not evaluated for this run._")
+	case e.Source == model.EscalationError:
+		b.WriteString("⚠️ **Escalation gate failed**, so no issue was raised. This says nothing about whether the failure is actionable.")
+	case e.Needed:
+		b.WriteString("✅ **A GitHub issue is warranted.** `issue.md` was written to the analysis artifact.")
+	default:
+		b.WriteString("➖ **No GitHub issue raised.**")
+	}
+	if strings.TrimSpace(e.Reason) != "" {
+		fmt.Fprintf(b, " %s", oneLine(e.Reason))
+	}
+	b.WriteString("\n\n")
+
+	if !e.Needed {
+		return
+	}
+	if strings.TrimSpace(e.Title) != "" {
+		fmt.Fprintf(b, "**Proposed title:** %s\n\n", oneLine(e.Title))
+	}
+	if len(e.Labels) > 0 {
+		fmt.Fprintf(b, "**Labels:** `%s`\n\n", strings.Join(e.Labels, "`, `"))
+	}
+	if strings.TrimSpace(e.FixDirection) != "" {
+		fmt.Fprintf(b, "**Fix direction:** %s\n\n", e.FixDirection)
+	}
 }
 
 func emptyDash(s string) string {

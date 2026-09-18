@@ -226,3 +226,90 @@ func TestRenderMarkdownContainsMarkerAndFields(t *testing.T) {
 		}
 	}
 }
+
+// TestRenderMarkdownRendersEscalation covers every gate outcome. A decline and a
+// gate failure are rendered too: silence would make them indistinguishable from
+// each other and from a gate that never ran.
+func TestRenderMarkdownRendersEscalation(t *testing.T) {
+	tests := []struct {
+		name       string
+		escalation *model.Escalation
+		want       []string
+		unwanted   []string
+	}{
+		{
+			name:     "absent gate renders no section",
+			unwanted: []string{"### GitHub issue escalation"},
+		},
+		{
+			name: "escalated",
+			escalation: &model.Escalation{
+				Needed:       true,
+				Reason:       "The bad tag is committed here.",
+				Title:        "CNS image tag does not exist",
+				Labels:       []string{"bug", "cns"},
+				FixDirection: "Point the template at a published tag.",
+				Source:       model.EscalationLLM,
+			},
+			want: []string{
+				"### GitHub issue escalation",
+				"A GitHub issue is warranted",
+				"issue.md",
+				"The bad tag is committed here.",
+				"CNS image tag does not exist",
+				"`bug`, `cns`",
+				"Point the template at a published tag.",
+			},
+		},
+		{
+			name: "declined keeps the reason but drafts nothing",
+			escalation: &model.Escalation{
+				Reason: "Quota exhaustion is not fixable in code.",
+				Source: model.EscalationLLM,
+			},
+			want:     []string{"No GitHub issue raised", "Quota exhaustion is not fixable in code."},
+			unwanted: []string{"Proposed title", "Fix direction"},
+		},
+		{
+			name:       "skipped",
+			escalation: &model.Escalation{Reason: "Pull-request build.", Source: model.EscalationSkipped},
+			want:       []string{"Not evaluated for this run", "Pull-request build."},
+		},
+		{
+			name:       "gate failure is surfaced, not silent",
+			escalation: &model.Escalation{Reason: "azure openai unauthorized", Source: model.EscalationError},
+			want:       []string{"Escalation gate failed", "azure openai unauthorized"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inc := Build(time.Unix(0, 0), model.RunContext{PipelineName: "ACN"}, model.Fingerprint{Hash: "deadbeef"}, sampleClassification(), nil, model.Evidence{})
+			inc.Escalation = tt.escalation
+			md := RenderMarkdown(inc)
+
+			for _, want := range tt.want {
+				if !strings.Contains(md, want) {
+					t.Errorf("expected %q in markdown, got:\n%s", want, md)
+				}
+			}
+			for _, unwanted := range tt.unwanted {
+				if strings.Contains(md, unwanted) {
+					t.Errorf("did not expect %q in markdown", unwanted)
+				}
+			}
+		})
+	}
+}
+
+// TestRenderMarkdownEscalationReasonStaysOnOneLine keeps a multi-line model
+// reason from breaking the surrounding markdown.
+func TestRenderMarkdownEscalationReasonStaysOnOneLine(t *testing.T) {
+	inc := Build(time.Unix(0, 0), model.RunContext{PipelineName: "ACN"}, model.Fingerprint{Hash: "deadbeef"}, sampleClassification(), nil, model.Evidence{})
+	inc.Escalation = &model.Escalation{Reason: "first\nsecond", Source: model.EscalationLLM}
+
+	md := RenderMarkdown(inc)
+	if !strings.Contains(md, "first second") {
+		t.Errorf("expected the reason collapsed to one line, got:\n%s", md)
+	}
+}
