@@ -133,6 +133,9 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 		if !req.SecondaryInterfacesExist {
 			return ipConfigsResp, err
 		}
+		if err != nil {
+			return ipConfigsResp, err
+		}
 		// If the pod is v2, get the infra IP configs from the handler first and then add the SWIFTv2 IP config
 		defer func() {
 			// Release the default IP config if there is an error
@@ -143,9 +146,6 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 				}
 			}
 		}()
-		if err != nil {
-			return ipConfigsResp, err
-		}
 		ipConfigResult, err := k.getIPConfig(ctx, podInfo)
 		if err != nil {
 			return &cns.IPConfigsResponse{

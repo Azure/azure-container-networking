@@ -3,6 +3,7 @@ package middlewares
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -12,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/middlewares/mock"
+	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/google/go-cmp/cmp"
@@ -19,6 +21,12 @@ import (
 	"gotest.tools/v3/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+var (
+	errDefaultHandler = errors.New("default handler failed")
+	errSecondMTPNCGet = errors.New("second mtpnc get failed")
 )
 
 func TestMain(m *testing.M) {
@@ -67,6 +75,87 @@ func TestIPConfigsRequestHandlerWrapperScheduledWithDRA(t *testing.T) {
 	require.Equal(t, cns.InfraNIC, resp.PodIPInfo[0].NICType)
 	require.True(t, resp.PodIPInfo[0].SkipDefaultRoutes)
 	require.True(t, resp.PodConfigurations.SkipDefaultRouteProgramming)
+}
+
+func TestIPConfigsRequestHandlerWrapperDoesNotCompensateDefaultHandlerFailure(t *testing.T) {
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
+	defaultResponse := &cns.IPConfigsResponse{}
+	defaultHandler := func(context.Context, cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+		return defaultResponse, errDefaultHandler
+	}
+	failureCalls := 0
+	failureHandler := func(context.Context, cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+		failureCalls++
+		return nil, nil
+	}
+	podInfo := cns.NewPodInfo(
+		"898fb8-eth0",
+		"898fb8f1-f93e-4c96-9c31-6b89098949a3",
+		"testpod1",
+		"testpod1namespace",
+	)
+	req := cns.IPConfigsRequest{
+		PodInterfaceID:   podInfo.InterfaceID(),
+		InfraContainerID: podInfo.InfraContainerID(),
+	}
+	req.OrchestratorContext, _ = podInfo.OrchestratorContext()
+
+	resp, err := middleware.IPConfigsRequestHandlerWrapper(defaultHandler, failureHandler)(t.Context(), req)
+
+	require.Same(t, defaultResponse, resp)
+	require.ErrorIs(t, err, errDefaultHandler)
+	require.Zero(t, failureCalls)
+}
+
+func TestIPConfigsRequestHandlerWrapperCompensatesLaterMTPNCFailure(t *testing.T) {
+	cli := &failSecondMTPNCGetClient{Client: mock.NewClient()}
+	middleware := K8sSWIFTv2Middleware{Cli: cli}
+	defaultResponse := &cns.IPConfigsResponse{}
+	defaultHandler := func(context.Context, cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+		return defaultResponse, nil
+	}
+	failureCalls := 0
+	failureHandler := func(context.Context, cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+		failureCalls++
+		return nil, nil
+	}
+	podInfo := cns.NewPodInfo(
+		"898fb8-eth0",
+		"898fb8f1-f93e-4c96-9c31-6b89098949a3",
+		"testpod1",
+		"testpod1namespace",
+	)
+	req := cns.IPConfigsRequest{
+		PodInterfaceID:   podInfo.InterfaceID(),
+		InfraContainerID: podInfo.InfraContainerID(),
+	}
+	req.OrchestratorContext, _ = podInfo.OrchestratorContext()
+
+	resp, err := middleware.IPConfigsRequestHandlerWrapper(defaultHandler, failureHandler)(t.Context(), req)
+
+	require.Equal(t, types.UnexpectedError, resp.Response.ReturnCode)
+	require.Equal(t, "network is not ready - failed to get MTPNC: second mtpnc get failed", resp.Response.Message)
+	require.ErrorIs(t, err, errValidateIPConfigsRequest)
+	require.Equal(t, 1, failureCalls)
+	require.Equal(t, 2, cli.mtpncGets)
+}
+
+type failSecondMTPNCGetClient struct {
+	client.Client
+	mtpncGets int
+}
+
+func (c *failSecondMTPNCGetClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	if _, ok := obj.(*v1alpha1.MultitenantPodNetworkConfig); ok {
+		c.mtpncGets++
+		if c.mtpncGets == 2 {
+			return errSecondMTPNCGet
+		}
+	}
+	if err := c.Client.Get(ctx, key, obj, opts...); err != nil {
+		return fmt.Errorf("getting test object: %w", err)
+	}
+	return nil
 }
 
 func TestGetSwiftV2IPConfigForDRANET(t *testing.T) {

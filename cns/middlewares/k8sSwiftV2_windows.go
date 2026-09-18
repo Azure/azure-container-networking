@@ -22,6 +22,8 @@ var defaultDenyEgressPolicy policy.Policy = mustGetEndpointPolicy(cns.DirectionT
 
 var defaultDenyIngressPolicy policy.Policy = mustGetEndpointPolicy(cns.DirectionTypeIn)
 
+var errValidateIPConfigsRequest = errors.New("failed to validate IP configs request")
+
 const (
 	defaultGateway = "0.0.0.0"
 )
@@ -162,16 +164,30 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 			}
 			return ipConfigsResp, err
 		}
+		if err != nil {
+			return ipConfigsResp, err
+		}
+
+		// If the pod is v2, release the default IP config when later middleware processing fails.
+		defer func() {
+			if err != nil {
+				_, err = failureHandler(ctx, req)
+				if err != nil {
+					logger.Errorf("failed to release default IP config : %v", err) //nolint:staticcheck // will migrate to logger/v2
+				}
+			}
+		}()
 
 		// Get MTPNC
 		mtpnc, respCode, message := k.getMTPNC(ctx, podInfo)
 		if respCode != types.Success {
+			err = errValidateIPConfigsRequest
 			return &cns.IPConfigsResponse{
 				Response: cns.Response{
 					ReturnCode: respCode,
 					Message:    message,
 				},
-			}, errors.New("failed to validate IP configs request")
+			}, err
 		}
 
 		//  GetDefaultDenyBool takes in mtpnc and returns the value of defaultDenyACLBool from it
@@ -188,18 +204,6 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 		}
 
 		// If the pod is v2, get the infra IP configs from the handler first and then add the SWIFTv2 IP config
-		defer func() {
-			// Release the default IP config if there is an error
-			if err != nil {
-				_, err = failureHandler(ctx, req)
-				if err != nil {
-					logger.Errorf("failed to release default IP config : %v", err)
-				}
-			}
-		}()
-		if err != nil {
-			return ipConfigsResp, err
-		}
 		ipConfigResult, err := k.getIPConfig(ctx, podInfo)
 		if err != nil {
 			return &cns.IPConfigsResponse{
