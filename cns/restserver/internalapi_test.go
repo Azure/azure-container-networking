@@ -355,6 +355,12 @@ func TestCreateOrUpdateNetworkContainerInternal_RejectsStaleVersionReplay(t *tes
 		},
 	}
 
+	preflightCode := svc.ValidateNetworkContainerGoalState(oldReq, true)
+	assert.Equal(t, types.UnsupportedNCVersion, preflightCode, "expected preflight to reject the stale NC replay")
+	assert.Equal(t, "10", svc.state.ContainerStatus[testNCID].CreateNetworkContainerRequest.Version)
+	_, exists := svc.PodIPConfigState[oldIPID]
+	assert.False(t, exists, "preflight must not recreate the old IP")
+
 	returnCode := svc.CreateOrUpdateNetworkContainerInternalWithVersionValidation(oldReq, true)
 
 	// Fixed behavior: the stale replay is rejected, atomically, with no partial mutation.
@@ -364,7 +370,7 @@ func TestCreateOrUpdateNetworkContainerInternal_RejectsStaleVersionReplay(t *tes
 	assert.Equal(t, "10", containerStatus.CreateNetworkContainerRequest.Version, "stored DNC version must remain 10")
 	assert.Equal(t, "10", containerStatus.HostVersion, "host version should remain unchanged")
 
-	_, exists := svc.PodIPConfigState[oldIPID]
+	_, exists = svc.PodIPConfigState[oldIPID]
 	assert.False(t, exists, "old IP must not be recreated in PodIPConfigState")
 
 	currentIPState, exists := svc.PodIPConfigState[currentIPID]
@@ -386,6 +392,11 @@ func TestCreateOrUpdateNetworkContainerInternal_StaleReplayRejectionSurvivesSNAT
 	svc.PodIPConfigState = make(map[string]cns.IPConfigurationStatus)
 
 	// Enable SNAT programming, as in the affected managed-Cilium deployment configuration.
+	options := svc.Options
+	previousSNATOption := options[acncommon.OptProgramSNATIPTables]
+	t.Cleanup(func() {
+		options[acncommon.OptProgramSNATIPTables] = previousSNATOption
+	})
 	svc.Options[acncommon.OptProgramSNATIPTables] = true
 	// service.iptables is deliberately left nil (its zero value): if the fix regresses and
 	// programSNATRules is reached, calling a method on it would panic, making any regression loud
@@ -589,11 +600,9 @@ func TestCreateOrUpdateNetworkContainerInternal_MalformedVersionFailsWithoutMuta
 	assert.Equal(t, "10", svc.state.ContainerStatus[testNCID].CreateNetworkContainerRequest.Version, "stored version must not be mutated")
 }
 
-// TestCreateOrUpdateNetworkContainerInternal_StaleReplayCannotAlterAssignedIP verifies that even if a
-// stale replay were somehow processed, an already-Assigned secondary IP is never altered or removed --
-// this exercises the pre-existing Assigned-IP protection in updateIPConfigsStateUntransacted, which the
-// new version guard must not weaken.
-func TestCreateOrUpdateNetworkContainerInternal_StaleReplayCannotAlterAssignedIP(t *testing.T) {
+// TestCreateOrUpdateNetworkContainerInternal_RejectedStaleReplayLeavesAssignedIPUnchanged verifies
+// that version validation rejects the replay before it can alter an assigned secondary IP.
+func TestCreateOrUpdateNetworkContainerInternal_RejectedStaleReplayLeavesAssignedIPUnchanged(t *testing.T) {
 	restartService()
 	setEnv(t)
 	setOrchestratorTypeInternal(cns.KubernetesCRD)
@@ -639,82 +648,6 @@ func TestCreateOrUpdateNetworkContainerInternal_StaleReplayCannotAlterAssignedIP
 	assignedIPState, exists := svc.PodIPConfigState[assignedIPID]
 	require.True(t, exists, "assigned IP must not be removed by a rejected stale replay")
 	assert.Equal(t, types.Assigned, assignedIPState.GetState(), "assigned IP state must be unchanged")
-}
-
-// TestCreateOrUpdateNetworkContainerInternal_RejectsStaleVersionReplay_ClusterData is a
-// regression test using real data captured from a live AKS standalone test cluster, instead of
-// synthetic IDs:
-//   - NC ID c51b224b-b747-4063-b470-3676a74f13e8 was observed on a node in the test cluster.
-//   - Version 1 of that NC (captured while held-demand pods were still occupying IPs) assigned
-//     secondary IP d9ac4eef-344a-4025-99b6-96c6c6e2ec71 / 10.241.0.69.
-//   - After releasing the held-demand pods, the live NNC advanced to version 8 and that IP ID was
-//     confirmed absent from the current ipAssignments set (i.e. genuinely released cluster-side). A
-//     live-cluster replay of this exact captured version-1 payload (via a single NNC status patch on
-//     the real cluster, since reverted) reproduced the bug against the real running CNS binary too.
-//
-// This verifies the fix using the same real, cluster-derived data: feeding a stale (version 1) replay
-// of the NC payload against locally-stored state reflecting the newer (version 8) baseline must now be
-// rejected, and the released address must remain absent.
-func TestCreateOrUpdateNetworkContainerInternal_RejectsStaleVersionReplay_ClusterData(t *testing.T) {
-	restartService()
-	setEnv(t)
-	setOrchestratorTypeInternal(cns.KubernetesCRD)
-	svc.state.ContainerStatus = make(map[string]containerstatus)
-	svc.PodIPConfigState = make(map[string]cns.IPConfigurationStatus)
-
-	const (
-		clusterNCID       = "c51b224b-b747-4063-b470-3676a74f13e8"
-		clusterHostVer    = "8"
-		clusterOldVer     = "1"
-		currentIPID       = "1fdc5ace-15e9-482a-a751-8aac094cda99" // still present at version 8, per phase 2 capture
-		releasedIPID      = "d9ac4eef-344a-4025-99b6-96c6c6e2ec71" // released by version 8, per phase 2 capture
-		releasedIPAddress = "10.241.0.69"
-	)
-
-	// Arrange: CNS reflects the real cluster baseline captured in Phase 2 -- NC at version 8, host
-	// version 8, with only the currently-assigned IP present in local state.
-	svc.state.ContainerStatus[clusterNCID] = containerstatus{
-		ID:          clusterNCID,
-		VMVersion:   clusterHostVer,
-		HostVersion: clusterHostVer,
-		CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
-			NetworkContainerid:   clusterNCID,
-			NetworkContainerType: dockerContainerType,
-			Version:              clusterHostVer,
-			IPConfiguration: cns.IPConfiguration{
-				IPSubnet: cns.IPSubnet{IPAddress: primaryIP, PrefixLength: subnetPrfixLength},
-			},
-			SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
-				currentIPID: newSecondaryIPConfig("10.241.0.64", 8),
-			},
-		},
-	}
-	svc.PodIPConfigState[currentIPID] = newPodState("10.241.0.64", currentIPID, clusterNCID, types.Available, 8)
-	// releasedIPID intentionally absent: confirmed released by the live cluster capture in Phase 2.
-
-	// Act: replay the real Phase 1 (version 1) NC payload referencing the now-released cluster IP.
-	oldReq := &cns.CreateNetworkContainerRequest{
-		NetworkContainerid:   clusterNCID,
-		NetworkContainerType: dockerContainerType,
-		Version:              clusterOldVer,
-		IPConfiguration: cns.IPConfiguration{
-			IPSubnet: cns.IPSubnet{IPAddress: primaryIP, PrefixLength: subnetPrfixLength},
-		},
-		SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
-			releasedIPID: newSecondaryIPConfig(releasedIPAddress, 1),
-		},
-	}
-
-	returnCode := svc.CreateOrUpdateNetworkContainerInternalWithVersionValidation(oldReq, true)
-
-	assert.Equal(t, types.UnsupportedNCVersion, returnCode, "expected the stale cluster-captured NC replay to be rejected")
-
-	containerStatus := svc.state.ContainerStatus[clusterNCID]
-	assert.Equal(t, clusterHostVer, containerStatus.CreateNetworkContainerRequest.Version, "stored DNC version must remain 8")
-	assert.Equal(t, clusterHostVer, containerStatus.HostVersion, "host version should remain unchanged")
-
-	_, exists := svc.PodIPConfigState[releasedIPID]
-	assert.False(t, exists, "cluster-released IP must not be recreated in PodIPConfigState")
 }
 
 func TestSyncHostNCVersion(t *testing.T) {

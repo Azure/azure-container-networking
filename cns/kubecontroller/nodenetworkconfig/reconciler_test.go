@@ -2,6 +2,7 @@ package nodenetworkconfig
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -25,7 +26,9 @@ type cnsClientState struct {
 type mockCNSClient struct {
 	state            cnsClientState
 	createOrUpdateNC func(*cns.CreateNetworkContainerRequest) cnstypes.ResponseCode
+	ensureNoStaleNCs func([]string)
 	update           func(*v1alpha.NodeNetworkConfig) error
+	validateNC       func(*cns.CreateNetworkContainerRequest, bool) cnstypes.ResponseCode
 	validateVersion  bool
 }
 
@@ -38,7 +41,21 @@ func (m *mockCNSClient) CreateOrUpdateNetworkContainerInternalWithVersionValidat
 	return m.createOrUpdateNC(req)
 }
 
+func (m *mockCNSClient) ValidateNetworkContainerGoalState(
+	req *cns.CreateNetworkContainerRequest,
+	validateVersion bool,
+) cnstypes.ResponseCode {
+	if m.validateNC == nil {
+		return cnstypes.Success
+	}
+	return m.validateNC(req, validateVersion)
+}
+
 func (m *mockCNSClient) MustEnsureNoStaleNCs(validNCIDs []string) {
+	if m.ensureNoStaleNCs != nil {
+		m.ensureNoStaleNCs(validNCIDs)
+	}
+
 	valid := make(map[string]struct{})
 	for _, ncID := range validNCIDs {
 		valid[ncID] = struct{}{}
@@ -101,6 +118,7 @@ func TestReconcile(t *testing.T) {
 					return &v1alpha.NodeNetworkConfig{}, nil
 				},
 			},
+			want:    reconcile.Result{RequeueAfter: initializationRequeueDelay},
 			wantErr: false,
 		},
 		{
@@ -153,6 +171,7 @@ func TestReconcile(t *testing.T) {
 					return nil
 				},
 			},
+			want:    reconcile.Result{RequeueAfter: initializationRequeueDelay},
 			wantErr: false,
 			wantCNSClientState: cnsClientState{
 				reqsByNCID: map[string]*cns.CreateNetworkContainerRequest{validSwiftRequest.NetworkContainerid: validSwiftRequest},
@@ -185,6 +204,7 @@ func TestReconcile(t *testing.T) {
 				},
 			},
 			nodeIP:             "192.168.1.5", // nodeIP in above NNC status is 10.1.0.5
+			want:               reconcile.Result{RequeueAfter: initializationRequeueDelay},
 			wantErr:            false,
 			wantCNSClientState: cnsClientState{}, // state should be empty since we should skip this NC
 		},
@@ -219,8 +239,8 @@ func TestReconcileStaticNCDoesNotValidateVersion(t *testing.T) {
 		ID:                 "nc-static",
 		AssignmentMode:     v1alpha.Static,
 		PrimaryIP:          "10.0.0.1/32",
-		SubnetAddressSpace: "10.0.0.0/24",
-		NodeIP:             "10.0.0.10",
+		SubnetAddressSpace: subnetAddressSpace,
+		NodeIP:             nodeIP,
 	}
 
 	cnsClient := mockCNSClient{
@@ -242,11 +262,64 @@ func TestReconcileStaticNCDoesNotValidateVersion(t *testing.T) {
 	assert.False(t, cnsClient.validateVersion)
 }
 
+func TestReconcileRejectsBeforeInitializerMutationAndStaleCleanup(t *testing.T) {
+	logger.InitLogger("", 0, 0, "") //nolint:staticcheck // test setup for legacy reconciler logging
+
+	for _, initializing := range []bool{true, false} {
+		t.Run(fmt.Sprintf("initializing=%t", initializing), func(t *testing.T) {
+			initializerCalls := 0
+			staleCleanupCalls := 0
+			createCalls := 0
+			cnsClient := mockCNSClient{
+				state: cnsClientState{reqsByNCID: map[string]*cns.CreateNetworkContainerRequest{
+					"newer-nc": {NetworkContainerid: "newer-nc"},
+				}},
+				createOrUpdateNC: func(*cns.CreateNetworkContainerRequest) cnstypes.ResponseCode {
+					createCalls++
+					return cnstypes.Success
+				},
+				validateNC: func(_ *cns.CreateNetworkContainerRequest, validateVersion bool) cnstypes.ResponseCode {
+					assert.True(t, validateVersion)
+					return cnstypes.UnsupportedNCVersion
+				},
+				ensureNoStaleNCs: func([]string) {
+					staleCleanupCalls++
+				},
+				update: func(*v1alpha.NodeNetworkConfig) error { return nil },
+			}
+
+			var initializer nodenetworkconfigSink
+			if initializing {
+				initializer = func(*v1alpha.NodeNetworkConfig) error {
+					initializerCalls++
+					return nil
+				}
+			}
+
+			reconciler := NewReconciler(&cnsClient, initializer, &cnsClient, "", false, 0)
+			reconciler.nnccli = &mockNCGetter{
+				get: func(context.Context, types.NamespacedName) (*v1alpha.NodeNetworkConfig, error) {
+					return &v1alpha.NodeNetworkConfig{Status: validSwiftStatus}, nil
+				},
+			}
+
+			_, err := reconciler.Reconcile(context.Background(), reconcile.Request{})
+			require.Error(t, err)
+			assert.Zero(t, initializerCalls)
+			assert.Zero(t, staleCleanupCalls)
+			assert.Zero(t, createCalls)
+			assert.Contains(t, cnsClient.state.reqsByNCID, "newer-nc")
+		})
+	}
+}
+
 func TestReconcileStaleNCs(t *testing.T) {
 	logger.InitLogger("", 0, 0, "")
 
 	cnsClient := mockCNSClient{
-		state:            cnsClientState{reqsByNCID: make(map[string]*cns.CreateNetworkContainerRequest)},
+		state: cnsClientState{reqsByNCID: map[string]*cns.CreateNetworkContainerRequest{
+			"restored-nc": {NetworkContainerid: "restored-nc"},
+		}},
 		createOrUpdateNC: func(*cns.CreateNetworkContainerRequest) cnstypes.ResponseCode { return cnstypes.Success },
 		update:           func(*v1alpha.NodeNetworkConfig) error { return nil },
 	}
@@ -288,23 +361,27 @@ func TestReconcileStaleNCs(t *testing.T) {
 	r := NewReconciler(&cnsClient, func(*v1alpha.NodeNetworkConfig) error { return nil }, &cnsClient, nodeIP, false, 0)
 	r.nnccli = &mockNCGetter{get: nncIterator}
 
-	_, err := r.Reconcile(context.Background(), reconcile.Request{})
+	result, err := r.Reconcile(context.Background(), reconcile.Request{})
 	require.NoError(t, err)
+	assert.Equal(t, initializationRequeueDelay, result.RequeueAfter)
 
 	assert.Contains(t, cnsClient.state.reqsByNCID, "nc1")
 	assert.Contains(t, cnsClient.state.reqsByNCID, "nc2")
+	assert.Contains(t, cnsClient.state.reqsByNCID, "restored-nc")
 
-	_, err = r.Reconcile(context.Background(), reconcile.Request{})
+	result, err = r.Reconcile(context.Background(), reconcile.Request{})
 	require.NoError(t, err)
+	assert.Zero(t, result.RequeueAfter)
 
 	assert.NotContains(t, cnsClient.state.reqsByNCID, "nc1")
 	assert.NotContains(t, cnsClient.state.reqsByNCID, "nc2")
+	assert.NotContains(t, cnsClient.state.reqsByNCID, "restored-nc")
 	assert.Contains(t, cnsClient.state.reqsByNCID, "nc3")
 	assert.Contains(t, cnsClient.state.reqsByNCID, "nc4")
 }
 
 func TestReconcileInitializerRunsOnceOnSuccess(t *testing.T) {
-	logger.InitLogger("", 0, 0, "")
+	logger.InitLogger("", 0, 0, "") //nolint:staticcheck // test setup for legacy reconciler logging
 
 	initializerCalls := 0
 	initializer := func(*v1alpha.NodeNetworkConfig) error {
@@ -325,17 +402,19 @@ func TestReconcileInitializerRunsOnceOnSuccess(t *testing.T) {
 	r := NewReconciler(&cnsClient, initializer, &cnsClient, "", false, 0)
 	r.nnccli = &ncGetter
 
-	_, err := r.Reconcile(context.Background(), reconcile.Request{})
+	result, err := r.Reconcile(context.Background(), reconcile.Request{})
 	require.NoError(t, err)
-	_, err = r.Reconcile(context.Background(), reconcile.Request{})
+	assert.Equal(t, initializationRequeueDelay, result.RequeueAfter)
+	result, err = r.Reconcile(context.Background(), reconcile.Request{})
 	require.NoError(t, err)
+	assert.Zero(t, result.RequeueAfter)
 
 	assert.Equal(t, 1, initializerCalls)
 	assert.Nil(t, r.initializer)
 }
 
 func TestReconcileInitializerRetriesAfterFailure(t *testing.T) {
-	logger.InitLogger("", 0, 0, "")
+	logger.InitLogger("", 0, 0, "") //nolint:staticcheck // test setup for legacy reconciler logging
 
 	initializerCalls := 0
 	initializer := func(*v1alpha.NodeNetworkConfig) error {

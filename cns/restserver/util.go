@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"slices"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -274,21 +274,27 @@ func validateNCGoalVersion(
 	existing,
 	incoming cns.CreateNetworkContainerRequest,
 ) (responseCode types.ResponseCode, message string) {
-	existingVersion, err := strconv.Atoi(existing.Version)
-	if err != nil {
-		return types.UnsupportedNCVersion, fmt.Sprintf(
-			"invalid committed nc version %q for nc %s: %v",
-			existing.Version,
-			incoming.NetworkContainerid,
-			err,
-		)
-	}
-
 	incomingVersion, err := strconv.Atoi(incoming.Version)
 	if err != nil {
 		return types.UnsupportedNCVersion, fmt.Sprintf(
 			"invalid incoming nc version %q for nc %s: %v",
 			incoming.Version,
+			incoming.NetworkContainerid,
+			err,
+		)
+	}
+
+	// Older CNS state and NCs previously stored by non-versioned paths may not have a
+	// committed version. Treat the first authoritative dynamic update as the baseline.
+	if existing.Version == "" {
+		return types.Success, ""
+	}
+
+	existingVersion, err := strconv.Atoi(existing.Version)
+	if err != nil {
+		return types.UnsupportedNCVersion, fmt.Sprintf(
+			"invalid committed nc version %q for nc %s: %v",
+			existing.Version,
 			incoming.NetworkContainerid,
 			err,
 		)
@@ -313,35 +319,14 @@ func validateNCGoalVersion(
 	}
 }
 
-// equalNNCNetworkProgrammingGoal reports whether two NC goal states describe the same thing CNS
-// should program: same primary/secondary IP configuration, host, status, and interface info.
+// equalNNCNetworkProgrammingGoal compares the complete request so newly added request fields are
+// included automatically. Version is compared separately, and authorization tokens are not persisted.
 func equalNNCNetworkProgrammingGoal(existing, incoming cns.CreateNetworkContainerRequest) bool {
-	if existing.NetworkContainerid != incoming.NetworkContainerid ||
-		existing.NetworkContainerType != incoming.NetworkContainerType ||
-		existing.HostPrimaryIP != incoming.HostPrimaryIP ||
-		existing.NCStatus != incoming.NCStatus ||
-		existing.NetworkInterfaceInfo != incoming.NetworkInterfaceInfo ||
-		!equalIPConfiguration(existing.IPConfiguration, incoming.IPConfiguration) ||
-		len(existing.SecondaryIPConfigs) != len(incoming.SecondaryIPConfigs) {
-		return false
-	}
-
-	for ipID, existingConfig := range existing.SecondaryIPConfigs {
-		incomingConfig, ok := incoming.SecondaryIPConfigs[ipID]
-		if !ok || existingConfig.IPAddress != incomingConfig.IPAddress {
-			return false
-		}
-	}
-
-	return true
-}
-
-func equalIPConfiguration(existing, incoming cns.IPConfiguration) bool {
-	return existing.IPSubnet == incoming.IPSubnet &&
-		existing.IPSubnetV6 == incoming.IPSubnetV6 &&
-		slices.Equal(existing.DNSServers, incoming.DNSServers) &&
-		existing.GatewayIPAddress == incoming.GatewayIPAddress &&
-		existing.GatewayIPv6Address == incoming.GatewayIPv6Address
+	existing.Version = ""
+	incoming.Version = ""
+	existing.AuthorizationToken = ""
+	incoming.AuthorizationToken = ""
+	return reflect.DeepEqual(existing, incoming)
 }
 
 // This func will compute the deltaIpConfigState which needs to be updated (Added or Deleted) from the inmemory map

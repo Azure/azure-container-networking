@@ -72,6 +72,26 @@ func TestSaveNetworkContainerGoalStateAcceptsIdenticalVersionReplay(t *testing.T
 	assertCommittedGoalVersion(t, svc, "2")
 }
 
+func TestSaveNetworkContainerGoalStateEstablishesBaselineForLegacyStateWithoutVersion(t *testing.T) {
+	svc, committed := newVersionValidationService(t)
+	status := svc.state.ContainerStatus[versionValidationNCID]
+	status.CreateNetworkContainerRequest.Version = ""
+	svc.state.ContainerStatus[versionValidationNCID] = status
+
+	incoming := cloneCreateNetworkContainerRequest(committed)
+	incoming.Version = "3"
+	for ipID, config := range incoming.SecondaryIPConfigs {
+		config.NCVersion = 3
+		incoming.SecondaryIPConfigs[ipID] = config
+	}
+
+	returnCode, message := svc.saveNetworkContainerGoalState(incoming, true)
+
+	assert.Equal(t, types.Success, returnCode)
+	assert.Empty(t, message)
+	assertCommittedGoalVersion(t, svc, "3")
+}
+
 func TestSaveNetworkContainerGoalStateRejectsEqualVersionGoalDrift(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -132,10 +152,24 @@ func TestSaveNetworkContainerGoalStateRejectsEqualVersionGoalDrift(t *testing.T)
 			},
 		},
 		{
+			name: "route",
+			mutate: func(req *cns.CreateNetworkContainerRequest) {
+				req.Routes = []cns.Route{{IPAddress: "10.2.0.0/16", GatewayIPAddress: gatewayIP}}
+			},
+		},
+		{
 			name: "secondary IP address",
 			mutate: func(req *cns.CreateNetworkContainerRequest) {
 				config := req.SecondaryIPConfigs["ip-id-1"]
 				config.IPAddress = versionValidationChangedSecondaryIP
+				req.SecondaryIPConfigs["ip-id-1"] = config
+			},
+		},
+		{
+			name: "secondary IP NC version",
+			mutate: func(req *cns.CreateNetworkContainerRequest) {
+				config := req.SecondaryIPConfigs["ip-id-1"]
+				config.NCVersion++
 				req.SecondaryIPConfigs["ip-id-1"] = config
 			},
 		},
@@ -166,6 +200,18 @@ func TestSaveNetworkContainerGoalStateRejectsEqualVersionGoalDrift(t *testing.T)
 			assertCommittedGoalVersion(t, svc, "2")
 		})
 	}
+}
+
+func TestSaveNetworkContainerGoalStateIgnoresAuthorizationTokenForEqualVersion(t *testing.T) {
+	svc, committed := newVersionValidationService(t)
+	incoming := cloneCreateNetworkContainerRequest(committed)
+	incoming.AuthorizationToken = "new-token"
+
+	returnCode, message := svc.saveNetworkContainerGoalState(incoming, true)
+
+	assert.Equal(t, types.Success, returnCode)
+	assert.Empty(t, message)
+	assert.Empty(t, svc.state.ContainerStatus[versionValidationNCID].CreateNetworkContainerRequest.AuthorizationToken)
 }
 
 func newVersionValidationService(t *testing.T) (*HTTPRestService, cns.CreateNetworkContainerRequest) {

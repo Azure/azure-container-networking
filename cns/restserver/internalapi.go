@@ -605,6 +605,30 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternalWithVersio
 	return service.createOrUpdateNetworkContainerInternal(req, validateVersion)
 }
 
+// ValidateNetworkContainerGoalState validates an incoming NC goal without mutating CNS state.
+func (service *HTTPRestService) ValidateNetworkContainerGoalState(
+	req *cns.CreateNetworkContainerRequest,
+	validateVersion bool,
+) types.ResponseCode {
+	if !validateVersion {
+		return types.Success
+	}
+
+	service.Lock()
+	defer service.Unlock()
+
+	existingNCStatus, ok := service.state.ContainerStatus[req.NetworkContainerid]
+	if !ok {
+		return types.Success
+	}
+
+	returnCode, returnMessage := validateNCGoalVersion(existingNCStatus.CreateNetworkContainerRequest, *req)
+	if returnCode != types.Success {
+		logger.Errorf("%s", returnMessage) //nolint:staticcheck // will migrate to logger/v2
+	}
+	return returnCode
+}
+
 func (service *HTTPRestService) createOrUpdateNetworkContainerInternal(
 	req *cns.CreateNetworkContainerRequest,
 	validateVersion bool,

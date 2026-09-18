@@ -3,6 +3,7 @@ package nodenetworkconfig
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
@@ -22,8 +23,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
+const initializationRequeueDelay = time.Second
+
 type cnsClient interface {
 	CreateOrUpdateNetworkContainerInternalWithVersionValidation(*cns.CreateNetworkContainerRequest, bool) cnstypes.ResponseCode
+	ValidateNetworkContainerGoalState(*cns.CreateNetworkContainerRequest, bool) cnstypes.ResponseCode
 	MustEnsureNoStaleNCs(validNCIDs []string)
 }
 
@@ -95,32 +99,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	for i := range nnc.Status.NetworkContainers {
 		validNCIDs[i] = nnc.Status.NetworkContainers[i].ID
 	}
-	r.cnscli.MustEnsureNoStaleNCs(validNCIDs)
 
-	// call initFunc on first reconcile and never again
-	if r.initializer != nil {
-		if err := r.initializer(nnc); err != nil {
-			logger.Errorf("[cns-rc] initializer failed during reconcile: %v", err)
-			return reconcile.Result{}, errors.Wrap(err, "initializer failed during reconcile")
-		}
-		r.initializer = nil
-	}
+	ncRequests := make([]*cns.CreateNetworkContainerRequest, 0, ncCount)
+	validateVersions := make([]bool, 0, ncCount)
 
-	// for each NC, parse it in to a CreateNCRequest and forward it to the appropriate Listener
+	// Convert and preflight every NC before startup reconciliation or any destructive cleanup.
 	for i := range nnc.Status.NetworkContainers {
-		// check if this NC matches the Node IP if we have one to check against
-		if r.nodeIP != "" {
-			if r.nodeIP != nnc.Status.NetworkContainers[i].NodeIP {
-				// skip this NC since it was created for a different node
-				logger.Printf("[cns-rc] skipping network container %s found in NNC because node IP doesn't match, got %s, expected %s",
-					nnc.Status.NetworkContainers[i].ID, nnc.Status.NetworkContainers[i].NodeIP, r.nodeIP)
-				continue
-			}
-		}
-
 		var req *cns.CreateNetworkContainerRequest
 		var err error
 		validateVersion := false
+		notifyPoolMonitor := false
 		switch nnc.Status.NetworkContainers[i].AssignmentMode { //nolint:exhaustive // skipping dynamic case
 		// For Overlay and Vnet Scale Scenarios
 		case v1alpha.Static:
@@ -129,8 +117,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		default: // For backward compatibility, default will be treated as Dynamic too.
 			req, err = CreateNCRequestFromDynamicNC(nnc.Status.NetworkContainers[i])
 			validateVersion = true
-			// in dynamic, we will also push this NNC to the IPAM Pool Monitor when we're done.
-			listenersToNotify = append(listenersToNotify, r.ipampoolmonitorcli)
+			notifyPoolMonitor = true
 		}
 
 		if err != nil {
@@ -140,12 +127,52 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 				"assignmentMode %s", nnc.Status.NetworkContainers[i].AssignmentMode)
 		}
 
-		responseCode := r.cnscli.CreateOrUpdateNetworkContainerInternalWithVersionValidation(req, validateVersion)
+		responseCode := r.cnscli.ValidateNetworkContainerGoalState(req, validateVersion)
+		if err := restserver.ResponseCodeToError(responseCode); err != nil {
+			logger.Errorf("[cns-rc] Error validating NC in reconcile: %v", err) //nolint:staticcheck // existing reconciler uses the legacy global logger
+			return reconcile.Result{}, errors.Wrap(err, "failed to validate network container")
+		}
+
+		// Check if this NC matches the Node IP after preflight because the startup initializer consumes
+		// the original, unfiltered NNC and must not bypass validation for an NC this loop skips.
+		if r.nodeIP != "" && r.nodeIP != nnc.Status.NetworkContainers[i].NodeIP {
+			logger.Printf( //nolint:staticcheck // existing reconciler uses the legacy global logger
+				"[cns-rc] skipping network container %s found in NNC because node IP doesn't match, got %s, expected %s",
+				nnc.Status.NetworkContainers[i].ID, nnc.Status.NetworkContainers[i].NodeIP, r.nodeIP,
+			)
+			continue
+		}
+
+		if notifyPoolMonitor {
+			// In dynamic, we will also push this NNC to the IPAM Pool Monitor when we're done.
+			listenersToNotify = append(listenersToNotify, r.ipampoolmonitorcli)
+		}
+		ncRequests = append(ncRequests, req)
+		validateVersions = append(validateVersions, validateVersion)
+	}
+
+	initializing := r.initializer != nil
+	if initializing {
+		if err := r.initializer(nnc); err != nil {
+			logger.Errorf("[cns-rc] initializer failed during reconcile: %v", err) //nolint:staticcheck // existing reconciler uses the legacy global logger
+			return reconcile.Result{}, errors.Wrap(err, "initializer failed during reconcile")
+		}
+		r.initializer = nil
+	}
+
+	for i, req := range ncRequests {
+		responseCode := r.cnscli.CreateOrUpdateNetworkContainerInternalWithVersionValidation(req, validateVersions[i])
 		if err := restserver.ResponseCodeToError(responseCode); err != nil {
 			logger.Errorf("[cns-rc] Error creating or updating NC in reconcile: %v", err)
 			return reconcile.Result{}, errors.Wrap(err, "failed to create or update network container")
 		}
 		ipAssignments += len(req.SecondaryIPConfigs)
+	}
+
+	// The first cached NNC may be an older snapshot, so it cannot prove that omitted restored NCs are
+	// stale. Defer cleanup until a later successfully validated reconciliation.
+	if !initializing {
+		r.cnscli.MustEnsureNoStaleNCs(validNCIDs)
 	}
 
 	// record assigned IPs metric
@@ -163,6 +190,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		close(r.started)
 		logger.Printf("[cns-rc] CNS NNC Reconciler Started")
 	})
+	if initializing {
+		return reconcile.Result{RequeueAfter: initializationRequeueDelay}, nil
+	}
 	return reconcile.Result{}, nil
 }
 
