@@ -494,6 +494,28 @@ func startTelemetryService(ctx context.Context) {
 	tb.PushData(ctx)
 }
 
+// newReadyChecker requires startup completion and, when enabled, successful CNI conflist publication.
+// It does not call conflistGenerated until startup completes.
+func newReadyChecker(
+	started <-chan any,
+	requireConflist bool,
+	conflistGenerated func() bool,
+) healthz.CheckHandler {
+	return healthz.CheckHandler{
+		Checker: func(*http.Request) error {
+			select {
+			default:
+				return errors.New("not ready")
+			case <-started:
+			}
+			if requireConflist && !conflistGenerated() {
+				return errors.New("cni conflist not ready")
+			}
+			return nil
+		},
+	}
+}
+
 // Main is the entry point for CNS.
 func main() {
 	// Initialize and parse command line arguments.
@@ -675,16 +697,10 @@ func main() {
 
 	// start the healthz/readyz/metrics server
 	readyCh := make(chan any)
-	readyChecker := healthz.CheckHandler{
-		Checker: healthz.Checker(func(*http.Request) error {
-			select {
-			default:
-				return errors.New("not ready")
-			case <-readyCh:
-			}
-			return nil
-		}),
-	}
+	var httpRemoteRestService *restserver.HTTPRestService
+	readyChecker := newReadyChecker(readyCh, conflistGenerator != nil, func() bool {
+		return httpRemoteRestService.CNIConflistGenerated()
+	})
 
 	healthzHandler, err := healthserver.NewHealthzHandlerWithChecks(&healthserver.Config{PingAPIServer: cnsconfig.EnableAPIServerHealthPing})
 	if err != nil {
@@ -789,7 +805,7 @@ func main() {
 	}
 
 	imdsClient := imds.NewClient()
-	httpRemoteRestService, err := restserver.NewHTTPRestService(&config, wsclient, &wsProxy, &restserver.IPtablesProvider{}, nmaClient,
+	httpRemoteRestService, err = restserver.NewHTTPRestService(&config, wsclient, &wsProxy, &restserver.IPtablesProvider{}, nmaClient,
 		endpointStateStore, conflistGenerator, homeAzMonitor, imdsClient)
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)
