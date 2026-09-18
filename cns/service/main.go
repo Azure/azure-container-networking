@@ -496,11 +496,7 @@ func startTelemetryService(ctx context.Context) {
 
 // newReadyChecker requires startup completion and, when enabled, successful CNI conflist publication.
 // It does not call conflistGenerated until startup completes.
-func newReadyChecker(
-	started <-chan any,
-	requireConflist bool,
-	conflistGenerated func() bool,
-) healthz.CheckHandler {
+func newReadyChecker(started <-chan any, requireConflist bool, conflistGenerated func() bool) healthz.CheckHandler {
 	return healthz.CheckHandler{
 		Checker: func(*http.Request) error {
 			select {
