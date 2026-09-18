@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/netip"
 	"strconv"
+	"sync/atomic"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -390,6 +391,134 @@ func TestUpdateEndpointStateDoesNotChangeStateWhenWriteFails(t *testing.T) {
 	require.Equal(t, wantPersistedState, gotPersistedState)
 }
 
+func TestUpdateEndpointStateTreatsIPv4MappedAddressAsIPv4(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	req := cns.IPConfigsRequest{
+		InfraContainerID: testPod1Info.InfraContainerID(),
+		Ifname:           "eth0",
+	}
+
+	err := svc.updateEndpointState(req, testPod1Info, []cns.PodIpInfo{
+		{PodIPConfig: cns.IPSubnet{IPAddress: "::ffff:10.0.0.1", PrefixLength: ipPrefixBitsv4}},
+	})
+
+	require.NoError(t, err)
+	ipInfo := svc.EndpointState[req.InfraContainerID].IfnameToIPMap[req.Ifname]
+	require.Len(t, ipInfo.IPv4, 1)
+	require.Empty(t, ipInfo.IPv6)
+	assert.True(t, ipInfo.IPv4[0].IP.Equal(net.ParseIP(testIP1)))
+	ones, bits := ipInfo.IPv4[0].Mask.Size()
+	assert.Equal(t, int(ipPrefixBitsv4), ones)
+	assert.Equal(t, net.IPv4len*8, bits)
+}
+
+func TestEndpointStateDirectWritesAreSerialized(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	deleteEndpointID := "delete-endpoint"
+	updateEndpointID := "update-endpoint"
+	svc.EndpointState = map[string]*EndpointInfo{
+		deleteEndpointID: {
+			IfnameToIPMap: map[string]*IPInfo{
+				InfraInterfaceName: {HnsEndpointID: "delete-hns-endpoint"},
+			},
+		},
+		updateEndpointID: {
+			IfnameToIPMap: map[string]*IPInfo{
+				InfraInterfaceName: {HnsEndpointID: "old-hns-endpoint"},
+			},
+		},
+	}
+	require.NoError(t, svc.EndpointStateStore.Write(EndpointStoreKey, svc.EndpointState))
+	blockingStore := &blockingEndpointWriteStore{
+		KeyValueStore:     svc.EndpointStateStore,
+		firstWriteStarted: make(chan struct{}),
+		releaseFirstWrite: make(chan struct{}),
+	}
+	svc.EndpointStateStore = blockingStore
+
+	deleteDone := make(chan error, 1)
+	go func() {
+		deleteDone <- svc.DeleteEndpointStateHelper(deleteEndpointID)
+	}()
+	<-blockingStore.firstWriteStarted
+
+	updateDone := make(chan error, 1)
+	go func() {
+		updateDone <- svc.UpdateEndpointHelper(updateEndpointID, map[string]*IPInfo{
+			InfraInterfaceName: {HnsEndpointID: "new-hns-endpoint"},
+		})
+	}()
+
+	lockHeld := !svc.TryLock()
+	if !lockHeld {
+		svc.Unlock()
+		require.NoError(t, <-updateDone)
+	}
+	close(blockingStore.releaseFirstWrite)
+	require.NoError(t, <-deleteDone)
+	if lockHeld {
+		require.NoError(t, <-updateDone)
+	}
+
+	require.True(t, lockHeld, "direct endpoint-state write did not hold the service lock")
+	assert.NotContains(t, svc.EndpointState, deleteEndpointID)
+	assert.Equal(t, "new-hns-endpoint", svc.EndpointState[updateEndpointID].IfnameToIPMap[InfraInterfaceName].HnsEndpointID)
+	var persisted map[string]*EndpointInfo
+	require.NoError(t, svc.EndpointStateStore.Read(EndpointStoreKey, &persisted))
+	assert.NotContains(t, persisted, deleteEndpointID)
+	assert.Equal(t, "new-hns-endpoint", persisted[updateEndpointID].IfnameToIPMap[InfraInterfaceName].HnsEndpointID)
+}
+
+func TestEndpointStateUntransactedWritesUseCallerLock(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	deleteEndpointID := "delete-endpoint"
+	updateEndpointID := "update-endpoint"
+	svc.EndpointState = map[string]*EndpointInfo{
+		deleteEndpointID: {
+			IfnameToIPMap: map[string]*IPInfo{
+				InfraInterfaceName: {HnsEndpointID: "delete-hns-endpoint"},
+			},
+		},
+		updateEndpointID: {
+			IfnameToIPMap: map[string]*IPInfo{
+				InfraInterfaceName: {HnsEndpointID: "old-hns-endpoint"},
+			},
+		},
+	}
+	require.NoError(t, svc.EndpointStateStore.Write(EndpointStoreKey, svc.EndpointState))
+	blockingStore := &blockingEndpointWriteStore{
+		KeyValueStore:     svc.EndpointStateStore,
+		firstWriteStarted: make(chan struct{}),
+		releaseFirstWrite: make(chan struct{}),
+	}
+	svc.EndpointStateStore = blockingStore
+
+	writeDone := make(chan error, 1)
+	go func() {
+		svc.Lock()
+		defer svc.Unlock()
+		if err := svc.deleteEndpointStateUntransacted(deleteEndpointID); err != nil {
+			writeDone <- err
+			return
+		}
+		writeDone <- svc.updateEndpointUntransacted(updateEndpointID, map[string]*IPInfo{
+			InfraInterfaceName: {HnsEndpointID: "new-hns-endpoint"},
+		})
+	}()
+	<-blockingStore.firstWriteStarted
+
+	lockHeld := !svc.TryLock()
+	if !lockHeld {
+		svc.Unlock()
+	}
+	close(blockingStore.releaseFirstWrite)
+	require.NoError(t, <-writeDone)
+
+	require.True(t, lockHeld, "untransacted endpoint-state write did not use the caller lock")
+	assert.NotContains(t, svc.EndpointState, deleteEndpointID)
+	assert.Equal(t, "new-hns-endpoint", svc.EndpointState[updateEndpointID].IfnameToIPMap[InfraInterfaceName].HnsEndpointID)
+}
+
 type endpointWriteCountingStore struct {
 	store.KeyValueStore
 	endpointWrites int
@@ -414,6 +543,24 @@ type endpointWriteFailStore struct {
 
 func (s endpointWriteFailStore) Write(string, interface{}) error {
 	return s.err
+}
+
+type blockingEndpointWriteStore struct {
+	store.KeyValueStore
+	firstWriteStarted chan struct{}
+	releaseFirstWrite chan struct{}
+	endpointWrites    atomic.Int32
+}
+
+func (s *blockingEndpointWriteStore) Write(key string, value interface{}) error {
+	if key == EndpointStoreKey && s.endpointWrites.Add(1) == 1 {
+		close(s.firstWriteStarted)
+		<-s.releaseFirstWrite
+	}
+	if err := s.KeyValueStore.Write(key, value); err != nil {
+		return fmt.Errorf("writing key %q: %w", key, err)
+	}
+	return nil
 }
 
 // assign the available IP to the new pod

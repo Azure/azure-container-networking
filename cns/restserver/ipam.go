@@ -366,6 +366,7 @@ func (service *HTTPRestService) updateEndpointStateUntransacted(ipconfigsRequest
 		if err != nil {
 			return fmt.Errorf("%w: parsing %q: %w", ErrParsePodIPFailed, podIPInfo[i].PodIPConfig.IPAddress, err)
 		}
+		addr = addr.Unmap()
 		ipConfig := net.IPNet{
 			IP:   net.IP(addr.AsSlice()).To16(),
 			Mask: net.CIDRMask(int(podIPInfo[i].PodIPConfig.PrefixLength), addr.BitLen()), //nolint:gosec // PrefixLength is constrained by IP family.
@@ -1237,6 +1238,13 @@ func (service *HTTPRestService) DeleteEndpointStateHandler(w http.ResponseWriter
 }
 
 func (service *HTTPRestService) DeleteEndpointStateHelper(endpointID string) error {
+	service.Lock()
+	defer service.Unlock()
+	return service.deleteEndpointStateUntransacted(endpointID)
+}
+
+// deleteEndpointStateUntransacted requires the service lock.
+func (service *HTTPRestService) deleteEndpointStateUntransacted(endpointID string) error {
 	if service.EndpointStateStore == nil {
 		return ErrStoreEmpty
 	}
@@ -1388,6 +1396,13 @@ func (service *HTTPRestService) UpdateEndpointHandler(w http.ResponseWriter, r *
 
 // UpdateEndpointHelper updates the state of the given endpointId with HNSId, VethName or other InterfaceInfo fields
 func (service *HTTPRestService) UpdateEndpointHelper(endpointID string, req map[string]*IPInfo) error {
+	service.Lock()
+	defer service.Unlock()
+	return service.updateEndpointUntransacted(endpointID, req)
+}
+
+// updateEndpointUntransacted requires the service lock.
+func (service *HTTPRestService) updateEndpointUntransacted(endpointID string, req map[string]*IPInfo) error {
 	if service.EndpointStateStore == nil {
 		return ErrStoreEmpty
 	}
