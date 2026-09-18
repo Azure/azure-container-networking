@@ -23,7 +23,7 @@ import (
 )
 
 type cnsClient interface {
-	CreateOrUpdateNetworkContainerInternal(*cns.CreateNetworkContainerRequest) cnstypes.ResponseCode
+	CreateOrUpdateNetworkContainerInternalWithVersionValidation(*cns.CreateNetworkContainerRequest, bool) cnstypes.ResponseCode
 	MustEnsureNoStaleNCs(validNCIDs []string)
 }
 
@@ -120,6 +120,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 
 		var req *cns.CreateNetworkContainerRequest
 		var err error
+		validateVersion := false
 		switch nnc.Status.NetworkContainers[i].AssignmentMode { //nolint:exhaustive // skipping dynamic case
 		// For Overlay and Vnet Scale Scenarios
 		case v1alpha.Static:
@@ -127,6 +128,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		// For Pod Subnet scenario
 		default: // For backward compatibility, default will be treated as Dynamic too.
 			req, err = CreateNCRequestFromDynamicNC(nnc.Status.NetworkContainers[i])
+			validateVersion = true
 			// in dynamic, we will also push this NNC to the IPAM Pool Monitor when we're done.
 			listenersToNotify = append(listenersToNotify, r.ipampoolmonitorcli)
 		}
@@ -138,7 +140,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 				"assignmentMode %s", nnc.Status.NetworkContainers[i].AssignmentMode)
 		}
 
-		responseCode := r.cnscli.CreateOrUpdateNetworkContainerInternal(req)
+		responseCode := r.cnscli.CreateOrUpdateNetworkContainerInternalWithVersionValidation(req, validateVersion)
 		if err := restserver.ResponseCodeToError(responseCode); err != nil {
 			logger.Errorf("[cns-rc] Error creating or updating NC in reconcile: %v", err)
 			return reconcile.Result{}, errors.Wrap(err, "failed to create or update network container")
