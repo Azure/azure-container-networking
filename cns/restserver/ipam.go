@@ -364,6 +364,12 @@ func (service *HTTPRestService) RequestIPConfigsHandler(w http.ResponseWriter, r
 	logger.ResponseEx(opName, ipconfigsRequest, ipConfigsResp, ipConfigsResp.Response.ReturnCode, err)
 }
 
+func (service *HTTPRestService) updateEndpointState(ipconfigsRequest cns.IPConfigsRequest, podInfo cns.PodInfo, podIPInfo []cns.PodIpInfo) error {
+	service.Lock()
+	defer service.Unlock()
+	return service.updateEndpointStateUntransacted(ipconfigsRequest, podInfo, podIPInfo)
+}
+
 func (service *HTTPRestService) updateEndpointStateUntransacted(ipconfigsRequest cns.IPConfigsRequest, podInfo cns.PodInfo, podIPInfo []cns.PodIpInfo) error {
 	if service.EndpointStateStore == nil {
 		return ErrStoreEmpty
@@ -943,6 +949,13 @@ func (service *HTTPRestService) MarkExistingIPsAsPendingRelease(pendingIPIDs []s
 	return nil
 }
 
+// GetExistingIPConfig returns the existing IP configuration for the pod and takes the service lock.
+func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) ([]cns.PodIpInfo, bool, error) {
+	service.RLock()
+	defer service.RUnlock()
+	return service.getExistingIPConfigUntransacted(podInfo)
+}
+
 func (service *HTTPRestService) getExistingIPConfigUntransacted(podInfo cns.PodInfo) ([]cns.PodIpInfo, bool, error) {
 	numIPConfigs := len(service.PodIPIDByPodInterfaceKey[podInfo.Key()])
 	podIPInfo := make([]cns.PodIpInfo, numIPConfigs)
@@ -965,6 +978,13 @@ func (service *HTTPRestService) getExistingIPConfigUntransacted(podInfo cns.PodI
 
 	logger.Printf("[GetExistingIPConfig] IPConfigExists [%t] for pod [%+v]", ipConfigExists, podInfo.Key())
 	return podIPInfo, ipConfigExists, nil
+}
+
+// AssignDesiredIPConfigs assigns the requested IP configurations to the pod and takes the service lock.
+func (service *HTTPRestService) AssignDesiredIPConfigs(podInfo cns.PodInfo, desiredIPAddresses []string) ([]cns.PodIpInfo, error) {
+	service.Lock()
+	defer service.Unlock()
+	return service.assignDesiredIPConfigsUntransacted(podInfo, desiredIPAddresses)
 }
 
 func (service *HTTPRestService) assignDesiredIPConfigsUntransacted(podInfo cns.PodInfo, desiredIPAddresses []string) ([]cns.PodIpInfo, error) {
@@ -1063,6 +1083,13 @@ func (service *HTTPRestService) assignDesiredIPConfigsUntransacted(podInfo cns.P
 
 	logger.Printf("[AssignDesiredIPConfigs] Successfully assigned all desired IPs for pod %+v", podInfo)
 	return podIPInfo, nil
+}
+
+// AssignAvailableIPConfigs assigns available IP configurations to the pod and takes the service lock.
+func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([]cns.PodIpInfo, error) {
+	service.Lock()
+	defer service.Unlock()
+	return service.assignAvailableIPConfigsUntransacted(podInfo)
 }
 
 // assignAvailableIPConfigsUntransacted assigns an available IP from each NC on the NNC.
