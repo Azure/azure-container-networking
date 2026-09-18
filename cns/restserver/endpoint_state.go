@@ -1,6 +1,9 @@
 package restserver
 
-import "net"
+import (
+	"net"
+	"slices"
+)
 
 func cloneEndpointState(state map[string]*EndpointInfo) map[string]*EndpointInfo {
 	cloned := make(map[string]*EndpointInfo, len(state))
@@ -20,8 +23,8 @@ func cloneEndpointState(state map[string]*EndpointInfo) map[string]*EndpointInfo
 				continue
 			}
 			info.IfnameToIPMap[ifName] = &IPInfo{
-				IPv4:               append([]net.IPNet(nil), ipInfo.IPv4...),
-				IPv6:               append([]net.IPNet(nil), ipInfo.IPv6...),
+				IPv4:               cloneIPNets(ipInfo.IPv4),
+				IPv6:               cloneIPNets(ipInfo.IPv6),
 				HnsEndpointID:      ipInfo.HnsEndpointID,
 				HnsNetworkID:       ipInfo.HnsNetworkID,
 				HostVethName:       ipInfo.HostVethName,
@@ -31,6 +34,15 @@ func cloneEndpointState(state map[string]*EndpointInfo) map[string]*EndpointInfo
 			}
 		}
 		cloned[containerID] = info
+	}
+	return cloned
+}
+
+func cloneIPNets(ipNets []net.IPNet) []net.IPNet {
+	cloned := slices.Clone(ipNets)
+	for i := range cloned {
+		cloned[i].IP = slices.Clone(ipNets[i].IP)
+		cloned[i].Mask = slices.Clone(ipNets[i].Mask)
 	}
 	return cloned
 }
