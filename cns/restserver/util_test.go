@@ -113,6 +113,18 @@ func TestSaveNetworkContainerGoalStateAcceptsRetainedIPReplay(t *testing.T) {
 	assertCommittedGoalVersion(t, svc, "3")
 }
 
+func TestSaveNetworkContainerGoalStateAcceptsSameVersionStatusTransition(t *testing.T) {
+	svc, committed := newVersionValidationService(t)
+	incoming := cloneCreateNetworkContainerRequest(committed)
+	incoming.NCStatus = v1alpha.NCUpdateSuccess
+
+	returnCode, message := svc.saveNetworkContainerGoalState(incoming, true)
+
+	assert.Equal(t, types.Success, returnCode)
+	assert.Empty(t, message)
+	assert.Equal(t, v1alpha.NCUpdateSuccess, svc.state.ContainerStatus[versionValidationNCID].CreateNetworkContainerRequest.NCStatus)
+}
+
 func TestSaveNetworkContainerGoalStateAcceptsIdenticalVersionReplayAfterRestore(t *testing.T) {
 	svc, committed := newVersionValidationService(t)
 	statePath := filepath.Join(t.TempDir(), "azure-cns.json")
@@ -204,12 +216,6 @@ func TestSaveNetworkContainerGoalStateRejectsEqualVersionGoalDrift(t *testing.T)
 			name: "IPv6 gateway",
 			mutate: func(req *cns.CreateNetworkContainerRequest) {
 				req.IPConfiguration.GatewayIPv6Address = "fd00::2"
-			},
-		},
-		{
-			name: "NC status",
-			mutate: func(req *cns.CreateNetworkContainerRequest) {
-				req.NCStatus = v1alpha.NCStatus("updated")
 			},
 		},
 		{

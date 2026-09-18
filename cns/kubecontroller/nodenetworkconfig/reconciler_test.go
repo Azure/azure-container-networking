@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -325,7 +324,6 @@ func TestReconcileStaleNCs(t *testing.T) {
 	nodeIP := "10.0.0.10"
 
 	nncv1 := v1alpha.NodeNetworkConfig{
-		ObjectMeta: metav1.ObjectMeta{ResourceVersion: "1"},
 		Status: v1alpha.NodeNetworkConfigStatus{
 			NetworkContainers: []v1alpha.NetworkContainer{
 				{ID: "nc1", PrimaryIP: "10.1.0.10", SubnetAddressSpace: "10.1.0.0/24", NodeIP: nodeIP},
@@ -336,7 +334,6 @@ func TestReconcileStaleNCs(t *testing.T) {
 	}
 
 	nncv2 := v1alpha.NodeNetworkConfig{
-		ObjectMeta: metav1.ObjectMeta{ResourceVersion: "2"},
 		Status: v1alpha.NodeNetworkConfigStatus{
 			NetworkContainers: []v1alpha.NetworkContainer{
 				{ID: "nc3", PrimaryIP: "10.1.0.12", SubnetAddressSpace: "10.1.0.0/24", NodeIP: nodeIP},
@@ -348,7 +345,7 @@ func TestReconcileStaleNCs(t *testing.T) {
 
 	i := 0
 	nncIterator := func(context.Context, types.NamespacedName) (*v1alpha.NodeNetworkConfig, error) {
-		nncLog := []v1alpha.NodeNetworkConfig{nncv1, nncv1, nncv2}
+		nncLog := []v1alpha.NodeNetworkConfig{nncv1, nncv2}
 		for i < len(nncLog) {
 			j := i
 			i++
@@ -367,15 +364,7 @@ func TestReconcileStaleNCs(t *testing.T) {
 
 	assert.Contains(t, cnsClient.state.reqsByNCID, "nc1")
 	assert.Contains(t, cnsClient.state.reqsByNCID, "nc2")
-	assert.Contains(t, cnsClient.state.reqsByNCID, "restored-nc")
-
-	result, err = r.Reconcile(context.Background(), reconcile.Request{})
-	require.NoError(t, err)
-	assert.Zero(t, result.RequeueAfter)
-
-	assert.Contains(t, cnsClient.state.reqsByNCID, "nc1")
-	assert.Contains(t, cnsClient.state.reqsByNCID, "nc2")
-	assert.Contains(t, cnsClient.state.reqsByNCID, "restored-nc")
+	assert.NotContains(t, cnsClient.state.reqsByNCID, "restored-nc")
 
 	result, err = r.Reconcile(context.Background(), reconcile.Request{})
 	require.NoError(t, err)

@@ -42,17 +42,15 @@ type nncGetter interface {
 
 // Reconciler watches for CRD status changes
 type Reconciler struct {
-	cnscli                    cnsClient
-	ipampoolmonitorcli        nodenetworkconfigSink
-	nnccli                    nncGetter
-	once                      sync.Once
-	started                   chan any
-	nodeIP                    string
-	isSwiftV2                 bool
-	initializer               nodenetworkconfigSink
-	ipv6PrefixClamp           int
-	startupNNCResourceVersion string
-	awaitingFreshNNC          bool
+	cnscli             cnsClient
+	ipampoolmonitorcli nodenetworkconfigSink
+	nnccli             nncGetter
+	once               sync.Once
+	started            chan any
+	nodeIP             string
+	isSwiftV2          bool
+	initializer        nodenetworkconfigSink
+	ipv6PrefixClamp    int
 }
 
 // NewReconciler creates a NodeNetworkConfig Reconciler which will get updates from the Kubernetes
@@ -157,8 +155,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			return reconcile.Result{}, errors.Wrap(err, "initializer failed during reconcile")
 		}
 		r.initializer = nil
-		r.startupNNCResourceVersion = nnc.ResourceVersion
-		r.awaitingFreshNNC = true
 	}
 
 	for i, req := range ncRequests {
@@ -170,18 +166,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		ipAssignments += len(req.SecondaryIPConfigs)
 	}
 
-	// The first cached NNC may be an older snapshot, so it cannot prove that omitted restored NCs are
-	// stale. Require a distinct Kubernetes resource version before allowing destructive cleanup.
-	if !initializing {
-		if r.awaitingFreshNNC {
-			if nnc.ResourceVersion != "" && nnc.ResourceVersion != r.startupNNCResourceVersion {
-				r.awaitingFreshNNC = false
-				r.cnscli.MustEnsureNoStaleNCs(validNCIDs)
-			}
-		} else {
-			r.cnscli.MustEnsureNoStaleNCs(validNCIDs)
-		}
-	}
+	// Cleanup is destructive, so only run it after every incoming NC has validated and applied.
+	r.cnscli.MustEnsureNoStaleNCs(validNCIDs)
 
 	// record assigned IPs metric
 	allocatedIPs.Set(float64(ipAssignments))

@@ -330,7 +330,6 @@ func equalNNCNetworkProgrammingGoal(existing, incoming cns.CreateNetworkContaine
 	return existing.NetworkContainerid == incoming.NetworkContainerid &&
 		existing.NetworkContainerType == incoming.NetworkContainerType &&
 		existing.HostPrimaryIP == incoming.HostPrimaryIP &&
-		existing.NCStatus == incoming.NCStatus &&
 		existing.NetworkInterfaceInfo == incoming.NetworkInterfaceInfo &&
 		equalIPConfiguration(existing.IPConfiguration, incoming.IPConfiguration) &&
 		equalSecondaryIPGoals(existing.SecondaryIPConfigs, incoming.SecondaryIPConfigs)
