@@ -32,22 +32,27 @@ jobs:
           echo "${GOPATH}/bin" >> "$GITHUB_PATH"
           echo "GOPATH=${GOPATH}" >> "$GITHUB_ENV"
 
-      - name: Enforce work-in-workspace (block git worktree)
+      - name: Guard against git worktree use in the workspace
         run: |
           set -euo pipefail
 
           # Only $GITHUB_WORKSPACE is committed and pushed, so a worktree of the
           # workspace repo placed elsewhere on disk is silently discarded.
-          # Instructions alone do not reliably prevent this, so remove the
-          # capability for that repo.
+          # Instructions alone did not reliably prevent this, so make the
+          # mistake fail loudly and immediately instead of at the end of a task.
           #
-          # Scope: this guards the workspace checkout. It does not, and cannot,
-          # stop a process from cloning another repo elsewhere and working
-          # there — `git clone` is legitimate, and any real git binary can be
-          # copied. That failure mode is not worktree-specific (editing files in
-          # an unrelated clone loses them just the same); it is covered by the
-          # instructions and by the final `git diff` check against the target
-          # branch before reporting completion.
+          # This is a guardrail, not a security boundary. The agent owns the
+          # checkout and has passwordless sudo, so it can dismantle every
+          # mechanism here: the shims can be overwritten and the sentinel below
+          # can simply be unlinked (write permission on .git is what governs
+          # that, not the sentinel's own mode). Nothing on a runner can prevent
+          # that. The goal is narrower and achievable: an agent that reaches for
+          # `git worktree add` while following stale instructions gets an
+          # instructive error at the point of the mistake rather than a silently
+          # discarded tree. Working in an unrelated clone elsewhere loses work
+          # just the same and is equally out of reach here; both are backstopped
+          # by the final `git diff` check against the target branch before
+          # reporting completion.
           #
           # /usr/local/bin precedes /usr/bin in PATH, so this shim intercepts
           # every PATH-resolved `git` for the rest of the job, including the
@@ -130,20 +135,22 @@ jobs:
           # Install at every entry point the agent could plausibly invoke, not
           # just the PATH-resolved one. /usr/lib/git-core/git is deliberately
           # left as the real binary so git's own helper dispatch is untouched;
-          # the filesystem backstop below covers it, so it is not a bypass.
+          # the sentinel below covers the common case for this repo.
           sudo chmod 755 /usr/local/lib/git-guard/git-shim
           sudo cp /usr/local/lib/git-guard/git-shim /usr/local/bin/git
           sudo cp /usr/local/lib/git-guard/git-shim /usr/bin/git
           sudo chmod 755 /usr/local/bin/git /usr/bin/git
 
-          # Enforcement backstop for the workspace repo, below every
-          # user-invocable entry point. `git worktree add` must create
-          # $GIT_DIR/worktrees/<name>; making that path a non-directory makes
-          # the operation fail for this repo no matter which git binary is
-          # invoked, so a preserved or freshly copied binary is not an escape
-          # hatch here. `git worktree list` and all other read paths are
-          # unaffected. Other repositories keep their own $GIT_DIR and are out
-          # of scope, as described above.
+          # Second layer, below the PATH shims. `git worktree add` must create
+          # $GIT_DIR/worktrees/<name>; making that path a non-directory makes the
+          # operation fail for this repo whichever git binary is invoked, so a
+          # preserved or copied binary does not quietly slip past. `git worktree
+          # list` and all other read paths are unaffected.
+          #
+          # This only holds while the sentinel is present. .git is owned by the
+          # checkout user, so the sentinel can be unlinked regardless of its mode
+          # — it stops an agent reaching for a worktree, not one working to
+          # remove the obstacle.
           if [ -e "$GITHUB_WORKSPACE/.git/worktrees" ]; then
             sudo rm -rf "$GITHUB_WORKSPACE/.git/worktrees"
           fi
@@ -181,8 +188,10 @@ jobs:
           # PATH-resolved and absolute-path spellings for any repo.
           blocked /usr/bin/git worktree add /tmp/guard-probe-7
           blocked /usr/local/bin/git worktree add /tmp/guard-probe-8
-          # Non-shimmed real binaries are covered for this repo by the sentinel:
-          # the preserved copy, git's own dispatch path, and a fresh copy.
+          # Non-shimmed real binaries: the preserved copy, git's own dispatch
+          # path, and a fresh copy. These pass by virtue of the sentinel, so
+          # they verify it is installed and effective as configured — not that
+          # the capability is unreachable.
           blocked /usr/local/lib/git-guard/git.real -C "$GITHUB_WORKSPACE" worktree add /tmp/guard-probe-9
           blocked /usr/lib/git-core/git -C "$GITHUB_WORKSPACE" worktree add /tmp/guard-probe-10
           cp /usr/local/lib/git-guard/git.real /tmp/guard-probe-git
@@ -196,7 +205,7 @@ jobs:
             fi
           done
 
-          echo "✓ git worktree add blocked for $GITHUB_WORKSPACE (11 variants, incl. absolute paths and copied binaries); all other git subcommands pass through"
+          echo "✓ guard active: 'git worktree add' against $GITHUB_WORKSPACE fails for 11 invocation styles, incl. absolute paths and copied binaries; all other git subcommands pass through"
 
       - name: Pre-download module dependencies (before firewall activates)
         run: |
