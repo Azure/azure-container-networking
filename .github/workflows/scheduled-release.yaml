@@ -6,7 +6,7 @@
 #   - Last Friday of month: CNI notification + dependabot PR collection (1 week heads-up)
 #   - First Friday of month: Tag creation (skips PR wait; only pause/resume can block)
 #   - Other Fridays: Skipped by check_cadence
-# Branches: release/v1.7 (14:00) and master (14:15) + manual dispatch
+# Branches: release/v1.8 (14:00) and master (14:15) + manual dispatch
 #
 # ─── Teams Notification Dependency ───────────────────────────────────────────
 # Teams messages are sent via the acn-notifier-bot Azure Function App,
@@ -24,16 +24,17 @@ on:
   schedule:
     # Every Friday at 14:00/14:15 UTC (7:00 AM PST)
     # check_cadence determines: last Friday of month → notification, first Friday → tag creation
-    - cron: "0 14 * * 5"    # release/v1.7
+    - cron: "0 14 * * 5"    # release/v1.8
     - cron: "15 14 * * 5"   # master
   workflow_dispatch:
     inputs:
       release_branch:
         description: "Release branch to target"
         required: true
-        default: "release/v1.7"
+        default: "release/v1.8"
         type: choice
         options:
+          - release/v1.8
           - release/v1.7
           - master
       skip_dependabot_wait:
@@ -58,7 +59,7 @@ on:
         type: boolean
 
 concurrency:
-  group: scheduled-release-${{ inputs.release_branch || (github.event.schedule == '15 14 * * 5' && 'master') || 'release/v1.7' }}
+  group: scheduled-release-${{ inputs.release_branch || (github.event.schedule == '15 14 * * 5' && 'master') || 'release/v1.8' }}
   cancel-in-progress: false
 
 permissions:
@@ -66,8 +67,8 @@ permissions:
   pull-requests: read
 
 env:
-  # Map cron schedules to branches: *:15 → master, *:00 → release/v1.7
-  RELEASE_BRANCH: ${{ inputs.release_branch || (github.event.schedule == '15 14 * * 5' && 'master') || 'release/v1.7' }}
+  # Map cron schedules to branches: *:15 → master, *:00 → release/v1.8
+  RELEASE_BRANCH: ${{ inputs.release_branch || (github.event.schedule == '15 14 * * 5' && 'master') || 'release/v1.8' }}
   MAX_PIPELINE_RETRIES: 5
   NOTIFIER_URL: https://acn-notifier-bot.azurewebsites.net
   NOTIFIER_AUDIENCE: api://3976eca5-3f9d-4528-987f-c20c1f9f27f7
@@ -173,7 +174,7 @@ jobs:
           set -euo pipefail
           VERSION_PREFIX=""
           if [[ "$RELEASE_BRANCH" == "master" ]]; then
-            VERSION_PREFIX="--version-prefix v1.8"
+            VERSION_PREFIX="--version-prefix v1.9"
           fi
           VERSION=$(/tmp/release-cli next-version --branch "$RELEASE_BRANCH" $VERSION_PREFIX)
           echo "new_tag=$(echo "$VERSION" | jq -r '.new_tag')" >> "$GITHUB_OUTPUT"
@@ -736,7 +737,7 @@ jobs:
           set -euo pipefail
           VERSION_PREFIX=""
           if [[ "$RELEASE_BRANCH" == "master" ]]; then
-            VERSION_PREFIX="--version-prefix v1.8"
+            VERSION_PREFIX="--version-prefix v1.9"
           fi
           RESULT=$(/tmp/release-cli next-version --branch "$RELEASE_BRANCH" $VERSION_PREFIX)
           echo "new_tag=$(echo "$RESULT" | jq -r '.new_tag')" >> "$GITHUB_OUTPUT"
