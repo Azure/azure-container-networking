@@ -120,11 +120,23 @@ jobs:
 
           # Install at every entry point the agent could plausibly invoke, not
           # just the PATH-resolved one. /usr/lib/git-core/git is deliberately
-          # left as the real binary so git's own helper dispatch is untouched.
+          # left as the real binary so git's own helper dispatch is untouched;
+          # the filesystem backstop below covers it, so it is not a bypass.
           sudo chmod 755 /usr/local/lib/git-guard/git-shim
           sudo cp /usr/local/lib/git-guard/git-shim /usr/local/bin/git
           sudo cp /usr/local/lib/git-guard/git-shim /usr/bin/git
           sudo chmod 755 /usr/local/bin/git /usr/bin/git
+
+          # Enforcement backstop, below every user-invocable entry point.
+          # `git worktree add` must create $GIT_DIR/worktrees/<name>; making
+          # that path a non-directory makes the operation fail no matter which
+          # git binary is invoked, so a preserved or freshly copied binary is
+          # not an escape hatch. `git worktree list` and all other read paths
+          # are unaffected.
+          if [ -e "$GITHUB_WORKSPACE/.git/worktrees" ]; then
+            sudo rm -rf "$GITHUB_WORKSPACE/.git/worktrees"
+          fi
+          sudo install -m 000 /dev/null "$GITHUB_WORKSPACE/.git/worktrees"
 
           # Prove the shim resolves first, blocks every spelling of
           # `worktree add`, and leaves everything else working. Any failure here
@@ -155,15 +167,22 @@ jobs:
           # Absolute-path invocation must not be an escape hatch.
           blocked /usr/bin/git worktree add /tmp/guard-probe-7
           blocked /usr/local/bin/git worktree add /tmp/guard-probe-8
+          # Neither is any other real git binary: the preserved copy, git's own
+          # dispatch path, or a fresh copy the agent makes for itself.
+          blocked /usr/local/lib/git-guard/git.real -C "$GITHUB_WORKSPACE" worktree add /tmp/guard-probe-9
+          blocked /usr/lib/git-core/git -C "$GITHUB_WORKSPACE" worktree add /tmp/guard-probe-10
+          cp /usr/local/lib/git-guard/git.real /tmp/guard-probe-git
+          blocked /tmp/guard-probe-git -C "$GITHUB_WORKSPACE" worktree add /tmp/guard-probe-11
+          rm -f /tmp/guard-probe-git
 
           for p in /tmp/guard-probe-*; do
             if [ -e "$p" ]; then
-              echo "::error::Worktree leaked past the shim: $p"
+              echo "::error::Worktree leaked past the guard: $p"
               exit 1
             fi
           done
 
-          echo "✓ git worktree add blocked (8 variants, incl. absolute paths); all other git subcommands pass through"
+          echo "✓ git worktree add blocked (11 variants, incl. absolute paths and copied binaries); all other git subcommands pass through"
 
       - name: Pre-download module dependencies (before firewall activates)
         run: |

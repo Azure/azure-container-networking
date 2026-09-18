@@ -640,11 +640,15 @@ cd "$GITHUB_WORKSPACE"
   echo "FATAL: $PWD is not the git toplevel"; exit 1
 }
 
-git status --short
-git diff --stat origin/master...HEAD
+# Compare against the branch you are targeting, not always master — a
+# release/v1.7 backport must be diffed against release/v1.7.
+BASE="origin/${GITHUB_BASE_REF:-master}"
 
-if git diff --quiet origin/master...HEAD; then
-  echo "FATAL: branch has no changes — do not claim the upgrade is done."
+git status --short
+git diff --stat "$BASE"...HEAD
+
+if git diff --quiet "$BASE"...HEAD; then
+  echo "FATAL: branch has no changes vs $BASE — do not claim the upgrade is done."
   echo "Re-check that you edited files under \$GITHUB_WORKSPACE and committed them."
   exit 1
 fi
