@@ -3,7 +3,6 @@ package nodenetworkconfig
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
@@ -22,8 +21,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
-
-const initializationRequeueDelay = time.Second
 
 type cnsClient interface {
 	CreateOrUpdateNetworkContainerInternalWithVersionValidation(*cns.CreateNetworkContainerRequest, bool) cnstypes.ResponseCode
@@ -45,15 +42,17 @@ type nncGetter interface {
 
 // Reconciler watches for CRD status changes
 type Reconciler struct {
-	cnscli             cnsClient
-	ipampoolmonitorcli nodenetworkconfigSink
-	nnccli             nncGetter
-	once               sync.Once
-	started            chan any
-	nodeIP             string
-	isSwiftV2          bool
-	initializer        nodenetworkconfigSink
-	ipv6PrefixClamp    int
+	cnscli                    cnsClient
+	ipampoolmonitorcli        nodenetworkconfigSink
+	nnccli                    nncGetter
+	once                      sync.Once
+	started                   chan any
+	nodeIP                    string
+	isSwiftV2                 bool
+	initializer               nodenetworkconfigSink
+	ipv6PrefixClamp           int
+	startupNNCResourceVersion string
+	awaitingFreshNNC          bool
 }
 
 // NewReconciler creates a NodeNetworkConfig Reconciler which will get updates from the Kubernetes
@@ -158,6 +157,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			return reconcile.Result{}, errors.Wrap(err, "initializer failed during reconcile")
 		}
 		r.initializer = nil
+		r.startupNNCResourceVersion = nnc.ResourceVersion
+		r.awaitingFreshNNC = true
 	}
 
 	for i, req := range ncRequests {
@@ -170,9 +171,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	}
 
 	// The first cached NNC may be an older snapshot, so it cannot prove that omitted restored NCs are
-	// stale. Defer cleanup until a later successfully validated reconciliation.
+	// stale. Require a distinct Kubernetes resource version before allowing destructive cleanup.
 	if !initializing {
-		r.cnscli.MustEnsureNoStaleNCs(validNCIDs)
+		if r.awaitingFreshNNC {
+			if nnc.ResourceVersion != "" && nnc.ResourceVersion != r.startupNNCResourceVersion {
+				r.awaitingFreshNNC = false
+				r.cnscli.MustEnsureNoStaleNCs(validNCIDs)
+			}
+		} else {
+			r.cnscli.MustEnsureNoStaleNCs(validNCIDs)
+		}
 	}
 
 	// record assigned IPs metric
@@ -190,9 +198,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		close(r.started)
 		logger.Printf("[cns-rc] CNS NNC Reconciler Started")
 	})
-	if initializing {
-		return reconcile.Result{RequeueAfter: initializationRequeueDelay}, nil
-	}
 	return reconcile.Result{}, nil
 }
 

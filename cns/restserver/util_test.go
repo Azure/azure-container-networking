@@ -1,6 +1,7 @@
 package restserver
 
 import (
+	"path/filepath"
 	"strconv"
 	"testing"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/Azure/azure-container-networking/processlock"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,6 +72,32 @@ func TestSaveNetworkContainerGoalStateAcceptsIdenticalVersionReplay(t *testing.T
 	assert.Equal(t, types.Success, returnCode)
 	assert.Empty(t, message)
 	assertCommittedGoalVersion(t, svc, "2")
+}
+
+func TestSaveNetworkContainerGoalStateAcceptsIdenticalVersionReplayAfterRestore(t *testing.T) {
+	svc, committed := newVersionValidationService(t)
+	statePath := filepath.Join(t.TempDir(), "azure-cns.json")
+	persistentStore, err := store.NewJsonFileStore(statePath, processlock.NewMockFileLock(false), nil)
+	require.NoError(t, err)
+	svc.store = persistentStore
+	require.NoError(t, svc.saveState())
+
+	baseService, err := cns.NewService("test", "test", "", persistentStore)
+	require.NoError(t, err)
+	restored := &HTTPRestService{
+		Service:          baseService,
+		store:            persistentStore,
+		state:            &httpRestServiceState{},
+		PodIPConfigState: make(map[string]cns.IPConfigurationStatus),
+	}
+	restored.restoreState()
+	require.JSONEq(t, "null", string(restored.state.ContainerStatus[versionValidationNCID].CreateNetworkContainerRequest.OrchestratorContext))
+
+	returnCode, message := restored.saveNetworkContainerGoalState(cloneCreateNetworkContainerRequest(committed), true)
+
+	assert.Equal(t, types.Success, returnCode)
+	assert.Empty(t, message)
+	assertCommittedGoalVersion(t, restored, "2")
 }
 
 func TestSaveNetworkContainerGoalStateEstablishesBaselineForLegacyStateWithoutVersion(t *testing.T) {
@@ -149,12 +177,6 @@ func TestSaveNetworkContainerGoalStateRejectsEqualVersionGoalDrift(t *testing.T)
 			name: "network interface",
 			mutate: func(req *cns.CreateNetworkContainerRequest) {
 				req.NetworkInterfaceInfo.MACAddress = "00:11:22:33:44:66"
-			},
-		},
-		{
-			name: "route",
-			mutate: func(req *cns.CreateNetworkContainerRequest) {
-				req.Routes = []cns.Route{{IPAddress: "10.2.0.0/16", GatewayIPAddress: gatewayIP}}
 			},
 		},
 		{

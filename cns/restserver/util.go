@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
-	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -319,14 +320,24 @@ func validateNCGoalVersion(
 	}
 }
 
-// equalNNCNetworkProgrammingGoal compares the complete request so newly added request fields are
-// included automatically. Version is compared separately, and authorization tokens are not persisted.
+// equalNNCNetworkProgrammingGoal compares the fields populated by the NNC conversion path.
+// Version is compared separately, and authorization tokens are not persisted.
 func equalNNCNetworkProgrammingGoal(existing, incoming cns.CreateNetworkContainerRequest) bool {
-	existing.Version = ""
-	incoming.Version = ""
-	existing.AuthorizationToken = ""
-	incoming.AuthorizationToken = ""
-	return reflect.DeepEqual(existing, incoming)
+	return existing.NetworkContainerid == incoming.NetworkContainerid &&
+		existing.NetworkContainerType == incoming.NetworkContainerType &&
+		existing.HostPrimaryIP == incoming.HostPrimaryIP &&
+		existing.NCStatus == incoming.NCStatus &&
+		existing.NetworkInterfaceInfo == incoming.NetworkInterfaceInfo &&
+		equalIPConfiguration(existing.IPConfiguration, incoming.IPConfiguration) &&
+		maps.Equal(existing.SecondaryIPConfigs, incoming.SecondaryIPConfigs)
+}
+
+func equalIPConfiguration(existing, incoming cns.IPConfiguration) bool {
+	return existing.IPSubnet == incoming.IPSubnet &&
+		existing.IPSubnetV6 == incoming.IPSubnetV6 &&
+		slices.Equal(existing.DNSServers, incoming.DNSServers) &&
+		existing.GatewayIPAddress == incoming.GatewayIPAddress &&
+		existing.GatewayIPv6Address == incoming.GatewayIPv6Address
 }
 
 // This func will compute the deltaIpConfigState which needs to be updated (Added or Deleted) from the inmemory map
