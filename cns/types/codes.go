@@ -47,6 +47,7 @@ const (
 	ConnectionError                        ResponseCode = 45
 	UnexpectedError                        ResponseCode = 99
 	NmAgentNCVersionListError              ResponseCode = 100
+	SubnetJoinFailed                       ResponseCode = 101
 )
 
 // nolint:gocyclo
@@ -128,6 +129,8 @@ func (c ResponseCode) String() string {
 		return "StatusUnauthorized"
 	case FailedToAllocateBackendConfig:
 		return "FailedToAllocateBackendConfig"
+	case SubnetJoinFailed:
+		return "SubnetJoinFailed"
 	default:
 		return "UnknownError"
 	}
