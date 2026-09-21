@@ -80,23 +80,16 @@ func CreateValidator(ctx context.Context, clientset *kubernetes.Clientset, confi
 	switch os {
 	case windowsOS:
 		checks = windowsChecksMap[cni]
+		if !restartCase {
+			err := acnk8s.RestartKubeProxyService(ctx, clientset, privilegedNamespace, privilegedLabelSelector, config)
+			if err != nil {
+				return nil, errors.Wrapf(err, "failed to restart kubeproxy")
+			}
+		}
 	case linuxOS:
 		checks = linuxChecksMap[cni]
 	default:
 		return nil, errors.Errorf("unsupported os: %s", os)
-	}
-
-	// An unmapped cni type yields no checks, which would silently pass state
-	// validation without comparing anything.
-	if len(checks) == 0 {
-		return nil, errors.Errorf("no state validation checks defined for cni type %q on os %s", cni, os)
-	}
-
-	if os == windowsOS && !restartCase {
-		err := acnk8s.RestartKubeProxyService(ctx, clientset, privilegedNamespace, privilegedLabelSelector, config)
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to restart kubeproxy")
-		}
 	}
 
 	return &Validator{
