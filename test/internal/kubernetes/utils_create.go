@@ -399,7 +399,7 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 	cnsAzureCNIOverlayLinuxConfigMapPath := cnsConfigFolder + "/azurecnioverlaylinuxconfigmap.yaml"
 	cnsAzureStatelessCNIOverlayWindowsConfigMapPath := cnsConfigFolder + "/azurestatelesscnioverlaywindowsconfigmap.yaml"
 	cnsAzureCNIDualStackLinuxConfigMapPath := cnsConfigFolder + "/azurecnidualstackoverlaylinuxconfigmap.yaml"
-	cnsAzureCNIDualStackWindowsConfigMapPath := cnsConfigFolder + "/azurestatelesscnidualstackoverlaywindowsconfigmap.yaml"
+	cnsAzureStatelessCNIDualStackWindowsConfigMapPath := cnsConfigFolder + "/azurestatelesscnidualstackoverlaywindowsconfigmap.yaml"
 	cnsRolePath := cnsManifestFolder + "/role.yaml"
 	cnsRoleBindingPath := cnsManifestFolder + "/rolebinding.yaml"
 	cnsServiceAccountPath := cnsManifestFolder + "/serviceaccount.yaml"
@@ -684,7 +684,7 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 				volumes:                   volumesForAzureCNIOverlayWindows(),
 				initContainerVolumeMounts: dropgzVolumeMountsForAzureCNIOverlayWindows(),
 				containerVolumeMounts:     cnsVolumeMountsForAzureCNIOverlayWindows(),
-				configMapPath:             cnsAzureCNIDualStackWindowsConfigMapPath,
+				configMapPath:             cnsAzureStatelessCNIDualStackWindowsConfigMapPath,
 				installIPMasqAgent:        true,
 			},
 		},
