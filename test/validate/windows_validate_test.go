@@ -1,14 +1,18 @@
 package validate
 
 import (
-	"encoding/json"
-	"net"
 	"testing"
-
-	"github.com/Azure/azure-container-networking/cns/restserver"
 )
 
 const testMACAddress = "00-11-22-33-44-55"
+
+const (
+	testCNITypeV1                 = "cniv1"
+	testCNITypeV2                 = "cniv2"
+	testCNITypeStateless          = "stateless"
+	testCNITypeStatelessDualStack = "stateless_dualstack"
+	testCNSCheckName              = "cns"
+)
 
 func TestHNSStateFileIPs(t *testing.T) {
 	tests := []struct {
@@ -76,36 +80,27 @@ func TestHNSStateFileIPs(t *testing.T) {
 	}
 }
 
-func mustMarshalCNSManagedState(t *testing.T) []byte {
-	t.Helper()
-
-	state := CnsManagedState{
-		Endpoints: map[string]restserver.EndpointInfo{
-			"endpoint-1": {
-				PodName:      "test-pod",
-				PodNamespace: "default",
-				IfnameToIPMap: map[string]*restserver.IPInfo{
-					"eth0": {
-						IPv4: []net.IPNet{{IP: net.ParseIP("10.0.0.5"), Mask: net.CIDRMask(24, 32)}},
-						IPv6: []net.IPNet{{IP: net.ParseIP("fd00::5"), Mask: net.CIDRMask(64, 128)}},
-					},
-				},
-			},
-		},
+// A CNS endpoint state file for a dual-stack pod, as read off a Windows node.
+const cnsManagedStateDualStackJSON = `{
+	"Endpoints": {
+		"endpoint-1": {
+			"PodName": "test-pod",
+			"PodNamespace": "default",
+			"IfnameToIPMap": {
+				"eth0": {
+					"IPv4": [{"IP": "10.0.0.5"}],
+					"IPv6": [{"IP": "fd00::5"}]
+				}
+			}
+		}
 	}
-
-	out, err := json.Marshal(state)
-	if err != nil {
-		t.Fatalf("failed to marshal cns managed state: %v", err)
-	}
-	return out
-}
+}`
 
 // State validation compares the CNS endpoint state against every address in
 // Pod.Status.PodIPs, which includes IPv6 for dual-stack pods. A single-family parser
 // under-reports and fails validation, so the dual-stack scenario needs its own parser.
 func TestCNSManagedStateFileIPFamilies(t *testing.T) {
-	state := mustMarshalCNSManagedState(t)
+	state := []byte(cnsManagedStateDualStackJSON)
 
 	tests := []struct {
 		name    string
@@ -145,7 +140,7 @@ func TestCNSManagedStateFileIPFamilies(t *testing.T) {
 // Guards the CNI_TYPE values the Windows overlay pipeline templates pass to CreateValidator.
 // An unknown key yields no checks, so validation would silently pass without testing anything.
 func TestWindowsChecksMapPipelineKeys(t *testing.T) {
-	for _, cniType := range []string{"cniv1", "cniv2", "stateless", "stateless_dualstack"} {
+	for _, cniType := range []string{testCNITypeV1, testCNITypeV2, testCNITypeStateless, testCNITypeStatelessDualStack} {
 		if len(windowsChecksMap[cniType]) == 0 {
 			t.Errorf("windowsChecksMap[%q] has no checks; a pipeline passing this CNI_TYPE would validate nothing", cniType)
 		}
@@ -154,11 +149,11 @@ func TestWindowsChecksMapPipelineKeys(t *testing.T) {
 
 // The dual-stack stateless scenario must not reuse the single-stack CNS endpoint parser.
 func TestStatelessDualStackUsesDualStackCNSParser(t *testing.T) {
-	state := mustMarshalCNSManagedState(t)
+	state := []byte(cnsManagedStateDualStackJSON)
 
 	var found bool
-	for _, c := range windowsChecksMap["stateless_dualstack"] {
-		if c.name != "cns" {
+	for _, c := range windowsChecksMap[testCNITypeStatelessDualStack] {
+		if c.name != testCNSCheckName {
 			continue
 		}
 		found = true
@@ -171,6 +166,6 @@ func TestStatelessDualStackUsesDualStackCNSParser(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatal(`no "cns" check found in windowsChecksMap["stateless_dualstack"]`)
+		t.Fatalf("no %q check found in windowsChecksMap[%q]", testCNSCheckName, testCNITypeStatelessDualStack)
 	}
 }
