@@ -123,8 +123,8 @@ stages:
               parameters:
                 name: ${{ parameters.name }}
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
-                cniType: stateless
-                validateCniType: stateless
+                cniType: stateless_dualstack
+                validateCniType: stateless_dualstack
                 testLoadArgs: "INSTALL_DUALSTACK_OVERLAY=true VALIDATE_DUALSTACK=true"
                 regionClusterTest: $(REGION_AKS_CLUSTER_TEST)
                 scaleup: ${{ parameters.scaleup }}
