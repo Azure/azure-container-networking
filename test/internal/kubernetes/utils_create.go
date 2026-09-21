@@ -397,10 +397,9 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 	cnsNodeSubnetLinuxConfigMapPath := cnsConfigFolder + "/ciliumnodesubnetconfigmap.yaml"
 	cnsOverlayConfigMapPath := cnsConfigFolder + "/overlayconfigmap.yaml"
 	cnsAzureCNIOverlayLinuxConfigMapPath := cnsConfigFolder + "/azurecnioverlaylinuxconfigmap.yaml"
-	cnsAzureCNIOverlayWindowsConfigMapPath := cnsConfigFolder + "/azurecnioverlaywindowsconfigmap.yaml"
 	cnsAzureStatelessCNIOverlayWindowsConfigMapPath := cnsConfigFolder + "/azurestatelesscnioverlaywindowsconfigmap.yaml"
 	cnsAzureCNIDualStackLinuxConfigMapPath := cnsConfigFolder + "/azurecnidualstackoverlaylinuxconfigmap.yaml"
-	cnsAzureCNIDualStackWindowsConfigMapPath := cnsConfigFolder + "/azurecnidualstackoverlaywindowsconfigmap.yaml"
+	cnsAzureCNIDualStackWindowsConfigMapPath := cnsConfigFolder + "/azurestatelesscnidualstackoverlaywindowsconfigmap.yaml"
 	cnsRolePath := cnsManifestFolder + "/role.yaml"
 	cnsRoleBindingPath := cnsManifestFolder + "/rolebinding.yaml"
 	cnsServiceAccountPath := cnsManifestFolder + "/serviceaccount.yaml"
@@ -640,13 +639,13 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 				serviceAccountPath:     cnsServiceAccountPath,
 				initContainerArgs: []string{
 					`New-Item -Path "C:/k/azurecni/bin" -ItemType Directory -Force | Out-Null;` +
-						` Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/Windows/System32/azure-vnet.exe" -Destination "C:/k/azurecni/bin/azure-vnet.exe" -Force`,
+						` Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/Windows/System32/azure-vnet-stateless.exe" -Destination "C:/k/azurecni/bin/azure-vnet.exe" -Force`,
 				},
 				initContainerName:         initContainerNameCNI,
 				volumes:                   volumesForAzureCNIOverlayWindows(),
 				initContainerVolumeMounts: dropgzVolumeMountsForAzureCNIOverlayWindows(),
 				containerVolumeMounts:     cnsVolumeMountsForAzureCNIOverlayWindows(),
-				configMapPath:             cnsAzureCNIOverlayWindowsConfigMapPath,
+				configMapPath:             cnsAzureStatelessCNIOverlayWindowsConfigMapPath,
 				installIPMasqAgent:        true,
 			},
 		},
@@ -679,7 +678,7 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 				serviceAccountPath:     cnsServiceAccountPath,
 				initContainerArgs: []string{
 					`New-Item -Path "C:/k/azurecni/bin" -ItemType Directory -Force | Out-Null;` +
-						` Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/Windows/System32/azure-vnet.exe" -Destination "C:/k/azurecni/bin/azure-vnet.exe" -Force`,
+						` Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/Windows/System32/azure-vnet-stateless.exe" -Destination "C:/k/azurecni/bin/azure-vnet.exe" -Force`,
 				},
 				initContainerName:         initContainerNameCNI,
 				volumes:                   volumesForAzureCNIOverlayWindows(),
