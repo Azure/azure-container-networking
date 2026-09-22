@@ -76,7 +76,7 @@ func TestClientRequestIPsPreservesExistingAssignmentOnEndpointWriteFailure(t *te
 	service.EndpointStateStore = failedEndpointWriteStore{KeyValueStore: service.EndpointStateStore}
 	service.Unlock()
 	_, err = client.RequestIPs(t.Context(), req)
-	require.ErrorContains(t, err, restserver.ErrEndpointStateUpdate.Error())
+	require.ErrorContains(t, err, "endpoint state update failed")
 	require.Zero(t, releaseCalls.Load())
 	service.RLock()
 	defer service.RUnlock()
