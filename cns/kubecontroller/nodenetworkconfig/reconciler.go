@@ -23,8 +23,7 @@ import (
 )
 
 type cnsClient interface {
-	CreateOrUpdateNetworkContainerInternalWithVersionValidation(*cns.CreateNetworkContainerRequest, bool) cnstypes.ResponseCode
-	MustEnsureNoStaleNCs(validNCIDs []string)
+	ApplyNNCGoal(restserver.NNCGoal) cnstypes.ResponseCode
 }
 
 type nodenetworkconfigSink func(*v1alpha.NodeNetworkConfig) error
@@ -70,7 +69,6 @@ func NewReconciler(cnscli cnsClient, initializer nodenetworkconfigSink, ipampool
 
 // Reconcile is called on CRD status changes
 func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
-	listenersToNotify := []nodenetworkconfigSink{}
 	nnc, err := r.nnccli.Get(ctx, req.NamespacedName)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -91,23 +89,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	// longer exist in the nnc should be considered stale.
 	ncCount := len(nnc.Status.NetworkContainers)
 	ncs.Set(float64(ncCount))
-	validNCIDs := make([]string, ncCount)
-	for i := range nnc.Status.NetworkContainers {
-		validNCIDs[i] = nnc.Status.NetworkContainers[i].ID
-	}
-	r.cnscli.MustEnsureNoStaleNCs(validNCIDs)
 
-	// call initFunc on first reconcile and never again
-	if r.initializer != nil {
-		if err := r.initializer(nnc); err != nil {
-			logger.Errorf("[cns-rc] initializer failed during reconcile: %v", err)
-			return reconcile.Result{}, errors.Wrap(err, "initializer failed during reconcile")
-		}
-		r.initializer = nil
+	goal := restserver.NNCGoal{
+		NetworkContainerIDs: make([]string, 0, ncCount),
+		NetworkContainers:   make([]restserver.NNCNetworkContainerGoal, 0, ncCount),
 	}
-
+	ipamPoolMonitorNotifications := 0
 	// for each NC, parse it in to a CreateNCRequest and forward it to the appropriate Listener
 	for i := range nnc.Status.NetworkContainers {
+		goal.NetworkContainerIDs = append(goal.NetworkContainerIDs, nnc.Status.NetworkContainers[i].ID)
 		// check if this NC matches the Node IP if we have one to check against
 		if r.nodeIP != "" {
 			if r.nodeIP != nnc.Status.NetworkContainers[i].NodeIP {
@@ -129,8 +119,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		default: // For backward compatibility, default will be treated as Dynamic too.
 			req, err = CreateNCRequestFromDynamicNC(nnc.Status.NetworkContainers[i])
 			validateVersion = true
-			// in dynamic, we will also push this NNC to the IPAM Pool Monitor when we're done.
-			listenersToNotify = append(listenersToNotify, r.ipampoolmonitorcli)
+			ipamPoolMonitorNotifications++
 		}
 
 		if err != nil {
@@ -140,20 +129,30 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 				"assignmentMode %s", nnc.Status.NetworkContainers[i].AssignmentMode)
 		}
 
-		responseCode := r.cnscli.CreateOrUpdateNetworkContainerInternalWithVersionValidation(req, validateVersion)
-		if err := restserver.ResponseCodeToError(responseCode); err != nil {
-			logger.Errorf("[cns-rc] Error creating or updating NC in reconcile: %v", err)
-			return reconcile.Result{}, errors.Wrap(err, "failed to create or update network container")
-		}
+		goal.NetworkContainers = append(goal.NetworkContainers, restserver.NNCNetworkContainerGoal{ValidateVersion: validateVersion, Request: *req})
 		ipAssignments += len(req.SecondaryIPConfigs)
+	}
+
+	responseCode := r.cnscli.ApplyNNCGoal(goal)
+	if err := restserver.ResponseCodeToError(responseCode); err != nil {
+		logger.Errorf("[cns-rc] Error applying NNC goal in reconcile: %v", err) //nolint:staticcheck // TODO: migrate to logger/v2
+		return reconcile.Result{}, errors.Wrap(err, "failed to apply NNC goal")
+	}
+
+	// call initFunc on first successful goal and never again
+	if r.initializer != nil {
+		if err := r.initializer(nnc); err != nil {
+			logger.Errorf("[cns-rc] initializer failed during reconcile: %v", err) //nolint:staticcheck // TODO: migrate to logger/v2
+			return reconcile.Result{}, errors.Wrap(err, "initializer failed during reconcile")
+		}
+		r.initializer = nil
 	}
 
 	// record assigned IPs metric
 	allocatedIPs.Set(float64(ipAssignments))
 
-	// push the NNC to the registered NNC listeners.
-	for _, l := range listenersToNotify {
-		if err := l(nnc); err != nil {
+	for i := 0; i < ipamPoolMonitorNotifications; i++ {
+		if err := r.ipampoolmonitorcli(nnc); err != nil {
 			return reconcile.Result{}, errors.Wrap(err, "nnc listener return error during update")
 		}
 	}

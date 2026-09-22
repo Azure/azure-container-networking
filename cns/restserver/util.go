@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/netip"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -24,7 +25,19 @@ import (
 	"github.com/pkg/errors"
 )
 
-// This file contains the utility/helper functions called by either HTTP APIs or Exported/Internal APIs on HTTPRestService
+// NNCGoal contains one complete NNC state update.
+type NNCGoal struct {
+	// NetworkContainerIDs includes all NCs in the NNC, including NCs filtered from this node.
+	NetworkContainerIDs []string
+	// NetworkContainers contains the NC requests that this node must apply.
+	NetworkContainers []NNCNetworkContainerGoal
+}
+
+// NNCNetworkContainerGoal contains one NC request and its version-validation behavior.
+type NNCNetworkContainerGoal struct {
+	ValidateVersion bool
+	Request         cns.CreateNetworkContainerRequest
+}
 
 // Get the network info from the service network state
 func (service *HTTPRestService) getNetworkInfo(networkName string) (*networkInfo, bool) {
@@ -148,6 +161,17 @@ func (service *HTTPRestService) saveNetworkContainerGoalStateWithVersionValidati
 	service.Lock()
 	defer service.Unlock()
 
+	returnCode, returnMessage := service.saveNetworkContainerGoalStateUntransacted(req, validateVersion, true)
+	if returnCode != types.Success {
+		return returnCode, returnMessage
+	}
+
+	_ = service.saveState()
+	return types.Success, ""
+}
+
+//nolint:gocritic,gocyclo,lll // This function applies one NC to caller-owned state under the caller's transaction.
+func (service *HTTPRestService) saveNetworkContainerGoalStateUntransacted(req cns.CreateNetworkContainerRequest, validateVersion, validateUniqueness bool) (types.ResponseCode, string) {
 	var (
 		hostVersion                string
 		existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig // uuid is key
@@ -171,7 +195,7 @@ func (service *HTTPRestService) saveNetworkContainerGoalStateWithVersionValidati
 		}
 	}
 
-	if service.state.OrchestratorType == cns.Kubernetes || service.state.OrchestratorType == cns.KubernetesCRD {
+	if validateUniqueness && (service.state.OrchestratorType == cns.Kubernetes || service.state.OrchestratorType == cns.KubernetesCRD) {
 		allowSharedPrimary := service.state.OrchestratorType == cns.Kubernetes
 		returnCode, returnMessage := validateNetworkContainerIPUniqueness(service.state.ContainerStatus, service.PodIPConfigState, req, allowSharedPrimary)
 		if returnCode != types.Success {
@@ -269,8 +293,175 @@ func (service *HTTPRestService) saveNetworkContainerGoalStateWithVersionValidati
 		return types.UnsupportedNetworkContainerType, errMsg
 	}
 
-	service.saveState()
-	return 0, ""
+	return types.Success, ""
+}
+
+// ApplyNNCGoal validates and publishes one complete NNC goal.
+func (service *HTTPRestService) ApplyNNCGoal(goal NNCGoal) types.ResponseCode {
+	service.Lock()
+	returnCode, returnMessage := service.applyNNCGoalUntransacted(goal)
+	service.Unlock()
+	if returnCode != types.Success {
+		logger.Errorf("[Azure CNS] Failed to apply NNC goal: %s", returnMessage) //nolint:staticcheck // TODO: migrate to logger/v2
+		return returnCode
+	}
+
+	for i := range goal.NetworkContainers {
+		req := &goal.NetworkContainers[i].Request
+		logNCSnapshot(*req)
+		service.publishIPStateMetrics()
+		if service.Service != nil && service.Options[acn.OptProgramSNATIPTables] == true {
+			returnCode, returnMessage = service.programSNATRules(req)
+			if returnCode != types.Success {
+				logger.Errorf("%s", returnMessage) //nolint:staticcheck // will migrate to logger/v2
+				return returnCode
+			}
+		}
+	}
+
+	return types.Success
+}
+
+//nolint:gocritic,lll // Keep the result contract consistent with existing CNS state helpers.
+func (service *HTTPRestService) applyNNCGoalUntransacted(goal NNCGoal) (types.ResponseCode, string) {
+	validNCIDs := make(map[string]struct{}, len(goal.NetworkContainerIDs))
+	for _, ncID := range goal.NetworkContainerIDs {
+		if ncID == "" {
+			return types.InvalidRequest, "NNC goal contains an empty network container ID"
+		}
+		if _, exists := validNCIDs[ncID]; exists {
+			return types.InvalidRequest, "NNC goal contains duplicate network container ID " + ncID
+		}
+		validNCIDs[ncID] = struct{}{}
+	}
+
+	replacedNCIDs := make(map[string]struct{}, len(goal.NetworkContainers))
+	requests := make([]cns.CreateNetworkContainerRequest, 0, len(goal.NetworkContainers))
+	for i := range goal.NetworkContainers {
+		nc := &goal.NetworkContainers[i]
+		ncID := nc.Request.NetworkContainerid
+		if _, exists := validNCIDs[ncID]; !exists {
+			return types.InvalidRequest, fmt.Sprintf("network container %s is missing from the complete NNC goal", ncID)
+		}
+		if _, exists := replacedNCIDs[ncID]; exists {
+			return types.InvalidRequest, "NNC goal contains duplicate request for network container " + ncID
+		}
+		if returnCode, returnMessage := service.validateNNCGoalRequest(nc.Request); returnCode != types.Success {
+			return returnCode, returnMessage
+		}
+		replacedNCIDs[ncID] = struct{}{}
+		requests = append(requests, nc.Request)
+	}
+
+	removedNCIDs := make(map[string]struct{})
+	for ncID := range service.state.ContainerStatus {
+		if _, valid := validNCIDs[ncID]; !valid {
+			removedNCIDs[ncID] = struct{}{}
+		}
+	}
+	for ipID := range service.PodIPConfigState {
+		status := service.PodIPConfigState[ipID]
+		if _, removed := removedNCIDs[status.NCID]; removed && status.GetState() == types.Assigned {
+			return types.InconsistentIPConfigState, fmt.Sprintf("NNC goal cannot remove network container %s with assigned IP ID %s", status.NCID, ipID)
+		}
+	}
+
+	allowSharedPrimary := service.state.OrchestratorType == cns.Kubernetes
+	returnCode, returnMessage := validateNNCGoalIPUniqueness(
+		service.state.ContainerStatus, service.PodIPConfigState, requests, replacedNCIDs, removedNCIDs, allowSharedPrimary,
+	)
+	if returnCode != types.Success {
+		return returnCode, returnMessage
+	}
+
+	candidateState := cloneNNCGoalState(service.state)
+	candidatePodIPConfigState := clonePodIPConfigState(service.PodIPConfigState)
+	for ncID := range removedNCIDs {
+		delete(candidateState.ContainerStatus, ncID)
+	}
+	candidateService := &HTTPRestService{
+		Service:          service.Service,
+		state:            candidateState,
+		PodIPConfigState: candidatePodIPConfigState,
+	}
+	for i := range goal.NetworkContainers {
+		nc := &goal.NetworkContainers[i]
+		returnCode, returnMessage := candidateService.saveNetworkContainerGoalStateUntransacted(nc.Request, nc.ValidateVersion, false)
+		if returnCode != types.Success {
+			return returnCode, returnMessage
+		}
+	}
+
+	candidateState.TimeStamp = time.Now()
+	if service.store != nil {
+		if err := service.store.Write(storeKey, candidateState); err != nil {
+			return types.UnexpectedError, fmt.Sprintf("failed to save NNC goal: %v", err)
+		}
+	}
+	service.state = candidateState
+	service.PodIPConfigState = candidatePodIPConfigState
+	return types.Success, ""
+}
+
+//nolint:gocritic,lll // Keep the result contract consistent with existing CNS request validation.
+func (service *HTTPRestService) validateNNCGoalRequest(req cns.CreateNetworkContainerRequest) (types.ResponseCode, string) {
+	if req.NetworkContainerid == "" {
+		return types.NetworkContainerNotSpecified, "network container ID is empty"
+	}
+	if service.state.OrchestratorType != cns.Kubernetes && service.state.OrchestratorType != cns.KubernetesCRD {
+		return types.UnsupportedOrchestratorType, "unsupported orchestrator type " + service.state.OrchestratorType
+	}
+	if req.NetworkContainerid == nodesubnet.NodeSubnetNCID {
+		if req.IPConfiguration.IPSubnet.IPAddress != "" {
+			return types.InvalidPrimaryIPConfig, "NodeSubnet primary IP configuration must be empty"
+		}
+	} else if err := validateIPSubnet(req.IPConfiguration.IPSubnet); err != nil {
+		return types.InvalidPrimaryIPConfig, err.Error()
+	}
+	for ipID := range req.SecondaryIPConfigs {
+		if req.SecondaryIPConfigs[ipID].IPAddress == "" {
+			return types.InvalidSecondaryIPConfig, "secondary IP address is empty for IP ID " + ipID
+		}
+	}
+
+	existing, exists := service.state.ContainerStatus[req.NetworkContainerid]
+	if !exists || reflect.DeepEqual(existing.CreateNetworkContainerRequest.IPConfiguration.IPSubnet, req.IPConfiguration.IPSubnet) {
+		return types.Success, ""
+	}
+	isCIDRSuperset := validateCIDRSuperset(
+		fmt.Sprintf("%s/%d", req.IPConfiguration.IPSubnet.IPAddress, req.IPConfiguration.IPSubnet.PrefixLength),
+		fmt.Sprintf("%s/%d", existing.CreateNetworkContainerRequest.IPConfiguration.IPSubnet.IPAddress, existing.CreateNetworkContainerRequest.IPConfiguration.IPSubnet.PrefixLength),
+	)
+	if !isCIDRSuperset {
+		return types.PrimaryCANotSame, fmt.Sprintf("network container %s primary CA changed", req.NetworkContainerid)
+	}
+	return types.Success, ""
+}
+
+func cloneNNCGoalState(source *httpRestServiceState) *httpRestServiceState {
+	cloned := *source
+	cloned.ContainerStatus = make(map[string]containerstatus, len(source.ContainerStatus))
+	for ncID := range source.ContainerStatus {
+		cloned.ContainerStatus[ncID] = source.ContainerStatus[ncID]
+	}
+	cloned.ContainerIDByOrchestratorContext = make(map[string]*ncList, len(source.ContainerIDByOrchestratorContext))
+	for orchestratorContext, networkContainerIDs := range source.ContainerIDByOrchestratorContext {
+		if networkContainerIDs == nil {
+			cloned.ContainerIDByOrchestratorContext[orchestratorContext] = nil
+			continue
+		}
+		clonedNetworkContainerIDs := *networkContainerIDs
+		cloned.ContainerIDByOrchestratorContext[orchestratorContext] = &clonedNetworkContainerIDs
+	}
+	return &cloned
+}
+
+func clonePodIPConfigState(source map[string]cns.IPConfigurationStatus) map[string]cns.IPConfigurationStatus {
+	cloned := make(map[string]cns.IPConfigurationStatus, len(source))
+	for ipID := range source {
+		cloned[ipID] = source[ipID]
+	}
+	return cloned
 }
 
 type networkContainerIPFamily uint8
@@ -310,6 +501,19 @@ var errScopedIPAddress = errors.New("scoped IP address is not valid")
 
 //nolint:gocritic,lll // Keep the validator contract on one line.
 func validateNetworkContainerIPUniqueness(currentContainers map[string]containerstatus, currentIPConfigs map[string]cns.IPConfigurationStatus, incoming cns.CreateNetworkContainerRequest, allowSharedPrimary bool) (types.ResponseCode, string) {
+	replacedNCIDs := map[string]struct{}{incoming.NetworkContainerid: {}}
+	return validateNNCGoalIPUniqueness(
+		currentContainers,
+		currentIPConfigs,
+		[]cns.CreateNetworkContainerRequest{incoming},
+		replacedNCIDs,
+		map[string]struct{}{},
+		allowSharedPrimary,
+	)
+}
+
+//nolint:gocritic,lll // Keep the complete-goal validator contract on one line.
+func validateNNCGoalIPUniqueness(currentContainers map[string]containerstatus, currentIPConfigs map[string]cns.IPConfigurationStatus, incoming []cns.CreateNetworkContainerRequest, replacedNCIDs, removedNCIDs map[string]struct{}, allowSharedPrimary bool) (types.ResponseCode, string) {
 	validator := networkContainerIPValidator{
 		addresses:          make(map[netip.Addr][]networkContainerAddressIdentity),
 		ipIDOwners:         make(map[string]map[string]struct{}),
@@ -325,16 +529,20 @@ func validateNetworkContainerIPUniqueness(currentContainers map[string]container
 
 	for ncID := range currentContainers {
 		request := currentContainers[ncID].CreateNetworkContainerRequest
-		excluded := ncID == incoming.NetworkContainerid
+		_, removed := removedNCIDs[ncID]
+		if removed {
+			continue
+		}
+		_, replaced := replacedNCIDs[ncID]
 		for ipID := range request.SecondaryIPConfigs {
 			responseCode, message := validator.addSecondary(
-				request.SecondaryIPConfigs[ipID].IPAddress, ncID, ipID, excluded, true, types.InconsistentIPConfigState,
+				request.SecondaryIPConfigs[ipID].IPAddress, ncID, ipID, replaced, true, types.InconsistentIPConfigState,
 			)
 			if responseCode != types.Success {
 				return responseCode, message
 			}
 		}
-		if excluded {
+		if replaced {
 			continue
 		}
 		responseCode, message := validator.addPrimary(
@@ -355,38 +563,46 @@ func validateNetworkContainerIPUniqueness(currentContainers map[string]container
 
 	for ipID := range currentIPConfigs {
 		config := currentIPConfigs[ipID]
+		_, removed := removedNCIDs[config.NCID]
+		if removed && canDiscardOrphanIPConfig(config.GetState()) {
+			continue
+		}
 		if _, exists := currentContainers[config.NCID]; !exists && canDiscardOrphanIPConfig(config.GetState()) {
 			continue
 		}
-		excluded := config.NCID == incoming.NetworkContainerid && canReplaceIPConfigAddress(config.GetState())
+		_, replaced := replacedNCIDs[config.NCID]
+		excluded := replaced && canReplaceIPConfigAddress(config.GetState())
 		responseCode, message := validator.addSecondary(config.IPAddress, config.NCID, ipID, excluded, true, types.InconsistentIPConfigState)
 		if responseCode != types.Success {
 			return responseCode, message
 		}
 	}
 
-	responseCode, message := validator.addPrimary(
-		incoming.IPConfiguration.IPSubnet.IPAddress, incoming.NetworkContainerid,
-		networkContainerPrimaryFamily(incoming), false, false,
-		isHostPrimary(incoming.IPConfiguration.IPSubnet.IPAddress, incoming.HostPrimaryIP), types.InvalidPrimaryIPConfig,
-	)
-	if responseCode != types.Success {
-		return responseCode, message
-	}
-	responseCode, message = validator.addPrimary(
-		incoming.IPConfiguration.IPSubnetV6.IPAddress, incoming.NetworkContainerid,
-		networkContainerIPFamilyV6, false, true,
-		isHostPrimary(incoming.IPConfiguration.IPSubnetV6.IPAddress, incoming.HostPrimaryIP), types.InvalidPrimaryIPConfig,
-	)
-	if responseCode != types.Success {
-		return responseCode, message
-	}
-	for ipID := range incoming.SecondaryIPConfigs {
-		responseCode, message = validator.addSecondary(
-			incoming.SecondaryIPConfigs[ipID].IPAddress, incoming.NetworkContainerid, ipID, false, false, types.InvalidSecondaryIPConfig,
+	for i := range incoming {
+		request := incoming[i]
+		responseCode, message := validator.addPrimary(
+			request.IPConfiguration.IPSubnet.IPAddress, request.NetworkContainerid,
+			networkContainerPrimaryFamily(request), false, false,
+			isHostPrimary(request.IPConfiguration.IPSubnet.IPAddress, request.HostPrimaryIP), types.InvalidPrimaryIPConfig,
 		)
 		if responseCode != types.Success {
 			return responseCode, message
+		}
+		responseCode, message = validator.addPrimary(
+			request.IPConfiguration.IPSubnetV6.IPAddress, request.NetworkContainerid,
+			networkContainerIPFamilyV6, false, true,
+			isHostPrimary(request.IPConfiguration.IPSubnetV6.IPAddress, request.HostPrimaryIP), types.InvalidPrimaryIPConfig,
+		)
+		if responseCode != types.Success {
+			return responseCode, message
+		}
+		for ipID := range request.SecondaryIPConfigs {
+			responseCode, message = validator.addSecondary(
+				request.SecondaryIPConfigs[ipID].IPAddress, request.NetworkContainerid, ipID, false, false, types.InvalidSecondaryIPConfig,
+			)
+			if responseCode != types.Success {
+				return responseCode, message
+			}
 		}
 	}
 
