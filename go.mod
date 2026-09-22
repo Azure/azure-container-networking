@@ -62,7 +62,7 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gotest.tools/v3 v3.5.2
 	k8s.io/api v0.36.4
-	k8s.io/apiextensions-apiserver v0.36.3
+	k8s.io/apiextensions-apiserver v0.36.4
 	k8s.io/apimachinery v0.36.4
 	k8s.io/client-go v0.36.4
 	k8s.io/klog v1.0.0
