@@ -4,6 +4,8 @@ import (
 	"os"
 	"regexp"
 	"sort"
+	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -23,6 +25,12 @@ const (
 	// vulnerable Server Core digest fail the test. Bump this when the base is
 	// intentionally refreshed to a newer patched digest.
 	expectedWindowsBaseDigest = "sha256:76cf422c98ca437b308374d0498280541fa42ac7061bb44015a6c8b70cf4db6a"
+
+	// minGoBuilderVersion is the MS Go toolchain floor required for the Go/stdlib
+	// CVE remediation. Asserting it — not just that both Dockerfiles match — makes
+	// a synchronized rollback of both files to an older, vulnerable Go tag fail the
+	// test. Raise this when a newer toolchain is required to clear a CVE.
+	minGoBuilderVersion = "1.26.7"
 )
 
 var (
@@ -57,6 +65,45 @@ func TestNPMDockerfileGoBuilderPinned(t *testing.T) {
 		t.Errorf("Go builder drift: %s uses %s but %s uses %s",
 			unsignedLinuxDockerfile, linux[1], unsignedWindowsDockerfile, windows[1])
 	}
+	for _, f := range []struct{ name, version string }{
+		{unsignedLinuxDockerfile, linux[1]},
+		{unsignedWindowsDockerfile, windows[1]},
+	} {
+		if compareGoVersions(f.version, minGoBuilderVersion) < 0 {
+			t.Errorf("%s pins Go builder %s, want >= %s (CVE remediation floor)", f.name, f.version, minGoBuilderVersion)
+		}
+	}
+}
+
+// compareGoVersions compares dotted numeric versions (e.g. "1.26.7"). It returns
+// -1 if a < b, 0 if equal, and 1 if a > b. Non-numeric suffixes are ignored.
+func compareGoVersions(a, b string) int {
+	as, bs := strings.Split(a, "."), strings.Split(b, ".")
+	for i := 0; i < len(as) || i < len(bs); i++ {
+		var ai, bi int
+		if i < len(as) {
+			ai = leadingInt(as[i])
+		}
+		if i < len(bs) {
+			bi = leadingInt(bs[i])
+		}
+		if ai != bi {
+			if ai < bi {
+				return -1
+			}
+			return 1
+		}
+	}
+	return 0
+}
+
+func leadingInt(s string) int {
+	end := 0
+	for end < len(s) && s[end] >= '0' && s[end] <= '9' {
+		end++
+	}
+	n, _ := strconv.Atoi(s[:end])
+	return n
 }
 
 // TestNPMDockerfileWindowsBasePinned verifies the signed and unsigned Windows
