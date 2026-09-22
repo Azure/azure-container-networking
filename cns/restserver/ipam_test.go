@@ -685,6 +685,7 @@ func TestRequestIPConfigsRejectsTombstonedContainer(t *testing.T) {
 	ipState := svc.PodIPConfigState[testIPID1]
 	require.Equal(t, types.Available, ipState.GetState())
 	require.Empty(t, svc.EndpointState)
+	require.Equal(t, time.Duration(-1), svc.podsPendingIPAssignment.Pop(testPod1Info.Key()))
 }
 
 func TestReleaseIPConfigsLeavesDeleteIntentAfterReleasingAssignedIP(t *testing.T) {
@@ -892,6 +893,7 @@ func TestExpiredDeleteIntentWriteFailureReturnsUnexpectedError(t *testing.T) {
 	ipState := svc.PodIPConfigState[testIPID1]
 	require.Equal(t, types.Available, ipState.GetState())
 	require.Empty(t, svc.EndpointState)
+	require.Equal(t, time.Duration(-1), svc.podsPendingIPAssignment.Pop(testPod1Info.Key()))
 }
 
 func TestUpdateEndpointRejectsTombstonedContainer(t *testing.T) {
