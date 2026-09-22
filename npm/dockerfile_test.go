@@ -16,6 +16,13 @@ const (
 	unsignedLinuxDockerfile   = "linux.Dockerfile"
 	unsignedWindowsDockerfile = "windows.Dockerfile"
 	signedDockerfile          = "../.pipelines/build/dockerfiles/npm.Dockerfile"
+
+	// expectedWindowsBaseDigest is the patched Windows Server Core LTSC2022 base
+	// (build 10.0.20348.5622). Asserting the exact digest — not just that the two
+	// Dockerfiles agree — makes a synchronized rollback of both files to an older,
+	// vulnerable Server Core digest fail the test. Bump this when the base is
+	// intentionally refreshed to a newer patched digest.
+	expectedWindowsBaseDigest = "sha256:76cf422c98ca437b308374d0498280541fa42ac7061bb44015a6c8b70cf4db6a"
 )
 
 var (
@@ -53,8 +60,9 @@ func TestNPMDockerfileGoBuilderPinned(t *testing.T) {
 }
 
 // TestNPMDockerfileWindowsBasePinned verifies the signed and unsigned Windows
-// images share one pinned Server Core base digest, preventing the release image
-// from shipping an unpatched OS layer.
+// images both pin the expected patched Server Core base digest. Asserting the
+// exact digest (not only that the two files match) detects a synchronized
+// rollback of both files to an older, vulnerable base.
 func TestNPMDockerfileWindowsBasePinned(t *testing.T) {
 	unsigned := servercoreRe.FindStringSubmatch(readDockerfile(t, unsignedWindowsDockerfile))
 	signed := servercoreRe.FindStringSubmatch(readDockerfile(t, signedDockerfile))
@@ -67,6 +75,14 @@ func TestNPMDockerfileWindowsBasePinned(t *testing.T) {
 	if unsigned[1] != signed[1] {
 		t.Errorf("Windows base drift: %s pins %s but %s pins %s",
 			unsignedWindowsDockerfile, unsigned[1], signedDockerfile, signed[1])
+	}
+	for _, f := range []struct{ name, digest string }{
+		{unsignedWindowsDockerfile, unsigned[1]},
+		{signedDockerfile, signed[1]},
+	} {
+		if f.digest != expectedWindowsBaseDigest {
+			t.Errorf("%s pins servercore %s, want patched digest %s", f.name, f.digest, expectedWindowsBaseDigest)
+		}
 	}
 }
 
