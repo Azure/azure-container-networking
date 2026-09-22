@@ -8,9 +8,46 @@ RUN MS_GO_NOSYSTEMCRYPTO=1 CGO_ENABLED=0 go build -v -o /usr/local/bin/azure-npm
 
 FROM mcr.microsoft.com/mirror/docker/library/ubuntu:24.04 as linux
 COPY --from=builder /usr/local/bin/azure-npm /usr/bin/azure-npm
+# CVE remediation: pin Ubuntu 24.04 packages to the latest patched security
+# versions. Some fixed packages are not flagged by the pipeline's automated
+# image patching (Copacetic), so pin them explicitly to guarantee the fixes are
+# present at build time. Refresh these pins when newer Ubuntu security updates
+# ship (see npm-cve-status tracker).
 RUN sed -i 's|archive.ubuntu.com|azure.archive.ubuntu.com|g' /etc/apt/sources.list.d/ubuntu.sources \
     && apt-get update \
-    && apt-get install -y iptables ipset ca-certificates \
+    && apt-get install -y \
+        iptables ipset ca-certificates \
+        gpgv=2.4.4-2ubuntu17.6 \
+        libc-bin=2.39-0ubuntu8.9 \
+        libc6=2.39-0ubuntu8.9 \
+        libtasn1-6=4.19.0-3ubuntu0.24.04.2 \
+        dpkg=1.22.6ubuntu6.6 \
+        libcap2=1:2.66-5ubuntu2.4 \
+        libgcrypt20=1.10.3-2ubuntu0.2 \
+        libgnutls30t64=3.8.3-1.1ubuntu3.6 \
+        libsystemd0=255.4-1ubuntu8.17 \
+        libudev1=255.4-1ubuntu8.17 \
+        liblzma5=5.6.1+really5.4.5-1ubuntu0.3 \
+        sed=4.9-2ubuntu0.24.04.1 \
+        gzip=1.12-1ubuntu3.2 \
+        libncursesw6=6.4+20240113-1ubuntu2.2 \
+        libtinfo6=6.4+20240113-1ubuntu2.2 \
+        libpam-modules=1.5.3-5ubuntu5.7 \
+        perl-base=5.38.2-3.2ubuntu0.6 \
+        tar=1.35+dfsg-3ubuntu0.4 \
+        util-linux=2.39.3-9ubuntu6.6 \
+        mount=2.39.3-9ubuntu6.6 \
+        bsdutils=1:2.39.3-9ubuntu6.6 \
+        libblkid1=2.39.3-9ubuntu6.6 \
+        libmount1=2.39.3-9ubuntu6.6 \
+        libsmartcols1=2.39.3-9ubuntu6.6 \
+        libuuid1=2.39.3-9ubuntu6.6 \
+        coreutils=9.4-3ubuntu6.3 \
+        diffutils=1:3.10-1ubuntu0.1 \
+        libattr1=1:2.5.2-1ubuntu0.1 \
+        libbz2-1.0=1.0.8-5.1ubuntu0.1 \
+        libp11-kit0=0.25.3-4ubuntu2.2 \
+        zlib1g=1:1.3.dfsg-3.1ubuntu2.2 \
     && apt-get autoremove -y \
     && apt-get clean
 RUN chmod +x /usr/bin/azure-npm
