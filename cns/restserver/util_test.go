@@ -299,12 +299,12 @@ func TestRestoreStateRetainsDeleteIntentWhenEndpointDeletionCannotBePersisted(t 
 		},
 		store:                 mainStore,
 		state:                 &httpRestServiceState{},
-		EndpointStateStore:    endpointWriteFailStore{KeyValueStore: endpointStore},
+		EndpointStateStore:    endpointWriteFailStore{KeyValueStore: endpointStore, err: errForcedEndpointStateWrite},
 		EndpointState:         make(map[string]*EndpointInfo),
 		EndpointDeleteIntents: make(map[string]EndpointDeleteIntent),
 	}
 
-	require.ErrorIs(t, svc.restoreState(), errForcedEndpointWrite)
+	require.ErrorIs(t, svc.restoreState(), errForcedEndpointStateWrite)
 	require.Contains(t, svc.EndpointState, expiredEndpointID)
 	require.Contains(t, svc.EndpointDeleteIntents, expiredEndpointID)
 
