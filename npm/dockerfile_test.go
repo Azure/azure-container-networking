@@ -3,7 +3,6 @@ package npm
 import (
 	"os"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -32,6 +31,48 @@ const (
 	// test. Raise this when a newer toolchain is required to clear a CVE.
 	minGoBuilderVersion = "1.26.7"
 )
+
+// requiredLinuxPins is the authoritative set of Ubuntu packages that must be
+// pinned — at exactly these patched versions — in BOTH the signed and unsigned
+// Linux images. Asserting the full set with exact versions (rather than only
+// that the two Dockerfiles agree) makes the test fail on a *synchronized*
+// regression: dropping the same pin from both files, or rolling the same
+// version back in both, no longer slips through. Update this map together with
+// npm/linux.Dockerfile and .pipelines/build/dockerfiles/npm.Dockerfile whenever
+// pins are refreshed for a new Ubuntu security release.
+var requiredLinuxPins = map[string]string{
+	"gpgv":           "2.4.4-2ubuntu17.6",
+	"libc-bin":       "2.39-0ubuntu8.9",
+	"libc6":          "2.39-0ubuntu8.9",
+	"libtasn1-6":     "4.19.0-3ubuntu0.24.04.2",
+	"dpkg":           "1.22.6ubuntu6.6",
+	"libcap2":        "1:2.66-5ubuntu2.4",
+	"libgcrypt20":    "1.10.3-2ubuntu0.2",
+	"libgnutls30t64": "3.8.3-1.1ubuntu3.6",
+	"libsystemd0":    "255.4-1ubuntu8.17",
+	"libudev1":       "255.4-1ubuntu8.17",
+	"liblzma5":       "5.6.1+really5.4.5-1ubuntu0.3",
+	"sed":            "4.9-2ubuntu0.24.04.1",
+	"gzip":           "1.12-1ubuntu3.2",
+	"libncursesw6":   "6.4+20240113-1ubuntu2.2",
+	"libtinfo6":      "6.4+20240113-1ubuntu2.2",
+	"libpam-modules": "1.5.3-5ubuntu5.7",
+	"perl-base":      "5.38.2-3.2ubuntu0.6",
+	"tar":            "1.35+dfsg-3ubuntu0.4",
+	"util-linux":     "2.39.3-9ubuntu6.6",
+	"mount":          "2.39.3-9ubuntu6.6",
+	"bsdutils":       "1:2.39.3-9ubuntu6.6",
+	"libblkid1":      "2.39.3-9ubuntu6.6",
+	"libmount1":      "2.39.3-9ubuntu6.6",
+	"libsmartcols1":  "2.39.3-9ubuntu6.6",
+	"libuuid1":       "2.39.3-9ubuntu6.6",
+	"coreutils":      "9.4-3ubuntu6.3",
+	"diffutils":      "1:3.10-1ubuntu0.1",
+	"libattr1":       "1:2.5.2-1ubuntu0.1",
+	"libbz2-1.0":     "1.0.8-5.1ubuntu0.1",
+	"libp11-kit0":    "0.25.3-4ubuntu2.2",
+	"zlib1g":         "1:1.3.dfsg-3.1ubuntu2.2",
+}
 
 var (
 	goBuilderRe  = regexp.MustCompile(`mcr\.microsoft\.com/oss/go/microsoft/golang:(\S+?)\s+AS builder`)
@@ -133,37 +174,36 @@ func TestNPMDockerfileWindowsBasePinned(t *testing.T) {
 	}
 }
 
-// TestNPMDockerfileLinuxPackagePinsInSync verifies the pinned Ubuntu CVE package
-// versions are identical in the signed and unsigned Linux images.
+// TestNPMDockerfileLinuxPackagePinsInSync verifies that both the signed and
+// unsigned Linux images pin the complete set of required Ubuntu CVE packages at
+// exactly their patched versions. Because it checks against requiredLinuxPins
+// (not just that the two files agree), it fails on a synchronized regression —
+// the same pin removed from, or rolled back in, both Dockerfiles.
 func TestNPMDockerfileLinuxPackagePinsInSync(t *testing.T) {
-	unsigned := aptPins(readDockerfile(t, unsignedLinuxDockerfile))
-	signed := aptPins(readDockerfile(t, signedDockerfile))
-
-	if len(unsigned) == 0 {
-		t.Fatalf("%s: expected pinned apt packages, found none", unsignedLinuxDockerfile)
-	}
-
-	for pkg, ver := range unsigned {
-		sv, ok := signed[pkg]
-		switch {
-		case !ok:
-			t.Errorf("package %s pinned in %s (%s) but missing from %s", pkg, unsignedLinuxDockerfile, ver, signedDockerfile)
-		case sv != ver:
-			t.Errorf("package %s version drift: %s pins %s but %s pins %s", pkg, unsignedLinuxDockerfile, ver, signedDockerfile, sv)
+	for _, df := range []string{unsignedLinuxDockerfile, signedDockerfile} {
+		got := aptPins(readDockerfile(t, df))
+		if len(got) == 0 {
+			t.Errorf("%s: expected pinned apt packages, found none", df)
+			continue
+		}
+		// Every required package must be pinned at exactly the patched version.
+		for pkg, want := range requiredLinuxPins {
+			switch v, ok := got[pkg]; {
+			case !ok:
+				t.Errorf("%s: required CVE pin for %q is missing (want %s)", df, pkg, want)
+			case v != want:
+				t.Errorf("%s: %q pinned at %s, want patched version %s", df, pkg, v, want)
+			}
+		}
+		// Reject unexpected pins so requiredLinuxPins is kept in lockstep with the
+		// Dockerfiles when a new package is pinned.
+		for pkg, v := range got {
+			if _, ok := requiredLinuxPins[pkg]; !ok {
+				t.Errorf("%s: pin %q=%s not in requiredLinuxPins; add it to the test when adding a pin", df, pkg, v)
+			}
 		}
 	}
-	for pkg, ver := range signed {
-		if _, ok := unsigned[pkg]; !ok {
-			t.Errorf("package %s pinned in %s (%s) but missing from %s", pkg, signedDockerfile, ver, unsignedLinuxDockerfile)
-		}
-	}
-
-	pkgs := make([]string, 0, len(unsigned))
-	for pkg := range unsigned {
-		pkgs = append(pkgs, pkg)
-	}
-	sort.Strings(pkgs)
-	t.Logf("verified %d pinned Ubuntu packages in sync: %v", len(pkgs), pkgs)
+	t.Logf("verified %d required Ubuntu CVE pins present at patched versions in both images", len(requiredLinuxPins))
 }
 
 func aptPins(dockerfile string) map[string]string {
