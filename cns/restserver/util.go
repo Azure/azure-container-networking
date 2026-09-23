@@ -139,6 +139,10 @@ func (service *HTTPRestService) restoreState() error {
 }
 
 func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetworkContainerRequest) (types.ResponseCode, string) { //nolint // legacy
+	return service.saveNetworkContainerGoalStateWithVersionValidation(req, false)
+}
+
+func (service *HTTPRestService) saveNetworkContainerGoalStateWithVersionValidation(req cns.CreateNetworkContainerRequest, validateVersion bool) (types.ResponseCode, string) { //nolint // legacy
 	// we don't want to overwrite what other calls may have written
 	service.Lock()
 	defer service.Unlock()
@@ -158,6 +162,16 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 		hostVersion = existingNCStatus.HostVersion
 		existingSecondaryIPConfigs = existingNCStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
 		vfpUpdateComplete = existingNCStatus.VfpUpdateComplete
+		if validateVersion && req.Version != existingNCStatus.CreateNetworkContainerRequest.Version {
+			incomingVersion, err := strconv.Atoi(req.Version)
+			if err != nil {
+				return types.UnsupportedNCVersion, fmt.Sprintf("invalid incoming NC version %q: %v", req.Version, err)
+			}
+			existingVersion, err := strconv.Atoi(existingNCStatus.CreateNetworkContainerRequest.Version)
+			if err == nil && incomingVersion < existingVersion {
+				return types.UnsupportedNCVersion, fmt.Sprintf("NC %s version decreased from %d to %d", req.NetworkContainerid, existingVersion, incomingVersion)
+			}
+		}
 	}
 
 	if req.NetworkContainerid == nodesubnet.NodeSubnetNCID {
