@@ -619,19 +619,24 @@ func main() {
 			scenarioString = cniConflistScenarioArg
 		}
 
+		cnsSocketPath := ""
+		if cnsconfig.EnableIPAMUnixSocket {
+			cnsSocketPath = restserver.IPAMUnixSocketPath
+		}
+
 		switch scenario := cniConflistScenario(scenarioString); scenario {
 		case scenarioV4Overlay:
-			conflistGenerator = &cniconflist.V4OverlayGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.V4OverlayGenerator{Writer: writer, CNSSocketPath: cnsSocketPath}
 		case scenarioDualStackOverlay:
-			conflistGenerator = &cniconflist.DualStackOverlayGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.DualStackOverlayGenerator{Writer: writer, CNSSocketPath: cnsSocketPath}
 		case scenarioOverlay:
-			conflistGenerator = &cniconflist.OverlayGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.OverlayGenerator{Writer: writer, CNSSocketPath: cnsSocketPath}
 		case scenarioCilium:
 			conflistGenerator = &cniconflist.CiliumGenerator{Writer: writer}
 		case scenarioSWIFT:
-			conflistGenerator = &cniconflist.SWIFTGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.SWIFTGenerator{Writer: writer, CNSSocketPath: cnsSocketPath}
 		case scenarioAzurecniChainedCilium:
-			conflistGenerator = &cniconflist.AzureCNIChainedCiliumGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.AzureCNIChainedCiliumGenerator{Writer: writer, CNSSocketPath: cnsSocketPath}
 		default:
 			logger.Errorf("unable to generate cni conflist for unknown scenario: %s", scenario)
 			os.Exit(1)
