@@ -13,10 +13,6 @@ import (
 func SetupWithManager(mgr ctrl.Manager) error {
 	err := ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.MultitenantPodNetworkConfig{}).
-		Complete(reconcile.Func(reconcileMTPNC))
+		Complete(reconcile.Func(func(context.Context, ctrl.Request) (ctrl.Result, error) { return ctrl.Result{}, nil }))
 	return errors.Wrap(err, "failed to set up mtpnc reconciler")
-}
-
-func reconcileMTPNC(context.Context, ctrl.Request) (ctrl.Result, error) {
-	return ctrl.Result{}, nil
 }

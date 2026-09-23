@@ -16,10 +16,6 @@ import (
 func SetupWithManager(mgr ctrl.Manager) error {
 	err := ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.NICNetworkConfig{}).
-		Complete(reconcile.Func(reconcileNICNC))
+		Complete(reconcile.Func(func(context.Context, ctrl.Request) (ctrl.Result, error) { return ctrl.Result{}, nil }))
 	return errors.Wrap(err, "failed to set up nicnetworkconfig reconciler")
-}
-
-func reconcileNICNC(context.Context, ctrl.Request) (ctrl.Result, error) {
-	return ctrl.Result{}, nil
 }
