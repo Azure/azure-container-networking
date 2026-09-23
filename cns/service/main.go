@@ -1388,6 +1388,16 @@ func reconcileInitialCNSState(
 	return nil
 }
 
+func configureSwiftV2Cache(cacheOpts *cache.Options, nodeUID types.UID, enableSwiftV2, enablePrefixAllocation bool) {
+	nodeSelector := labels.SelectorFromSet(labels.Set{nodeUIDLabelKey: string(nodeUID)})
+	if enableSwiftV2 {
+		cacheOpts.ByObject[&mtv1alpha1.MultitenantPodNetworkConfig{}] = cache.ByObject{Label: nodeSelector}
+	}
+	if enablePrefixAllocation {
+		cacheOpts.ByObject[&mtv1alpha1.NICNetworkConfig{}] = cache.ByObject{Label: nodeSelector}
+	}
+}
+
 // InitializeCRDState builds and starts the CRD controllers.
 //
 //nolint:gocyclo // legacy
@@ -1509,17 +1519,7 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		}
 	}
 
-	if cnsconfig.EnableSwiftV2 {
-		cacheOpts.ByObject[&mtv1alpha1.MultitenantPodNetworkConfig{}] = cache.ByObject{
-			Label: labels.SelectorFromSet(labels.Set{nodeUIDLabelKey: string(node.UID)}),
-		}
-	}
-
-	if cnsconfig.EnableSwiftV2PrefixAllocation {
-		cacheOpts.ByObject[&mtv1alpha1.NICNetworkConfig{}] = cache.ByObject{
-			Label: labels.SelectorFromSet(labels.Set{nodeUIDLabelKey: string(node.UID)}),
-		}
-	}
+	configureSwiftV2Cache(&cacheOpts, node.UID, cnsconfig.EnableSwiftV2, cnsconfig.EnableSwiftV2PrefixAllocation)
 
 	if cnsconfig.EnableSubnetScarcity {
 		cacheOpts.ByObject[&cssv1alpha1.ClusterSubnetState{}] = cache.ByObject{
