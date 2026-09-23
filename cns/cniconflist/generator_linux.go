@@ -33,6 +33,7 @@ func (v *V4OverlayGenerator) Generate() error {
 				Type:              overlaycniType,
 				Mode:              cninet.OpModeTransparent,
 				ExecutionMode:     string(util.V4Swift),
+				CNSSocketPath:     v.CNSSocketPath,
 				IPsToRouteViaHost: []string{nodeLocalDNSIP},
 				IPAM: cni.IPAM{
 					Type: network.AzureCNS,
@@ -61,6 +62,7 @@ func (v *DualStackOverlayGenerator) Generate() error {
 			cni.NetworkConfig{
 				Type:              overlaycniType,
 				Mode:              cninet.OpModeTransparent,
+				CNSSocketPath:     v.CNSSocketPath,
 				IPsToRouteViaHost: []string{nodeLocalDNSIP},
 				IPAM: cni.IPAM{
 					Type: network.AzureCNS,
@@ -89,6 +91,7 @@ func (v *OverlayGenerator) Generate() error {
 			cni.NetworkConfig{
 				Type:              overlaycniType,
 				Mode:              cninet.OpModeTransparent,
+				CNSSocketPath:     v.CNSSocketPath,
 				IPsToRouteViaHost: []string{nodeLocalDNSIP},
 				IPAM: cni.IPAM{
 					Type: network.AzureCNS,
@@ -144,6 +147,7 @@ func (v *SWIFTGenerator) Generate() error {
 				Type:              azureType,
 				Mode:              cninet.OpModeTransparent,
 				ExecutionMode:     string(util.V4Swift),
+				CNSSocketPath:     v.CNSSocketPath,
 				IPsToRouteViaHost: []string{nodeLocalDNSIP},
 				IPAM: cni.IPAM{
 					Type: network.AzureCNS,
@@ -170,6 +174,7 @@ func (v *AzureCNIChainedCiliumGenerator) Generate() error {
 			cni.NetworkConfig{
 				Type:              azureType,
 				Mode:              cninet.OpModeTransparent,
+				CNSSocketPath:     v.CNSSocketPath,
 				IPsToRouteViaHost: []string{nodeLocalDNSIP},
 				ExecutionMode:     string(util.V4Swift),
 				IPAM: cni.IPAM{
