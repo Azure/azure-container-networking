@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	mtv1alpha1 "github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
@@ -46,7 +47,11 @@ func TestConfigureSwiftV2Cache(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cacheOpts := cache.Options{ByObject: map[client.Object]cache.ByObject{}}
-			configureSwiftV2Cache(&cacheOpts, nodeUID, tt.enableSwiftV2, tt.enablePrefixAllocation)
+			cnsconfig := &configuration.CNSConfig{
+				EnableSwiftV2:                 tt.enableSwiftV2,
+				EnableSwiftV2PrefixAllocation: tt.enablePrefixAllocation,
+			}
+			configureSwiftV2Cache(&cacheOpts, nodeUID, cnsconfig)
 
 			var gotMTPNC, gotNICNC bool
 			for object, byObject := range cacheOpts.ByObject {

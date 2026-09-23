@@ -1388,12 +1388,12 @@ func reconcileInitialCNSState(
 	return nil
 }
 
-func configureSwiftV2Cache(cacheOpts *cache.Options, nodeUID types.UID, enableSwiftV2, enablePrefixAllocation bool) {
+func configureSwiftV2Cache(cacheOpts *cache.Options, nodeUID types.UID, cnsconfig *configuration.CNSConfig) {
 	nodeSelector := labels.SelectorFromSet(labels.Set{nodeUIDLabelKey: string(nodeUID)})
-	if enableSwiftV2 {
+	if cnsconfig.EnableSwiftV2 {
 		cacheOpts.ByObject[&mtv1alpha1.MultitenantPodNetworkConfig{}] = cache.ByObject{Label: nodeSelector}
 	}
-	if enablePrefixAllocation {
+	if cnsconfig.EnableSwiftV2PrefixAllocation {
 		cacheOpts.ByObject[&mtv1alpha1.NICNetworkConfig{}] = cache.ByObject{Label: nodeSelector}
 	}
 }
@@ -1519,7 +1519,7 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		}
 	}
 
-	configureSwiftV2Cache(&cacheOpts, node.UID, cnsconfig.EnableSwiftV2, cnsconfig.EnableSwiftV2PrefixAllocation)
+	configureSwiftV2Cache(&cacheOpts, node.UID, cnsconfig)
 
 	if cnsconfig.EnableSubnetScarcity {
 		cacheOpts.ByObject[&cssv1alpha1.ClusterSubnetState{}] = cache.ByObject{
