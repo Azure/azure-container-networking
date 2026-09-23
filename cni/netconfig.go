@@ -74,6 +74,7 @@ type NetworkConfig struct {
 	DisableIPTableLock            bool            `json:"disableIPTableLock,omitempty"`
 	DisableAsyncDelete            bool            `json:"disableAsyncDelete,omitempty"`
 	CNSUrl                        string          `json:"cnsurl,omitempty"`
+	CNSSocketPath                 string          `json:"cnsSocketPath,omitempty"`
 	ExecutionMode                 string          `json:"executionMode,omitempty"`
 	IPAM                          IPAM            `json:"ipam,omitempty"`
 	DNS                           cniTypes.DNS    `json:"dns,omitempty"`
