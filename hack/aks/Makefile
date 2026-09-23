@@ -193,7 +193,7 @@ nat-gateway-v2-up: vnetscale-dualstack-swift-net-up ## Create a dual-stack Stand
 		--tier Regional --version IPv6 --ip-tags $(IP_TAG) -o none
 	$(AZCLI) rest --method put \
 		--url "https://management.azure.com$(NAT_GATEWAY_V2_ID)?api-version=2025-05-01" \
-		--body '{"location":"$(REGION)","sku":{"name":"StandardV2"},"properties":{"publicIpAddresses":[{"id":"$(PUBLIC_IPv4)"}],"publicIpAddressesV6":[{"id":"$(PUBLIC_IPv6)"}]}}' \
+		--body '{"location":"$(REGION)","sku":{"name":"StandardV2"},"properties":{"publicIpAddresses":[{"id":"$(PUBLIC_IPv4)"},{"id":"$(PUBLIC_IPv6)"}]}}' \
 		-o none
 	@for attempt in $$(seq 1 60); do \
 		state=$$($(AZCLI) rest --method get \
