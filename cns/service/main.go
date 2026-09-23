@@ -76,6 +76,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
 	kuberuntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
@@ -116,6 +117,7 @@ const (
 	defaultDevicePluginMaxRetryCount = 5
 	initialVnetNICCount              = 0
 	initialIBNICCount                = 0
+	nodeUIDLabelKey                  = "kubernetes.azure.com/node-uid"
 )
 
 type cniConflistScenario string
@@ -1504,6 +1506,18 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 	if cnsconfig.WatchPods {
 		cacheOpts.ByObject[&corev1.Pod{}] = cache.ByObject{
 			Field: fields.SelectorFromSet(fields.Set{"spec.nodeName": nodeName}),
+		}
+	}
+
+	if cnsconfig.EnableSwiftV2 {
+		cacheOpts.ByObject[&mtv1alpha1.MultitenantPodNetworkConfig{}] = cache.ByObject{
+			Label: labels.SelectorFromSet(labels.Set{nodeUIDLabelKey: string(node.UID)}),
+		}
+	}
+
+	if cnsconfig.EnableSwiftV2PrefixAllocation {
+		cacheOpts.ByObject[&mtv1alpha1.NICNetworkConfig{}] = cache.ByObject{
+			Label: labels.SelectorFromSet(labels.Set{nodeUIDLabelKey: string(node.UID)}),
 		}
 	}
 
