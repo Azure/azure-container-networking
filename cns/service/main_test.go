@@ -19,7 +19,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -31,7 +30,7 @@ type MockHTTPClient struct {
 }
 
 func TestConfigureSwiftV2Cache(t *testing.T) {
-	const nodeUID = types.UID("node-uid")
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{UID: "node-uid"}}
 	tests := []struct {
 		name                   string
 		enableSwiftV2          bool
@@ -51,11 +50,11 @@ func TestConfigureSwiftV2Cache(t *testing.T) {
 				EnableSwiftV2:                 tt.enableSwiftV2,
 				EnableSwiftV2PrefixAllocation: tt.enablePrefixAllocation,
 			}
-			configureSwiftV2Cache(&cacheOpts, nodeUID, cnsconfig)
+			configureSwiftV2Cache(&cacheOpts, node, cnsconfig)
 
 			var gotMTPNC, gotNICNC bool
 			for object, byObject := range cacheOpts.ByObject {
-				assert.True(t, byObject.Label.Matches(labels.Set{nodeUIDLabelKey: string(nodeUID)}))
+				assert.True(t, byObject.Label.Matches(labels.Set{nodeUIDLabelKey: string(node.UID)}))
 				assert.False(t, byObject.Label.Matches(labels.Set{nodeUIDLabelKey: "other-node-uid"}))
 				assert.False(t, byObject.Label.Matches(labels.Set{}))
 				switch object.(type) {
