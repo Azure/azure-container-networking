@@ -31,16 +31,32 @@ type MockHTTPClient struct {
 
 func TestConfigureSwiftV2Cache(t *testing.T) {
 	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{UID: "node-uid"}}
+	enabled := true
+	disabled := false
 	tests := []struct {
 		name                   string
 		enableSwiftV2          bool
 		enablePrefixAllocation bool
+		enableCacheFilter      *bool
 		wantMTPNC              bool
 		wantNICNC              bool
 	}{
 		{name: "disabled"},
-		{name: "SwiftV2", enableSwiftV2: true, wantMTPNC: true},
-		{name: "SwiftV2 prefix allocation", enableSwiftV2: true, enablePrefixAllocation: true, wantMTPNC: true, wantNICNC: true},
+		{name: "SwiftV2 with default cache filter", enableSwiftV2: true, wantMTPNC: true},
+		{
+			name:                   "SwiftV2 prefix allocation with enabled cache filter",
+			enableSwiftV2:          true,
+			enablePrefixAllocation: true,
+			enableCacheFilter:      &enabled,
+			wantMTPNC:              true,
+			wantNICNC:              true,
+		},
+		{
+			name:                   "SwiftV2 prefix allocation with disabled cache filter",
+			enableSwiftV2:          true,
+			enablePrefixAllocation: true,
+			enableCacheFilter:      &disabled,
+		},
 	}
 
 	for _, tt := range tests {
@@ -48,6 +64,7 @@ func TestConfigureSwiftV2Cache(t *testing.T) {
 			cacheOpts := cache.Options{ByObject: map[client.Object]cache.ByObject{}}
 			cnsconfig := &configuration.CNSConfig{
 				EnableSwiftV2:                 tt.enableSwiftV2,
+				EnableSwiftV2CacheFilter:      tt.enableCacheFilter,
 				EnableSwiftV2PrefixAllocation: tt.enablePrefixAllocation,
 			}
 			configureSwiftV2Cache(&cacheOpts, node, cnsconfig)

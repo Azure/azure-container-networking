@@ -189,6 +189,8 @@ func Test_setManagedSettingDefaults(t *testing.T) {
 }
 
 func TestSetCNSConfigDefaults(t *testing.T) {
+	enabled := true
+	disabled := false
 	tests := []struct {
 		name string
 		in   CNSConfig
@@ -198,7 +200,8 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 			name: "unset defaults",
 			in:   CNSConfig{},
 			want: CNSConfig{
-				ChannelMode: "Direct",
+				ChannelMode:              "Direct",
+				EnableSwiftV2CacheFilter: &enabled,
 				ManagedSettings: ManagedSettings{
 					NodeSyncIntervalInSeconds: 30,
 				},
@@ -233,7 +236,8 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 		{
 			name: "don't overwrite set values",
 			in: CNSConfig{
-				ChannelMode: "Other",
+				ChannelMode:              "Other",
+				EnableSwiftV2CacheFilter: &disabled,
 				ManagedSettings: ManagedSettings{
 					NodeSyncIntervalInSeconds: 1,
 				},
@@ -263,7 +267,8 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 				MtlsClientCertSubjectName: "example.com",
 			},
 			want: CNSConfig{
-				ChannelMode: "Other",
+				ChannelMode:              "Other",
+				EnableSwiftV2CacheFilter: &disabled,
 				ManagedSettings: ManagedSettings{
 					NodeSyncIntervalInSeconds: 1,
 				},

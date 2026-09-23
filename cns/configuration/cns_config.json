@@ -17,6 +17,7 @@
         "PrivateEndpoint": ""
     },
     "ChannelMode": "Direct",
+    "EnableSwiftV2CacheFilter": true,
     "InitializeFromCNI": false,
     "TLSCertificatePath": "",
     "TLSPort": "10091",
