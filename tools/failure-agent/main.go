@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/live"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/model"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/publish"
+	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/redact"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/report"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/signatures"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/store"
@@ -125,30 +126,49 @@ func main() {
 
 func parseFlags() options {
 	var o options
-	flag.StringVar(&o.input, "input", "", "path to the collected evidence/log bundle directory (required)")
-	flag.StringVar(&o.output, "output", ".", "directory to write report.md and incident.json")
-	flag.StringVar(&o.signaturesPath, "signatures", defaultSignaturesPath, "path to the signatures catalog")
-	flag.BoolVar(&o.dryRun, "dry-run", false, "skip pull-request write-back (analysis still runs)")
-	flag.StringVar(&o.aoaiEndpoint, "aoai-endpoint", os.Getenv("AZURE_OPENAI_ENDPOINT"), "Azure OpenAI endpoint (or AZURE_OPENAI_ENDPOINT)")
-	flag.StringVar(&o.aoaiDeployment, "aoai-deployment", os.Getenv("AZURE_OPENAI_DEPLOYMENT"), "Azure OpenAI deployment name (or AZURE_OPENAI_DEPLOYMENT)")
-	flag.StringVar(&o.aoaiAPIKey, "aoai-api-key", os.Getenv("AZURE_OPENAI_API_KEY"), "Azure OpenAI API key (or AZURE_OPENAI_API_KEY)")
-	flag.StringVar(&o.aoaiAPIVersion, "aoai-api-version", envOrDefault("AZURE_OPENAI_API_VERSION", defaultAOAIAPIVersion), "Azure OpenAI API version (or AZURE_OPENAI_API_VERSION)")
-	flag.DurationVar(&o.timeout, "timeout", defaultTimeout, "overall timeout for LLM classification")
-	flag.StringVar(&o.pipeline, "pipeline", "", "override pipeline name")
-	flag.StringVar(&o.clusterName, "cluster-name", "", "scenario: cluster name")
-	flag.StringVar(&o.clusterType, "cluster-type", "", "scenario: cluster type")
-	flag.StringVar(&o.region, "region", "", "scenario: region")
-	flag.StringVar(&o.osName, "os", "", "scenario: operating system (linux/windows)")
-	flag.StringVar(&o.cni, "cni", "", "scenario: cni (cniv1/cniv2/cilium)")
-	flag.StringVar(&o.knowledgeDB, "knowledge-db", os.Getenv("FAILURE_AGENT_DB"), "path to the SQLite knowledge store (or FAILURE_AGENT_DB); enables incident memory")
-	flag.BoolVar(&o.live, "live", true, "collect read-only kubectl diagnostics from the retained cluster (requires kubectl + KUBECONFIG)")
-	flag.BoolVar(&o.privileged, "privileged", true, "collect host-level logs via kubectl debug node (requires --live; creates ephemeral debug pods)")
-	flag.StringVar(&o.flakinessOutput, "flakiness-output", "", "write the knowledge-store flakiness report to this path")
-	flag.StringVar(&o.diffFile, "diff-file", "", "path to a unified diff of the change under test; grounds the code-correlation check for pr_regression")
-	flag.StringVar(&o.weeklyReport, "weekly-report", "", "weekly-trends mode: aggregate the incident.json artifacts under this directory and synthesize a trends digest (writes weekly-report.md + weekly-incident.json to --output)")
-	flag.IntVar(&o.weeklyWindow, "weekly-window-days", defaultWeeklyWindowDays, "weekly-trends mode: reporting window in days, surfaced on the digest")
+	registerFlags(flag.CommandLine, &o, os.Getenv)
 	flag.Parse()
+	resolveAOAIAPIKey(flag.CommandLine, &o, os.Getenv)
 	return o
+}
+
+func registerFlags(fs *flag.FlagSet, o *options, getenv func(string) string) {
+	fs.StringVar(&o.input, "input", "", "path to the collected evidence/log bundle directory (required)")
+	fs.StringVar(&o.output, "output", ".", "directory to write report.md and incident.json")
+	fs.StringVar(&o.signaturesPath, "signatures", defaultSignaturesPath, "path to the signatures catalog")
+	fs.BoolVar(&o.dryRun, "dry-run", false, "skip pull-request write-back (analysis still runs)")
+	fs.StringVar(&o.aoaiEndpoint, "aoai-endpoint", getenv("AZURE_OPENAI_ENDPOINT"), "Azure OpenAI endpoint (or AZURE_OPENAI_ENDPOINT)")
+	fs.StringVar(&o.aoaiDeployment, "aoai-deployment", getenv("AZURE_OPENAI_DEPLOYMENT"), "Azure OpenAI deployment name (or AZURE_OPENAI_DEPLOYMENT)")
+	// The API key environment fallback is resolved after parsing because
+	// PrintDefaults renders non-empty defaults on help and parse errors.
+	fs.StringVar(&o.aoaiAPIKey, "aoai-api-key", "", "Azure OpenAI API key (or AZURE_OPENAI_API_KEY)")
+	fs.StringVar(&o.aoaiAPIVersion, "aoai-api-version", envOrDefault("AZURE_OPENAI_API_VERSION", defaultAOAIAPIVersion), "Azure OpenAI API version (or AZURE_OPENAI_API_VERSION)")
+	fs.DurationVar(&o.timeout, "timeout", defaultTimeout, "overall timeout for LLM classification")
+	fs.StringVar(&o.pipeline, "pipeline", "", "override pipeline name")
+	fs.StringVar(&o.clusterName, "cluster-name", "", "scenario: cluster name")
+	fs.StringVar(&o.clusterType, "cluster-type", "", "scenario: cluster type")
+	fs.StringVar(&o.region, "region", "", "scenario: region")
+	fs.StringVar(&o.osName, "os", "", "scenario: operating system (linux/windows)")
+	fs.StringVar(&o.cni, "cni", "", "scenario: cni (cniv1/cniv2/cilium)")
+	fs.StringVar(&o.knowledgeDB, "knowledge-db", getenv("FAILURE_AGENT_DB"), "path to the SQLite knowledge store (or FAILURE_AGENT_DB); enables incident memory")
+	fs.BoolVar(&o.live, "live", true, "collect read-only kubectl diagnostics from the retained cluster (requires kubectl + KUBECONFIG)")
+	fs.BoolVar(&o.privileged, "privileged", true, "collect host-level logs via kubectl debug node (requires --live; creates ephemeral debug pods)")
+	fs.StringVar(&o.flakinessOutput, "flakiness-output", "", "write the knowledge-store flakiness report to this path")
+	fs.StringVar(&o.diffFile, "diff-file", "", "path to a unified diff of the change under test; grounds the code-correlation check for pr_regression")
+	fs.StringVar(&o.weeklyReport, "weekly-report", "", "weekly-trends mode: aggregate the incident.json artifacts under this directory and synthesize a trends digest (writes weekly-report.md + weekly-incident.json to --output)")
+	fs.IntVar(&o.weeklyWindow, "weekly-window-days", defaultWeeklyWindowDays, "weekly-trends mode: reporting window in days, surfaced on the digest")
+}
+
+func resolveAOAIAPIKey(fs *flag.FlagSet, o *options, getenv func(string) string) {
+	provided := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "aoai-api-key" {
+			provided = true
+		}
+	})
+	if !provided {
+		o.aoaiAPIKey = getenv("AZURE_OPENAI_API_KEY")
+	}
 }
 
 // priorContextLimit caps how many prior incidents of each kind are injected.
@@ -158,6 +178,7 @@ func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, k
 	if opts.input == "" {
 		return errors.New("--input is required")
 	}
+	redactor := redact.New(configuredSecrets(opts, os.Getenv)...)
 
 	rc := collect.FromEnv(os.Getenv)
 	applyOverrides(&rc, opts)
@@ -174,17 +195,20 @@ func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, k
 			)
 		}
 	}
+	redactor.Apply(&rc)
 
 	ev, err := collect.ParseEvidence(opts.input)
 	if err != nil {
 		return fmt.Errorf("parsing evidence: %w", err)
 	}
+	redactor.Apply(&ev)
 	logger.Info("evidence collected",
 		zap.Int("files", len(ev.Files)),
 		zap.Int("errorLines", len(ev.TopErrorLines)),
 	)
 
 	if res := lc.Collect(ctx); len(res.Executed) > 0 {
+		redactor.Apply(&res)
 		ev = live.Merge(ev, res)
 		logger.Info("live diagnostics collected",
 			zap.String("event", "live_evidence_collected"),
@@ -205,6 +229,7 @@ func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, k
 	}
 
 	if res := pc.Collect(ctx); len(res.Executed) > 0 {
+		redactor.Apply(&res)
 		ev = live.Merge(ev, res)
 		logger.Info("privileged diagnostics collected",
 			zap.String("event", "privileged_evidence_collected"),
@@ -229,36 +254,42 @@ func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, k
 		return err
 	}
 	matches := sigSet.Match(rc, ev)
+	redactor.Apply(&matches)
 
 	// Skip duplicate work when an unresolved incident with the same fingerprint
 	// already exists (e.g. a PR is already open for this failure).
 	if active, err := ks.ActiveByFingerprint(ctx, fp.Hash); err != nil {
 		logger.Warn("knowledge lookup failed; proceeding without dedupe", zap.Error(err))
 	} else if active != nil {
+		redactor.Apply(active)
 		return handleDuplicate(ctx, logger, opts, rc, fp, matches, ev, ks, active)
 	}
 
 	prior := priorContext(ctx, logger, ks, fp.Hash)
+	redactor.Apply(&prior)
 
 	classifyCtx, cancel := context.WithTimeout(ctx, opts.timeout)
 	defer cancel()
 
 	classification, classifyErr := cl.Classify(classifyCtx, rc, ev, fp, matches, prior)
+	redactor.Apply(&classification)
 	status := model.StatusAnalyzed
+	classifyErrText := ""
 	if classifyErr != nil {
+		classifyErrText = redactor.String(classifyErr.Error())
 		logger.Error("llm classification failed",
 			zap.String("event", "llm_failed"),
 			zap.String("fingerprint", fp.Hash),
-			zap.Error(classifyErr),
+			zap.String("error", classifyErrText),
 		)
-		classification = analysisFailedClassification(ev, classifyErr)
+		classification = analysisFailedClassification(ev, classifyErrText)
 		status = model.StatusAnalysisFailed
 	}
 
 	inc := report.Build(time.Now(), rc, fp, classification, matches, ev)
 	inc.AnalysisStatus = status
 	if classifyErr != nil {
-		inc.AnalysisError = classifyErr.Error()
+		inc.AnalysisError = classifyErrText
 	}
 	if err := report.WriteFiles(opts.output, inc); err != nil {
 		return err
@@ -284,6 +315,16 @@ func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, k
 		}
 	}
 	return nil
+}
+
+func configuredSecrets(opts options, getenv func(string) string) []string {
+	return []string{
+		opts.aoaiAPIKey,
+		getenv("AZURE_OPENAI_API_KEY"),
+		getenv("GITHUB_TOKEN"),
+		getenv("FAA_STORAGE_CONNECTION_STRING"),
+		getenv("idToken"),
+	}
 }
 
 // handleDuplicate is taken when an unresolved incident with the same fingerprint
@@ -524,6 +565,8 @@ func runWeekly(ctx context.Context, logger *zap.Logger, opts options) error {
 	if err != nil {
 		return fmt.Errorf("loading weekly incidents: %w", err)
 	}
+	redactor := redact.New(configuredSecrets(opts, os.Getenv)...)
+	redactor.Apply(&incidents)
 	stats := weekly.Aggregate(incidents)
 	logger.Info("weekly incidents aggregated",
 		zap.String("event", "weekly_aggregated"),
@@ -539,15 +582,19 @@ func runWeekly(ctx context.Context, logger *zap.Logger, opts options) error {
 		synthCtx, cancel := context.WithTimeout(ctx, opts.timeout)
 		defer cancel()
 		if synth, sErr := weekly.Synthesize(synthCtx, client, stats, incidents); sErr != nil {
-			logger.Warn("weekly synthesis failed; emitting deterministic weekly digest", zap.Error(sErr))
+			logger.Warn("weekly synthesis failed; emitting deterministic weekly digest",
+				zap.String("error", redactor.String(sErr.Error())),
+			)
 		} else {
 			summary = synth
 		}
 	}
+	redactor.Apply(&summary)
 
 	now := time.Now()
 	windowStart := now.AddDate(0, 0, -opts.weeklyWindow)
 	wi := weekly.Build(now, windowStart, opts.weeklyWindow, stats, summary)
+	redactor.Apply(&wi)
 	if err := weekly.WriteFiles(opts.output, wi); err != nil {
 		return err
 	}
@@ -565,7 +612,7 @@ const maxFailedEvidenceLines = 5
 // analysisFailedClassification builds the placeholder classification used when
 // the LLM could not analyze the failure. It routes to human triage and carries
 // the extracted error lines so the incident is still actionable.
-func analysisFailedClassification(ev model.Evidence, err error) model.Classification {
+func analysisFailedClassification(ev model.Evidence, errText string) model.Classification {
 	n := maxFailedEvidenceLines
 	if len(ev.TopErrorLines) < n {
 		n = len(ev.TopErrorLines)
@@ -576,7 +623,7 @@ func analysisFailedClassification(ev model.Evidence, err error) model.Classifica
 	return model.Classification{
 		Category:         model.CategoryUnknownNeedsHuman,
 		Confidence:       0,
-		RootCauseSummary: fmt.Sprintf("Automated analysis was unavailable (%v). Raw evidence is preserved for human triage.", err),
+		RootCauseSummary: fmt.Sprintf("Automated analysis was unavailable (%s). Raw evidence is preserved for human triage.", errText),
 		TopEvidence:      top,
 		Source:           "none",
 	}
