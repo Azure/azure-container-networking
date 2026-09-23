@@ -567,6 +567,7 @@ func main() {
 		}
 	}
 	configuration.SetCNSConfigDefaults(cnsconfig)
+	config.IPAMUnixSocketPath = cnsconfig.IPAMUnixSocketPath
 
 	disableTelemetry := cnsconfig.TelemetrySettings.DisableAll
 	if !disableTelemetry {

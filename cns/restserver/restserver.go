@@ -119,6 +119,7 @@ type HTTPRestService struct {
 	PnpIDByMacAddress          map[string]string
 	imdsClient                 imdsClient
 	nodesubnetIPFetcher        *nodesubnet.IPFetcher
+	ipamServer                 *ipamServer
 	nicncClient                nicncClient
 	mtpncClient                mtpncClient
 	nodeinfoClient             nodeinfoClient
@@ -278,6 +279,10 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 
 // Init starts the CNS listener.
 func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
+	if err := validateIPAMServerConfig(config.IPAMUnixSocketPath); err != nil {
+		return err
+	}
+
 	err := service.Initialize(config)
 	if err != nil {
 		logger.Errorf("[Azure CNS]  Failed to initialize base service, err:%v.", err)
@@ -398,11 +403,23 @@ func (service *HTTPRestService) Start(config *common.ServiceConfig) error {
 		return err
 	}
 
+	if config.IPAMUnixSocketPath != "" {
+		ipamServer, err := startIPAMServer(config.IPAMUnixSocketPath, service, config.ErrChan)
+		if err != nil {
+			return err
+		}
+		service.ipamServer = ipamServer
+	}
+
 	return nil
 }
 
 // Stop stops the CNS.
 func (service *HTTPRestService) Stop() {
+	if service.ipamServer != nil {
+		service.ipamServer.stop()
+		service.ipamServer = nil
+	}
 	service.Uninitialize()
 	logger.Printf("[Azure CNS]  Service stopped.")
 }

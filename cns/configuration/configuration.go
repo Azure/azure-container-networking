@@ -44,6 +44,7 @@ type CNSConfig struct {
 	EnableSwiftV2PrefixAllocation   bool
 	IPv6PrefixClamp                 int
 	InitializeFromCNI               bool
+	IPAMUnixSocketPath              string
 	KeyVaultSettings                KeyVaultSettings
 	Logger                          loggerv2.Config
 	MSISettings                     MSISettings
