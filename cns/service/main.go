@@ -118,6 +118,7 @@ const (
 	initialVnetNICCount              = 0
 	initialIBNICCount                = 0
 	nodeUIDLabelKey                  = "kubernetes.azure.com/node-uid"
+	kubeSystemNamespace              = "kube-system"
 )
 
 type cniConflistScenario string
@@ -1395,7 +1396,7 @@ func buildCacheOptions(scheme *kuberuntime.Scheme, node *corev1.Node, cnsconfig 
 		ByObject: map[client.Object]cache.ByObject{
 			&v1alpha.NodeNetworkConfig{}: {
 				Namespaces: map[string]cache.Config{
-					"kube-system": {FieldSelector: fields.SelectorFromSet(fields.Set{"metadata.name": nodeName})},
+					kubeSystemNamespace: {FieldSelector: fields.SelectorFromSet(fields.Set{"metadata.name": nodeName})},
 				},
 			},
 			&mtv1alpha1.NodeInfo{}: {
@@ -1425,7 +1426,7 @@ func buildCacheOptions(scheme *kuberuntime.Scheme, node *corev1.Node, cnsconfig 
 	if cnsconfig.EnableSubnetScarcity {
 		cacheOpts.ByObject[&cssv1alpha1.ClusterSubnetState{}] = cache.ByObject{
 			Namespaces: map[string]cache.Config{
-				"kube-system": {},
+				kubeSystemNamespace: {},
 			},
 		}
 	}
@@ -1548,7 +1549,7 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 	// attempt to use the client until it has received a NodeNetworkConfig to update, and
 	// that can only happen once the Manager has started and the NodeNetworkConfig
 	// reconciler has pushed the Monitor a NodeNetworkConfig.
-	cachedscopedcli := nncctrl.NewScopedClient(nodenetworkconfig.NewClient(manager.GetClient()), types.NamespacedName{Namespace: "kube-system", Name: nodeName})
+	cachedscopedcli := nncctrl.NewScopedClient(nodenetworkconfig.NewClient(manager.GetClient()), types.NamespacedName{Namespace: kubeSystemNamespace, Name: nodeName})
 
 	// Build the IPAM Pool monitor
 	var poolMonitor cns.IPAMPoolMonitor

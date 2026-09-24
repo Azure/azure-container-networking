@@ -28,6 +28,8 @@ type MockHTTPClient struct {
 }
 
 func TestConfigureSwiftV2CacheOptions(t *testing.T) {
+	const nodeUIDLabel = "kubernetes.azure.com/node-uid=nodeUID"
+
 	tests := []struct {
 		name                 string
 		cnsConfig            *configuration.CNSConfig
@@ -50,7 +52,7 @@ func TestConfigureSwiftV2CacheOptions(t *testing.T) {
 				EnableSwiftV2PrefixAllocation: false,
 			},
 			expectedCacheOptions: map[string]string{
-				"*v1alpha1.MultitenantPodNetworkConfig": "kubernetes.azure.com/node-uid=nodeUID",
+				"*v1alpha1.MultitenantPodNetworkConfig": nodeUIDLabel,
 			},
 		},
 		{
@@ -60,7 +62,7 @@ func TestConfigureSwiftV2CacheOptions(t *testing.T) {
 				EnableSwiftV2PrefixAllocation: true,
 			},
 			expectedCacheOptions: map[string]string{
-				"*v1alpha1.NICNetworkConfig": "kubernetes.azure.com/node-uid=nodeUID",
+				"*v1alpha1.NICNetworkConfig": nodeUIDLabel,
 			},
 		},
 		{
@@ -71,8 +73,8 @@ func TestConfigureSwiftV2CacheOptions(t *testing.T) {
 				EnableSwiftV2PrefixAllocation: true,
 			},
 			expectedCacheOptions: map[string]string{
-				"*v1alpha1.MultitenantPodNetworkConfig": "kubernetes.azure.com/node-uid=nodeUID",
-				"*v1alpha1.NICNetworkConfig":            "kubernetes.azure.com/node-uid=nodeUID",
+				"*v1alpha1.MultitenantPodNetworkConfig": nodeUIDLabel,
+				"*v1alpha1.NICNetworkConfig":            nodeUIDLabel,
 			},
 		},
 	}
