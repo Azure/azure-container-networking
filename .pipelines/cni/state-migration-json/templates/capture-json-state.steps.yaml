@@ -1,0 +1,31 @@
+parameters:
+  name: ""
+  clusterName: ""
+  os: linux
+
+steps:
+  - bash: |
+      mkdir -p "$(Build.ArtifactStagingDirectory)/state-migration-json/${{ parameters.name }}"
+    displayName: "Initialize JSON artifact directory"
+    condition: always()
+
+  - task: AzureCLI@2
+    displayName: "Capture JSON state"
+    condition: always()
+    continueOnError: true
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -euo pipefail
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+        bash .pipelines/cni/state-migration-json/scripts/capture-json-state.sh \
+          "${{ parameters.os }}" \
+          "$(Build.ArtifactStagingDirectory)/state-migration-json/${{ parameters.name }}"
+
+  - publish: $(Build.ArtifactStagingDirectory)/state-migration-json/${{ parameters.name }}
+    displayName: "Publish JSON state"
+    artifact: state-migration-json-${{ parameters.name }}-$(Build.BuildId)
+    condition: always()
