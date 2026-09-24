@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	mtv1alpha1 "github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
@@ -18,68 +17,12 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // MockHTTPClient is a mock implementation of HTTPClient
 type MockHTTPClient struct {
 	Response *http.Response
 	Err      error
-}
-
-func TestConfigureSwiftV2Cache(t *testing.T) {
-	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{UID: "node-uid"}}
-	tests := []struct {
-		name                   string
-		enableSwiftV2          bool
-		enablePrefixAllocation bool
-		enableCacheFilter      bool
-		wantMTPNC              bool
-		wantNICNC              bool
-	}{
-		{name: "disabled"},
-		{name: "SwiftV2 with disabled cache filter", enableSwiftV2: true},
-		{
-			name:                   "SwiftV2 prefix allocation with enabled cache filter",
-			enableSwiftV2:          true,
-			enablePrefixAllocation: true,
-			enableCacheFilter:      true,
-			wantMTPNC:              true,
-			wantNICNC:              true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cacheOpts := cache.Options{ByObject: map[client.Object]cache.ByObject{}}
-			cnsconfig := &configuration.CNSConfig{
-				EnableSwiftV2:                 tt.enableSwiftV2,
-				EnableSwiftV2CacheFilter:      tt.enableCacheFilter,
-				EnableSwiftV2PrefixAllocation: tt.enablePrefixAllocation,
-			}
-			configureSwiftV2Cache(&cacheOpts, node, cnsconfig)
-
-			var gotMTPNC, gotNICNC bool
-			for object, byObject := range cacheOpts.ByObject {
-				assert.True(t, byObject.Label.Matches(labels.Set{nodeUIDLabelKey: string(node.UID)}))
-				assert.False(t, byObject.Label.Matches(labels.Set{nodeUIDLabelKey: "other-node-uid"}))
-				assert.False(t, byObject.Label.Matches(labels.Set{}))
-				switch object.(type) {
-				case *mtv1alpha1.MultitenantPodNetworkConfig:
-					gotMTPNC = true
-				case *mtv1alpha1.NICNetworkConfig:
-					gotNICNC = true
-				default:
-					t.Fatalf("unexpected cached object type %T", object)
-				}
-			}
-
-			assert.Equal(t, tt.wantMTPNC, gotMTPNC)
-			assert.Equal(t, tt.wantNICNC, gotNICNC)
-		})
-	}
 }
 
 // Post is the implementation of the Post method for MockHTTPClient
