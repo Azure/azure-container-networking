@@ -1391,7 +1391,7 @@ func reconcileInitialCNSState(
 func configureSwiftV2Cache(cacheOpts *cache.Options, node *corev1.Node, cnsconfig *configuration.CNSConfig) {
 	// Note: we rely on the controller for mtpnc backfilling this label on existing unlabeled MTPNCs during pod reconciliation
 	// EnableSwiftV2CacheFilter will be false unless we have guaranteed rollout of the controller change which ensures this label is set.
-	if cnsconfig.EnableSwiftV2CacheFilter != nil && !*cnsconfig.EnableSwiftV2CacheFilter {
+	if !cnsconfig.EnableSwiftV2CacheFilter {
 		return
 	}
 

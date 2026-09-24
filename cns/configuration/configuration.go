@@ -42,7 +42,7 @@ type CNSConfig struct {
 	EnableSwiftV1DualStack          bool
 	EnableSwiftV2                   bool
 	// EnableSwiftV2CacheFilter scopes MTPNC and NICNC caches to the current node.
-	EnableSwiftV2CacheFilter      *bool
+	EnableSwiftV2CacheFilter      bool
 	EnableSwiftV2PrefixAllocation bool
 	IPv6PrefixClamp               int
 	InitializeFromCNI             bool
@@ -224,10 +224,6 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 	setKeyVaultSettingsDefaults(&config.KeyVaultSettings)
 	setAZRSettingsDefaults(&config.AZRSettings)
 
-	if config.EnableSwiftV2CacheFilter == nil {
-		enabled := true
-		config.EnableSwiftV2CacheFilter = &enabled
-	}
 	if config.ChannelMode == "" {
 		config.ChannelMode = cns.Direct
 	}
