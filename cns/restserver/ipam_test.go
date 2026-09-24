@@ -157,6 +157,9 @@ func updatePodIPConfigState(t *testing.T, svc *HTTPRestService, ipconfigs map[st
 	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
 	// Get each of the ipconfigs associated with that NC
 	for _, ipconfig := range ipconfigs { //nolint:gocritic // ignore copy
+		if ipconfig.NCID != ncID {
+			continue
+		}
 		secIPConfig := cns.SecondaryIPConfig{
 			IPAddress: ipconfig.IPAddress,
 			NCVersion: -1,
@@ -2005,15 +2008,16 @@ func TestIPAMReleaseOneIPWhenExpectedToHaveTwo(t *testing.T) {
 	ipconfigs := map[string]cns.IPConfigurationStatus{
 		testState.ID: testState,
 	}
-	emptyIpconfigs := map[string]cns.IPConfigurationStatus{}
 
 	err := updatePodIPConfigState(t, svc, ipconfigs, testNCID)
 	if err != nil {
 		t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 	}
-	err = updatePodIPConfigState(t, svc, emptyIpconfigs, testNCIDv6)
-	if err != nil {
-		t.Fatalf("Expected to not fail adding empty NC to state: %+v", err)
+
+	emptyV6NC := generateNetworkContainerRequest(map[string]cns.SecondaryIPConfig{}, testNCIDv6, "-1")
+	emptyV6NC.IPConfiguration.IPSubnetV6 = cns.IPSubnet{IPAddress: "fd12:1234::5", PrefixLength: ipPrefixBitsv6}
+	if returnCode := svc.CreateOrUpdateNetworkContainerInternal(emptyV6NC); returnCode != types.Success {
+		t.Fatalf("Expected to not fail adding empty NC to state: %d", returnCode)
 	}
 
 	err = svc.releaseIPConfigs(testPod1Info)

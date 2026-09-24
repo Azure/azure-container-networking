@@ -3,10 +3,12 @@ package restserver
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
+	"github.com/Azure/azure-container-networking/cns/types"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/stretchr/testify/assert"
@@ -291,5 +293,480 @@ func TestDeleteNCs(t *testing.T) {
 			ncs.Delete("swift_3abc")
 			assert.Equal(t, tt.want4, ncs)
 		})
+	}
+}
+
+//nolint:goconst // Keep each address visible in its uniqueness scenario.
+func TestValidateNetworkContainerIPUniqueness(t *testing.T) {
+	const (
+		nc1 = "nc1"
+		nc2 = "nc2"
+	)
+
+	assignedIPConfig := cns.IPConfigurationStatus{ID: "ip1", NCID: nc1, IPAddress: "10.0.0.2"}
+	assignedIPConfig.SetState(types.Assigned)
+	availableIPConfig := cns.IPConfigurationStatus{ID: "ip1", NCID: nc1, IPAddress: "10.0.0.2"}
+	availableIPConfig.SetState(types.Available)
+	pendingReleaseIPConfig := cns.IPConfigurationStatus{ID: "ip1", NCID: nc1, IPAddress: "10.0.0.2"}
+	pendingReleaseIPConfig.SetState(types.PendingRelease)
+	orphanedAvailableIPConfig := cns.IPConfigurationStatus{ID: "orphaned", NCID: "deleted", IPAddress: "10.0.0.2"}
+	orphanedAvailableIPConfig.SetState(types.Available)
+	orphanedPendingReleaseIPConfig := cns.IPConfigurationStatus{ID: "orphaned", NCID: "deleted", IPAddress: "10.0.0.2"}
+	orphanedPendingReleaseIPConfig.SetState(types.PendingRelease)
+	orphanedAssignedIPConfig := cns.IPConfigurationStatus{ID: "orphaned", NCID: "deleted", IPAddress: "10.0.0.2"}
+	orphanedAssignedIPConfig.SetState(types.Assigned)
+	malformedAssignedIPConfig := cns.IPConfigurationStatus{ID: "ip1", NCID: nc1, IPAddress: "not-an-ip"}
+	malformedAssignedIPConfig.SetState(types.Assigned)
+
+	tests := []struct {
+		name               string
+		existing           []cns.CreateNetworkContainerRequest
+		currentIPConfigs   map[string]cns.IPConfigurationStatus
+		incoming           cns.CreateNetworkContainerRequest
+		allowSharedPrimary bool
+		wantCode           types.ResponseCode
+	}{
+		{
+			name:     "distinct addresses",
+			existing: []cns.CreateNetworkContainerRequest{ipUniquenessRequest(nc1, "10.0.0.1", "", map[string]string{"ip1": "10.0.0.2"})},
+			incoming: ipUniquenessRequest(nc2, "10.0.0.9", "", map[string]string{"ip2": "10.0.0.10"}),
+			wantCode: types.Success,
+		},
+		{
+			name:     "mapped IPv4 duplicate",
+			existing: []cns.CreateNetworkContainerRequest{ipUniquenessRequest(nc1, "10.0.0.1", "", map[string]string{"ip1": "10.0.0.2"})},
+			incoming: ipUniquenessRequest(nc2, "10.0.0.9", "", map[string]string{"ip2": "::ffff:10.0.0.2"}),
+			wantCode: types.InconsistentIPConfigState,
+		},
+		{
+			name:     "canonical IPv6 duplicate",
+			existing: []cns.CreateNetworkContainerRequest{ipUniquenessRequest(nc1, "2001:db8::1", "", map[string]string{"ip1": "2001:db8::2"})},
+			incoming: ipUniquenessRequest(nc2, "2001:db8::9", "", map[string]string{"ip2": "2001:0db8:0:0:0:0:0:2"}),
+			wantCode: types.InconsistentIPConfigState,
+		},
+		{
+			name:     "duplicate incoming secondaries",
+			incoming: ipUniquenessRequest(nc1, "10.0.0.1", "", map[string]string{"ip1": "10.0.0.2", "ip2": "::ffff:10.0.0.2"}),
+			wantCode: types.InconsistentIPConfigState,
+		},
+		{
+			name:     "duplicate IPv4 primary",
+			existing: []cns.CreateNetworkContainerRequest{ipUniquenessRequest(nc1, "10.0.0.1", "", map[string]string{"ip1": "10.0.0.2"})},
+			incoming: ipUniquenessRequest(nc2, "10.0.0.1", "", map[string]string{"ip2": "10.0.0.3"}),
+			wantCode: types.InconsistentIPConfigState,
+		},
+		{
+			name:     "shared host primary",
+			existing: []cns.CreateNetworkContainerRequest{ipUniquenessRequestWithHostPrimary(nc1, "10.0.0.1", map[string]string{"ip1": "10.0.0.2"})},
+			incoming: ipUniquenessRequestWithHostPrimary(nc2, "10.0.0.1", map[string]string{"ip2": "10.0.0.3"}),
+			wantCode: types.Success,
+		},
+		{
+			name:     "duplicate IPv6 primary",
+			existing: []cns.CreateNetworkContainerRequest{ipUniquenessRequest(nc1, "10.0.0.1", "2001:db8::1", map[string]string{"ip1": "2001:db8::2"})},
+			incoming: ipUniquenessRequest(nc2, "10.0.0.9", "2001:0db8:0:0:0:0:0:1", map[string]string{"ip2": "2001:db8::3"}),
+			wantCode: types.InconsistentIPConfigState,
+		},
+		{
+			name:     "primary collides with secondary across families",
+			existing: []cns.CreateNetworkContainerRequest{ipUniquenessRequest(nc1, "2001:db8::1", "", map[string]string{"ip1": "10.0.0.2"})},
+			incoming: ipUniquenessRequest(nc2, "10.0.0.2", "2001:db8::9", map[string]string{"ip2": "2001:db8::10"}),
+			wantCode: types.InconsistentIPConfigState,
+		},
+		{
+			name:     "secondary collides with primary across families",
+			existing: []cns.CreateNetworkContainerRequest{ipUniquenessRequest(nc1, "10.0.0.1", "2001:db8::1", map[string]string{"ip1": "2001:db8::2"})},
+			incoming: ipUniquenessRequest(nc2, "10.0.0.9", "", map[string]string{"ip2": "10.0.0.1"}),
+			wantCode: types.InconsistentIPConfigState,
+		},
+		{
+			name:     "same network container primary and secondary overlap",
+			incoming: ipUniquenessRequest(nc1, "10.0.0.1", "", map[string]string{"primary": "10.0.0.1"}),
+			wantCode: types.Success,
+		},
+		{
+			name:     "shared primary across address families",
+			existing: []cns.CreateNetworkContainerRequest{ipUniquenessRequest(nc1, "10.0.0.1", "", map[string]string{"ip1": "10.0.0.2"})},
+			incoming: ipUniquenessRequest(nc2, "10.0.0.1", "2001:db8::1", map[string]string{"ip2": "2001:db8::2"}),
+			wantCode: types.Success,
+		},
+		{
+			name:     "contradictory family data collides conservatively",
+			existing: []cns.CreateNetworkContainerRequest{ipUniquenessRequest(nc1, "10.0.0.1", "", map[string]string{"ip1": "10.0.0.2", "ip2": "2001:db8::2"})},
+			incoming: ipUniquenessRequest(nc2, "10.0.0.1", "", map[string]string{"ip3": "10.0.0.3"}),
+			wantCode: types.InconsistentIPConfigState,
+		},
+		{
+			name:     "IP ID cannot move across network containers",
+			existing: []cns.CreateNetworkContainerRequest{ipUniquenessRequest(nc1, "10.0.0.1", "", map[string]string{"shared": "10.0.0.2"})},
+			incoming: ipUniquenessRequest(nc2, "10.0.0.9", "", map[string]string{"shared": "10.0.0.10"}),
+			wantCode: types.InconsistentIPConfigState,
+		},
+		{
+			name:     "same network container can replace an IP ID address",
+			existing: []cns.CreateNetworkContainerRequest{ipUniquenessRequest(nc1, "10.0.0.1", "", map[string]string{"ip1": "10.0.0.2"})},
+			incoming: ipUniquenessRequest(nc1, "10.0.0.1", "", map[string]string{"ip1": "10.0.0.3"}),
+			wantCode: types.Success,
+		},
+		{
+			name:             "assigned IP ID cannot change address",
+			existing:         []cns.CreateNetworkContainerRequest{ipUniquenessRequest(nc1, "10.0.0.1", "", map[string]string{"ip1": "10.0.0.2"})},
+			currentIPConfigs: map[string]cns.IPConfigurationStatus{"ip1": assignedIPConfig},
+			incoming:         ipUniquenessRequest(nc1, "10.0.0.1", "", map[string]string{"ip1": "10.0.0.3"}),
+			wantCode:         types.InconsistentIPConfigState,
+		},
+		{
+			name:             "available IP ID can change address",
+			existing:         []cns.CreateNetworkContainerRequest{ipUniquenessRequest(nc1, "10.0.0.1", "", map[string]string{"ip1": "10.0.0.2"})},
+			currentIPConfigs: map[string]cns.IPConfigurationStatus{"ip1": availableIPConfig},
+			incoming:         ipUniquenessRequest(nc1, "10.0.0.1", "", map[string]string{"ip1": "10.0.0.3"}),
+			wantCode:         types.Success,
+		},
+		{
+			name:             "pending release IP ID cannot change address",
+			existing:         []cns.CreateNetworkContainerRequest{ipUniquenessRequest(nc1, "10.0.0.1", "", map[string]string{"ip1": "10.0.0.2"})},
+			currentIPConfigs: map[string]cns.IPConfigurationStatus{"ip1": pendingReleaseIPConfig},
+			incoming:         ipUniquenessRequest(nc1, "10.0.0.1", "", map[string]string{"ip1": "10.0.0.3"}),
+			wantCode:         types.InconsistentIPConfigState,
+		},
+		{
+			name:             "malformed assigned IP ID cannot change address",
+			existing:         []cns.CreateNetworkContainerRequest{ipUniquenessRequest(nc1, "10.0.0.1", "", map[string]string{"ip1": "not-an-ip"})},
+			currentIPConfigs: map[string]cns.IPConfigurationStatus{"ip1": malformedAssignedIPConfig},
+			incoming:         ipUniquenessRequest(nc1, "10.0.0.1", "", map[string]string{"ip1": "10.0.0.3"}),
+			wantCode:         types.InconsistentIPConfigState,
+		},
+		{
+			name:     "invalid incoming primary",
+			incoming: ipUniquenessRequest(nc1, "not-an-ip", "", map[string]string{"ip1": "10.0.0.2"}),
+			wantCode: types.InvalidPrimaryIPConfig,
+		},
+		{
+			name:     "IPv4 mapped address is invalid in IPv6 primary field",
+			incoming: ipUniquenessRequest(nc1, "10.0.0.1", "::ffff:10.0.0.2", map[string]string{"ip1": "2001:db8::2"}),
+			wantCode: types.InvalidPrimaryIPConfig,
+		},
+		{
+			name:     "invalid incoming secondary",
+			incoming: ipUniquenessRequest(nc1, "10.0.0.1", "", map[string]string{"ip1": "not-an-ip"}),
+			wantCode: types.InvalidSecondaryIPConfig,
+		},
+		{
+			name:     "scoped IPv6 incoming secondary",
+			incoming: ipUniquenessRequest(nc1, "2001:db8::1", "", map[string]string{"ip1": "fe80::1%eth0"}),
+			wantCode: types.InvalidSecondaryIPConfig,
+		},
+		{
+			name:     "invalid cached secondary",
+			existing: []cns.CreateNetworkContainerRequest{ipUniquenessRequest(nc1, "10.0.0.1", "", map[string]string{"ip1": "not-an-ip"})},
+			incoming: ipUniquenessRequest(nc2, "10.0.0.9", "", map[string]string{"ip2": "10.0.0.10"}),
+			wantCode: types.Success,
+		},
+		{
+			name: "invalid cached pod IP state",
+			currentIPConfigs: map[string]cns.IPConfigurationStatus{
+				"ip1": {ID: "ip1", NCID: nc1, IPAddress: "not-an-ip"},
+			},
+			incoming: ipUniquenessRequest(nc2, "10.0.0.9", "", map[string]string{"ip2": "10.0.0.10"}),
+			wantCode: types.Success,
+		},
+		{
+			name: "orphaned available pool entry does not block reuse",
+			currentIPConfigs: map[string]cns.IPConfigurationStatus{
+				"orphaned": orphanedAvailableIPConfig,
+			},
+			incoming: ipUniquenessRequest(nc2, "10.0.0.9", "", map[string]string{"ip2": "10.0.0.2"}),
+			wantCode: types.Success,
+		},
+		{
+			name: "orphaned pending release entry does not block reuse",
+			currentIPConfigs: map[string]cns.IPConfigurationStatus{
+				"orphaned": orphanedPendingReleaseIPConfig,
+			},
+			incoming: ipUniquenessRequest(nc2, "10.0.0.9", "", map[string]string{"ip2": "10.0.0.2"}),
+			wantCode: types.Success,
+		},
+		{
+			name: "orphaned assigned pool entry blocks reuse",
+			currentIPConfigs: map[string]cns.IPConfigurationStatus{
+				"orphaned": orphanedAssignedIPConfig,
+			},
+			incoming: ipUniquenessRequest(nc2, "10.0.0.9", "", map[string]string{"ip2": "10.0.0.2"}),
+			wantCode: types.InconsistentIPConfigState,
+		},
+		{
+			name: "orphaned unknown pod IP state blocks reuse",
+			currentIPConfigs: map[string]cns.IPConfigurationStatus{
+				"ip1": {ID: "ip1", NCID: nc1, IPAddress: "10.0.0.2"},
+			},
+			incoming: ipUniquenessRequest(nc2, "10.0.0.9", "", map[string]string{"ip2": "::ffff:10.0.0.2"}),
+			wantCode: types.InconsistentIPConfigState,
+		},
+		{
+			name: "legacy duplicate primary can be updated",
+			existing: []cns.CreateNetworkContainerRequest{
+				ipUniquenessRequest(nc1, "10.0.0.1", "", map[string]string{"ip1": "10.0.0.2"}),
+				ipUniquenessRequest(nc2, "10.0.0.1", "", map[string]string{"ip2": "10.0.0.3"}),
+			},
+			incoming: ipUniquenessRequest(nc1, "10.0.0.1", "", map[string]string{"ip1": "10.0.0.4"}),
+			wantCode: types.Success,
+		},
+		{
+			name: "legacy duplicate secondary does not block unrelated update",
+			existing: []cns.CreateNetworkContainerRequest{
+				ipUniquenessRequest(nc1, "10.0.0.1", "", map[string]string{"ip1": "10.0.0.2"}),
+				ipUniquenessRequest(nc2, "10.0.0.9", "", map[string]string{"ip2": "::ffff:10.0.0.2"}),
+			},
+			incoming: ipUniquenessRequest("nc3", "10.0.0.17", "", map[string]string{"ip3": "10.0.0.18"}),
+			wantCode: types.Success,
+		},
+		{
+			name: "unchanged primary still collides with cached secondary",
+			existing: []cns.CreateNetworkContainerRequest{
+				ipUniquenessRequest(nc1, "10.0.0.1", "", map[string]string{"ip1": "10.0.0.2"}),
+				ipUniquenessRequest(nc2, "10.0.0.9", "", map[string]string{"ip2": "10.0.0.1"}),
+			},
+			incoming: ipUniquenessRequest(nc1, "10.0.0.1", "", map[string]string{"ip1": "10.0.0.3"}),
+			wantCode: types.InconsistentIPConfigState,
+		},
+		{
+			name:               "Kubernetes shared primary compatibility",
+			existing:           []cns.CreateNetworkContainerRequest{ipUniquenessRequest(nc1, "10.0.0.1", "", map[string]string{"ip1": "10.0.0.2"})},
+			incoming:           ipUniquenessRequest(nc2, "10.0.0.1", "", map[string]string{"ip2": "10.0.0.3"}),
+			allowSharedPrimary: true,
+			wantCode:           types.Success,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			currentContainers := make(map[string]containerstatus, len(tt.existing))
+			for i := range tt.existing {
+				request := tt.existing[i]
+				currentContainers[request.NetworkContainerid] = containerstatus{ID: request.NetworkContainerid, CreateNetworkContainerRequest: request}
+			}
+
+			responseCode, _ := validateNetworkContainerIPUniqueness(currentContainers, tt.currentIPConfigs, tt.incoming, tt.allowSharedPrimary)
+
+			assert.Equal(t, tt.wantCode, responseCode)
+		})
+	}
+}
+
+func TestSaveNetworkContainerGoalStateUpdatesAvailableIPAddress(t *testing.T) {
+	existing := ipUniquenessRequest("nc1", "10.0.0.1", "", map[string]string{"ip1": "10.0.0.2"})
+	available := cns.IPConfigurationStatus{ID: "ip1", NCID: existing.NetworkContainerid, IPAddress: "10.0.0.2"}
+	available.SetState(types.Available)
+	service := &HTTPRestService{
+		state: &httpRestServiceState{
+			OrchestratorType: cns.KubernetesCRD,
+			ContainerStatus: map[string]containerstatus{
+				existing.NetworkContainerid: {ID: existing.NetworkContainerid, HostVersion: "1", CreateNetworkContainerRequest: existing},
+			},
+		},
+		PodIPConfigState: map[string]cns.IPConfigurationStatus{"ip1": available},
+	}
+
+	updated := ipUniquenessRequest("nc1", "10.0.0.1", "", map[string]string{"ip1": "10.0.0.3"})
+	updated.Version = "2"
+	updatedIPConfig := updated.SecondaryIPConfigs["ip1"]
+	updatedIPConfig.NCVersion = 2
+	updated.SecondaryIPConfigs["ip1"] = updatedIPConfig
+	responseCode, _ := service.saveNetworkContainerGoalState(updated)
+
+	require.Equal(t, types.Success, responseCode)
+	assert.Equal(t, "10.0.0.3", service.state.ContainerStatus["nc1"].CreateNetworkContainerRequest.SecondaryIPConfigs["ip1"].IPAddress)
+	assert.Equal(t, 2, service.state.ContainerStatus["nc1"].CreateNetworkContainerRequest.SecondaryIPConfigs["ip1"].NCVersion)
+	assert.Equal(t, "10.0.0.3", service.PodIPConfigState["ip1"].IPAddress)
+	updatedStatus := service.PodIPConfigState["ip1"]
+	assert.Equal(t, types.PendingProgramming, updatedStatus.GetState())
+
+	service.MarkIpsAsAvailableUntransacted("nc1", 2)
+
+	availableStatus := service.PodIPConfigState["ip1"]
+	assert.Equal(t, types.Available, availableStatus.GetState())
+
+	unrelated := ipUniquenessRequest("nc2", "10.0.0.9", "", map[string]string{"ip2": "10.0.0.10"})
+	responseCode, _ = service.saveNetworkContainerGoalState(unrelated)
+
+	assert.Equal(t, types.Success, responseCode)
+	assert.Contains(t, service.state.ContainerStatus, "nc2")
+}
+
+func TestNetworkContainerIPValidatorChecksAllAddressIdentities(t *testing.T) {
+	address := netip.MustParseAddr("10.0.0.2")
+	validator := networkContainerIPValidator{
+		addresses: map[netip.Addr][]networkContainerAddressIdentity{
+			address: {
+				{ncID: "nc1", ipID: "ip1", cached: true},
+				{ncID: "deleted", ipID: "orphaned", cached: true},
+			},
+		},
+	}
+
+	responseCode, _ := validator.addAddress(address, networkContainerAddressIdentity{ncID: "nc1", ipID: "ip1"})
+
+	assert.Equal(t, types.InconsistentIPConfigState, responseCode)
+}
+
+func TestSaveNetworkContainerGoalStateRepairsAvailableIPAddressAheadOfStoredGoal(t *testing.T) {
+	existing := ipUniquenessRequest("nc1", "10.0.0.1", "", map[string]string{"ip1": "10.0.0.2"})
+	ahead := cns.IPConfigurationStatus{ID: "ip1", NCID: existing.NetworkContainerid, IPAddress: "10.0.0.3"}
+	ahead.SetState(types.Available)
+	service := &HTTPRestService{
+		state: &httpRestServiceState{
+			OrchestratorType: cns.KubernetesCRD,
+			ContainerStatus: map[string]containerstatus{
+				existing.NetworkContainerid: {ID: existing.NetworkContainerid, HostVersion: "1", CreateNetworkContainerRequest: existing},
+			},
+		},
+		PodIPConfigState: map[string]cns.IPConfigurationStatus{"ip1": ahead},
+	}
+	updated := ipUniquenessRequest("nc1", "10.0.0.1", "", map[string]string{"ip1": "10.0.0.3"})
+	updated.Version = "2"
+	updatedIPConfig := updated.SecondaryIPConfigs["ip1"]
+	updatedIPConfig.NCVersion = 2
+	updated.SecondaryIPConfigs["ip1"] = updatedIPConfig
+
+	responseCode, _ := service.saveNetworkContainerGoalState(updated)
+
+	require.Equal(t, types.Success, responseCode)
+	assert.Equal(t, 2, service.state.ContainerStatus["nc1"].CreateNetworkContainerRequest.SecondaryIPConfigs["ip1"].NCVersion)
+	updatedStatus := service.PodIPConfigState["ip1"]
+	assert.Equal(t, types.PendingProgramming, updatedStatus.GetState())
+}
+
+func TestSaveNetworkContainerGoalStateReplacesOrphanedAvailableIPState(t *testing.T) {
+	const incomingNCID = "nc2"
+
+	tests := []struct {
+		name          string
+		orphanedNCID  string
+		orphanedID    string
+		orphanedState types.IPState
+		incomingID    string
+		incomingIP    string
+	}{
+		{
+			name:          "same canonical address with different IP ID",
+			orphanedID:    "orphaned",
+			orphanedState: types.Available,
+			incomingID:    "ip2",
+			incomingIP:    "::ffff:10.0.0.2",
+		},
+		{
+			name:          "same IP ID with different address",
+			orphanedID:    "ip2",
+			orphanedState: types.Available,
+			incomingID:    "ip2",
+			incomingIP:    "10.0.0.3",
+		},
+		{
+			name:          "pending release IP ID with different address",
+			orphanedID:    "ip2",
+			orphanedState: types.PendingRelease,
+			incomingID:    "ip2",
+			incomingIP:    "10.0.0.3",
+		},
+		{
+			name:          "same network container orphan",
+			orphanedNCID:  incomingNCID,
+			orphanedID:    "ip2",
+			orphanedState: types.Available,
+			incomingID:    "ip2",
+			incomingIP:    "10.0.0.2",
+		},
+		{
+			name:          "same network container pending release orphan with different IP ID",
+			orphanedNCID:  incomingNCID,
+			orphanedID:    "ip1",
+			orphanedState: types.PendingRelease,
+			incomingID:    "ip2",
+			incomingIP:    "10.0.0.2",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			orphanedNCID := tt.orphanedNCID
+			if orphanedNCID == "" {
+				orphanedNCID = "deleted"
+			}
+			orphaned := cns.IPConfigurationStatus{ID: tt.orphanedID, NCID: orphanedNCID, IPAddress: "10.0.0.2"}
+			orphaned.SetState(tt.orphanedState)
+			service := &HTTPRestService{
+				state: &httpRestServiceState{
+					OrchestratorType: cns.KubernetesCRD,
+					ContainerStatus:  map[string]containerstatus{},
+				},
+				PodIPConfigState: map[string]cns.IPConfigurationStatus{tt.orphanedID: orphaned},
+			}
+			incoming := ipUniquenessRequest(incomingNCID, "10.0.0.9", "", map[string]string{tt.incomingID: tt.incomingIP})
+
+			responseCode, _ := service.saveNetworkContainerGoalState(incoming)
+
+			require.Equal(t, types.Success, responseCode)
+			assert.Len(t, service.PodIPConfigState, 1)
+			if tt.orphanedID != tt.incomingID {
+				assert.NotContains(t, service.PodIPConfigState, tt.orphanedID)
+			}
+			assert.Equal(t, incomingNCID, service.PodIPConfigState[tt.incomingID].NCID)
+			assert.Equal(t, tt.incomingIP, service.PodIPConfigState[tt.incomingID].IPAddress)
+			updatedStatus := service.PodIPConfigState[tt.incomingID]
+			assert.Equal(t, types.PendingProgramming, updatedStatus.GetState())
+		})
+	}
+}
+
+func TestSaveNetworkContainerGoalStateRejectsDuplicateIPAddresses(t *testing.T) {
+	for _, orchestratorType := range []string{cns.Kubernetes, cns.KubernetesCRD} {
+		t.Run(orchestratorType, func(t *testing.T) {
+			existing := ipUniquenessRequest("nc1", "10.0.0.1", "", map[string]string{"ip1": "10.0.0.2"})
+			service := &HTTPRestService{
+				state: &httpRestServiceState{
+					OrchestratorType: orchestratorType,
+					ContainerStatus: map[string]containerstatus{
+						existing.NetworkContainerid: {ID: existing.NetworkContainerid, CreateNetworkContainerRequest: existing},
+					},
+				},
+				PodIPConfigState: map[string]cns.IPConfigurationStatus{
+					"ip1": {ID: "ip1", NCID: existing.NetworkContainerid, IPAddress: "10.0.0.2"},
+				},
+			}
+			incoming := ipUniquenessRequest("nc2", "10.0.0.9", "", map[string]string{"ip2": "::ffff:10.0.0.2"})
+
+			responseCode, _ := service.saveNetworkContainerGoalState(incoming)
+
+			assert.Equal(t, types.InconsistentIPConfigState, responseCode)
+			assert.Len(t, service.state.ContainerStatus, 1)
+			assert.Equal(t, existing, service.state.ContainerStatus[existing.NetworkContainerid].CreateNetworkContainerRequest)
+			assert.NotContains(t, service.state.ContainerStatus, incoming.NetworkContainerid)
+			assert.Len(t, service.PodIPConfigState, 1)
+			assert.Equal(t, "10.0.0.2", service.PodIPConfigState["ip1"].IPAddress)
+			assert.NotContains(t, service.PodIPConfigState, "ip2")
+		})
+	}
+}
+
+func ipUniquenessRequestWithHostPrimary(ncID, primary string, secondaryAddresses map[string]string) cns.CreateNetworkContainerRequest {
+	request := ipUniquenessRequest(ncID, primary, "", secondaryAddresses)
+	request.HostPrimaryIP = primary
+	return request
+}
+
+func ipUniquenessRequest(ncID, primary, primaryV6 string, secondaryAddresses map[string]string) cns.CreateNetworkContainerRequest {
+	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig, len(secondaryAddresses))
+	for ipID, address := range secondaryAddresses {
+		secondaryIPConfigs[ipID] = cns.SecondaryIPConfig{IPAddress: address, NCVersion: 1}
+	}
+	return cns.CreateNetworkContainerRequest{
+		NetworkContainerType: cns.Docker,
+		NetworkContainerid:   ncID,
+		Version:              "1",
+		IPConfiguration: cns.IPConfiguration{
+			IPSubnet:   cns.IPSubnet{IPAddress: primary, PrefixLength: 24},
+			IPSubnetV6: cns.IPSubnet{IPAddress: primaryV6, PrefixLength: 64},
+		},
+		SecondaryIPConfigs: secondaryIPConfigs,
 	}
 }

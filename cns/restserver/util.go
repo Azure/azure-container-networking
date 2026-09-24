@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"strings"
 	"time"
@@ -153,10 +154,6 @@ func (service *HTTPRestService) saveNetworkContainerGoalStateWithVersionValidati
 		vfpUpdateComplete          bool
 	)
 
-	if service.state.ContainerStatus == nil {
-		service.state.ContainerStatus = make(map[string]containerstatus)
-	}
-
 	existingNCStatus, ok := service.state.ContainerStatus[req.NetworkContainerid]
 	if ok {
 		hostVersion = existingNCStatus.HostVersion
@@ -172,6 +169,18 @@ func (service *HTTPRestService) saveNetworkContainerGoalStateWithVersionValidati
 				return types.UnsupportedNCVersion, fmt.Sprintf("NC %s version decreased from %d to %d", req.NetworkContainerid, existingVersion, incomingVersion)
 			}
 		}
+	}
+
+	if service.state.OrchestratorType == cns.Kubernetes || service.state.OrchestratorType == cns.KubernetesCRD {
+		allowSharedPrimary := service.state.OrchestratorType == cns.Kubernetes
+		returnCode, returnMessage := validateNetworkContainerIPUniqueness(service.state.ContainerStatus, service.PodIPConfigState, req, allowSharedPrimary)
+		if returnCode != types.Success {
+			return returnCode, returnMessage
+		}
+	}
+
+	if service.state.ContainerStatus == nil {
+		service.state.ContainerStatus = make(map[string]containerstatus)
 	}
 
 	if req.NetworkContainerid == nodesubnet.NodeSubnetNCID {
@@ -264,11 +273,333 @@ func (service *HTTPRestService) saveNetworkContainerGoalStateWithVersionValidati
 	return 0, ""
 }
 
+type networkContainerIPFamily uint8
+
+const (
+	networkContainerIPFamilyUnknown networkContainerIPFamily = iota
+	networkContainerIPFamilyV4
+	networkContainerIPFamilyV6
+)
+
+type networkContainerAddressIdentity struct {
+	ncID             string
+	ipID             string
+	primary          bool
+	hostPrimary      bool
+	family           networkContainerIPFamily
+	cached           bool
+	unchangedPrimary bool
+}
+
+type networkContainerPrimaryIdentity struct {
+	ncID    string
+	address netip.Addr
+	family  networkContainerIPFamily
+}
+
+type networkContainerIPValidator struct {
+	addresses          map[netip.Addr][]networkContainerAddressIdentity
+	ipIDOwners         map[string]map[string]struct{}
+	ipIDAddresses      map[string]map[netip.Addr]struct{}
+	invalidIPIDAddress map[string]struct{}
+	cachedPrimaries    map[networkContainerPrimaryIdentity]struct{}
+	allowSharedPrimary bool
+}
+
+var errScopedIPAddress = errors.New("scoped IP address is not valid")
+
+//nolint:gocritic,lll // Keep the validator contract on one line.
+func validateNetworkContainerIPUniqueness(currentContainers map[string]containerstatus, currentIPConfigs map[string]cns.IPConfigurationStatus, incoming cns.CreateNetworkContainerRequest, allowSharedPrimary bool) (types.ResponseCode, string) {
+	validator := networkContainerIPValidator{
+		addresses:          make(map[netip.Addr][]networkContainerAddressIdentity),
+		ipIDOwners:         make(map[string]map[string]struct{}),
+		ipIDAddresses:      make(map[string]map[netip.Addr]struct{}),
+		invalidIPIDAddress: make(map[string]struct{}),
+		cachedPrimaries:    make(map[networkContainerPrimaryIdentity]struct{}),
+		allowSharedPrimary: allowSharedPrimary,
+	}
+
+	for ncID := range currentContainers {
+		validator.rememberCachedPrimaries(ncID, currentContainers[ncID].CreateNetworkContainerRequest)
+	}
+
+	for ncID := range currentContainers {
+		request := currentContainers[ncID].CreateNetworkContainerRequest
+		excluded := ncID == incoming.NetworkContainerid
+		for ipID := range request.SecondaryIPConfigs {
+			responseCode, message := validator.addSecondary(
+				request.SecondaryIPConfigs[ipID].IPAddress, ncID, ipID, excluded, true, types.InconsistentIPConfigState,
+			)
+			if responseCode != types.Success {
+				return responseCode, message
+			}
+		}
+		if excluded {
+			continue
+		}
+		responseCode, message := validator.addPrimary(
+			request.IPConfiguration.IPSubnet.IPAddress, ncID, networkContainerPrimaryFamily(request), true, false,
+			isHostPrimary(request.IPConfiguration.IPSubnet.IPAddress, request.HostPrimaryIP), types.InconsistentIPConfigState,
+		)
+		if responseCode != types.Success {
+			return responseCode, message
+		}
+		responseCode, message = validator.addPrimary(
+			request.IPConfiguration.IPSubnetV6.IPAddress, ncID, networkContainerIPFamilyV6, true, true,
+			isHostPrimary(request.IPConfiguration.IPSubnetV6.IPAddress, request.HostPrimaryIP), types.InconsistentIPConfigState,
+		)
+		if responseCode != types.Success {
+			return responseCode, message
+		}
+	}
+
+	for ipID := range currentIPConfigs {
+		config := currentIPConfigs[ipID]
+		if _, exists := currentContainers[config.NCID]; !exists && canDiscardOrphanIPConfig(config.GetState()) {
+			continue
+		}
+		excluded := config.NCID == incoming.NetworkContainerid && canReplaceIPConfigAddress(config.GetState())
+		responseCode, message := validator.addSecondary(config.IPAddress, config.NCID, ipID, excluded, true, types.InconsistentIPConfigState)
+		if responseCode != types.Success {
+			return responseCode, message
+		}
+	}
+
+	responseCode, message := validator.addPrimary(
+		incoming.IPConfiguration.IPSubnet.IPAddress, incoming.NetworkContainerid,
+		networkContainerPrimaryFamily(incoming), false, false,
+		isHostPrimary(incoming.IPConfiguration.IPSubnet.IPAddress, incoming.HostPrimaryIP), types.InvalidPrimaryIPConfig,
+	)
+	if responseCode != types.Success {
+		return responseCode, message
+	}
+	responseCode, message = validator.addPrimary(
+		incoming.IPConfiguration.IPSubnetV6.IPAddress, incoming.NetworkContainerid,
+		networkContainerIPFamilyV6, false, true,
+		isHostPrimary(incoming.IPConfiguration.IPSubnetV6.IPAddress, incoming.HostPrimaryIP), types.InvalidPrimaryIPConfig,
+	)
+	if responseCode != types.Success {
+		return responseCode, message
+	}
+	for ipID := range incoming.SecondaryIPConfigs {
+		responseCode, message = validator.addSecondary(
+			incoming.SecondaryIPConfigs[ipID].IPAddress, incoming.NetworkContainerid, ipID, false, false, types.InvalidSecondaryIPConfig,
+		)
+		if responseCode != types.Success {
+			return responseCode, message
+		}
+	}
+
+	return types.Success, ""
+}
+
+func (v *networkContainerIPValidator) rememberCachedPrimaries(ncID string, request cns.CreateNetworkContainerRequest) {
+	primaries := []struct {
+		address string
+		family  networkContainerIPFamily
+	}{
+		{address: request.IPConfiguration.IPSubnet.IPAddress, family: networkContainerPrimaryFamily(request)},
+		{address: request.IPConfiguration.IPSubnetV6.IPAddress, family: networkContainerIPFamilyV6},
+	}
+	for _, primary := range primaries {
+		if primary.address == "" {
+			continue
+		}
+		address, err := netip.ParseAddr(primary.address)
+		if err != nil {
+			continue
+		}
+		v.cachedPrimaries[networkContainerPrimaryIdentity{ncID: ncID, address: address.Unmap(), family: primary.family}] = struct{}{}
+	}
+}
+
+//nolint:gocritic,lll // Keep the validator contract on one line.
+func (v *networkContainerIPValidator) addSecondary(rawAddress, ncID, ipID string, excluded, cached bool, invalidCode types.ResponseCode) (types.ResponseCode, string) {
+	owners, exists := v.ipIDOwners[ipID]
+	if !exists {
+		owners = make(map[string]struct{})
+		v.ipIDOwners[ipID] = owners
+	}
+	if !cached {
+		for owner := range owners {
+			if owner != ncID {
+				return types.InconsistentIPConfigState, fmt.Sprintf("IP ID %s belongs to network containers %s and %s", ipID, owner, ncID)
+			}
+		}
+	}
+	owners[ncID] = struct{}{}
+	if excluded {
+		return types.Success, ""
+	}
+	address, err := parseCanonicalIPAddress(rawAddress)
+	if err != nil {
+		if cached {
+			v.invalidIPIDAddress[ipID] = struct{}{}
+			return types.Success, ""
+		}
+		return invalidCode, fmt.Sprintf("invalid secondary IP address %q for IP ID %s in network container %s: %v", rawAddress, ipID, ncID, err)
+	}
+	if !cached {
+		if _, hasInvalidAddress := v.invalidIPIDAddress[ipID]; hasInvalidAddress {
+			return types.InconsistentIPConfigState, fmt.Sprintf("IP ID %s has an invalid cached IP address", ipID)
+		}
+	}
+	addresses, exists := v.ipIDAddresses[ipID]
+	if !exists {
+		addresses = make(map[netip.Addr]struct{})
+		v.ipIDAddresses[ipID] = addresses
+	}
+	if !cached {
+		for currentAddress := range addresses {
+			if currentAddress != address {
+				return types.InconsistentIPConfigState, fmt.Sprintf("IP ID %s has IP addresses %s and %s", ipID, currentAddress, address)
+			}
+		}
+	}
+	addresses[address] = struct{}{}
+	return v.addAddress(address, networkContainerAddressIdentity{ncID: ncID, ipID: ipID, cached: cached})
+}
+
+//nolint:gocritic,lll // Keep the validator contract on one line.
+func (v *networkContainerIPValidator) addPrimary(rawAddress, ncID string, family networkContainerIPFamily, cached, requireIPv6, hostPrimary bool, invalidCode types.ResponseCode) (types.ResponseCode, string) {
+	if rawAddress == "" {
+		return types.Success, ""
+	}
+	address, err := parseCanonicalIPAddress(rawAddress)
+	if err != nil {
+		if cached {
+			return types.Success, ""
+		}
+		return invalidCode, fmt.Sprintf("invalid primary IP address %q for network container %s: %v", rawAddress, ncID, err)
+	}
+	if requireIPv6 && !address.Is6() {
+		if cached {
+			return types.Success, ""
+		}
+		return invalidCode, fmt.Sprintf("invalid IPv6 primary IP address %q for network container %s", rawAddress, ncID)
+	}
+	identity := networkContainerAddressIdentity{ncID: ncID, primary: true, hostPrimary: hostPrimary, family: family, cached: cached}
+	if !cached {
+		_, identity.unchangedPrimary = v.cachedPrimaries[networkContainerPrimaryIdentity{ncID: ncID, address: address, family: family}]
+	}
+	return v.addAddress(address, identity)
+}
+
+//nolint:gocritic // Keep the result values consistent with the caller.
+func (v *networkContainerIPValidator) addAddress(address netip.Addr, incoming networkContainerAddressIdentity) (types.ResponseCode, string) {
+	for _, existing := range v.addresses[address] {
+		if !incoming.primary && !existing.primary && incoming.ncID == existing.ncID && incoming.ipID == existing.ipID {
+			continue
+		}
+		if incoming.cached && existing.cached {
+			continue
+		}
+		if incoming.primary && existing.primary {
+			if incoming.ncID == existing.ncID || v.allowSharedPrimary || incoming.hostPrimary && existing.hostPrimary ||
+				differentKnownIPFamilies(incoming.family, existing.family) || incoming.unchangedPrimary && existing.cached {
+				continue
+			}
+		} else if incoming.ncID == existing.ncID && (incoming.primary || existing.primary) {
+			continue
+		}
+		return types.InconsistentIPConfigState, fmt.Sprintf("duplicate IP address %s in network containers %s and %s", address, existing.ncID, incoming.ncID)
+	}
+	v.addresses[address] = append(v.addresses[address], incoming)
+	return types.Success, ""
+}
+
+func isHostPrimary(rawPrimary, rawHostPrimary string) bool {
+	if rawPrimary == "" || rawHostPrimary == "" {
+		return false
+	}
+	primary, err := parseCanonicalIPAddress(rawPrimary)
+	if err != nil {
+		return false
+	}
+	hostPrimary, err := parseCanonicalIPAddress(rawHostPrimary)
+	if err != nil {
+		return false
+	}
+	return primary == hostPrimary
+}
+
+func canReplaceIPConfigAddress(state types.IPState) bool {
+	return state == types.Available || state == types.PendingProgramming
+}
+
+func canDiscardOrphanIPConfig(state types.IPState) bool {
+	return state == types.Available || state == types.PendingProgramming || state == types.PendingRelease
+}
+
+func sameCanonicalIPAddress(first, second string) bool {
+	firstAddress, err := parseCanonicalIPAddress(first)
+	if err != nil {
+		return false
+	}
+	secondAddress, err := parseCanonicalIPAddress(second)
+	if err != nil {
+		return false
+	}
+	return firstAddress == secondAddress
+}
+
+func parseCanonicalIPAddress(rawAddress string) (netip.Addr, error) {
+	if rawAddress == "" {
+		return netip.Addr{}, errors.New("IP address is empty")
+	}
+	address, err := netip.ParseAddr(rawAddress)
+	if err != nil {
+		return netip.Addr{}, fmt.Errorf("parse IP address %q: %w", rawAddress, err)
+	}
+	if address.Zone() != "" {
+		return netip.Addr{}, fmt.Errorf("%w: %q", errScopedIPAddress, rawAddress)
+	}
+	return address.Unmap(), nil
+}
+
+func differentKnownIPFamilies(first, second networkContainerIPFamily) bool {
+	return first != networkContainerIPFamilyUnknown && second != networkContainerIPFamilyUnknown && first != second
+}
+
+func networkContainerPrimaryFamily(request cns.CreateNetworkContainerRequest) networkContainerIPFamily {
+	family := networkContainerIPFamilyUnknown
+	for ipID := range request.SecondaryIPConfigs {
+		address, err := netip.ParseAddr(request.SecondaryIPConfigs[ipID].IPAddress)
+		if err != nil {
+			continue
+		}
+		currentFamily := networkContainerIPFamilyV6
+		if address.Unmap().Is4() {
+			currentFamily = networkContainerIPFamilyV4
+		}
+		if family != networkContainerIPFamilyUnknown && family != currentFamily {
+			return networkContainerIPFamilyUnknown
+		}
+		family = currentFamily
+	}
+	if family != networkContainerIPFamilyUnknown {
+		primary, err := netip.ParseAddr(request.IPConfiguration.IPSubnet.IPAddress)
+		if err == nil && primary.Unmap().Is6() && family == networkContainerIPFamilyV4 {
+			return networkContainerIPFamilyUnknown
+		}
+		return family
+	}
+	ipv6Subnet, err := netip.ParseAddr(request.IPConfiguration.IPSubnetV6.IPAddress)
+	if err == nil && ipv6Subnet.Unmap().Is6() {
+		return networkContainerIPFamilyV6
+	}
+	primary, err := netip.ParseAddr(request.IPConfiguration.IPSubnet.IPAddress)
+	if err == nil && primary.Unmap().Is6() {
+		return networkContainerIPFamilyV6
+	}
+	return networkContainerIPFamilyV4
+}
+
 // This func will compute the deltaIpConfigState which needs to be updated (Added or Deleted) from the inmemory map
 // Note: Also this func is an untransacted API as the caller will take a Service lock
-func (service *HTTPRestService) updateIPConfigsStateUntransacted(
-	req cns.CreateNetworkContainerRequest, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig, hostVersion string,
-) (types.ResponseCode, string) {
+//
+//nolint:gocritic,lll // Keep the function signature on one line.
+func (service *HTTPRestService) updateIPConfigsStateUntransacted(req cns.CreateNetworkContainerRequest, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig, hostVersion string) (types.ResponseCode, string) {
 	// parse the existingSecondaryIpConfigState to find the deleted Ips
 	newIPConfigs := req.SecondaryIPConfigs
 	tobeDeletedIPConfigs := make(map[string]cns.SecondaryIPConfig)
@@ -320,21 +651,65 @@ func (service *HTTPRestService) updateIPConfigsStateUntransacted(
 // addIPConfigStateUntransacted adds the IPConfigs to the PodIpConfigState map with Available state
 // If the IP is already added then it will be an idempotent call. Also note, caller will
 // acquire/release the service lock.
-func (service *HTTPRestService) addIPConfigStateUntransacted(ncID string, hostVersion int, ipconfigs,
-	existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig,
-) {
+//
+//nolint:lll // Keep the function signature on one line.
+func (service *HTTPRestService) addIPConfigStateUntransacted(ncID string, hostVersion int, ipconfigs, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig) {
+	for existingID := range service.PodIPConfigState {
+		ipState := service.PodIPConfigState[existingID]
+		if !canDiscardOrphanIPConfig(ipState.GetState()) {
+			continue
+		}
+		if ipState.NCID == ncID {
+			existingIPConfig, exists := existingSecondaryIPConfigs[existingID]
+			if exists && sameCanonicalIPAddress(existingIPConfig.IPAddress, ipState.IPAddress) {
+				continue
+			}
+		} else if _, exists := service.state.ContainerStatus[ipState.NCID]; exists {
+			continue
+		}
+		for incomingID, ipconfig := range ipconfigs {
+			if existingID == incomingID || sameCanonicalIPAddress(ipState.IPAddress, ipconfig.IPAddress) {
+				delete(service.PodIPConfigState, existingID)
+				break
+			}
+		}
+	}
+
 	// add ipconfigs to state
 	for ipID, ipconfig := range ipconfigs {
-		// New secondary IP configs has new NC version however, CNS don't want to override existing IPs'with new
-		// NC version. Set it back to previous NC version if IP already exist.
+		goalAddressChanged := true
 		if existingIPConfig, existsInPreviousIPConfig := existingSecondaryIPConfigs[ipID]; existsInPreviousIPConfig {
-			ipconfig.NCVersion = existingIPConfig.NCVersion
-			ipconfigs[ipID] = ipconfig
+			goalAddressChanged = !sameCanonicalIPAddress(existingIPConfig.IPAddress, ipconfig.IPAddress)
+			if !goalAddressChanged {
+				ipconfig.NCVersion = existingIPConfig.NCVersion
+				ipconfigs[ipID] = ipconfig
+			}
 		}
 
 		if ipState, exists := service.PodIPConfigState[ipID]; exists {
 			logger.Printf("[Azure-Cns] Set ipId %s, IP %s version to %d, programmed host nc version is %d, "+
 				"ipState: %s", ipID, ipconfig.IPAddress, ipconfig.NCVersion, hostVersion, ipState)
+			if canReplaceIPConfigAddress(ipState.GetState()) {
+				stateChanged := false
+				if ipState.IPAddress != ipconfig.IPAddress {
+					ipState.NCID = ncID
+					ipState.IPAddress = ipconfig.IPAddress
+					stateChanged = true
+				}
+				if goalAddressChanged {
+					newState := types.Available
+					if hostVersion < ipconfig.NCVersion {
+						newState = types.PendingProgramming
+					}
+					if ipState.GetState() != newState {
+						ipState.SetState(newState)
+						stateChanged = true
+					}
+				}
+				if stateChanged {
+					service.PodIPConfigState[ipID] = ipState
+				}
+			}
 			continue
 		}
 
