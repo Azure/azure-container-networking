@@ -770,3 +770,336 @@ func ipUniquenessRequest(ncID, primary, primaryV6 string, secondaryAddresses map
 		SecondaryIPConfigs: secondaryIPConfigs,
 	}
 }
+
+type failingWriteStore struct {
+	store.KeyValueStore
+	err error
+}
+
+var errForcedStateWrite = errors.New("forced state write failure")
+
+func (s failingWriteStore) Write(string, interface{}) error {
+	return s.err
+}
+
+//nolint:goconst // Keep each NC ID visible in its complete-goal scenario.
+func TestApplyNNCGoalRejectsCompleteGoalBeforeMutation(t *testing.T) {
+	service := &HTTPRestService{
+		state: &httpRestServiceState{
+			OrchestratorType: cns.KubernetesCRD,
+			ContainerStatus:  map[string]containerstatus{},
+		},
+		PodIPConfigState: map[string]cns.IPConfigurationStatus{},
+	}
+	valid := ipUniquenessRequest("nc1", "10.0.0.1", "", map[string]string{"ip1": "10.0.0.2"})
+	invalid := ipUniquenessRequest("nc2", "10.0.0.9", "", map[string]string{"ip2": ""})
+
+	responseCode := service.ApplyNNCGoal(NNCGoal{
+		NetworkContainerIDs: []string{"nc1", "nc2"},
+		NetworkContainers: []NNCNetworkContainerGoal{
+			{ValidateVersion: true, Request: valid},
+			{ValidateVersion: true, Request: invalid},
+		},
+	})
+
+	assert.Equal(t, types.InvalidSecondaryIPConfig, responseCode)
+	assert.Empty(t, service.state.ContainerStatus)
+	assert.Empty(t, service.PodIPConfigState)
+}
+
+func TestApplyNNCGoalRejectsDuplicateIncomingAddressBeforeMutation(t *testing.T) {
+	service := &HTTPRestService{
+		state: &httpRestServiceState{
+			OrchestratorType: cns.KubernetesCRD,
+			ContainerStatus:  map[string]containerstatus{},
+		},
+		PodIPConfigState: map[string]cns.IPConfigurationStatus{},
+	}
+	first := ipUniquenessRequest("nc1", "10.0.0.1", "", map[string]string{"ip1": "10.0.0.2"})
+	second := ipUniquenessRequest("nc2", "10.0.0.9", "", map[string]string{"ip2": "::ffff:10.0.0.2"})
+
+	responseCode := service.ApplyNNCGoal(NNCGoal{
+		NetworkContainerIDs: []string{"nc1", "nc2"},
+		NetworkContainers: []NNCNetworkContainerGoal{
+			{ValidateVersion: true, Request: first},
+			{ValidateVersion: true, Request: second},
+		},
+	})
+
+	assert.Equal(t, types.InconsistentIPConfigState, responseCode)
+	assert.Empty(t, service.state.ContainerStatus)
+	assert.Empty(t, service.PodIPConfigState)
+}
+
+func TestApplyNNCGoalRejectsLaterVersionFailureBeforeMutation(t *testing.T) {
+	first := ipUniquenessRequest("nc1", "10.0.0.1", "", map[string]string{"ip1": "10.0.0.2"})
+	first.Version = "2"
+	second := ipUniquenessRequest("nc2", "10.0.0.9", "", map[string]string{"ip2": "10.0.0.10"})
+	second.Version = "2"
+	firstIP := cns.IPConfigurationStatus{ID: "ip1", NCID: first.NetworkContainerid, IPAddress: "10.0.0.2"}
+	firstIP.SetState(types.Available)
+	secondIP := cns.IPConfigurationStatus{ID: "ip2", NCID: second.NetworkContainerid, IPAddress: "10.0.0.10"}
+	secondIP.SetState(types.Available)
+	service := &HTTPRestService{
+		state: &httpRestServiceState{
+			OrchestratorType: cns.KubernetesCRD,
+			ContainerStatus: map[string]containerstatus{
+				first.NetworkContainerid: {
+					ID:                            first.NetworkContainerid,
+					HostVersion:                   "2",
+					CreateNetworkContainerRequest: first,
+				},
+				second.NetworkContainerid: {
+					ID:                            second.NetworkContainerid,
+					HostVersion:                   "2",
+					CreateNetworkContainerRequest: second,
+				},
+			},
+		},
+		PodIPConfigState: map[string]cns.IPConfigurationStatus{"ip1": firstIP, "ip2": secondIP},
+	}
+	updatedFirst := ipUniquenessRequest("nc1", "10.0.0.1", "", map[string]string{"ip1": "10.0.0.3"})
+	updatedFirst.Version = "3"
+	regressedSecond := second
+	regressedSecond.Version = "1"
+
+	responseCode := service.ApplyNNCGoal(NNCGoal{
+		NetworkContainerIDs: []string{"nc1", "nc2"},
+		NetworkContainers: []NNCNetworkContainerGoal{
+			{ValidateVersion: true, Request: updatedFirst},
+			{ValidateVersion: true, Request: regressedSecond},
+		},
+	})
+
+	assert.Equal(t, types.UnsupportedNCVersion, responseCode)
+	assert.Equal(t, first, service.state.ContainerStatus["nc1"].CreateNetworkContainerRequest)
+	assert.Equal(t, second, service.state.ContainerStatus["nc2"].CreateNetworkContainerRequest)
+	assert.Equal(t, firstIP, service.PodIPConfigState["ip1"])
+	assert.Equal(t, secondIP, service.PodIPConfigState["ip2"])
+}
+
+func TestApplyNNCGoalAppliesStaticNetworkContainer(t *testing.T) {
+	existing := ipUniquenessRequest("nc1", "10.0.0.1", "", map[string]string{"ip1": "10.0.0.2"})
+	existing.Version = "2"
+	available := cns.IPConfigurationStatus{ID: "ip1", NCID: existing.NetworkContainerid, IPAddress: "10.0.0.2"}
+	available.SetState(types.Available)
+	service := &HTTPRestService{
+		state: &httpRestServiceState{
+			OrchestratorType: cns.KubernetesCRD,
+			ContainerStatus: map[string]containerstatus{
+				existing.NetworkContainerid: {
+					ID:                            existing.NetworkContainerid,
+					HostVersion:                   "2",
+					CreateNetworkContainerRequest: existing,
+				},
+			},
+		},
+		PodIPConfigState: map[string]cns.IPConfigurationStatus{"ip1": available},
+	}
+	updated := ipUniquenessRequest("nc1", "10.0.0.1", "", map[string]string{"ip1": "10.0.0.3"})
+	updated.Version = "1"
+
+	responseCode := service.ApplyNNCGoal(NNCGoal{
+		NetworkContainerIDs: []string{"nc1"},
+		NetworkContainers:   []NNCNetworkContainerGoal{{ValidateVersion: false, Request: updated}},
+	})
+
+	require.Equal(t, types.Success, responseCode)
+	assert.Equal(t, updated, service.state.ContainerStatus["nc1"].CreateNetworkContainerRequest)
+	assert.Equal(t, "10.0.0.3", service.PodIPConfigState["ip1"].IPAddress)
+}
+
+func TestApplyNNCGoalSwapsAddressesAcrossNetworkContainers(t *testing.T) {
+	first := ipUniquenessRequest("nc1", "10.0.0.1", "", map[string]string{"ip1": "10.0.0.2"})
+	second := ipUniquenessRequest("nc2", "10.0.0.9", "", map[string]string{"ip2": "10.0.0.10"})
+	firstIP := cns.IPConfigurationStatus{ID: "ip1", NCID: first.NetworkContainerid, IPAddress: "10.0.0.2"}
+	firstIP.SetState(types.Available)
+	secondIP := cns.IPConfigurationStatus{ID: "ip2", NCID: second.NetworkContainerid, IPAddress: "10.0.0.10"}
+	secondIP.SetState(types.Available)
+	service := &HTTPRestService{
+		state: &httpRestServiceState{
+			OrchestratorType: cns.KubernetesCRD,
+			ContainerStatus: map[string]containerstatus{
+				first.NetworkContainerid: {
+					ID:                            first.NetworkContainerid,
+					HostVersion:                   "1",
+					CreateNetworkContainerRequest: first,
+				},
+				second.NetworkContainerid: {
+					ID:                            second.NetworkContainerid,
+					HostVersion:                   "1",
+					CreateNetworkContainerRequest: second,
+				},
+			},
+		},
+		PodIPConfigState: map[string]cns.IPConfigurationStatus{"ip1": firstIP, "ip2": secondIP},
+	}
+	updatedFirst := ipUniquenessRequest("nc1", "10.0.0.1", "", map[string]string{"ip1": "10.0.0.10"})
+	updatedSecond := ipUniquenessRequest("nc2", "10.0.0.9", "", map[string]string{"ip2": "10.0.0.2"})
+
+	responseCode := service.ApplyNNCGoal(NNCGoal{
+		NetworkContainerIDs: []string{"nc1", "nc2"},
+		NetworkContainers: []NNCNetworkContainerGoal{
+			{ValidateVersion: true, Request: updatedFirst},
+			{ValidateVersion: true, Request: updatedSecond},
+		},
+	})
+
+	require.Equal(t, types.Success, responseCode)
+	assert.Equal(t, "10.0.0.10", service.PodIPConfigState["ip1"].IPAddress)
+	assert.Equal(t, "10.0.0.2", service.PodIPConfigState["ip2"].IPAddress)
+}
+
+func TestApplyNNCGoalRetainsFilteredNetworkContainer(t *testing.T) {
+	filtered := ipUniquenessRequest("filtered", "10.0.0.1", "", map[string]string{"ip1": "10.0.0.2"})
+	service := &HTTPRestService{
+		state: &httpRestServiceState{
+			OrchestratorType: cns.KubernetesCRD,
+			ContainerStatus: map[string]containerstatus{
+				filtered.NetworkContainerid: {
+					ID:                            filtered.NetworkContainerid,
+					HostVersion:                   "1",
+					CreateNetworkContainerRequest: filtered,
+				},
+			},
+		},
+		PodIPConfigState: map[string]cns.IPConfigurationStatus{},
+	}
+
+	responseCode := service.ApplyNNCGoal(NNCGoal{NetworkContainerIDs: []string{filtered.NetworkContainerid}})
+
+	assert.Equal(t, types.Success, responseCode)
+	assert.Contains(t, service.state.ContainerStatus, filtered.NetworkContainerid)
+}
+
+func TestApplyNNCGoalRejectsStaleNetworkContainerWithAssignedIP(t *testing.T) {
+	stale := ipUniquenessRequest("stale", "10.0.0.1", "", map[string]string{"ip1": "10.0.0.2"})
+	assigned := cns.IPConfigurationStatus{ID: "ip1", NCID: stale.NetworkContainerid, IPAddress: "10.0.0.2"}
+	assigned.SetState(types.Assigned)
+	service := &HTTPRestService{
+		state: &httpRestServiceState{
+			OrchestratorType: cns.KubernetesCRD,
+			ContainerStatus: map[string]containerstatus{
+				stale.NetworkContainerid: {
+					ID:                            stale.NetworkContainerid,
+					HostVersion:                   "1",
+					CreateNetworkContainerRequest: stale,
+				},
+			},
+		},
+		PodIPConfigState: map[string]cns.IPConfigurationStatus{"ip1": assigned},
+	}
+
+	responseCode := service.ApplyNNCGoal(NNCGoal{NetworkContainerIDs: []string{}})
+
+	assert.Equal(t, types.InconsistentIPConfigState, responseCode)
+	assert.Contains(t, service.state.ContainerStatus, stale.NetworkContainerid)
+	assert.Equal(t, assigned, service.PodIPConfigState["ip1"])
+}
+
+func TestApplyNNCGoalMovesIPIDFromRemovedNetworkContainer(t *testing.T) {
+	stale := ipUniquenessRequest("stale", "10.0.0.1", "", map[string]string{"10.0.0.2": "10.0.0.2"})
+	available := cns.IPConfigurationStatus{ID: "10.0.0.2", NCID: stale.NetworkContainerid, IPAddress: "10.0.0.2"}
+	available.SetState(types.Available)
+	service := &HTTPRestService{
+		state: &httpRestServiceState{
+			OrchestratorType: cns.KubernetesCRD,
+			ContainerStatus: map[string]containerstatus{
+				stale.NetworkContainerid: {
+					ID:                            stale.NetworkContainerid,
+					HostVersion:                   "1",
+					CreateNetworkContainerRequest: stale,
+				},
+			},
+		},
+		PodIPConfigState: map[string]cns.IPConfigurationStatus{"10.0.0.2": available},
+	}
+	replacement := ipUniquenessRequest("replacement", "10.0.0.9", "", map[string]string{"10.0.0.2": "10.0.0.2"})
+
+	responseCode := service.ApplyNNCGoal(NNCGoal{
+		NetworkContainerIDs: []string{replacement.NetworkContainerid},
+		NetworkContainers:   []NNCNetworkContainerGoal{{ValidateVersion: false, Request: replacement}},
+	})
+
+	require.Equal(t, types.Success, responseCode)
+	assert.NotContains(t, service.state.ContainerStatus, stale.NetworkContainerid)
+	assert.Equal(t, replacement, service.state.ContainerStatus[replacement.NetworkContainerid].CreateNetworkContainerRequest)
+	assert.Equal(t, replacement.NetworkContainerid, service.PodIPConfigState["10.0.0.2"].NCID)
+}
+
+func TestApplyNNCGoalDoesNotPublishFailedPersistence(t *testing.T) {
+	existing := ipUniquenessRequest("nc1", "10.0.0.1", "", map[string]string{"ip1": "10.0.0.2"})
+	available := cns.IPConfigurationStatus{ID: "ip1", NCID: existing.NetworkContainerid, IPAddress: "10.0.0.2"}
+	available.SetState(types.Available)
+	service := &HTTPRestService{
+		Service: &cns.Service{Service: &common.Service{Options: map[string]interface{}{}}},
+		store: failingWriteStore{
+			KeyValueStore: store.NewMockStore(""),
+			err:           errForcedStateWrite,
+		},
+		state: &httpRestServiceState{
+			OrchestratorType: cns.KubernetesCRD,
+			ContainerStatus: map[string]containerstatus{
+				existing.NetworkContainerid: {
+					ID:                            existing.NetworkContainerid,
+					HostVersion:                   "1",
+					CreateNetworkContainerRequest: existing,
+				},
+			},
+		},
+		PodIPConfigState: map[string]cns.IPConfigurationStatus{"ip1": available},
+	}
+	updated := ipUniquenessRequest("nc1", "10.0.0.1", "", map[string]string{"ip1": "10.0.0.3"})
+	updated.Version = "2"
+
+	responseCode := service.ApplyNNCGoal(NNCGoal{
+		NetworkContainerIDs: []string{"nc1"},
+		NetworkContainers:   []NNCNetworkContainerGoal{{ValidateVersion: true, Request: updated}},
+	})
+
+	assert.Equal(t, types.UnexpectedError, responseCode)
+	assert.Equal(t, existing, service.state.ContainerStatus["nc1"].CreateNetworkContainerRequest)
+	assert.Equal(t, available, service.PodIPConfigState["ip1"])
+}
+
+func TestApplyNNCGoalPublishesReplacementAndStaleRemovalTogether(t *testing.T) {
+	stale := ipUniquenessRequest("stale", "10.0.0.1", "", map[string]string{"stale-ip": "10.0.0.2"})
+	existing := ipUniquenessRequest("nc1", "10.0.0.9", "", map[string]string{"ip1": "10.0.0.10"})
+	service := &HTTPRestService{
+		Service: &cns.Service{Service: &common.Service{Options: map[string]interface{}{}}},
+		store:   store.NewMockStore(""),
+		state: &httpRestServiceState{
+			OrchestratorType: cns.KubernetesCRD,
+			ContainerStatus: map[string]containerstatus{
+				stale.NetworkContainerid: {
+					ID:                            stale.NetworkContainerid,
+					HostVersion:                   "1",
+					CreateNetworkContainerRequest: stale,
+				},
+				existing.NetworkContainerid: {
+					ID:                            existing.NetworkContainerid,
+					HostVersion:                   "1",
+					CreateNetworkContainerRequest: existing,
+				},
+			},
+		},
+		PodIPConfigState: map[string]cns.IPConfigurationStatus{},
+	}
+	updated := ipUniquenessRequest("nc1", "10.0.0.9", "", map[string]string{"ip1": "10.0.0.11"})
+	updated.Version = "2"
+
+	responseCode := service.ApplyNNCGoal(NNCGoal{
+		NetworkContainerIDs: []string{"nc1"},
+		NetworkContainers:   []NNCNetworkContainerGoal{{ValidateVersion: true, Request: updated}},
+	})
+
+	require.Equal(t, types.Success, responseCode)
+	assert.NotContains(t, service.state.ContainerStatus, stale.NetworkContainerid)
+	assert.Equal(t, updated, service.state.ContainerStatus["nc1"].CreateNetworkContainerRequest)
+
+	var persisted httpRestServiceState
+	require.NoError(t, service.store.Read(storeKey, &persisted))
+	assert.NotContains(t, persisted.ContainerStatus, stale.NetworkContainerid)
+	assert.Equal(t, updated.Version, persisted.ContainerStatus["nc1"].CreateNetworkContainerRequest.Version)
+	assert.Equal(t, updated.SecondaryIPConfigs, persisted.ContainerStatus["nc1"].CreateNetworkContainerRequest.SecondaryIPConfigs)
+}
