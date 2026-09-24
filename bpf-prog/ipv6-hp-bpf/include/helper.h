@@ -1,4 +1,6 @@
-#include <netinet/in.h>
+#include <linux/in6.h>
+#include <linux/if_ether.h>
+#include <linux/ipv6.h>
 #include <stdbool.h>
 
 #define L4_HDR_OFF (ETH_HLEN + sizeof(struct ipv6hdr))
