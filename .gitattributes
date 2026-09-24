@@ -4,3 +4,7 @@
 # embedded prompt bytes stay identical across platforms.
 tools/failure-agent/internal/classify/investigation-playbook.md text eol=lf
 tools/failure-agent/internal/weekly/weekly-trends-playbook.md text eol=lf
+tools/failure-agent/internal/escalate/escalation-playbook.md text eol=lf
+
+# Workflow scripts run under bash on Linux runners; a CRLF shebang breaks them.
+.github/scripts/*.sh text eol=lf
