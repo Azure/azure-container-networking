@@ -1388,22 +1388,6 @@ func reconcileInitialCNSState(
 	return nil
 }
 
-func configureSwiftV2Cache(cacheOpts *cache.Options, node *corev1.Node, cnsconfig *configuration.CNSConfig) {
-	// Note: we rely on the controller for mtpnc backfilling this label on existing unlabeled MTPNCs during pod reconciliation
-	// EnableSwiftV2CacheFilter will be false unless we have guaranteed rollout of the controller change which ensures this label is set.
-	if !cnsconfig.EnableSwiftV2CacheFilter {
-		return
-	}
-
-	nodeSelector := labels.SelectorFromSet(labels.Set{nodeUIDLabelKey: string(node.UID)})
-	if cnsconfig.EnableSwiftV2 {
-		cacheOpts.ByObject[&mtv1alpha1.MultitenantPodNetworkConfig{}] = cache.ByObject{Label: nodeSelector}
-	}
-	if cnsconfig.EnableSwiftV2PrefixAllocation {
-		cacheOpts.ByObject[&mtv1alpha1.NICNetworkConfig{}] = cache.ByObject{Label: nodeSelector}
-	}
-}
-
 // InitializeCRDState builds and starts the CRD controllers.
 //
 //nolint:gocyclo // legacy
@@ -1525,7 +1509,18 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		}
 	}
 
-	configureSwiftV2Cache(&cacheOpts, node, cnsconfig)
+	// Note: EnableSwiftV2CacheFilter scopes MTPNC and NICNC caches to the current node.
+	// This flag will be false until we have guaranteed rollout of the controller change which ensures this label is set.
+	// we rely on the controller for mtpnc backfilling this label on existing unlabeled MTPNCs during pod reconciliation.
+	if cnsconfig.EnableSwiftV2CacheFilter {
+		nodeSelector := labels.SelectorFromSet(labels.Set{nodeUIDLabelKey: string(node.UID)})
+		if cnsconfig.EnableSwiftV2 {
+			cacheOpts.ByObject[&mtv1alpha1.MultitenantPodNetworkConfig{}] = cache.ByObject{Label: nodeSelector}
+		}
+		if cnsconfig.EnableSwiftV2PrefixAllocation {
+			cacheOpts.ByObject[&mtv1alpha1.NICNetworkConfig{}] = cache.ByObject{Label: nodeSelector}
+		}
+	}
 
 	if cnsconfig.EnableSubnetScarcity {
 		cacheOpts.ByObject[&cssv1alpha1.ClusterSubnetState{}] = cache.ByObject{

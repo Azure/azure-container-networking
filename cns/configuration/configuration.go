@@ -41,33 +41,32 @@ type CNSConfig struct {
 	EnableStaleHNSCleanupOnNCCreate bool
 	EnableSwiftV1DualStack          bool
 	EnableSwiftV2                   bool
-	// EnableSwiftV2CacheFilter scopes MTPNC and NICNC caches to the current node.
-	EnableSwiftV2CacheFilter      bool
-	EnableSwiftV2PrefixAllocation bool
-	IPv6PrefixClamp               int
-	InitializeFromCNI             bool
-	KeyVaultSettings              KeyVaultSettings
-	Logger                        loggerv2.Config
-	MSISettings                   MSISettings
-	ManageEndpointState           bool
-	ManagedSettings               ManagedSettings
-	MellanoxMonitorIntervalSecs   int
-	MetricsBindAddress            string
-	ProgramSNATIPTables           bool
-	SyncHostNCTimeoutMs           int
-	SyncHostNCVersionIntervalMs   int
-	TLSCertificatePath            string
-	TLSEndpoint                   string
-	TLSPort                       string
-	TLSSubjectName                string
-	TelemetrySettings             TelemetrySettings
-	UseHTTPS                      bool
-	UseMTLS                       bool
-	WatchPods                     bool `json:"-"`
-	WireserverIP                  string
-	GRPCSettings                  GRPCSettings
-	MinTLSVersion                 string
-	MtlsClientCertSubjectName     string
+	EnableSwiftV2CacheFilter        bool
+	EnableSwiftV2PrefixAllocation   bool
+	IPv6PrefixClamp                 int
+	InitializeFromCNI               bool
+	KeyVaultSettings                KeyVaultSettings
+	Logger                          loggerv2.Config
+	MSISettings                     MSISettings
+	ManageEndpointState             bool
+	ManagedSettings                 ManagedSettings
+	MellanoxMonitorIntervalSecs     int
+	MetricsBindAddress              string
+	ProgramSNATIPTables             bool
+	SyncHostNCTimeoutMs             int
+	SyncHostNCVersionIntervalMs     int
+	TLSCertificatePath              string
+	TLSEndpoint                     string
+	TLSPort                         string
+	TLSSubjectName                  string
+	TelemetrySettings               TelemetrySettings
+	UseHTTPS                        bool
+	UseMTLS                         bool
+	WatchPods                       bool `json:"-"`
+	WireserverIP                    string
+	GRPCSettings                    GRPCSettings
+	MinTLSVersion                   string
+	MtlsClientCertSubjectName       string
 }
 
 type TelemetrySettings struct {
