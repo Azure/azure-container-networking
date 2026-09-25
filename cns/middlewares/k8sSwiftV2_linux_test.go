@@ -14,10 +14,13 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 	"gotest.tools/v3/assert"
 )
 
 var (
+	errDefaultHandler = errors.New("default handler failed")
+
 	testPod1GUID = "898fb8f1-f93e-4c96-9c31-6b89098949a3"
 	testPod1Info = cns.NewPodInfo("898fb8-eth0", testPod1GUID, "testpod1", "testpod1namespace")
 
@@ -181,6 +184,30 @@ func TestIPConfigsRequestHandlerWrapperFailure(t *testing.T) {
 	failReq.OrchestratorContext = b
 	_, err := wrappedHandler(context.TODO(), failReq)
 	assert.ErrorContains(t, err, "failed to set routes for pod")
+}
+
+func TestIPConfigsRequestHandlerWrapperDoesNotCompensateDefaultHandlerFailure(t *testing.T) {
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
+	defaultResponse := &cns.IPConfigsResponse{}
+	defaultHandler := func(context.Context, cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+		return defaultResponse, errDefaultHandler
+	}
+	failureCalls := 0
+	failureHandler := func(context.Context, cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+		failureCalls++
+		return nil, nil
+	}
+	req := cns.IPConfigsRequest{
+		PodInterfaceID:   testPod1Info.InterfaceID(),
+		InfraContainerID: testPod1Info.InfraContainerID(),
+	}
+	req.OrchestratorContext, _ = testPod1Info.OrchestratorContext()
+
+	resp, err := middleware.IPConfigsRequestHandlerWrapper(defaultHandler, failureHandler)(t.Context(), req)
+
+	require.Same(t, defaultResponse, resp)
+	require.ErrorIs(t, err, errDefaultHandler)
+	require.Zero(t, failureCalls)
 }
 
 func TestValidateMultitenantIPConfigsRequestSuccess(t *testing.T) {
