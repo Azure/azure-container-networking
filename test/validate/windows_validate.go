@@ -102,6 +102,31 @@ var windowsChecksMap = map[string][]check{
 			cmd:              cnsWinCachedAssignedIPStateCmd,
 		},
 	},
+	// same as "stateless", but the CNS endpoint state parser records both IP
+	// families so dual-stack pods' IPv6 addresses are not reported as missing.
+	"stateless_dualstack": {
+		{
+			name:             "hns",
+			stateFileIPs:     hnsStateFileIPs,
+			podLabelSelector: privilegedLabelSelector,
+			podNamespace:     privilegedNamespace,
+			cmd:              hnsEndPointCmd,
+		},
+		{
+			name:             "cns",
+			stateFileIPs:     cnsManagedStateFileDualStackIps,
+			podLabelSelector: privilegedLabelSelector,
+			podNamespace:     privilegedNamespace,
+			cmd:              cnsWinManagedStateFileCmd,
+		}, // cns configmap "ManageEndpointState": true, | Endpoints managed in CNS State File
+		{
+			name:             "cns cache",
+			stateFileIPs:     cnsCacheStateFileIps,
+			podLabelSelector: cnsWinLabelSelector,
+			podNamespace:     privilegedNamespace,
+			cmd:              cnsWinCachedAssignedIPStateCmd,
+		},
+	},
 }
 
 type HNSEndpoint struct {
