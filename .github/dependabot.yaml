@@ -63,17 +63,19 @@ updates:
         update-types: ["minor", "patch"]
     ignore:
       - dependency-name: "k8s.io/api"
-        versions: [">=0.37.0"]
+        versions: [">=0.38.0"]
       - dependency-name: "k8s.io/apiextensions-apiserver"
-        versions: [">=0.37.0"]
+        versions: [">=0.38.0"]
       - dependency-name: "k8s.io/apimachinery"
-        versions: [">=0.37.0"]
+        versions: [">=0.38.0"]
       - dependency-name: "k8s.io/client-go"
-        versions: [">=0.37.0"]
+        versions: [">=0.38.0"]
       - dependency-name: "k8s.io/kubelet"
-        versions: [">=0.37.0"]
+        versions: [">=0.38.0"]
       - dependency-name: "k8s.io/kubectl"
-        versions: [">=0.37.0"]
+        versions: [">=0.38.0"]
+      - dependency-name: "sigs.k8s.io/controller-runtime"
+        versions: [">=0.26.0"]
     cooldown:
       default-days: 7
 
@@ -99,17 +101,17 @@ updates:
         update-types: ["minor", "patch"]
     ignore:
       - dependency-name: "k8s.io/api"
-        versions: [">=0.37.0"]
+        versions: [">=0.38.0"]
       - dependency-name: "k8s.io/apiextensions-apiserver"
-        versions: [">=0.37.0"]
+        versions: [">=0.38.0"]
       - dependency-name: "k8s.io/apimachinery"
-        versions: [">=0.37.0"]
+        versions: [">=0.38.0"]
       - dependency-name: "k8s.io/client-go"
-        versions: [">=0.37.0"]
+        versions: [">=0.38.0"]
       - dependency-name: "k8s.io/kubelet"
-        versions: [">=0.37.0"]
+        versions: [">=0.38.0"]
       - dependency-name: "k8s.io/kubectl"
-        versions: [">=0.37.0"]
+        versions: [">=0.38.0"]
     cooldown:
       default-days: 7
 
@@ -236,6 +238,8 @@ updates:
         versions: [">=0.37.0"]
       - dependency-name: "k8s.io/kubectl"
         versions: [">=0.37.0"]
+      - dependency-name: "sigs.k8s.io/controller-runtime"
+        versions: [">=0.25.0"]
     cooldown:
       default-days: 7
 
@@ -328,6 +332,8 @@ updates:
         versions: [">=0.35.0"]
       - dependency-name: "k8s.io/kubectl"
         versions: [">=0.35.0"]
+      - dependency-name: "sigs.k8s.io/controller-runtime"
+        versions: [">=0.23.0"]
     cooldown:
       default-days: 7
 
@@ -420,6 +426,8 @@ updates:
         versions: [">=0.32.0"]
       - dependency-name: "k8s.io/kubectl"
         versions: [">=0.32.0"]
+      - dependency-name: "sigs.k8s.io/controller-runtime"
+        versions: [">=0.20.0"]
     cooldown:
       default-days: 7
 
