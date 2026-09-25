@@ -5,6 +5,7 @@ parameters:
   clusterName: ""
   vmSize: ""
   k8sVersion: ""
+  os: "windows"
   dependsOn: ""
 
 stages:
@@ -53,7 +54,7 @@ stages:
               cnsVersion: $(CNS_VERSION)
               cniVersion: $(CNI_VERSION)
               installFlag: INSTALL_AZURE_VNET_STATELESS
-              os: windows
+              os: ${{ parameters.os }}
 
   - stage: ${{ parameters.name }}
     displayName: E2E-${{ parameters.displayName }}
@@ -89,14 +90,13 @@ stages:
             parameters:
               name: ${{ parameters.name }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
-              os: windows
-              vmSizeWin: ${{ parameters.vmSize }}
+              os: ${{ parameters.os }}
 
       - template: ../../cni/k8s-e2e/k8s-e2e.jobs.yaml
         parameters:
           sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           clusterName: ${{ parameters.clusterName }}-$(commitID)
-          os: windows
+          os: ${{ parameters.os }}
           dependsOn: ${{ parameters.name }}_windows
           datapath: true
           dns: true
@@ -120,5 +120,5 @@ stages:
           - template: ../../templates/log.steps.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
-              os: windows
+              os: ${{ parameters.os }}
               cni: cniv2

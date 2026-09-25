@@ -44,7 +44,8 @@ stages:
           - task: TriggerBuild@3
             inputs:
               buildDefinition: '391699'
-              templateParameters: 'regions: ["australiaeast"], useAcnPublic: true, cnscniversion: $(CNS_VERSION), cnscniversionwindows: $(CNS_VERSION), cnscniImagePrefix: $(IMAGE_REPO_PATH_REF), npmversion: $(NPM_VERSION)'
+              # Update existing runners so regular mode tests the requested images.
+              templateParameters: 'westus2: false, centraluseuap: false, australiaeast: true, runMode: regular, updateComponents: true, useAcnPublic: true, cnscniversion: $(CNS_VERSION), cnscniversionwindows: $(CNS_VERSION), cnscniImagePrefix: $(IMAGE_REPO_PATH_REF), npmversion: $(NPM_VERSION)'
               useSameBranch: false
               queueBuildForUserThatTriggeredBuild: true
               branchToUse: 'refs/heads/master'

@@ -19,3 +19,7 @@ Do not:
 - Ask for final reviews unless CI is passing.
 - Resolve reviewer comments yourself (allow the reviewer to do so once they are satisfied that their feedback is addressed).
 - Close and open a new PR to address git conflicts or feedback (PRs are documentation. One PR per change).
+
+### Pipeline configuration checks
+
+Run `go test -mod=readonly -buildvcs=false -tags unit ./test/pipelines` from the repository root when changing Swift provisioning, Windows stateless overlay tests, or the Manifold trigger. These tests check template parameter propagation, stateful defaults, Windows validation, and candidate image and region selection without creating clusters or queueing pipelines. They are also included in `make test-main` and `make test-all`.
