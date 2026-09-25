@@ -1,0 +1,43 @@
+name: Reusable Go Setup
+on:
+  workflow_call:
+    inputs:
+      generate-bpf:
+        description: "Run BPF library build and go generate"
+        type: boolean
+        default: false
+    outputs:
+      go-version:
+        description: "Go version resolved from go.mod"
+        value: ${{ jobs.setup.outputs.go-version }}
+
+permissions:
+  contents: read
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      go-version: ${{ steps.go.outputs.go-version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        id: go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Install BPF prerequisites and generate
+        if: inputs.generate-bpf
+        run: make bpf-lib && go generate ./...
+
+      - name: Upload generated BPF code
+        if: inputs.generate-bpf
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: generated-bpf-code
+          path: ./bpf-prog/azure-block-iptables/pkg/blockservice
+          retention-days: 1
