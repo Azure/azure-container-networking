@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
@@ -65,6 +66,7 @@ var (
 	service           cns.HTTPService
 	svc               *HTTPRestService
 	mux               *http.ServeMux
+	serviceErrCh      chan error
 	hostQueryResponse = xmlDocument{
 		XMLName: xml.Name{Local: "Interfaces"},
 		Interface: []Interface{{
@@ -124,6 +126,8 @@ var (
 	}
 	ncDualNicParams = []createOrUpdateNetworkContainerParams{nc3, nc4}
 )
+
+var errServiceListenerStopTimeout = errors.New("timed out waiting for test service listener to stop")
 
 const (
 	nmagentEndpoint = "localhost:9000"
@@ -207,7 +211,10 @@ func TestMain(m *testing.M) {
 	exitCode := m.Run()
 
 	// Cleanup.
-	service.Stop()
+	if err := stopTestService(); err != nil {
+		fmt.Printf("Failed to stop CNS Service. Error: %v", err)
+		exitCode = 1
+	}
 	nmAgentServer.Stop()
 
 	os.Exit(exitCode)
@@ -1656,6 +1663,8 @@ func setEnv(t *testing.T) *httptest.ResponseRecorder {
 func startService(serviceConfig common.ServiceConfig, _ configuration.CNSConfig) error {
 	// Create the service.
 	config := serviceConfig
+	listenerErrCh := make(chan error, 1)
+	config.ErrChan = listenerErrCh
 
 	// Create the key value fileStore.
 	fileStore, err := store.NewJsonFileStore(cnsJsonFileName, processlock.NewMockFileLock(false), nil)
@@ -1672,6 +1681,7 @@ func startService(serviceConfig common.ServiceConfig, _ configuration.CNSConfig)
 		return err
 	}
 	svc = service.(*HTTPRestService)
+	serviceErrCh = listenerErrCh
 	svc.Service.Options[acncommon.OptCnsURL] = ""
 	svc.Service.Options[acncommon.OptCnsPort] = ""
 	svc.Name = "cns-test-server"
@@ -1735,6 +1745,26 @@ func startService(serviceConfig common.ServiceConfig, _ configuration.CNSConfig)
 	mux = service.(*HTTPRestService).Listener.GetMux()
 
 	return nil
+}
+
+func stopTestService() error {
+	if service == nil {
+		return nil
+	}
+	service.Stop()
+	if serviceErrCh == nil {
+		return nil
+	}
+
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
+	select {
+	case <-serviceErrCh:
+		serviceErrCh = nil
+		return nil
+	case <-timer.C:
+		return errServiceListenerStopTimeout
+	}
 }
 
 func contains(networkContainers []cns.GetNetworkContainerResponse, str string) bool {
