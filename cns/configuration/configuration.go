@@ -32,6 +32,7 @@ type CNSConfig struct {
 	EnableAsyncPodDelete            bool
 	EnableCNIConflistGeneration     bool
 	EnableHomeAZ                    bool
+	EnableHomeAZMultitenancy        bool
 	EnableIPAMv2                    bool
 	EnableK8sDevicePlugin           bool
 	EnableLoggerV2                  bool

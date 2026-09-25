@@ -951,10 +951,12 @@ func main() {
 			return
 		}
 
-		// Populate the NodeInfo CRD with HomeAZ for multi-tenant nodes
-		if err = createOrUpdateNodeInfoCRDForMultiTenant(rootCtx); err != nil {
-			z.Error("Failed to create or update NodeInfo CRD for multi-tenant", zap.Error(err))
-			return
+		if cnsconfig.EnableHomeAZMultitenancy {
+			// Populate the NodeInfo CRD with HomeAZ for multi-tenant nodes
+			if err = createOrUpdateNodeInfoCRDForMultiTenant(rootCtx); err != nil {
+				z.Error("Failed to create or update NodeInfo CRD for multi-tenant", zap.Error(err))
+				return
+			}
 		}
 	}
 
