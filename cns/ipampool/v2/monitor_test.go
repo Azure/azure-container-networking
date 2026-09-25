@@ -102,16 +102,93 @@ func TestBuildNNCSpec(t *testing.T) {
 }
 
 type nncClientMock struct {
-	req v1alpha.NodeNetworkConfigSpec
-	err error
+	req   v1alpha.NodeNetworkConfigSpec
+	err   error
+	calls int
 }
 
 func (m *nncClientMock) PatchSpec(_ context.Context, spec *v1alpha.NodeNetworkConfigSpec, _ string) (*v1alpha.NodeNetworkConfig, error) {
+	m.calls++
 	if m.err != nil {
 		return nil, m.err
 	}
 	m.req = *spec
 	return nil, nil
+}
+
+func TestReconcileSyncsIPsNotInUse(t *testing.T) {
+	pendingReleaseIPConfigs := pendingReleaseGenerator(2)
+	pendingReleaseIDs := maps.Keys(pendingReleaseIPConfigs)
+	reversedPendingReleaseIDs := []string{pendingReleaseIDs[1], pendingReleaseIDs[0]}
+
+	tests := []struct {
+		name                    string
+		observedIPsNotInUse     []string
+		pendingReleaseIPConfigs map[string]cns.IPConfigurationStatus
+		patchErr                error
+		wantPatchCalls          int
+		wantIPsNotInUse         []string
+		wantErr                 bool
+	}{
+		{
+			name:                "clear stale IPs not in use",
+			observedIPsNotInUse: pendingReleaseIDs,
+			wantPatchCalls:      1,
+		},
+		{
+			name:                    "pending release IDs already match",
+			observedIPsNotInUse:     reversedPendingReleaseIDs,
+			pendingReleaseIPConfigs: pendingReleaseIPConfigs,
+			wantIPsNotInUse:         pendingReleaseIDs,
+		},
+		{
+			name:                "retry after patch failure",
+			observedIPsNotInUse: pendingReleaseIDs,
+			patchErr:            errors.New("failed to patch NNC spec"),
+			wantPatchCalls:      1,
+			wantErr:             true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			nnccli := &nncClientMock{err: tt.patchErr}
+			pm := &Monitor{
+				z:                   zap.NewNop(),
+				demand:              5,
+				request:             16,
+				observedIPsNotInUse: append([]string(nil), tt.observedIPsNotInUse...),
+				scaler: scaler{
+					batch:  16,
+					buffer: .5,
+					max:    250,
+				},
+				nnccli: nnccli,
+				store: &ipStateStoreMock{
+					pendingReleaseIPConfigs: tt.pendingReleaseIPConfigs,
+				},
+			}
+
+			err := pm.reconcile(context.Background())
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tt.wantPatchCalls, nnccli.calls)
+			if tt.wantPatchCalls > 0 && !tt.wantErr {
+				assert.ElementsMatch(t, tt.wantIPsNotInUse, nnccli.req.IPsNotInUse)
+			}
+			if tt.wantErr {
+				assert.ElementsMatch(t, tt.observedIPsNotInUse, pm.observedIPsNotInUse)
+			} else {
+				assert.ElementsMatch(t, tt.wantIPsNotInUse, pm.observedIPsNotInUse)
+				require.NoError(t, pm.reconcile(context.Background()))
+				assert.Equal(t, tt.wantPatchCalls, nnccli.calls)
+			}
+		})
+	}
 }
 
 func TestReconcile(t *testing.T) {
