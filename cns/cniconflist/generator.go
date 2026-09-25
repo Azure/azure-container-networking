@@ -48,17 +48,20 @@ type IPAM struct {
 
 // V4OverlayGenerator generates the Azure CNI conflist for the ipv4 Overlay scenario
 type V4OverlayGenerator struct {
-	Writer io.WriteCloser
+	Writer        io.WriteCloser
+	CNSSocketPath string
 }
 
 // DualStackOverlayGenerator generates the Azure CNI conflist for the dualstack Overlay scenario
 type DualStackOverlayGenerator struct {
-	Writer io.WriteCloser
+	Writer        io.WriteCloser
+	CNSSocketPath string
 }
 
 // OverlayGenerator generates the Azure CNI conflist for all Overlay scenarios
 type OverlayGenerator struct {
-	Writer io.WriteCloser
+	Writer        io.WriteCloser
+	CNSSocketPath string
 }
 
 // CiliumGenerator generates the Azure CNI conflist for the Cilium scenario
@@ -68,11 +71,13 @@ type CiliumGenerator struct {
 
 // SWIFTGenerator generates the Azure CNI conflist for the SWIFT scenario
 type SWIFTGenerator struct {
-	Writer io.WriteCloser
+	Writer        io.WriteCloser
+	CNSSocketPath string
 }
 
 type AzureCNIChainedCiliumGenerator struct {
-	Writer io.WriteCloser
+	Writer        io.WriteCloser
+	CNSSocketPath string
 }
 
 func (v *V4OverlayGenerator) Close() error {
