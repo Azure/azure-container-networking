@@ -76,6 +76,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
 	kuberuntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
@@ -116,6 +117,8 @@ const (
 	defaultDevicePluginMaxRetryCount = 5
 	initialVnetNICCount              = 0
 	initialIBNICCount                = 0
+	nodeUIDLabelKey                  = "kubernetes.azure.com/node-uid"
+	kubeSystemNamespace              = "kube-system"
 )
 
 type cniConflistScenario string
@@ -1386,6 +1389,51 @@ func reconcileInitialCNSState(
 	return nil
 }
 
+func buildCacheOptions(scheme *kuberuntime.Scheme, node *corev1.Node, cnsconfig *configuration.CNSConfig) cache.Options {
+	nodeName := node.Name
+	cacheOpts := cache.Options{
+		Scheme: scheme,
+		ByObject: map[client.Object]cache.ByObject{
+			&v1alpha.NodeNetworkConfig{}: {
+				Namespaces: map[string]cache.Config{
+					kubeSystemNamespace: {FieldSelector: fields.SelectorFromSet(fields.Set{"metadata.name": nodeName})},
+				},
+			},
+			&mtv1alpha1.NodeInfo{}: {
+				Field: fields.SelectorFromSet(fields.Set{"metadata.name": nodeName}),
+			},
+		},
+	}
+
+	if cnsconfig.WatchPods {
+		cacheOpts.ByObject[&corev1.Pod{}] = cache.ByObject{
+			Field: fields.SelectorFromSet(fields.Set{"spec.nodeName": nodeName}),
+		}
+	}
+
+	// DNC-RC backfills this label on existing unlabeled MTPNCs during pod reconciliation.
+	// Enable filtering only after the DNC-RC label change has rolled out.
+	if cnsconfig.EnableSwiftV2CacheFilter {
+		nodeSelector := labels.SelectorFromSet(labels.Set{nodeUIDLabelKey: string(node.UID)})
+		if cnsconfig.EnableSwiftV2 {
+			cacheOpts.ByObject[&mtv1alpha1.MultitenantPodNetworkConfig{}] = cache.ByObject{Label: nodeSelector}
+		}
+		if cnsconfig.EnableSwiftV2PrefixAllocation {
+			cacheOpts.ByObject[&mtv1alpha1.NICNetworkConfig{}] = cache.ByObject{Label: nodeSelector}
+		}
+	}
+
+	if cnsconfig.EnableSubnetScarcity {
+		cacheOpts.ByObject[&cssv1alpha1.ClusterSubnetState{}] = cache.ByObject{
+			Namespaces: map[string]cache.Config{
+				kubeSystemNamespace: {},
+			},
+		}
+	}
+
+	return cacheOpts
+}
+
 // InitializeCRDState builds and starts the CRD controllers.
 //
 //nolint:gocyclo // legacy
@@ -1480,40 +1528,8 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		return errors.Wrap(err, "failed to add multitenantpodnetworkconfig/v1alpha1 to scheme")
 	}
 
-	// Set Selector options on the Manager cache which are used
-	// to perform *server-side* filtering of the cached objects. This is very important
-	// for high node/pod count clusters, as it keeps us from watching objects at the
-	// whole cluster scope when we are only interested in the Node's scope.
-	cacheOpts := cache.Options{
-		Scheme: scheme,
-		ByObject: map[client.Object]cache.ByObject{
-			&v1alpha.NodeNetworkConfig{}: {
-				Namespaces: map[string]cache.Config{
-					"kube-system": {FieldSelector: fields.SelectorFromSet(fields.Set{"metadata.name": nodeName})},
-				},
-			},
-			// NodeInfo is cluster-scoped and named after the node; CNS only reads
-			// its own node's NodeInfo, so scope the informer to this node instead
-			// of caching and watching every node's NodeInfo cluster-wide.
-			&mtv1alpha1.NodeInfo{}: {
-				Field: fields.SelectorFromSet(fields.Set{"metadata.name": nodeName}),
-			},
-		},
-	}
-
-	if cnsconfig.WatchPods {
-		cacheOpts.ByObject[&corev1.Pod{}] = cache.ByObject{
-			Field: fields.SelectorFromSet(fields.Set{"spec.nodeName": nodeName}),
-		}
-	}
-
-	if cnsconfig.EnableSubnetScarcity {
-		cacheOpts.ByObject[&cssv1alpha1.ClusterSubnetState{}] = cache.ByObject{
-			Namespaces: map[string]cache.Config{
-				"kube-system": {},
-			},
-		}
-	}
+	// Scope manager caches to the objects used by this node.
+	cacheOpts := buildCacheOptions(scheme, node, cnsconfig)
 
 	managerOpts := ctrlmgr.Options{
 		Scheme:  scheme,
@@ -1533,7 +1549,7 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 	// attempt to use the client until it has received a NodeNetworkConfig to update, and
 	// that can only happen once the Manager has started and the NodeNetworkConfig
 	// reconciler has pushed the Monitor a NodeNetworkConfig.
-	cachedscopedcli := nncctrl.NewScopedClient(nodenetworkconfig.NewClient(manager.GetClient()), types.NamespacedName{Namespace: "kube-system", Name: nodeName})
+	cachedscopedcli := nncctrl.NewScopedClient(nodenetworkconfig.NewClient(manager.GetClient()), types.NamespacedName{Namespace: kubeSystemNamespace, Name: nodeName})
 
 	// Build the IPAM Pool monitor
 	var poolMonitor cns.IPAMPoolMonitor

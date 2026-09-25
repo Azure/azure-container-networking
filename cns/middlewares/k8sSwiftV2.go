@@ -439,8 +439,7 @@ func (k *K8sSWIFTv2Middleware) GetNICResourceInfoFromNICNC(ctx context.Context) 
 	result := make(map[string]*cns.NICResourceInfo, len(nicNCList.Items))
 	for i := range nicNCList.Items {
 		spec := &nicNCList.Items[i].Spec
-		// Only consider NICs on this node.
-		// TODO when the ctrl.manager is modified to watch only NICNCs for this node, this check needs to be removed.
+		// Keep this guard for callers whose client is not backed by the node-scoped manager cache.
 		if spec.NodeName != k.NodeName {
 			continue
 		}
