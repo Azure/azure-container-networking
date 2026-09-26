@@ -82,3 +82,18 @@ func GetNICNetworkConfigs() (*apiextensionsv1.CustomResourceDefinition, error) {
 	}
 	return nicNetworkConfigs, nil
 }
+
+// UVMNetworkConfigsYAML embeds the CRD YAML for downstream consumers.
+//
+//go:embed manifests/multitenancy.acn.azure.com_uvmnetworkconfigs.yaml
+var UVMNetworkConfigsYAML []byte
+
+// GetUVMNetworkConfigs parses the raw []byte UVMNetworkConfigs in
+// to a CustomResourceDefinition and returns it or an unmarshalling error.
+func GetUVMNetworkConfigs() (*apiextensionsv1.CustomResourceDefinition, error) {
+	uvmNetworkConfigs := &apiextensionsv1.CustomResourceDefinition{}
+	if err := yaml.Unmarshal(UVMNetworkConfigsYAML, &uvmNetworkConfigs); err != nil {
+		return nil, errors.Wrap(err, "error unmarshalling embedded uvmNetworkConfig")
+	}
+	return uvmNetworkConfigs, nil
+}
