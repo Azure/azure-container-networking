@@ -202,6 +202,49 @@ func TestWindowsStatelessOverlayParameters(t *testing.T) {
 	require.NotContains(t, restart, "cd test/integration/load")
 }
 
+func TestWindowsOverlayRestartConfiguration(t *testing.T) {
+	for _, scenario := range []struct {
+		name      string
+		path      string
+		condition string
+	}{
+		{
+			name:      "stateful",
+			path:      "singletenancy/azure-cni-overlay/azure-cni-overlay-e2e.steps.yaml",
+			condition: "${{ if eq(parameters.os, 'windows') }}",
+		},
+		{
+			name: "stateless",
+			path: "singletenancy/azure-cni-overlay-stateless/azure-cni-overlay-stateless-e2e.steps.yaml",
+		},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			steps := readPipeline(t, scenario.path)
+			if scenario.condition != "" {
+				steps = field(t, findNode(t, steps, scenario.condition, ""), scenario.condition)
+			}
+			t.Run("restart", func(t *testing.T) {
+				restart := findNode(t, steps, "displayName", "Restart Nodes")
+				require.Equal(t, "AzureCLI@2", field(t, restart, "task").Value)
+				script := field(t, restart, "inputs", "inlineScript").Value
+				require.True(t, strings.HasPrefix(strings.TrimSpace(script), "set -e\n"))
+				patch := strings.Index(script, "cd hack/scripts\nbash patch-kubeclusterconfig.sh || true\ncd ../..")
+				require.NotEqual(t, -1, patch, "patch Windows boot cleanup configuration from the helper's working directory")
+				loop := strings.Index(script, "for val in $(az vmss list")
+				require.NotEqual(t, -1, loop)
+				require.Less(t, patch, loop, "configure boot cleanup before restarting any node")
+				require.Contains(t, script[loop:], "make -C ./hack/aks restart-vmss")
+			})
+			t.Run("datapath", func(t *testing.T) {
+				datapath := findNode(t, steps, "name", "WindowsV4OverlayDatapathTests")
+				script := field(t, datapath, "script").Value
+				require.Contains(t, script, "datapath_windows_test.go -timeout 12m -tags connection")
+				require.NotContains(t, script, "-timeout 3m")
+			})
+		})
+	}
+}
+
 func TestManifoldCandidateParameters(t *testing.T) {
 	pipeline := readPipeline(t, "multitenancy/swiftv2-manifold-e2e.stages.yaml")
 	trigger := field(t, findNode(t, pipeline, "task", "TriggerBuild@3"), "inputs")
