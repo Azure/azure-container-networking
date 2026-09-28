@@ -400,9 +400,9 @@ func (service *HTTPRestService) ReconcileIPAssignment(podInfoByIP map[string]cns
 	return types.Success
 }
 
-func (service *HTTPRestService) CreateNCs(ncReqs []*cns.CreateNetworkContainerRequest) types.ResponseCode {
+func (service *HTTPRestService) CreateNCs(ncReqs []*cns.CreateNetworkContainerRequest, validateVersionByNCID map[string]bool) types.ResponseCode {
 	for _, ncReq := range ncReqs {
-		returnCode := service.CreateOrUpdateNetworkContainerInternal(ncReq)
+		returnCode := service.createOrUpdateNetworkContainerInternal(ncReq, validateVersionByNCID[ncReq.NetworkContainerid])
 		if returnCode != types.Success {
 			return returnCode
 		}
@@ -419,8 +419,13 @@ func (service *HTTPRestService) ReconcileIPAMStateForSwift(ncReqs []*cns.CreateN
 		return types.Success
 	}
 
+	validateVersionByNCID := make(map[string]bool, len(nnc.Status.NetworkContainers))
+	for i := range nnc.Status.NetworkContainers {
+		validateVersionByNCID[nnc.Status.NetworkContainers[i].ID] = nnc.Status.NetworkContainers[i].AssignmentMode != v1alpha.Static
+	}
+
 	// first step in reconciliation is to create all the NCs in CNS, no IP assignment yet.
-	if returnCode := service.CreateNCs(ncReqs); returnCode != types.Success {
+	if returnCode := service.CreateNCs(ncReqs, validateVersionByNCID); returnCode != types.Success {
 		return returnCode
 	}
 
@@ -449,7 +454,7 @@ func (service *HTTPRestService) ReconcileIPAMStateForNodeSubnet(ncReqs []*cns.Cr
 	}
 
 	// first step in reconciliation is to create all the NCs in CNS, no IP assignment yet.
-	if returnCode := service.CreateNCs(ncReqs); returnCode != types.Success {
+	if returnCode := service.CreateNCs(ncReqs, nil); returnCode != types.Success {
 		return returnCode
 	}
 
@@ -590,6 +595,14 @@ func (service *HTTPRestService) MustEnsureNoStaleNCs(validNCIDs []string) {
 
 // This API will be called by CNS RequestController on CRD update.
 func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.CreateNetworkContainerRequest) types.ResponseCode {
+	return service.createOrUpdateNetworkContainerInternal(req, false)
+}
+
+func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternalWithVersionValidation(req *cns.CreateNetworkContainerRequest, validateVersion bool) types.ResponseCode {
+	return service.createOrUpdateNetworkContainerInternal(req, validateVersion)
+}
+
+func (service *HTTPRestService) createOrUpdateNetworkContainerInternal(req *cns.CreateNetworkContainerRequest, validateVersion bool) types.ResponseCode {
 	if req.NetworkContainerid == "" {
 		logger.Errorf("[Azure CNS] Error. NetworkContainerid is empty")
 		return types.NetworkContainerNotSpecified
@@ -648,15 +661,14 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 	}
 
 	// This will Create Or Update the NC state.
-	returnCode, returnMessage := service.saveNetworkContainerGoalState(*req)
-
-	// If the NC was created successfully, log NC snapshot.
-	if returnCode == 0 {
-		logNCSnapshot(*req)
-		service.publishIPStateMetrics()
-	} else {
+	returnCode, returnMessage := service.saveNetworkContainerGoalStateWithVersionValidation(*req, validateVersion)
+	if returnCode != types.Success {
 		logger.Errorf("%s", returnMessage) //nolint:staticcheck // will migrate to logger/v2
+		return returnCode
 	}
+
+	logNCSnapshot(*req)
+	service.publishIPStateMetrics()
 
 	if service.Options[common.OptProgramSNATIPTables] == true {
 		returnCode, returnMessage = service.programSNATRules(req)

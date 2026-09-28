@@ -128,6 +128,12 @@ func setupLinuxEnvironment(t *testing.T) {
 		if err := daemonsetClient.Delete(ctx, daemonset.Name, metav1.DeleteOptions{}); err != nil {
 			t.Log(err)
 		}
+
+		for _, selector := range []string{podLabelSelector, metav1.FormatLabelSelector(daemonset.Spec.Selector)} {
+			if err := kubernetes.WaitForPodsDelete(ctx, clientset, *podNamespace, selector); err != nil {
+				t.Error(err)
+			}
+		}
 	})
 
 	t.Log("Waiting for pods to be running state")

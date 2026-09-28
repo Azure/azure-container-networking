@@ -63,17 +63,21 @@ updates:
         update-types: ["minor", "patch"]
     ignore:
       - dependency-name: "k8s.io/api"
-        versions: [">=0.37.0"]
+        versions: [">=0.38.0"]
       - dependency-name: "k8s.io/apiextensions-apiserver"
-        versions: [">=0.37.0"]
+        versions: [">=0.38.0"]
       - dependency-name: "k8s.io/apimachinery"
-        versions: [">=0.37.0"]
+        versions: [">=0.38.0"]
       - dependency-name: "k8s.io/client-go"
-        versions: [">=0.37.0"]
+        versions: [">=0.38.0"]
       - dependency-name: "k8s.io/kubelet"
-        versions: [">=0.37.0"]
+        versions: [">=0.38.0"]
       - dependency-name: "k8s.io/kubectl"
-        versions: [">=0.37.0"]
+        versions: [">=0.38.0"]
+      - dependency-name: "sigs.k8s.io/controller-runtime"
+        versions: [">=0.26.0"]
+      - dependency-name: "github.com/cilium/cilium"
+        versions: [">=1.22.0"]
     cooldown:
       default-days: 7
 
@@ -99,17 +103,17 @@ updates:
         update-types: ["minor", "patch"]
     ignore:
       - dependency-name: "k8s.io/api"
-        versions: [">=0.37.0"]
+        versions: [">=0.38.0"]
       - dependency-name: "k8s.io/apiextensions-apiserver"
-        versions: [">=0.37.0"]
+        versions: [">=0.38.0"]
       - dependency-name: "k8s.io/apimachinery"
-        versions: [">=0.37.0"]
+        versions: [">=0.38.0"]
       - dependency-name: "k8s.io/client-go"
-        versions: [">=0.37.0"]
+        versions: [">=0.38.0"]
       - dependency-name: "k8s.io/kubelet"
-        versions: [">=0.37.0"]
+        versions: [">=0.38.0"]
       - dependency-name: "k8s.io/kubectl"
-        versions: [">=0.37.0"]
+        versions: [">=0.38.0"]
     cooldown:
       default-days: 7
 
@@ -180,8 +184,104 @@ updates:
       default-days: 7
 
   # =========================
-  # RELEASE BRANCHES — keep daily for v1.5, v1.6, and v1.7
+  # RELEASE BRANCHES — keep daily for v1.5, v1.6, v1.7, and v1.8
   # =========================
+
+  # release/v1.8 constraints (daily);
+  - package-ecosystem: "docker"
+    directories:
+      - "**/*"
+    exclude-paths:
+      - "**/*.tmpl"
+      - "**/*.yaml"
+      - "**/*.yml"
+    schedule:
+      interval: "daily"
+    commit-message:
+      prefix: "ci"
+    labels: ["ci", "dependencies", "release/1.8"]
+    open-pull-requests-limit: 10
+    target-branch: "release/v1.8"
+    groups:
+      all-docker-dependencies:
+        applies-to: version-updates
+        patterns: ["*"]
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    commit-message:
+      prefix: "deps"
+    labels: ["dependencies", "release/1.8"]
+    open-pull-requests-limit: 1
+    target-branch: "release/v1.8"
+    groups:
+      kubernetes-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["k8s.io/*"]
+        update-types: ["minor", "patch"]
+      all-go-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "k8s.io/api"
+        versions: [">=0.37.0"]
+      - dependency-name: "k8s.io/apiextensions-apiserver"
+        versions: [">=0.37.0"]
+      - dependency-name: "k8s.io/apimachinery"
+        versions: [">=0.37.0"]
+      - dependency-name: "k8s.io/client-go"
+        versions: [">=0.37.0"]
+      - dependency-name: "k8s.io/kubelet"
+        versions: [">=0.37.0"]
+      - dependency-name: "k8s.io/kubectl"
+        versions: [">=0.37.0"]
+      - dependency-name: "sigs.k8s.io/controller-runtime"
+        versions: [">=0.25.0"]
+      - dependency-name: "github.com/cilium/cilium"
+        versions: [">=1.21.0"]
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: "gomod"
+    directory: "/azure-ipam"
+    schedule:
+      interval: "daily"
+    commit-message:
+      prefix: "deps"
+    labels: ["dependencies", "azure-ipam", "release/1.8"]
+    open-pull-requests-limit: 1
+    target-branch: "release/v1.8"
+    groups:
+      kubernetes-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["k8s.io/*"]
+        update-types: ["minor", "patch"]
+      all-go-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "k8s.io/api"
+        versions: [">=0.37.0"]
+      - dependency-name: "k8s.io/apiextensions-apiserver"
+        versions: [">=0.37.0"]
+      - dependency-name: "k8s.io/apimachinery"
+        versions: [">=0.37.0"]
+      - dependency-name: "k8s.io/client-go"
+        versions: [">=0.37.0"]
+      - dependency-name: "k8s.io/kubelet"
+        versions: [">=0.37.0"]
+      - dependency-name: "k8s.io/kubectl"
+        versions: [">=0.37.0"]
+      - dependency-name: "github.com/Azure/azure-container-networking"
+        versions: [">=1.9.0"]
+    cooldown:
+      default-days: 7
 
   # release/v1.7 constraints (daily);
   - package-ecosystem: "docker"
@@ -236,6 +336,10 @@ updates:
         versions: [">=0.35.0"]
       - dependency-name: "k8s.io/kubectl"
         versions: [">=0.35.0"]
+      - dependency-name: "sigs.k8s.io/controller-runtime"
+        versions: [">=0.23.0"]
+      - dependency-name: "github.com/cilium/cilium"
+        versions: [">=1.19.0"]
     cooldown:
       default-days: 7
 
@@ -328,6 +432,12 @@ updates:
         versions: [">=0.32.0"]
       - dependency-name: "k8s.io/kubectl"
         versions: [">=0.32.0"]
+      - dependency-name: "k8s.io/kubernetes"
+        versions: [">=1.32.0"]
+      - dependency-name: "sigs.k8s.io/controller-runtime"
+        versions: [">=0.20.0"]
+      - dependency-name: "github.com/cilium/cilium"
+        versions: [">=1.17.0"]
     cooldown:
       default-days: 7
 

@@ -1,5 +1,12 @@
 # failure-agent-teams-bot
 
+> **Temporarily disabled.** The weekly trends pipeline
+> (`weekly-trends-pipeline.yml`) is gated with `condition: false` and no longer
+> maps `AZURE_OPENAI_API_KEY`, as part of the mitigation that disables the
+> failure-analysis agent while its Azure OpenAI credential handling is reworked.
+> The pipeline is also not onboarded as an ADO build definition today. Re-enabling
+> requires reverting **both** the job condition and the API key mapping.
+
 Bridges the Failure Analysis Agent (FAA) to Microsoft Teams through the shared
 **ACN Pipeline Notifier** bot. Every `(NOTIFY_SOURCE, NOTIFY_RUN_ID)` pair renders
 one Adaptive Card that updates in place across stages, plus threaded replies.

@@ -28,7 +28,7 @@ type mockCNSClient struct {
 	update           func(*v1alpha.NodeNetworkConfig) error
 }
 
-func (m *mockCNSClient) CreateOrUpdateNetworkContainerInternal(req *cns.CreateNetworkContainerRequest) cnstypes.ResponseCode {
+func (m *mockCNSClient) CreateOrUpdateNetworkContainerInternalWithVersionValidation(req *cns.CreateNetworkContainerRequest, _ bool) cnstypes.ResponseCode {
 	m.state.reqsByNCID[req.NetworkContainerid] = req
 	return m.createOrUpdateNC(req)
 }

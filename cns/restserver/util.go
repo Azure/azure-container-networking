@@ -97,34 +97,30 @@ func (service *HTTPRestService) saveState() error {
 }
 
 // restoreState restores CNS state from persistent store.
-func (service *HTTPRestService) restoreState() {
+func (service *HTTPRestService) restoreState() error {
 	logger.Printf("[Azure CNS] restoreState")
 
-	// Skip if a store is not provided.
 	if service.store == nil {
 		logger.Printf("[Azure CNS]  store not initialized.")
-		return
-	}
-
-	// Read any persisted state.
-	err := service.store.Read(storeKey, &service.state)
-	if err != nil {
-		if err == store.ErrKeyNotFound {
-			// Nothing to restore.
-			logger.Printf("[Azure CNS]  No state to restore.\n")
-		} else {
-			logger.Errorf("[Azure CNS]  Failed to restore state, err:%v. Removing azure-cns.json", err)
-			service.store.Remove()
-		}
 	} else {
-		logger.Printf("[Azure CNS]  Restored state, %+v\n", service.state) //nolint:staticcheck // TODO: migrate to zap
+		// Read any persisted state.
+		err := service.store.Read(storeKey, &service.state)
+		if err != nil {
+			if errors.Is(err, store.ErrKeyNotFound) {
+				// Nothing to restore.
+				logger.Printf("[Azure CNS]  No state to restore.\n") //nolint:staticcheck // TODO: migrate to zap
+			} else {
+				logger.Errorf("[Azure CNS]  Failed to restore state, err:%v. Removing azure-cns.json", err) //nolint:staticcheck // TODO: migrate to zap
+				service.store.Remove()
+			}
+		} else {
+			logger.Printf("[Azure CNS]  Restored state, %+v\n", service.state) //nolint:staticcheck // TODO: migrate to zap
+		}
 	}
 
 	if service.Options[acn.OptManageEndpointState] == true {
 		if service.EndpointStateStore == nil {
-			//nolint:staticcheck // TODO: migrate to zap
-			logger.Errorf("[Azure CNS]  OptManageEndpointState is enabled but EndpointStateStore is not initialized; endpoint state persistence/restoration is disabled.")
-			return
+			return ErrStoreEmpty
 		}
 		err := service.EndpointStateStore.Read(EndpointStoreKey, &service.EndpointState)
 		if err != nil {
@@ -132,17 +128,21 @@ func (service *HTTPRestService) restoreState() {
 				// Nothing to restore.
 				logger.Printf("[Azure CNS]  No endpoint state to restore.\n")
 			} else {
-				//nolint:staticcheck // TODO: migrate to zap
-				logger.Errorf("[Azure CNS]  Failed to restore endpoint state, err:%v", err)
+				return fmt.Errorf("reading endpoint state: %w", err)
 			}
-			return
+		} else {
+			//nolint:staticcheck // TODO: migrate to zap
+			logger.Printf("[Azure CNS]  Restored endpoint state, %+v\n", service.EndpointState)
 		}
-		logger.Printf("[Azure CNS]  Restored endpoint state, %+v\n", service.EndpointState)
-
 	}
+	return nil
 }
 
 func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetworkContainerRequest) (types.ResponseCode, string) { //nolint // legacy
+	return service.saveNetworkContainerGoalStateWithVersionValidation(req, false)
+}
+
+func (service *HTTPRestService) saveNetworkContainerGoalStateWithVersionValidation(req cns.CreateNetworkContainerRequest, validateVersion bool) (types.ResponseCode, string) { //nolint // legacy
 	// we don't want to overwrite what other calls may have written
 	service.Lock()
 	defer service.Unlock()
@@ -162,6 +162,16 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 		hostVersion = existingNCStatus.HostVersion
 		existingSecondaryIPConfigs = existingNCStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
 		vfpUpdateComplete = existingNCStatus.VfpUpdateComplete
+		if validateVersion && req.Version != existingNCStatus.CreateNetworkContainerRequest.Version {
+			incomingVersion, err := strconv.Atoi(req.Version)
+			if err != nil {
+				return types.UnsupportedNCVersion, fmt.Sprintf("invalid incoming NC version %q: %v", req.Version, err)
+			}
+			existingVersion, err := strconv.Atoi(existingNCStatus.CreateNetworkContainerRequest.Version)
+			if err == nil && incomingVersion < existingVersion {
+				return types.UnsupportedNCVersion, fmt.Sprintf("NC %s version decreased from %d to %d", req.NetworkContainerid, existingVersion, incomingVersion)
+			}
+		}
 	}
 
 	if req.NetworkContainerid == nodesubnet.NodeSubnetNCID {

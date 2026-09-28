@@ -197,7 +197,6 @@ extends:
               steps:
                 - template: /.pipelines/templates/disk-cleanup.steps.yaml@self
                 - script: |
-                    make bpf-lib
                     make all-binaries-platforms
                   name: "BuildAllPlatformBinaries"
                   displayName: "Build all platform binaries"

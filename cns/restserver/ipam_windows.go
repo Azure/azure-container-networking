@@ -133,7 +133,7 @@ func (service *HTTPRestService) cleanupContainerHNSResources(containerID string)
 		}
 	}
 
-	if err := service.DeleteEndpointStateHelper(containerID); err != nil {
+	if err := service.deleteEndpointStateUntransacted(containerID); err != nil {
 		return hnsEndpointID, hnsNetworkID, fmt.Errorf("failed to remove container %s from endpoint state file: %w", containerID, err)
 	}
 

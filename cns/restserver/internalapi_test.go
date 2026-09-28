@@ -22,6 +22,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/types"
+	rootcommon "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	nma "github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/store"
@@ -56,6 +57,81 @@ func TestCreateOrUpdateNetworkContainerInternal(t *testing.T) {
 	setOrchestratorTypeInternal(cns.KubernetesCRD)
 	// NC version set as -1 which is the same as default host version value.
 	validateCreateOrUpdateNCInternal(t, 2, "-1")
+}
+
+func TestCreateOrUpdateNetworkContainerInternalWithVersionValidation(t *testing.T) {
+	const invalidVersion = "invalid"
+
+	tests := []struct {
+		name            string
+		existingVersion string
+		incomingVersion string
+		validateVersion bool
+		programSNAT     bool
+		wantCode        types.ResponseCode
+		wantVersion     string
+	}{
+		{name: "rejects lower version", existingVersion: "10", incomingVersion: "9", validateVersion: true, wantCode: types.UnsupportedNCVersion, wantVersion: "10"},
+		{name: "preserves SNAT rejection", existingVersion: "2", incomingVersion: "1", validateVersion: true, programSNAT: true, wantCode: types.UnsupportedNCVersion, wantVersion: "2"},
+		{name: "accepts equal version", existingVersion: "2", incomingVersion: "2", validateVersion: true, wantCode: types.Success, wantVersion: "2"},
+		{name: "accepts unchanged empty version", validateVersion: true, wantCode: types.Success},
+		{name: "accepts higher version", existingVersion: "9", incomingVersion: "10", validateVersion: true, wantCode: types.Success, wantVersion: "10"},
+		{name: "allows lower version without validation", existingVersion: "2", incomingVersion: "1", wantCode: types.Success, wantVersion: "1"},
+		{name: "replaces invalid existing version", existingVersion: invalidVersion, incomingVersion: "1", validateVersion: true, wantCode: types.Success, wantVersion: "1"},
+		{name: "rejects invalid incoming version", existingVersion: "2", incomingVersion: invalidVersion, validateVersion: true, wantCode: types.UnsupportedNCVersion, wantVersion: "2"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			restartService()
+			setEnv(t)
+			setOrchestratorTypeInternal(cns.KubernetesCRD)
+
+			existing := generateNetworkContainerRequest(map[string]cns.SecondaryIPConfig{}, ncID, tt.existingVersion)
+			require.Equal(t, types.Success, svc.CreateOrUpdateNetworkContainerInternal(existing))
+
+			incoming := generateNetworkContainerRequest(map[string]cns.SecondaryIPConfig{}, ncID, tt.incomingVersion)
+			svc.Options[rootcommon.OptProgramSNATIPTables] = tt.programSNAT
+			got := svc.CreateOrUpdateNetworkContainerInternalWithVersionValidation(incoming, tt.validateVersion)
+
+			assert.Equal(t, tt.wantCode, got)
+			assert.Equal(t, tt.wantVersion, svc.state.ContainerStatus[ncID].CreateNetworkContainerRequest.Version)
+		})
+	}
+}
+
+func TestReconcileIPAMStateForSwiftVersionValidation(t *testing.T) {
+	tests := []struct {
+		name           string
+		assignmentMode v1alpha.AssignmentMode
+		wantCode       types.ResponseCode
+		wantVersion    string
+	}{
+		{name: "rejects dynamic version regression", assignmentMode: v1alpha.Dynamic, wantCode: types.UnsupportedNCVersion, wantVersion: "2"},
+		{name: "skips static version validation", assignmentMode: v1alpha.Static, wantCode: types.Success, wantVersion: "1"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			restartService()
+			setEnv(t)
+			setOrchestratorTypeInternal(cns.KubernetesCRD)
+
+			existing := generateNetworkContainerRequest(map[string]cns.SecondaryIPConfig{}, ncID, "2")
+			require.Equal(t, types.Success, svc.CreateOrUpdateNetworkContainerInternal(existing))
+			incoming := generateNetworkContainerRequest(map[string]cns.SecondaryIPConfig{}, ncID, "1")
+			nnc := &v1alpha.NodeNetworkConfig{
+				Status: v1alpha.NodeNetworkConfigStatus{
+					NetworkContainers: []v1alpha.NetworkContainer{{ID: ncID, AssignmentMode: tt.assignmentMode}},
+				},
+			}
+
+			got := svc.ReconcileIPAMStateForSwift([]*cns.CreateNetworkContainerRequest{incoming}, map[string]cns.PodInfo{}, nnc)
+
+			assert.Equal(t, tt.wantCode, got)
+			assert.Equal(t, tt.wantVersion, svc.state.ContainerStatus[ncID].CreateNetworkContainerRequest.Version)
+		})
+	}
 }
 
 // TestReconcileNCStatePrimaryIPChangeShouldFail tests that reconciling NC state with

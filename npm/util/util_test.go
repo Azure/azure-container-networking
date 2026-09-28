@@ -514,3 +514,79 @@ func TestHashedNameGoldenVectors(t *testing.T) {
 		require.Equal(t, want, GetHashedChainName(in), "GetHashedChainName(%q) golden vector", in)
 	}
 }
+
+// CIDR literals reused across the IsIPV4/NormalizeCIDR cases, named to satisfy goconst.
+const (
+	cidrAllV4  = "0.0.0.0/0"
+	cidrHost32 = "10.0.0.1/32"
+	cidrLan24  = "10.1.2.0/24"
+)
+
+// TestIsIPV4 covers address and CIDR forms. IsIPV4 deliberately rejects a /0 block whose
+// address text is not literally "0.0.0.0" (e.g. "10.0.0.0/0"); such a block is valid and
+// denotes the same addresses, so callers on the ipBlock path canonicalize with NormalizeCIDR
+// before validating rather than relying on IsIPV4 to accept the spelling.
+func TestIsIPV4(t *testing.T) {
+	valid := []string{
+		"10.0.0.1",
+		"0.0.0.0",
+		"10.0.0.0/24",
+		cidrAllV4,
+		"10.1.2.3/24",
+		cidrHost32,
+	}
+	for _, ip := range valid {
+		require.True(t, IsIPV4(ip), "IsIPV4(%q) must be true", ip)
+	}
+
+	invalid := []string{
+		"",
+		"not-an-ip",
+		"10.0.0.256",
+		"10.0.0.0/33",
+		"10.0.0.0/",
+		// non-canonical /0 spellings are rejected on text; callers canonicalize first
+		"10.0.0.0/0",
+		"255.255.255.255/0",
+		"2001:db8::1",
+		"2001:db8::/32",
+		"::/0",
+	}
+	for _, ip := range invalid {
+		require.False(t, IsIPV4(ip), "IsIPV4(%q) must be false", ip)
+	}
+}
+
+// TestNormalizeCIDR verifies that host bits are cleared, so callers can compare a CIDR
+// against a well-known block and hand the canonical form to the kernel.
+func TestNormalizeCIDR(t *testing.T) {
+	canonical := map[string]string{
+		cidrAllV4:           cidrAllV4,
+		"10.0.0.0/0":        cidrAllV4,
+		"255.255.255.255/0": cidrAllV4,
+		"10.0.0.0/1":        "0.0.0.0/1",
+		"200.0.0.0/1":       "128.0.0.0/1",
+		"10.1.2.3/24":       cidrLan24,
+		cidrLan24:           cidrLan24,
+		cidrHost32:          cidrHost32,
+	}
+	for in, want := range canonical {
+		got, err := NormalizeCIDR(in)
+		require.NoError(t, err, "NormalizeCIDR(%q) must succeed", in)
+		require.Equal(t, want, got, "NormalizeCIDR(%q)", in)
+	}
+
+	// Invalid syntax and unsupported family are distinct, typed causes.
+	for in, wantErr := range map[string]error{
+		"":              ErrInvalidCIDR,
+		"10.0.0.1":      ErrInvalidCIDR,
+		"not-a-cidr":    ErrInvalidCIDR,
+		"10.0.0.0/33":   ErrInvalidCIDR,
+		"2001:db8::/32": ErrUnsupportedIPFamily,
+		"::/0":          ErrUnsupportedIPFamily,
+	} {
+		got, err := NormalizeCIDR(in)
+		require.ErrorIs(t, err, wantErr, "NormalizeCIDR(%q) cause", in)
+		require.Empty(t, got)
+	}
+}
