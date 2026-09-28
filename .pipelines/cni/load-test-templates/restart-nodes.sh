@@ -3,7 +3,7 @@
 set -euo pipefail
 
 readonly poll_interval_seconds=10
-readonly not_ready_timeout_seconds=600
+readonly restart_timeout_seconds="${NODE_RESTART_TIMEOUT_SECONDS:-600}"
 readonly ready_timeout="20m"
 
 node_ready_status() {
@@ -16,20 +16,32 @@ node_ready_status() {
     echo "${status:-Unknown}"
 }
 
-wait_for_node_not_ready() {
+node_boot_id() {
     local node=$1
-    local deadline=$((SECONDS + not_ready_timeout_seconds))
+    local boot_id
+    if ! boot_id=$(kubectl get node "$node" -o jsonpath='{.status.nodeInfo.bootID}' 2>/dev/null); then
+        echo "LookupFailed"
+        return
+    fi
+    echo "${boot_id:-Unknown}"
+}
 
+wait_for_node_reboot() {
+    local node=$1
+    local previous_boot_id=$2
+    local deadline=$((SECONDS + restart_timeout_seconds))
+
+    echo "Waiting up to ${restart_timeout_seconds}s for node $node to report a new boot ID"
     while ((SECONDS < deadline)); do
-        local status
-        status=$(node_ready_status "$node")
-        if [[ "$status" != "True" && "$status" != "LookupFailed" ]]; then
+        local current_boot_id
+        current_boot_id=$(node_boot_id "$node")
+        if [[ "$current_boot_id" != "$previous_boot_id" && "$current_boot_id" != "LookupFailed" && "$current_boot_id" != "Unknown" ]]; then
             return 0
         fi
         sleep "$poll_interval_seconds"
     done
 
-    echo "node $node did not become NotReady within ${not_ready_timeout_seconds}s" >&2
+    echo "node $node did not report a new boot ID within ${restart_timeout_seconds}s" >&2
     return 1
 }
 
@@ -49,6 +61,7 @@ parse_provider_id() {
 restart_node() {
     local node=$1
     local provider_id
+    local previous_boot_id
     local resource_group=""
     local vmss=""
     local instance=""
@@ -60,6 +73,12 @@ restart_node() {
         return 1
     fi
 
+    previous_boot_id=$(node_boot_id "$node")
+    if [[ "$previous_boot_id" == "LookupFailed" || "$previous_boot_id" == "Unknown" ]]; then
+        echo "failed to get boot ID for node $node" >&2
+        return 1
+    fi
+
     provider_id=$(kubectl get node "$node" -o jsonpath='{.spec.providerID}')
     if ! parse_provider_id "$provider_id" resource_group vmss instance; then
         echo "failed to parse Azure provider ID for node $node: $provider_id" >&2
@@ -67,8 +86,8 @@ restart_node() {
     fi
 
     echo "Restarting node $node as VMSS instance ${vmss}/${instance}"
-    az vmss restart --resource-group "$resource_group" --name "$vmss" --instance-ids "$instance" --no-wait
-    wait_for_node_not_ready "$node"
+    az vmss restart --resource-group "$resource_group" --name "$vmss" --instance-ids "$instance"
+    wait_for_node_reboot "$node" "$previous_boot_id"
     kubectl wait "node/$node" --for=condition=Ready --timeout="$ready_timeout"
 }
 
