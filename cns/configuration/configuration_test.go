@@ -54,11 +54,14 @@ func TestReadConfigFromFile(t *testing.T) {
 			path: "testdata/good.json",
 			want: &CNSConfig{
 				ChannelMode:            "Direct",
+				EnableBoltStateStore:   false,
 				InitializeFromCNI:      true,
 				EnableHomeAZ:           true,
 				EnablePprof:            true,
 				EnableSubnetScarcity:   true,
 				EnableSwiftV1DualStack: true,
+				StateStoreBackend:      StateStoreBackendJSON,
+				StateStoreMode:         StateStoreModeNormal,
 				ManagedSettings: ManagedSettings{
 					PrivateEndpoint:           "abc",
 					InfrastructureNetworkID:   "abc",
@@ -198,7 +201,9 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 			name: "unset defaults",
 			in:   CNSConfig{},
 			want: CNSConfig{
-				ChannelMode: "Direct",
+				ChannelMode:       "Direct",
+				StateStoreBackend: StateStoreBackendJSON,
+				StateStoreMode:    StateStoreModeNormal,
 				ManagedSettings: ManagedSettings{
 					NodeSyncIntervalInSeconds: 30,
 				},
@@ -233,7 +238,10 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 		{
 			name: "don't overwrite set values",
 			in: CNSConfig{
-				ChannelMode: "Other",
+				ChannelMode:          "Other",
+				EnableBoltStateStore: true,
+				StateStoreBackend:    StateStoreBackendBolt,
+				StateStoreMode:       StateStoreModeRollbackToJSON,
 				ManagedSettings: ManagedSettings{
 					NodeSyncIntervalInSeconds: 1,
 				},
@@ -263,7 +271,10 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 				MtlsClientCertSubjectName: "example.com",
 			},
 			want: CNSConfig{
-				ChannelMode: "Other",
+				ChannelMode:          "Other",
+				EnableBoltStateStore: true,
+				StateStoreBackend:    StateStoreBackendBolt,
+				StateStoreMode:       StateStoreModeRollbackToJSON,
 				ManagedSettings: ManagedSettings{
 					NodeSyncIntervalInSeconds: 1,
 				},
@@ -301,6 +312,215 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			SetCNSConfigDefaults(&tt.in)
 			assert.Equal(t, tt.want, tt.in)
+		})
+	}
+}
+
+func TestCNSConfigValidateStateStore(t *testing.T) {
+	tests := []struct {
+		name                 string
+		enableBoltStateStore bool
+		enableStateMigration bool
+		backend              StateStoreBackend
+		mode                 StateStoreMode
+		wantErr              error
+	}{
+		{
+			name:    "json normal",
+			backend: StateStoreBackendJSON,
+			mode:    StateStoreModeNormal,
+		},
+		{
+			name:    "json rollback",
+			backend: StateStoreBackendJSON,
+			mode:    StateStoreModeRollbackToJSON,
+			wantErr: ErrStateStoreFeatureUnavailable,
+		},
+		{
+			name:    "bolt normal",
+			backend: StateStoreBackendBolt,
+			mode:    StateStoreModeNormal,
+			wantErr: ErrStateStoreFeatureUnavailable,
+		},
+		{
+			name:    "bolt rollback",
+			backend: StateStoreBackendBolt,
+			mode:    StateStoreModeRollbackToJSON,
+			wantErr: ErrStateStoreFeatureUnavailable,
+		},
+		{
+			name:                 "enabled json normal",
+			enableBoltStateStore: true,
+			backend:              StateStoreBackendJSON,
+			mode:                 StateStoreModeNormal,
+			wantErr:              ErrStateStoreFeatureUnavailable,
+		},
+		{
+			name:                 "enabled json rollback",
+			enableBoltStateStore: true,
+			backend:              StateStoreBackendJSON,
+			mode:                 StateStoreModeRollbackToJSON,
+			wantErr:              ErrStateStoreFeatureUnavailable,
+		},
+		{
+			name:                 "enabled bolt normal",
+			enableBoltStateStore: true,
+			backend:              StateStoreBackendBolt,
+			mode:                 StateStoreModeNormal,
+			wantErr:              ErrStateStoreFeatureUnavailable,
+		},
+		{
+			name:                 "enabled bolt rollback",
+			enableBoltStateStore: true,
+			backend:              StateStoreBackendBolt,
+			mode:                 StateStoreModeRollbackToJSON,
+			wantErr:              ErrStateStoreFeatureUnavailable,
+		},
+		{
+			name:                 "migration json normal",
+			enableStateMigration: true,
+			backend:              StateStoreBackendJSON,
+			mode:                 StateStoreModeNormal,
+		},
+		{
+			name:                 "migration json rollback",
+			enableStateMigration: true,
+			backend:              StateStoreBackendJSON,
+			mode:                 StateStoreModeRollbackToJSON,
+			wantErr:              ErrStateStoreFeatureUnavailable,
+		},
+		{
+			name:                 "migration bolt normal",
+			enableStateMigration: true,
+			backend:              StateStoreBackendBolt,
+			mode:                 StateStoreModeNormal,
+			wantErr:              ErrStateStoreFeatureUnavailable,
+		},
+		{
+			name:                 "migration bolt rollback",
+			enableStateMigration: true,
+			backend:              StateStoreBackendBolt,
+			mode:                 StateStoreModeRollbackToJSON,
+			wantErr:              ErrStateStoreFeatureUnavailable,
+		},
+		{
+			name:                 "migration enabled json normal",
+			enableBoltStateStore: true,
+			enableStateMigration: true,
+			backend:              StateStoreBackendJSON,
+			mode:                 StateStoreModeNormal,
+			wantErr:              ErrStateStoreFeatureUnavailable,
+		},
+		{
+			name:                 "migration enabled json rollback",
+			enableBoltStateStore: true,
+			enableStateMigration: true,
+			backend:              StateStoreBackendJSON,
+			mode:                 StateStoreModeRollbackToJSON,
+			wantErr:              ErrStateStoreFeatureUnavailable,
+		},
+		{
+			name:                 "migration enabled bolt normal",
+			enableBoltStateStore: true,
+			enableStateMigration: true,
+			backend:              StateStoreBackendBolt,
+			mode:                 StateStoreModeNormal,
+			wantErr:              ErrStateStoreFeatureUnavailable,
+		},
+		{
+			name:                 "migration enabled bolt rollback",
+			enableBoltStateStore: true,
+			enableStateMigration: true,
+			backend:              StateStoreBackendBolt,
+			mode:                 StateStoreModeRollbackToJSON,
+			wantErr:              ErrStateStoreFeatureUnavailable,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := CNSConfig{
+				EnableBoltStateStore: tt.enableBoltStateStore,
+				EnableStateMigration: tt.enableStateMigration,
+				StateStoreBackend:    tt.backend,
+				StateStoreMode:       tt.mode,
+			}
+
+			err := config.ValidateStateStore()
+			if tt.wantErr == nil {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorIs(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestCNSConfigValidateStateStoreDefaultsAndInvalidEnums(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  CNSConfig
+		wantErr error
+	}{
+		{
+			name:   "zero value uses JSON normal",
+			config: CNSConfig{},
+		},
+		{
+			name: "enabled with default backend and mode",
+			config: CNSConfig{
+				EnableBoltStateStore: true,
+			},
+			wantErr: ErrStateStoreFeatureUnavailable,
+		},
+		{
+			name: "bolt with default mode",
+			config: CNSConfig{
+				StateStoreBackend: StateStoreBackendBolt,
+			},
+			wantErr: ErrStateStoreFeatureUnavailable,
+		},
+		{
+			name: "rollback with default backend",
+			config: CNSConfig{
+				StateStoreMode: StateStoreModeRollbackToJSON,
+			},
+			wantErr: ErrStateStoreFeatureUnavailable,
+		},
+		{
+			name: "invalid backend",
+			config: CNSConfig{
+				StateStoreBackend: "sqlite",
+				StateStoreMode:    StateStoreModeNormal,
+			},
+			wantErr: ErrInvalidStateStoreConfig,
+		},
+		{
+			name: "invalid mode",
+			config: CNSConfig{
+				StateStoreBackend: StateStoreBackendJSON,
+				StateStoreMode:    "restore",
+			},
+			wantErr: ErrInvalidStateStoreConfig,
+		},
+		{
+			name: "invalid backend and mode",
+			config: CNSConfig{
+				StateStoreBackend: "sqlite",
+				StateStoreMode:    "restore",
+			},
+			wantErr: ErrInvalidStateStoreConfig,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.ValidateStateStore()
+			if tt.wantErr == nil {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorIs(t, err, tt.wantErr)
 		})
 	}
 }
