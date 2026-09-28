@@ -24,6 +24,12 @@ echo "Building azure-block-iptables binary..."
 # Debian/Ubuntu
 if [[ -f /etc/debian_version ]]; then
 
+  # 1ES Network Isolation policy CFSClean3 blocks archive.ubuntu.com.
+  for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+    if [[ -f "$f" ]]; then
+      sed -i 's#//archive\.ubuntu\.com#//azure.archive.ubuntu.com#g' "$f"
+    fi
+  done
   apt-get update -y
   apt-get install -y --no-install-recommends llvm clang linux-libc-dev libbpf-dev libc6-dev nftables iproute2
   

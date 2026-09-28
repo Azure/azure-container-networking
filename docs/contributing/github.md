@@ -22,4 +22,4 @@ Do not:
 
 ### Pipeline configuration checks
 
-Run `go test -mod=readonly -buildvcs=false -tags unit ./test/pipelines` from the repository root when changing Swift provisioning, Windows overlay tests, or the Manifold trigger. These tests check template parameter propagation, stateful defaults, Windows validation, boot cleanup ordering and datapath timeouts, and candidate image and region selection without creating clusters or queueing pipelines. They are also included in `make test-main` and `make test-all`.
+Run `go test -mod=readonly -buildvcs=false -tags unit ./test/pipelines` from the repository root when changing Swift provisioning, Windows overlay tests, the Manifold trigger, or Ubuntu build package sources. These tests check template parameter propagation, stateful defaults, Windows validation, boot cleanup ordering and datapath timeouts, candidate image and region selection, and Azure Ubuntu mirror configuration before package updates without creating clusters or queueing pipelines. They are also included in `make test-main` and `make test-all`.
