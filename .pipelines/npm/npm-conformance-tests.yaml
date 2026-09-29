@@ -16,6 +16,12 @@ trigger:
     include:
       - "*"
 
+parameters:
+  - name: npmImage
+    displayName: "NPM image override"
+    type: string
+    default: "__use-default__"
+
 variables:
   - name: VNET_NAME
     value: npm-vnet
@@ -38,52 +44,65 @@ stages:
           - checkout: self
 
           - script: |
+              set -euo pipefail
               go version
               go env
               which go
               echo $PATH
               mkdir -p '$(GOBIN)'
               mkdir -p '$(GOPATH)/pkg'
-              BUILD_NUMBER=$(Build.BuildNumber)
-              # format: npm-<year>-<month>-<day>-<minute>-<second>
-              RG=e2e-$(echo "npm-`date "+%Y-%m-%d-%M-%S"`")
+              RG="e2e-npm-$(Build.BuildId)"
               TAG=$(make npm-version)
+              . ./hack/scripts/parse_override_image.sh
+              if [[ -z "${NPM_IMAGE_OVERRIDE:-}" || "$NPM_IMAGE_OVERRIDE" == "__use-default__" ]]; then
+                NPM_IMAGE=$(format_image "$IMAGE_REGISTRY" azure-npm "linux-amd64-$TAG")
+              else
+                NPM_IMAGE="$NPM_IMAGE_OVERRIDE"
+              fi
               echo "Resource group: $RG"
               echo "Image tag: $TAG"
+              echo "NPM image: $NPM_IMAGE"
 
               echo "##vso[task.setvariable variable=RESOURCE_GROUP;isOutput=true;]$RG"
               echo "##vso[task.setvariable variable=TAG;isOutput=true;]$TAG"
+              echo "##vso[task.setvariable variable=NPM_IMAGE;isOutput=true;]$NPM_IMAGE"
 
             name: "EnvironmentalVariables"
             displayName: "Set environmental variables"
             condition: always()
+            env:
+              NPM_IMAGE_OVERRIDE: ${{ parameters.npmImage }}
 
-  - stage: build
-    displayName: Build Resources
-    dependsOn: [setup]
-    jobs:
-    - job: containerize
-      displayName: Build Images
-      variables:
-        TAG: $[ stagedependencies.setup.setup.outputs['EnvironmentalVariables.TAG'] ]
-      pool:
-        name: "$(BUILD_POOL_NAME_DEFAULT)"
-      strategy:
-        matrix:
-          npm_linux_amd64:
-            arch: amd64
-            name: npm
-            os: linux
-      steps:
-        - template: ../containers/container-template.yaml
-          parameters:
-            arch: $(arch)
-            name: $(name)
-            os: $(os)
+  - ${{ if or(eq(parameters.npmImage, '__use-default__'), eq(parameters.npmImage, '')) }}:
+    - stage: build
+      displayName: Build Resources
+      dependsOn: [setup]
+      jobs:
+      - job: containerize
+        displayName: Build Images
+        variables:
+          TAG: $[ stagedependencies.setup.setup.outputs['EnvironmentalVariables.TAG'] ]
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        strategy:
+          matrix:
+            npm_linux_amd64:
+              arch: amd64
+              name: npm
+              os: linux
+        steps:
+          - template: ../containers/container-template.yaml
+            parameters:
+              arch: $(arch)
+              name: $(name)
+              os: $(os)
 
   - stage: Create_Cluster_and_Run_Test
     displayName: NPM Conformance
-    dependsOn: [setup, build]
+    dependsOn:
+      - setup
+      - ${{ if or(eq(parameters.npmImage, '__use-default__'), eq(parameters.npmImage, '')) }}:
+        - build
     jobs:
     - job: Create_Cluster_and_Run_Test
       timeoutInMinutes: 360
@@ -93,18 +112,22 @@ stages:
           v2-foreground:
             AZURE_CLUSTER: "conformance-v2-foreground"
             PROFILE: "v2-foreground"
+            NPM_CONFIG_PROFILE: "v2-foreground"
             IS_STRESS_TEST: "false"
           v2-background:
             AZURE_CLUSTER: "conformance-v2-background"
             PROFILE: "v2-background"
+            NPM_CONFIG_PROFILE: "v2-background"
             IS_STRESS_TEST: "false"
           v2-linux-stress:
             AZURE_CLUSTER: "conformance-v2-linux-stress"
             PROFILE: "v2-linux-stress"
+            NPM_CONFIG_PROFILE: "v2-background"
             IS_STRESS_TEST: "true"
           v2-place-first:
             AZURE_CLUSTER: "conformance-v2-place-first"
             PROFILE: "v2-place-first"
+            NPM_CONFIG_PROFILE: "v2-place-first"
             IS_STRESS_TEST: "false"
       pool:
         name: $(BUILD_POOL_NAME_DEFAULT)
@@ -113,7 +136,8 @@ stages:
           - Role -equals Build
       variables:
         RESOURCE_GROUP: $[ stagedependencies.setup.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
-        TAG: $[ stagedependencies.setup.setup.outputs['EnvironmentalVariables.TAG'] ]
+        NPM_IMAGE: $[ stagedependencies.setup.setup.outputs['EnvironmentalVariables.NPM_IMAGE'] ]
+        KUBECONFIG: $(Agent.TempDirectory)/npm-$(Build.BuildId)-$(System.JobId).kubeconfig
         FQDN: empty
         PUBLIC_IP_NAME: $(RESOURCE_GROUP)-$(PROFILE)-public-ip
       steps:
@@ -126,6 +150,7 @@ stages:
             scriptType: "bash"
             scriptLocation: "inlineScript"
             inlineScript: |
+              set -euo pipefail
               az group create -n $(RESOURCE_GROUP) -l $(LOCATION) -o table
               echo created RG $(RESOURCE_GROUP) in $(LOCATION)
               az version
@@ -153,15 +178,21 @@ stages:
             azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
             scriptType: "bash"
             scriptLocation: "inlineScript"
-            failOnStderr: true
             inlineScript: |
+              set -euo pipefail
+              NPM_CONFIG_PATH="$(Pipeline.Workspace)/s/npm/profiles/$NPM_CONFIG_PROFILE.yaml"
+              if [[ ! -f "$NPM_CONFIG_PATH" ]]; then
+                echo "NPM config profile not found: $NPM_CONFIG_PATH" >&2
+                exit 1
+              fi
+
               # get kubectl
               curl -LO https://dl.k8s.io/release/v1.23.0/bin/linux/amd64/kubectl
               chmod +x kubectl
               echo Cluster $(AZURE_CLUSTER)
               echo Resource $(RESOURCE_GROUP)
               echo Public IP $(PUBLIC_IP_NAME)
-              export PUBLIC_IP_ID=$(az network public-ip show -g $(RESOURCE_GROUP) -n $(PUBLIC_IP_NAME) --query id -o tsv)
+              PUBLIC_IP_ID=$(az network public-ip show -g $(RESOURCE_GROUP) -n $(PUBLIC_IP_NAME) --query id -o tsv)
               echo Public IP ID $PUBLIC_IP_ID
 
               echo "Creating Linux Cluster";
@@ -169,36 +200,34 @@ stages:
               --resource-group $(RESOURCE_GROUP) \
               --name $(AZURE_CLUSTER) \
               --network-plugin azure \
-              --load-balancer-outbound-ips $PUBLIC_IP_ID
+              --load-balancer-outbound-ips "$PUBLIC_IP_ID"
 
-              if [ $? != 0 ]
-              then
-              echo "Failing fast since previous command failed"
-              exit 1
-              fi
-
-              az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file ./kubeconfig
+              az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file "$KUBECONFIG"
 
               # deploy azure-npm
-              ./kubectl --kubeconfig=./kubeconfig apply -f $(Pipeline.Workspace)/s/npm/azure-npm.yaml
+              ./kubectl --kubeconfig="$KUBECONFIG" apply -f $(Pipeline.Workspace)/s/npm/azure-npm.yaml
 
-              # swap azure-npm image with one built during run
-              ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:linux-amd64-$(TAG)
+              ./kubectl --kubeconfig="$KUBECONFIG" set image daemonset/azure-npm -n kube-system "azure-npm=$NPM_IMAGE"
 
-              # swap NPM profile with one specified as parameter
-              ./kubectl --kubeconfig=./kubeconfig apply -f $(Pipeline.Workspace)/s/npm/profiles/$(PROFILE).yaml
-              ./kubectl --kubeconfig=./kubeconfig rollout restart ds azure-npm -n kube-system
+              ./kubectl --kubeconfig="$KUBECONFIG" apply -f "$NPM_CONFIG_PATH"
+              ./kubectl --kubeconfig="$KUBECONFIG" rollout restart ds azure-npm -n kube-system
+              ./kubectl --kubeconfig="$KUBECONFIG" rollout status ds azure-npm -n kube-system --timeout=20m
 
-              ./kubectl --kubeconfig=./kubeconfig describe daemonset azure-npm -n kube-system
-
-              if [ $? != 0 ]
-              then
-              echo "Failing fast since previous command failed"
-              exit 1
+              DEPLOYED_NPM_IMAGE=$(./kubectl --kubeconfig="$KUBECONFIG" get daemonset azure-npm -n kube-system -o 'jsonpath={.spec.template.spec.containers[?(@.name=="azure-npm")].image}')
+              if [[ "$DEPLOYED_NPM_IMAGE" != "$NPM_IMAGE" ]]; then
+                echo "NPM image mismatch: expected '$NPM_IMAGE', got '$DEPLOYED_NPM_IMAGE'" >&2
+                exit 1
               fi
+              echo "NPM image: $DEPLOYED_NPM_IMAGE"
+              echo "NPM config profile: $NPM_CONFIG_PROFILE"
+              ./kubectl --kubeconfig="$KUBECONFIG" get pods -n kube-system -l k8s-app=azure-npm \
+                -o 'custom-columns=NAME:.metadata.name,NODE:.spec.nodeName,IMAGE:.spec.containers[*].image,IMAGE_ID:.status.containerStatuses[*].imageID'
+              ./kubectl --kubeconfig="$KUBECONFIG" describe daemonset azure-npm -n kube-system
 
               FQDN=`az aks show -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --query fqdn -o tsv`
               echo "##vso[task.setvariable variable=FQDN]$FQDN"
+          env:
+            NPM_IMAGE: $(NPM_IMAGE)
 
         - task: AzureCLI@2
           inputs:
@@ -208,7 +237,6 @@ stages:
             addSpnToEnvironment: true
             inlineScript: |
               set -e
-              make -C ./hack/aks set-kubeconf AZCLI=az GROUP=$(RESOURCE_GROUP) CLUSTER=$(AZURE_CLUSTER)
 
               if [ $(PROFILE) == "v2-place-first" ]; then
                 git clone --depth=1 --branch=huntergregory/service-types https://github.com/huntergregory/network-policy-api.git
@@ -231,16 +259,14 @@ stages:
           displayName: "Setup Environment"
 
         - bash: |
-            echo "sleeping 3 minutes to allow NPM pods to restart"
-            sleep 180
             set -o pipefail
 
             ## create the output folder and include the kubeconfig there
             npmLogsFolder=$(System.DefaultWorkingDirectory)/npmLogs_$(AZURE_CLUSTER)
             mkdir -p $npmLogsFolder
-            cp ./kubeconfig $npmLogsFolder/kubeconfig
+            cp "$KUBECONFIG" "$npmLogsFolder/kubeconfig"
 
-            npmPodList=`kubectl --kubeconfig=./kubeconfig get pods -n kube-system | grep npm | awk '{print $1}'`
+            npmPodList=`kubectl --kubeconfig="$KUBECONFIG" get pods -n kube-system | grep npm | awk '{print $1}'`
             echo "Found NPM pods: $npmPodList"
 
             ## Run all Conformance tests in the background
@@ -255,7 +281,7 @@ stages:
                   # 15 minute timeout for creating LoadBalancer with Azure-internal "external IPs"
                   ./policy-assistant generate --noisy=true --job-timeout-seconds=2 --pod-creation-timeout-seconds 900 --server-protocol TCP,UDP --ignore-loopback --include special-services --exclude cni-brings-source-pod-info-to-other-node
                 else
-                  KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 ./e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig=./kubeconfig "${seedArgs[@]}"
+                  KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 ./e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig="$KUBECONFIG" "${seedArgs[@]}"
                 fi
                 # there can't be a command after e2e.test/policy-assistant because the exit code is important
             }
@@ -293,17 +319,17 @@ stages:
             fi
 
             # get all current npm pods
-            kubectl --kubeconfig=./kubeconfig get pods -n kube-system | grep npm
-            npmPodList=`kubectl --kubeconfig=./kubeconfig get pods -n kube-system | grep npm | awk '{print $1}'`
+            kubectl --kubeconfig="$KUBECONFIG" get pods -n kube-system | grep npm
+            npmPodList=`kubectl --kubeconfig="$KUBECONFIG" get pods -n kube-system | grep npm | awk '{print $1}'`
             # capture all logs
             for npmPod in $npmPodList; do
-                ./kubectl --kubeconfig=./kubeconfig logs -n kube-system $npmPod > $npmLogsFolder/$npmPod-logs.txt
+                ./kubectl --kubeconfig="$KUBECONFIG" logs -n kube-system $npmPod > $npmLogsFolder/$npmPod-logs.txt
             done
 
             # capture any previous logs in case there was a crash
             for npmPod in $npmPodList; do
                 previousLogFile=$npmLogsFolder/previous-$npmPod-logs.txt
-                ./kubectl --kubeconfig=./kubeconfig logs -n kube-system $npmPod -p > $previousLogFile
+                ./kubectl --kubeconfig="$KUBECONFIG" logs -n kube-system $npmPod -p > $previousLogFile
                 if [[ $? -ne 0 ]]; then
                     # remove the empty file if kubectl logs failed (e.g. there was no previous terminated container)
                     rm $previousLogFile

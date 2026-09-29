@@ -57,6 +57,37 @@ docker push $env:IMAGE
 echo $env:IMAGE
 ```
 
+## Conformance validation
+
+The [NPM conformance pipeline](../.pipelines/npm/npm-conformance-tests.yaml) accepts
+an optional `npmImage` parameter for validating an existing Linux/amd64 image,
+including a pre-release Dalec image. The image must be pullable by the test
+cluster. Supply a complete reference in any of these forms:
+
+```text
+registry.example.com/team/azure-npm:tag
+registry.example.com/team/azure-npm@sha256:<digest>
+registry.example.com/team/azure-npm:tag@sha256:<digest>
+```
+
+The pipeline uses the supplied reference unchanged in every test leg and skips
+the NPM image build and push. It does not add a platform prefix, rebuild, retag,
+or republish the supplied image. Omitting `npmImage`, setting it to an empty
+string, or using `__use-default__` retains the source build and its
+`$IMAGE_REGISTRY/azure-npm:linux-amd64-<source-version>` image.
+
+All four existing legs run: foreground, background, Linux stress, and place-first
+service tests. The stress leg uses the background configuration while retaining
+its own cluster and public-IP identity. Each run has a separate resource group,
+and each job uses its own kubeconfig. Deployment checks the requested image and
+DaemonSet rollout before testing, and logs pod image IDs for runtime evidence.
+Image, configuration, or rollout failures fail the job without falling back to a
+source-built image.
+
+This pipeline does not validate Windows or arm64. Clearing the override restores
+source-built validation; it is not a substitute for validating a failed candidate.
+The override does not change the manual-install manifest or production defaults.
+
 ## Usage
 [Microsoft Docs](https://learn.microsoft.com/en-us/azure/aks/use-network-policies#verify-network-policy-setup) has a detailed step by step example on how to use Kubernetes network policy.
 
