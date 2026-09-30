@@ -584,6 +584,12 @@ func (service *HTTPRestService) MustEnsureNoStaleNCs(validNCIDs []string) {
 
 			logger.Errorf("[Azure CNS] Found stale NC ID %s in CNS state. Removing...", ncID)
 			delete(service.state.ContainerStatus, ncID)
+			// Remove the stale NC's unassigned pool IPs so that another NC can reuse their IPs and IP IDs.
+			for ipID := range service.PodIPConfigState {
+				if service.PodIPConfigState[ipID].NCID == ncID {
+					delete(service.PodIPConfigState, ipID)
+				}
+			}
 			mutated = true
 		}
 	}

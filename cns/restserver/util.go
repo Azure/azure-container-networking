@@ -174,6 +174,12 @@ func (service *HTTPRestService) saveNetworkContainerGoalStateWithVersionValidati
 		}
 	}
 
+	if service.state.OrchestratorType == cns.KubernetesCRD {
+		if returnCode, message := validateUniqueSecondaryIPs(service.PodIPConfigState, existingSecondaryIPConfigs, req.SecondaryIPConfigs); returnCode != types.Success {
+			return returnCode, message
+		}
+	}
+
 	if req.NetworkContainerid == nodesubnet.NodeSubnetNCID {
 		hostVersion = nodesubnet.NodeSubnetHostVersion
 		vfpUpdateComplete = true
@@ -262,6 +268,34 @@ func (service *HTTPRestService) saveNetworkContainerGoalStateWithVersionValidati
 
 	service.saveState()
 	return 0, ""
+}
+
+// validateUniqueSecondaryIPs rejects an NC goal that gives a new IP ID an IP that another IP ID in the goal or the IP pool uses,
+// or that changes the IP of an existing IP ID. Conflicts that exist only in the current pool do not block the goal.
+// It compares IP strings as NNC conversion writes them.
+func validateUniqueSecondaryIPs(current map[string]cns.IPConfigurationStatus, existing, incoming map[string]cns.SecondaryIPConfig) (code types.ResponseCode, message string) {
+	owners := make(map[string]string, len(current)+len(incoming))
+	for ipID := range current {
+		_, inExisting := existing[ipID]
+		if _, inIncoming := incoming[ipID]; inExisting && !inIncoming {
+			continue // this goal deletes the IP ID
+		}
+		owners[current[ipID].IPAddress] = ipID
+	}
+	for ipID := range incoming {
+		ip := incoming[ipID].IPAddress
+		if state, exists := current[ipID]; exists {
+			if state.IPAddress != ip {
+				return types.InconsistentIPConfigState, fmt.Sprintf("IP ID %s cannot change IP from %s to %s", ipID, state.IPAddress, ip)
+			}
+			continue // the goal keeps this IP ID unchanged
+		}
+		if owner, taken := owners[ip]; taken {
+			return types.InconsistentIPConfigState, fmt.Sprintf("duplicate IP %s for IP IDs %s and %s", ip, owner, ipID)
+		}
+		owners[ip] = ipID
+	}
+	return types.Success, ""
 }
 
 // This func will compute the deltaIpConfigState which needs to be updated (Added or Deleted) from the inmemory map

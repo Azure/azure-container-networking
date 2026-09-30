@@ -157,6 +157,9 @@ func updatePodIPConfigState(t *testing.T, svc *HTTPRestService, ipconfigs map[st
 	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
 	// Get each of the ipconfigs associated with that NC
 	for _, ipconfig := range ipconfigs { //nolint:gocritic // ignore copy
+		if ipconfig.NCID != ncID {
+			continue
+		}
 		secIPConfig := cns.SecondaryIPConfig{
 			IPAddress: ipconfig.IPAddress,
 			NCVersion: -1,
