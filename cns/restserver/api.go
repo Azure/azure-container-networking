@@ -932,6 +932,11 @@ func respondJSON(w http.ResponseWriter, statusCode int, body any) {
 // back to the legacy channel instead of failing outright.
 // todo: implement GetHomeAZ like cache
 func (service *HTTPRestService) isRNCSupportedByNMAgent(ctx context.Context) bool {
+	// the NMAgent http client has no timeout of its own, so bound the probe here to keep a hung
+	// capability endpoint from stalling the handler instead of falling back to the legacy channel.
+	ctx, cancel := context.WithTimeout(ctx, nmaAPICallTimeout)
+	defer cancel()
+
 	supportedAPIs, err := service.nma.SupportedAPIs(ctx)
 	if err != nil {
 		logger.Errorf("[Azure-CNS] failed to query nmagent supported apis, falling back to legacy publisher: %v", err)
