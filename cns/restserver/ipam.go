@@ -11,6 +11,7 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/filter"
@@ -29,7 +30,10 @@ var (
 	ErrOptManageEndpointState    = errors.New("CNS is not set to manage the endpoint state")
 	ErrEndpointStateNotFound     = errors.New("endpoint state could not be found in the statefile")
 	ErrGetAllNCResponseEmpty     = errors.New("failed to get NC responses from statefile")
+	ErrEndpointDeleteIntent      = errors.New("endpoint delete intent exists")
+	ErrDeleteIntentUpdate        = errors.New("endpoint delete intent update failed")
 	errEndpointStateUpdate       = errors.New("endpoint state update failed")
+	errInvalidIPConfigRequest    = errors.New("failed to validate ip config request")
 	errInconsistentIPConfigState = errors.New("restserver: inconsistent ip config state")
 )
 
@@ -84,11 +88,13 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 	}
 	if err != nil {
 		returnCode := types.FailedToAllocateIPConfig
-		if errors.Is(err, errEndpointStateUpdate) || errors.Is(err, ErrStoreEmpty) {
+		if errors.Is(err, errEndpointStateUpdate) || errors.Is(err, ErrDeleteIntentUpdate) || errors.Is(err, ErrStoreEmpty) {
 			returnCode = types.UnexpectedError
 		}
 		switch {
 		case errors.Is(err, errEndpointStateUpdate),
+			errors.Is(err, ErrEndpointDeleteIntent),
+			errors.Is(err, ErrDeleteIntentUpdate),
 			errors.Is(err, ErrStoreEmpty),
 			errors.Is(err, context.Canceled),
 			errors.Is(err, context.DeadlineExceeded):
@@ -133,6 +139,13 @@ func (service *HTTPRestService) requestIPConfigsWithEndpointState(ctx context.Co
 
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("ip config request canceled: %w", err)
+	}
+	blocked, err := service.endpointDeleteIntentBlocksAddLocked(podInfo.InfraContainerID(), time.Now())
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrDeleteIntentUpdate, err)
+	}
+	if blocked {
+		return nil, fmt.Errorf("%w for infra container %s", ErrEndpointDeleteIntent, podInfo.InfraContainerID())
 	}
 
 	podIPInfo, newlyAssigned, err := requestIPConfigsHelperUntransacted(service, ipconfigsRequest, podInfo) //nolint:contextcheck // legacy helper uses context.TODO for cached host interface lookup
@@ -345,7 +358,7 @@ func (service *HTTPRestService) RequestIPConfigsHandler(w http.ResponseWriter, r
 		var wrappedHandler cns.IPConfigsHandlerFunc
 		switch service.IPConfigsHandlerMiddleware.Type() {
 		case cns.K8sSWIFTV2:
-			wrappedHandler = service.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(service.requestIPConfigHandlerHelper, service.ReleaseIPConfigHandlerHelper)
+			wrappedHandler = service.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(service.requestIPConfigHandlerHelper, service.rollbackIPConfigHandlerHelper)
 		// this middleware is used for standalone swiftv2 secenario where a different helper is invoked as the PodInfo is read from cns state
 		case cns.StandaloneSWIFTV2:
 			wrappedHandler = service.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(service.requestIPConfigHandlerHelperStandalone, nil)
@@ -455,14 +468,14 @@ func (service *HTTPRestService) ReleaseIPConfigHandlerHelper(ctx context.Context
 	}
 	// Check if http rest service managed endpoint state is set
 	if service.Options[common.OptManageEndpointState] == true {
-		if err := service.releaseIPConfigsWithEndpointState(podInfo); err != nil {
+		if err := service.releaseIPConfigsWithDeleteIntent(podInfo); err != nil {
 			resp := &cns.IPConfigsResponse{
 				Response: cns.Response{
 					ReturnCode: types.UnexpectedError,
 					Message:    err.Error(),
 				},
 			}
-			return resp, fmt.Errorf("releasing IP configs with endpoint state: %w", err)
+			return resp, fmt.Errorf("releasing IP configs with delete intent: %w", err)
 		}
 	} else if err := service.releaseIPConfigs(podInfo); err != nil {
 		return &cns.IPConfigsResponse{
@@ -481,7 +494,44 @@ func (service *HTTPRestService) ReleaseIPConfigHandlerHelper(ctx context.Context
 	}, nil
 }
 
-func (service *HTTPRestService) releaseIPConfigsWithEndpointState(podInfo cns.PodInfo) error {
+func (service *HTTPRestService) rollbackIPConfigHandlerHelper(ctx context.Context, ipconfigsRequest cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+	podInfo, returnCode, returnMessage := service.validateIPConfigsRequest(ctx, ipconfigsRequest)
+	if returnCode != types.Success {
+		return &cns.IPConfigsResponse{
+			Response: cns.Response{
+				ReturnCode: returnCode,
+				Message:    returnMessage,
+			},
+		}, errInvalidIPConfigRequest
+	}
+
+	if service.Options[common.OptManageEndpointState] == true {
+		if err := service.rollbackIPConfigs(podInfo); err != nil {
+			return &cns.IPConfigsResponse{
+				Response: cns.Response{
+					ReturnCode: types.UnexpectedError,
+					Message:    err.Error(),
+				},
+			}, fmt.Errorf("rolling back IP configs: %w", err)
+		}
+	} else if err := service.releaseIPConfigs(podInfo); err != nil {
+		return &cns.IPConfigsResponse{
+			Response: cns.Response{
+				ReturnCode: types.UnexpectedError,
+				Message:    err.Error(),
+			},
+		}, fmt.Errorf("rolling back IP configs: %w", err)
+	}
+
+	return &cns.IPConfigsResponse{
+		Response: cns.Response{
+			ReturnCode: types.Success,
+			Message:    "",
+		},
+	}, nil
+}
+
+func (service *HTTPRestService) rollbackIPConfigs(podInfo cns.PodInfo) error {
 	if service.EndpointStateStore == nil {
 		return ErrStoreEmpty
 	}
@@ -490,6 +540,26 @@ func (service *HTTPRestService) releaseIPConfigsWithEndpointState(podInfo cns.Po
 	defer service.Unlock()
 
 	if err := service.validateIPConfigReleaseUntransacted(podInfo); err != nil {
+		return err
+	}
+	if err := service.removeEndpointStateUntransacted(podInfo); err != nil {
+		return err
+	}
+	return service.releaseIPConfigsUntransacted(podInfo)
+}
+
+func (service *HTTPRestService) releaseIPConfigsWithDeleteIntent(podInfo cns.PodInfo) error {
+	if service.EndpointStateStore == nil {
+		return ErrStoreEmpty
+	}
+
+	service.Lock()
+	defer service.Unlock()
+
+	if err := service.validateIPConfigReleaseUntransacted(podInfo); err != nil {
+		return err
+	}
+	if err := service.recordEndpointDeleteIntentLocked(podInfo.InfraContainerID(), time.Now()); err != nil {
 		return err
 	}
 	if err := service.removeEndpointStateUntransacted(podInfo); err != nil {
@@ -595,15 +665,10 @@ func (service *HTTPRestService) removeEndpointStateUntransacted(podInfo cns.PodI
 		return ErrStoreEmpty
 	}
 	logger.Printf("[removeEndpointState] Removing endpoint state for infra container %s", podInfo.InfraContainerID())
-	if _, ok := service.EndpointState[podInfo.InfraContainerID()]; ok {
-		endpointState := cloneEndpointState(service.EndpointState)
-		delete(endpointState, podInfo.InfraContainerID())
-		err := service.EndpointStateStore.Write(EndpointStoreKey, endpointState)
-		if err != nil {
-			return fmt.Errorf("failed to write endpoint state to store: %w", err)
+	if err := service.deleteEndpointStateUntransacted(podInfo.InfraContainerID()); err != nil {
+		if !errors.Is(err, ErrEndpointStateNotFound) {
+			return err
 		}
-		service.EndpointState = endpointState
-	} else { // will not fail if no endpoint state for infra container id is found
 		logger.Printf("[removeEndpointState] No endpoint state found for infra container %s", podInfo.InfraContainerID())
 	}
 	return nil
@@ -1332,25 +1397,28 @@ func (service *HTTPRestService) DeleteEndpointStateHandler(w http.ResponseWriter
 }
 
 func (service *HTTPRestService) DeleteEndpointStateHelper(endpointID string) error {
+	if service.EndpointStateStore == nil {
+		return ErrStoreEmpty
+	}
 	service.Lock()
 	defer service.Unlock()
+	if err := service.recordEndpointDeleteIntentLocked(endpointID, time.Now()); err != nil {
+		return fmt.Errorf("[deleteEndpointState] failed to record endpoint delete intent: %w", err)
+	}
 	return service.deleteEndpointStateUntransacted(endpointID)
 }
 
 // deleteEndpointStateUntransacted requires the service lock.
 func (service *HTTPRestService) deleteEndpointStateUntransacted(endpointID string) error {
-	if service.EndpointStateStore == nil {
-		return ErrStoreEmpty
-	}
 	logger.Printf("[deleteEndpointState] Deleting Endpoint state from state file %s", endpointID) //nolint:staticcheck // reason: using deprecated call until migration to new API
-	_, endpointExist := service.EndpointState[endpointID]
-	if !endpointExist {
+	endpointKey, endpointExists := resolveEndpointStateKey(service.EndpointState, endpointID)
+	if !endpointExists {
 		logger.Printf("[deleteEndpointState] endpoint could not be found in the statefile %s", endpointID) //nolint:staticcheck // reason: using deprecated call until migration to new API
 		return fmt.Errorf("[deleteEndpointState] endpoint %s: %w", endpointID, ErrEndpointStateNotFound)
 	}
 
 	endpointState := cloneEndpointState(service.EndpointState)
-	delete(endpointState, endpointID)
+	delete(endpointState, endpointKey)
 
 	// Write the updated state back to the store
 	err := service.EndpointStateStore.Write(EndpointStoreKey, endpointState)
@@ -1422,17 +1490,9 @@ func (service *HTTPRestService) GetEndpointHelper(endpointID string) (*EndpointI
 		}
 		return nil, ErrEndpointStateNotFound
 	}
-	if endpointInfo, ok := service.EndpointState[endpointID]; ok {
-		logger.Warnf("[GetEndpointState] Found existing endpoint state for container %s", endpointID)
-		return endpointInfo, nil
-	}
-	// This part is a temprory fix if we have endpoint states belong to CNI version 1.4.X on Windows since the states don't have the containerID
-	// In case there was no endpoint founded with ContainerID as the key,
-	// then [First 8 character of containerid]-eth0 will be tried
-	legacyEndpointID := endpointID[:ContainerIDLength] + "-" + InfraInterfaceName
-	if endpointInfo, ok := service.EndpointState[legacyEndpointID]; ok {
-		logger.Warnf("[GetEndpointState] Found existing endpoint state for container %s", legacyEndpointID)
-		return endpointInfo, nil
+	if endpointKey, ok := resolveEndpointStateKey(service.EndpointState, endpointID); ok {
+		logger.Warnf("[GetEndpointState] Found existing endpoint state for container %s", endpointKey) //nolint:staticcheck // global logger migration is outside this change
+		return service.EndpointState[endpointKey], nil
 	}
 	return nil, ErrEndpointStateNotFound
 }
@@ -1500,6 +1560,13 @@ func (service *HTTPRestService) updateEndpointUntransacted(endpointID string, re
 	if service.EndpointStateStore == nil {
 		return ErrStoreEmpty
 	}
+	blocked, err := service.endpointDeleteIntentBlocksAddLocked(endpointID, time.Now())
+	if err != nil {
+		return fmt.Errorf("checking endpoint delete intent: %w", err)
+	}
+	if blocked {
+		return fmt.Errorf("%w for infra container %s", ErrEndpointDeleteIntent, endpointID)
+	}
 	logger.Printf("[updateEndpoint] Updating endpoint state for infra container %s", endpointID)
 	endpointState := cloneEndpointState(service.EndpointState)
 	endpointInfo, endpointExist := endpointState[endpointID]
@@ -1515,7 +1582,7 @@ func (service *HTTPRestService) updateEndpointUntransacted(endpointID string, re
 		// updating the ipInfoMap
 		updateIPInfoMap(endpointInfo.IfnameToIPMap, interfaceInfo, ifName, endpointID)
 	}
-	err := service.EndpointStateStore.Write(EndpointStoreKey, endpointState)
+	err = service.EndpointStateStore.Write(EndpointStoreKey, endpointState)
 	if err != nil {
 		return fmt.Errorf("[updateEndpoint] failed to write endpoint state to store for pod %s :  %w", endpointInfo.PodName, err)
 	}

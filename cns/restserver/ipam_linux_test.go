@@ -1,7 +1,11 @@
 package restserver
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -10,6 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/middlewares/mock"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIPAMGetK8sInfinibandSuccess(t *testing.T) {
@@ -74,4 +79,56 @@ func TestIPAMGetK8sInfinibandSuccess(t *testing.T) {
 	assert.Equal(t, SWIFTv2MAC, podIPInfo[3].MacAddress)
 	assert.Equal(t, cns.DelegatedVMNIC, podIPInfo[3].NICType)
 	assert.False(t, podIPInfo[3].SkipDefaultRoutes)
+}
+
+func TestRequestIPConfigsHandlerSwiftV2CompensationAllowsRetry(t *testing.T) {
+	service := getTestService(cns.KubernetesCRD)
+	enableManagedEndpointState(service)
+	middleware := middlewares.K8sSWIFTv2Middleware{Cli: mock.NewClient()}
+	service.AttachIPConfigsHandlerMiddleware(&middleware)
+
+	require.NoError(t, seedAvailableIPs(t, service, testNCID, map[string]string{testIPID1: testIP1}))
+	require.NoError(t, seedAvailableIPs(t, service, testNCIDv6, map[string]string{testIPID1v6: testIP1v6}))
+
+	req := newTestIPConfigsRequest(t, testPod1Info)
+	req.DesiredIPAddresses = []string{testIP1, testIP1v6}
+	body, err := json.Marshal(req)
+	require.NoError(t, err)
+	requestIPConfigs := func() cns.IPConfigsResponse {
+		t.Helper()
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequestWithContext(context.Background(), http.MethodPost, cns.RequestIPConfigs, bytes.NewReader(body))
+		service.RequestIPConfigsHandler(recorder, request)
+
+		var resp cns.IPConfigsResponse
+		require.NoError(t, decodeResponse(recorder, &resp))
+		return resp
+	}
+
+	t.Setenv(configuration.EnvPodCIDRs, "")
+	t.Setenv(configuration.EnvServiceCIDRs, "")
+	t.Setenv(configuration.EnvInfraVNETCIDRs, "")
+
+	resp := requestIPConfigs()
+	require.Equal(t, types.FailedToAllocateIPConfig, resp.Response.ReturnCode)
+	require.Empty(t, service.EndpointDeleteIntents)
+	require.NotContains(t, service.EndpointState, testPod1Info.InfraContainerID())
+	ipv4State := service.PodIPConfigState[testIPID1]
+	ipv6State := service.PodIPConfigState[testIPID1v6]
+	require.Equal(t, types.Available, ipv4State.GetState())
+	require.Equal(t, types.Available, ipv6State.GetState())
+
+	t.Setenv(configuration.EnvPodCIDRs, "10.0.1.10/24")
+	t.Setenv(configuration.EnvServiceCIDRs, "10.0.2.10/24")
+	t.Setenv(configuration.EnvInfraVNETCIDRs, "10.0.3.10/24")
+
+	resp = requestIPConfigs()
+	require.Equal(t, types.Success, resp.Response.ReturnCode)
+	require.Len(t, resp.PodIPInfo, 3)
+	require.Empty(t, service.EndpointDeleteIntents)
+	require.Contains(t, service.EndpointState, testPod1Info.InfraContainerID())
+	ipv4State = service.PodIPConfigState[testIPID1]
+	ipv6State = service.PodIPConfigState[testIPID1v6]
+	require.Equal(t, types.Assigned, ipv4State.GetState())
+	require.Equal(t, types.Assigned, ipv6State.GetState())
 }
