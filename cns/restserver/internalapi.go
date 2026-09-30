@@ -608,7 +608,50 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternalWithVersio
 	return service.createOrUpdateNetworkContainerInternal(req, validateVersion)
 }
 
+// NetworkContainerGoal is one NC request in an NNC goal.
+type NetworkContainerGoal struct {
+	Request         *cns.CreateNetworkContainerRequest
+	ValidateVersion bool
+}
+
+// CreateOrUpdateNetworkContainersInternal saves every NC goal of one NNC, or none of them. It programs SNAT rules after the save.
+func (service *HTTPRestService) CreateOrUpdateNetworkContainersInternal(goals []NetworkContainerGoal) types.ResponseCode {
+	for i := range goals {
+		if returnCode := service.validateNetworkContainerRequest(goals[i].Request); returnCode != types.Success {
+			return returnCode
+		}
+	}
+
+	returnCode, returnMessage := service.saveNetworkContainerGoalStates(goals)
+	if returnCode != types.Success {
+		logger.Errorf("%s", returnMessage) //nolint:staticcheck // will migrate to logger/v2
+		return returnCode
+	}
+
+	for i := range goals {
+		if returnCode := service.finishNetworkContainerUpdate(goals[i].Request); returnCode != types.Success {
+			return returnCode
+		}
+	}
+	return types.Success
+}
+
 func (service *HTTPRestService) createOrUpdateNetworkContainerInternal(req *cns.CreateNetworkContainerRequest, validateVersion bool) types.ResponseCode {
+	if returnCode := service.validateNetworkContainerRequest(req); returnCode != types.Success {
+		return returnCode
+	}
+
+	// This will Create Or Update the NC state.
+	returnCode, returnMessage := service.saveNetworkContainerGoalStateWithVersionValidation(*req, validateVersion)
+	if returnCode != types.Success {
+		logger.Errorf("%s", returnMessage) //nolint:staticcheck // will migrate to logger/v2
+		return returnCode
+	}
+
+	return service.finishNetworkContainerUpdate(req)
+}
+
+func (service *HTTPRestService) validateNetworkContainerRequest(req *cns.CreateNetworkContainerRequest) types.ResponseCode {
 	if req.NetworkContainerid == "" {
 		logger.Errorf("[Azure CNS] Error. NetworkContainerid is empty")
 		return types.NetworkContainerNotSpecified
@@ -666,24 +709,23 @@ func (service *HTTPRestService) createOrUpdateNetworkContainerInternal(req *cns.
 		}
 	}
 
-	// This will Create Or Update the NC state.
-	returnCode, returnMessage := service.saveNetworkContainerGoalStateWithVersionValidation(*req, validateVersion)
-	if returnCode != types.Success {
-		logger.Errorf("%s", returnMessage) //nolint:staticcheck // will migrate to logger/v2
-		return returnCode
-	}
+	return types.Success
+}
 
+// finishNetworkContainerUpdate logs the saved NC, publishes IP metrics, and programs SNAT rules when enabled.
+func (service *HTTPRestService) finishNetworkContainerUpdate(req *cns.CreateNetworkContainerRequest) types.ResponseCode {
 	logNCSnapshot(*req)
 	service.publishIPStateMetrics()
 
 	if service.Options[common.OptProgramSNATIPTables] == true {
-		returnCode, returnMessage = service.programSNATRules(req)
+		returnCode, returnMessage := service.programSNATRules(req)
 		if returnCode != 0 {
 			logger.Errorf("%s", returnMessage) //nolint:staticcheck // will migrate to logger/v2
 		}
+		return returnCode
 	}
 
-	return returnCode
+	return types.Success
 }
 
 func (service *HTTPRestService) SetVFForAccelnetNICs() error {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/restserver"
 	cnstypes "github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
@@ -28,9 +29,14 @@ type mockCNSClient struct {
 	update           func(*v1alpha.NodeNetworkConfig) error
 }
 
-func (m *mockCNSClient) CreateOrUpdateNetworkContainerInternalWithVersionValidation(req *cns.CreateNetworkContainerRequest, _ bool) cnstypes.ResponseCode {
-	m.state.reqsByNCID[req.NetworkContainerid] = req
-	return m.createOrUpdateNC(req)
+func (m *mockCNSClient) CreateOrUpdateNetworkContainersInternal(goals []restserver.NetworkContainerGoal) cnstypes.ResponseCode {
+	for i := range goals {
+		m.state.reqsByNCID[goals[i].Request.NetworkContainerid] = goals[i].Request
+		if responseCode := m.createOrUpdateNC(goals[i].Request); responseCode != cnstypes.Success {
+			return responseCode
+		}
+	}
+	return cnstypes.Success
 }
 
 func (m *mockCNSClient) MustEnsureNoStaleNCs(validNCIDs []string) {

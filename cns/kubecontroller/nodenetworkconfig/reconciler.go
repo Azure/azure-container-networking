@@ -23,7 +23,7 @@ import (
 )
 
 type cnsClient interface {
-	CreateOrUpdateNetworkContainerInternalWithVersionValidation(*cns.CreateNetworkContainerRequest, bool) cnstypes.ResponseCode
+	CreateOrUpdateNetworkContainersInternal([]restserver.NetworkContainerGoal) cnstypes.ResponseCode
 	MustEnsureNoStaleNCs(validNCIDs []string)
 }
 
@@ -107,6 +107,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	}
 
 	// for each NC, parse it in to a CreateNCRequest and forward it to the appropriate Listener
+	goals := make([]restserver.NetworkContainerGoal, 0, ncCount)
 	for i := range nnc.Status.NetworkContainers {
 		// check if this NC matches the Node IP if we have one to check against
 		if r.nodeIP != "" {
@@ -140,12 +141,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 				"assignmentMode %s", nnc.Status.NetworkContainers[i].AssignmentMode)
 		}
 
-		responseCode := r.cnscli.CreateOrUpdateNetworkContainerInternalWithVersionValidation(req, validateVersion)
-		if err := restserver.ResponseCodeToError(responseCode); err != nil {
-			logger.Errorf("[cns-rc] Error creating or updating NC in reconcile: %v", err)
-			return reconcile.Result{}, errors.Wrap(err, "failed to create or update network container")
-		}
+		goals = append(goals, restserver.NetworkContainerGoal{Request: req, ValidateVersion: validateVersion})
 		ipAssignments += len(req.SecondaryIPConfigs)
+	}
+
+	// apply all NCs of the NNC together, so that a failure leaves CNS state unchanged
+	responseCode := r.cnscli.CreateOrUpdateNetworkContainersInternal(goals)
+	if err := restserver.ResponseCodeToError(responseCode); err != nil {
+		logger.Errorf("[cns-rc] Error creating or updating NCs in reconcile: %v", err) //nolint:staticcheck // will migrate to logger/v2
+		return reconcile.Result{}, errors.Wrap(err, "failed to create or update network containers")
 	}
 
 	// record assigned IPs metric
