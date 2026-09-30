@@ -3,6 +3,7 @@
     "InitializeFromCNI": true,
     "EnablePprof": true,
     "EnableHomeAZ": true,
+    "EnableHomeAZMultitenancy": true,
     "EnableSubnetScarcity": true,
     "EnableSwiftV1DualStack": true,
     "ManagedSettings": {
