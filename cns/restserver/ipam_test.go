@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -649,6 +650,196 @@ func (s *endpointWriteCountingStore) Write(key string, value interface{}) error 
 
 var errForcedEndpointStateWrite = errors.New("forced endpoint state write failure")
 
+func TestRequestIPConfigsRollsBackAssignmentWhenEndpointWriteFails(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	enableManagedEndpointState(svc)
+	require.NoError(t, seedAvailableIPs(t, svc, testNCID, map[string]string{testIPID1: testIP1}))
+	svc.EndpointStateStore = endpointWriteFailStore{KeyValueStore: svc.EndpointStateStore, err: errForcedEndpointStateWrite}
+
+	req := newTestIPConfigsRequest(t, testPod1Info)
+	resp, err := svc.requestIPConfigHandlerHelper(context.Background(), req)
+	require.Error(t, err)
+	require.Equal(t, types.UnexpectedError, resp.Response.ReturnCode)
+
+	ipState := svc.PodIPConfigState[testIPID1]
+	require.Equal(t, types.Available, ipState.GetState())
+	require.Empty(t, svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()])
+	require.Empty(t, svc.EndpointState)
+	require.Equal(t, time.Duration(-1), svc.podsPendingIPAssignment.Pop(testPod1Info.Key()))
+}
+
+func TestRequestIPConfigsDoesNotReleaseExistingAssignmentWhenEndpointWriteFails(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	enableManagedEndpointState(svc)
+	require.NoError(t, seedAvailableIPs(t, svc, testNCID, map[string]string{testIPID1: testIP1}))
+
+	req := newTestIPConfigsRequest(t, testPod1Info)
+	resp, err := svc.requestIPConfigHandlerHelper(context.Background(), req)
+	require.NoError(t, err)
+	require.Equal(t, types.Success, resp.Response.ReturnCode)
+
+	svc.EndpointState = make(map[string]*EndpointInfo)
+	svc.EndpointStateStore = endpointWriteFailStore{KeyValueStore: svc.EndpointStateStore, err: errForcedEndpointStateWrite}
+
+	resp, err = svc.requestIPConfigHandlerHelper(context.Background(), req)
+	require.Error(t, err)
+	require.Equal(t, types.UnexpectedError, resp.Response.ReturnCode)
+
+	ipState := svc.PodIPConfigState[testIPID1]
+	require.Equal(t, types.Assigned, ipState.GetState())
+	require.Equal(t, []string{testIPID1}, svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()])
+}
+
+func TestReleasePreflightPreservesEndpointState(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	enableManagedEndpointState(svc)
+	require.NoError(t, seedAvailableIPs(t, svc, testNCID, map[string]string{testIPID1: testIP1}))
+	req := newTestIPConfigsRequest(t, testPod1Info)
+	_, err := svc.requestIPConfigHandlerHelper(t.Context(), req)
+	require.NoError(t, err)
+	before := cloneEndpointState(svc.EndpointState)
+	ids := append([]string(nil), svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()]...)
+	ids = append(ids, "missing")
+	svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()] = ids
+	countingStore := &endpointWriteCountingStore{KeyValueStore: svc.EndpointStateStore}
+	svc.EndpointStateStore = countingStore
+
+	_, err = svc.ReleaseIPConfigHandlerHelper(t.Context(), req)
+	require.ErrorIs(t, err, errInconsistentIPConfigState)
+	require.Zero(t, countingStore.endpointWrites)
+	require.Equal(t, before, svc.EndpointState)
+	persisted := map[string]*EndpointInfo{}
+	require.NoError(t, svc.EndpointStateStore.Read(EndpointStoreKey, &persisted))
+	require.Equal(t, before, persisted)
+	ipState := svc.PodIPConfigState[testIPID1]
+	require.Equal(t, types.Assigned, ipState.GetState())
+	require.Equal(t, ids, svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()])
+}
+
+func TestCanceledRequestDoesNotWaitForServiceLock(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	enableManagedEndpointState(svc)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	svc.Lock()
+	defer svc.Unlock()
+	done := make(chan error, 1)
+	go func() {
+		_, err := svc.requestIPConfigsWithEndpointState(ctx, cns.IPConfigsRequest{}, testPod1Info)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(time.Second):
+		t.Fatal("canceled request waited for the service lock")
+	}
+}
+
+func TestCanceledRequestDoesNotAssignIP(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	enableManagedEndpointState(svc)
+	require.NoError(t, seedAvailableIPs(t, svc, testNCID, map[string]string{testIPID1: testIP1}))
+	req := newTestIPConfigsRequest(t, testPod1Info)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	resp, err := svc.requestIPConfigHandlerHelper(ctx, req)
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.Equal(t, types.FailedToAllocateIPConfig, resp.Response.ReturnCode)
+	ipState := svc.PodIPConfigState[testIPID1]
+	require.Equal(t, types.Available, ipState.GetState())
+	require.Empty(t, svc.EndpointState)
+	require.Equal(t, time.Duration(-1), svc.podsPendingIPAssignment.Pop(testPod1Info.Key()))
+}
+
+func TestRequestIPConfigsClearsPendingMarkerWhenEndpointStoreIsEmpty(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	enableManagedEndpointState(svc)
+	require.NoError(t, seedAvailableIPs(t, svc, testNCID, map[string]string{testIPID1: testIP1}))
+	svc.EndpointStateStore = nil
+	req := newTestIPConfigsRequest(t, testPod1Info)
+
+	resp, err := svc.requestIPConfigHandlerHelper(t.Context(), req)
+
+	require.ErrorIs(t, err, ErrStoreEmpty)
+	require.Equal(t, types.UnexpectedError, resp.Response.ReturnCode)
+	ipState := svc.PodIPConfigState[testIPID1]
+	require.Equal(t, types.Available, ipState.GetState())
+	require.Empty(t, svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()])
+	require.Empty(t, svc.EndpointState)
+	require.Equal(t, time.Duration(-1), svc.podsPendingIPAssignment.Pop(testPod1Info.Key()))
+}
+
+func TestConcurrentAddThenDeleteLeavesNoAssignment(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	enableManagedEndpointState(svc)
+	require.NoError(t, seedAvailableIPs(t, svc, testNCID, map[string]string{testIPID1: testIP1}))
+	req := newTestIPConfigsRequest(t, testPod1Info)
+	blockingStore := newTransactionBlockingEndpointWriteStore(svc.EndpointStateStore)
+	svc.EndpointStateStore = blockingStore
+	defer blockingStore.unblock()
+
+	addDone := make(chan error, 1)
+	go func() {
+		_, err := svc.requestIPConfigHandlerHelper(context.Background(), req)
+		addDone <- err
+	}()
+	<-blockingStore.entered
+	if svc.TryLock() {
+		svc.Unlock()
+		t.Fatal("ADD must hold the service lock while endpoint state is persisted")
+	}
+
+	deleteStarted := make(chan struct{})
+	deleteDone := make(chan error, 1)
+	go func() {
+		close(deleteStarted)
+		_, err := svc.ReleaseIPConfigHandlerHelper(context.Background(), req)
+		deleteDone <- err
+	}()
+	<-deleteStarted
+	select {
+	case err := <-deleteDone:
+		t.Fatalf("DEL completed while ADD endpoint write was blocked: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	blockingStore.unblock()
+	require.NoError(t, <-addDone)
+	require.NoError(t, <-deleteDone)
+
+	ipState := svc.PodIPConfigState[testIPID1]
+	require.Equal(t, types.Available, ipState.GetState())
+	require.NotContains(t, svc.EndpointState, testPod1Info.InfraContainerID())
+}
+
+func newTestIPConfigsRequest(t *testing.T, podInfo cns.PodInfo) cns.IPConfigsRequest {
+	t.Helper()
+	orc, err := podInfo.OrchestratorContext()
+	require.NoError(t, err)
+	return cns.IPConfigsRequest{
+		PodInterfaceID:      podInfo.InterfaceID(),
+		InfraContainerID:    podInfo.InfraContainerID(),
+		OrchestratorContext: orc,
+		Ifname:              "eth0",
+	}
+}
+
+func seedAvailableIPs(t *testing.T, svc *HTTPRestService, ncID string, ips map[string]string) error {
+	t.Helper()
+	ipconfigs := make(map[string]cns.IPConfigurationStatus, len(ips))
+	for id, ip := range ips {
+		ipconfigs[id] = newPodState(ip, id, ncID, types.Available, 0)
+	}
+	return updatePodIPConfigState(t, svc, ipconfigs, ncID)
+}
+
+func enableManagedEndpointState(svc *HTTPRestService) {
+	svc.Options[acn.OptManageEndpointState] = true
+}
+
 type endpointWriteFailStore struct {
 	store.KeyValueStore
 	err error
@@ -656,6 +847,41 @@ type endpointWriteFailStore struct {
 
 func (s endpointWriteFailStore) Write(string, interface{}) error {
 	return s.err
+}
+
+type transactionBlockingEndpointWriteStore struct {
+	store.KeyValueStore
+	entered     chan struct{}
+	release     chan struct{}
+	blockOnce   sync.Once
+	unblockOnce sync.Once
+}
+
+func newTransactionBlockingEndpointWriteStore(kvs store.KeyValueStore) *transactionBlockingEndpointWriteStore {
+	return &transactionBlockingEndpointWriteStore{
+		KeyValueStore: kvs,
+		entered:       make(chan struct{}),
+		release:       make(chan struct{}),
+	}
+}
+
+func (s *transactionBlockingEndpointWriteStore) Write(key string, value interface{}) error {
+	if key == EndpointStoreKey {
+		s.blockOnce.Do(func() {
+			close(s.entered)
+			<-s.release
+		})
+	}
+	if err := s.KeyValueStore.Write(key, value); err != nil {
+		return fmt.Errorf("writing key %q: %w", key, err)
+	}
+	return nil
+}
+
+func (s *transactionBlockingEndpointWriteStore) unblock() {
+	s.unblockOnce.Do(func() {
+		close(s.release)
+	})
 }
 
 type blockingEndpointWriteStore struct {

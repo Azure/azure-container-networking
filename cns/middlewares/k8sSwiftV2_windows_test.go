@@ -3,6 +3,7 @@ package middlewares
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -20,6 +21,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+var errDefaultHandler = errors.New("default handler failed")
 
 func TestMain(m *testing.M) {
 	logger.InitLogger("testlogs", 0, 0, "./")
@@ -67,6 +70,36 @@ func TestIPConfigsRequestHandlerWrapperScheduledWithDRA(t *testing.T) {
 	require.Equal(t, cns.InfraNIC, resp.PodIPInfo[0].NICType)
 	require.True(t, resp.PodIPInfo[0].SkipDefaultRoutes)
 	require.True(t, resp.PodConfigurations.SkipDefaultRouteProgramming)
+}
+
+func TestIPConfigsRequestHandlerWrapperDoesNotCompensateDefaultHandlerFailure(t *testing.T) {
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
+	defaultResponse := &cns.IPConfigsResponse{}
+	defaultHandler := func(context.Context, cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+		return defaultResponse, errDefaultHandler
+	}
+	failureCalls := 0
+	failureHandler := func(context.Context, cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+		failureCalls++
+		return nil, nil
+	}
+	podInfo := cns.NewPodInfo(
+		"898fb8-eth0",
+		"898fb8f1-f93e-4c96-9c31-6b89098949a3",
+		"testpod1",
+		"testpod1namespace",
+	)
+	req := cns.IPConfigsRequest{
+		PodInterfaceID:   podInfo.InterfaceID(),
+		InfraContainerID: podInfo.InfraContainerID(),
+	}
+	req.OrchestratorContext, _ = podInfo.OrchestratorContext()
+
+	resp, err := middleware.IPConfigsRequestHandlerWrapper(defaultHandler, failureHandler)(t.Context(), req)
+
+	require.Same(t, defaultResponse, resp)
+	require.ErrorIs(t, err, errDefaultHandler)
+	require.Zero(t, failureCalls)
 }
 
 func TestGetSwiftV2IPConfigForDRANET(t *testing.T) {

@@ -162,6 +162,9 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 			}
 			return ipConfigsResp, err
 		}
+		if err != nil {
+			return ipConfigsResp, err
+		}
 
 		// Get MTPNC
 		mtpnc, respCode, message := k.getMTPNC(ctx, podInfo)
@@ -197,9 +200,7 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 				}
 			}
 		}()
-		if err != nil {
-			return ipConfigsResp, err
-		}
+
 		ipConfigResult, err := k.getIPConfig(ctx, podInfo)
 		if err != nil {
 			return &cns.IPConfigsResponse{
