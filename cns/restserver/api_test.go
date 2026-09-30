@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
@@ -1021,6 +1022,25 @@ func TestPublishNCRequestBodyParsingMatrix(t *testing.T) {
 			require.Equal(t, tt.wantPublishCalls, publishCalls)
 		})
 	}
+}
+
+func TestRNCSupportProbeIsTimeBounded(t *testing.T) {
+	var gotDeadline bool
+	var gotTimeout time.Duration
+
+	cleanupNMA := setMockNMAgent(svc, &fakes.NMAgentClientFake{
+		SupportedAPIsF: func(ctx context.Context) ([]string, error) {
+			deadline, ok := ctx.Deadline()
+			gotDeadline = ok
+			gotTimeout = time.Until(deadline)
+			return nil, errors.New("nmagent unreachable")
+		},
+	})
+	t.Cleanup(cleanupNMA)
+
+	require.False(t, svc.isRNCSupportedByNMAgent(context.Background()))
+	require.True(t, gotDeadline, "rnc support probe must bound the NMAgent call with a deadline")
+	require.LessOrEqual(t, gotTimeout, nmaAPICallTimeout)
 }
 
 // setRNCSupportedNMAgent installs an NMAgent fake that advertises support for the RNC publish API,
