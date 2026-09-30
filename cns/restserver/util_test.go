@@ -316,11 +316,18 @@ func TestRestoreStateIgnoresLegacyJoinedSubnetsField(t *testing.T) {
 			Service: &common.Service{Options: map[string]any{}},
 		},
 		store: mainStore,
-		state: &httpRestServiceState{},
+		// mirror NewHTTPRestService, which always initializes the unexported joined-network map
+		state: &httpRestServiceState{joinedNetworks: make(map[string]struct{})},
 	}
 
 	svc.restoreState()
 
 	require.Equal(t, underlayNetworkType, svc.state.NetworkType)
-	require.Nil(t, svc.state.joinedNetworks)
+	// joinedNetworks is unexported, so restore must not repopulate it from persisted state,
+	// and the legacy joinedSubnets field must not resurrect any subnet-join tracking.
+	require.Empty(t, svc.state.joinedNetworks)
+
+	// the restored map stays usable, so a subsequent join cannot panic on a nil map
+	svc.setNetworkStateJoined(vnetID)
+	require.True(t, svc.isNetworkJoined(vnetID))
 }
