@@ -12,7 +12,7 @@ COPY ${ARTIFACT_DIR}/files/azilium.conflist /Windows/System32/azilium.conflist
 ENTRYPOINT [ "powershell.exe" ]
 
 # mcr.microsoft.com/azurelinux/distroless/base:3.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/distroless/base:3.0@sha256:4377af4aa7a810b7d59f691eae5066895a71aa3eee4cfb4eba527bbebff16479 AS linux
+FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/distroless/base:3.0@sha256:2b5cec59b51cb0509157e3a1b730e19aa42912b99d7f5300b87eac7000bfea19 AS linux
 ARG ARTIFACT_DIR .
 
 COPY ${ARTIFACT_DIR}/bin/dropgz /dropgz
