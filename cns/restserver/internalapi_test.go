@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -1737,6 +1738,10 @@ func TestMustEnsureNoStaleNCs(t *testing.T) {
 				state:            &httpRestServiceState{ContainerStatus: tt.storedNCs},
 				PodIPConfigState: tt.ipStates,
 			}
+			ipNCs := make(map[string]string, len(tt.ipStates))
+			for ipID := range tt.ipStates {
+				ipNCs[ipID] = tt.ipStates[ipID].NCID
+			}
 
 			require.NotPanics(t, func() {
 				svc.MustEnsureNoStaleNCs(tt.ncsFromReconcile)
@@ -1744,6 +1749,10 @@ func TestMustEnsureNoStaleNCs(t *testing.T) {
 
 			for _, expectedRemovedNCID := range tt.expectedRemovedNCs {
 				assert.NotContains(t, svc.state.ContainerStatus, expectedRemovedNCID)
+			}
+			for ipID, ncID := range ipNCs {
+				_, kept := svc.PodIPConfigState[ipID]
+				assert.Equal(t, !slices.Contains(tt.expectedRemovedNCs, ncID), kept, "IP ID %s of NC %s", ipID, ncID)
 			}
 		})
 	}

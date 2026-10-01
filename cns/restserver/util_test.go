@@ -8,6 +8,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
+	"github.com/Azure/azure-container-networking/cns/types"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/stretchr/testify/assert"
@@ -426,4 +427,96 @@ func TestDeleteNCs(t *testing.T) {
 			assert.Equal(t, tt.want4, ncs)
 		})
 	}
+}
+
+func TestValidateUniqueSecondaryIPs(t *testing.T) {
+	const id1, id2, id3 = "id1", "id2", "id3"
+	ip := func(address string) cns.IPConfigurationStatus {
+		return cns.IPConfigurationStatus{IPAddress: address}
+	}
+	secondary := func(address string) cns.SecondaryIPConfig {
+		return cns.SecondaryIPConfig{IPAddress: address}
+	}
+	tests := []struct {
+		name     string
+		current  map[string]cns.IPConfigurationStatus
+		existing map[string]cns.SecondaryIPConfig
+		incoming map[string]cns.SecondaryIPConfig
+		want     types.ResponseCode
+	}{
+		{
+			name:     "unique IPs",
+			current:  map[string]cns.IPConfigurationStatus{id2: ip("10.0.0.2")},
+			incoming: map[string]cns.SecondaryIPConfig{id1: secondary("10.0.0.1")},
+			want:     types.Success,
+		},
+		{
+			name:     "duplicate IPs in the goal",
+			incoming: map[string]cns.SecondaryIPConfig{id1: secondary("10.0.0.1"), id2: secondary("10.0.0.1")},
+			want:     types.InconsistentIPConfigState,
+		},
+		{
+			name:     "IP used by another IP ID in the pool",
+			current:  map[string]cns.IPConfigurationStatus{id2: ip("10.0.0.1")},
+			incoming: map[string]cns.SecondaryIPConfig{id1: secondary("10.0.0.1")},
+			want:     types.InconsistentIPConfigState,
+		},
+		{
+			name:     "IP ID changes IP",
+			current:  map[string]cns.IPConfigurationStatus{id1: ip("10.0.0.1")},
+			existing: map[string]cns.SecondaryIPConfig{id1: secondary("10.0.0.1")},
+			incoming: map[string]cns.SecondaryIPConfig{id1: secondary("10.0.0.2")},
+			want:     types.InconsistentIPConfigState,
+		},
+		{
+			name:     "unchanged IP ID",
+			current:  map[string]cns.IPConfigurationStatus{id1: ip("10.0.0.1")},
+			existing: map[string]cns.SecondaryIPConfig{id1: secondary("10.0.0.1")},
+			incoming: map[string]cns.SecondaryIPConfig{id1: secondary("10.0.0.1")},
+			want:     types.Success,
+		},
+		{
+			name:     "IP reused after the goal deletes its IP ID",
+			current:  map[string]cns.IPConfigurationStatus{id1: ip("10.0.0.1")},
+			existing: map[string]cns.SecondaryIPConfig{id1: secondary("10.0.0.1")},
+			incoming: map[string]cns.SecondaryIPConfig{id2: secondary("10.0.0.1")},
+			want:     types.Success,
+		},
+		{
+			name:     "conflict only in the current pool",
+			current:  map[string]cns.IPConfigurationStatus{id2: ip("10.0.0.1"), id3: ip("10.0.0.1")},
+			incoming: map[string]cns.SecondaryIPConfig{id1: secondary("10.0.0.5")},
+			want:     types.Success,
+		},
+		{
+			name:     "unchanged IP ID with a conflict only in the current pool",
+			current:  map[string]cns.IPConfigurationStatus{id1: ip("10.0.0.1"), id2: ip("10.0.0.1")},
+			existing: map[string]cns.SecondaryIPConfig{id1: secondary("10.0.0.1")},
+			incoming: map[string]cns.SecondaryIPConfig{id1: secondary("10.0.0.1")},
+			want:     types.Success,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, message := validateUniqueSecondaryIPs(tt.current, tt.existing, tt.incoming)
+			assert.Equal(t, tt.want, got, message)
+		})
+	}
+}
+
+func TestSaveNetworkContainerGoalStateSecondaryIPUniqueness(t *testing.T) {
+	const nc1, nc2, id1, id2 = "nc1", "nc2", "id1", "id2"
+	svc := getTestService(cns.KubernetesCRD)
+	req1 := generateNetworkContainerRequest(map[string]cns.SecondaryIPConfig{id1: newSecondaryIPConfig("10.0.0.1", -1)}, nc1, "-1")
+	require.Equal(t, types.Success, svc.CreateOrUpdateNetworkContainerInternal(req1))
+
+	req2 := generateNetworkContainerRequest(map[string]cns.SecondaryIPConfig{id2: newSecondaryIPConfig("10.0.0.1", -1)}, nc2, "-1")
+	require.Equal(t, types.InconsistentIPConfigState, svc.CreateOrUpdateNetworkContainerInternal(req2))
+	assert.NotContains(t, svc.state.ContainerStatus, nc2)
+	assert.NotContains(t, svc.PodIPConfigState, id2)
+
+	svc.MustEnsureNoStaleNCs([]string{nc2})
+	require.Equal(t, types.Success, svc.CreateOrUpdateNetworkContainerInternal(req2))
+	assert.Equal(t, nc2, svc.PodIPConfigState[id2].NCID)
+	assert.NotContains(t, svc.PodIPConfigState, id1)
 }
