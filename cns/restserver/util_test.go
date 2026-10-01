@@ -427,3 +427,41 @@ func TestDeleteNCs(t *testing.T) {
 		})
 	}
 }
+
+func TestRestoreStateIgnoresLegacyJoinedSubnetsField(t *testing.T) {
+	const (
+		underlayNetworkType = "Underlay"
+		vnetID              = "vnet1"
+	)
+
+	mainStore := store.NewMockStore("")
+	require.NoError(t, mainStore.Write(storeKey, map[string]any{
+		"NetworkType": underlayNetworkType,
+		"joinedNetworks": map[string]struct{}{
+			vnetID: {},
+		},
+		"joinedSubnets": map[string]struct{}{
+			"vnet1_subnet1": {},
+		},
+	}))
+
+	svc := HTTPRestService{
+		Service: &cns.Service{
+			Service: &common.Service{Options: map[string]any{}},
+		},
+		store: mainStore,
+		// mirror NewHTTPRestService, which always initializes the unexported joined-network map
+		state: &httpRestServiceState{joinedNetworks: make(map[string]struct{})},
+	}
+
+	svc.restoreState()
+
+	require.Equal(t, underlayNetworkType, svc.state.NetworkType)
+	// joinedNetworks is unexported, so restore must not repopulate it from persisted state,
+	// and the legacy joinedSubnets field must not resurrect any subnet-join tracking.
+	require.Empty(t, svc.state.joinedNetworks)
+
+	// the restored map stays usable, so a subsequent join cannot panic on a nil map
+	svc.setNetworkStateJoined(vnetID)
+	require.True(t, svc.isNetworkJoined(vnetID))
+}

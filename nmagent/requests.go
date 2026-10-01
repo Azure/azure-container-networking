@@ -95,7 +95,7 @@ type internalNC struct {
 
 func (p *PutNetworkContainerRequest) MarshalJSON() ([]byte, error) {
 	pBody := internalNC{
-		Version:    strconv.Itoa(int(p.Version)),
+		Version:    strconv.FormatUint(p.Version, 10),
 		VNetID:     p.VNetID,
 		SubnetName: p.SubnetName,
 		IPv4Addrs:  p.IPv4Addrs,
@@ -317,9 +317,10 @@ var _ Request = DeleteContainerRequest{}
 // DeleteContainerRequest represents all information necessary to request that
 // NMAgent delete a particular network container
 type DeleteContainerRequest struct {
-	NCID       string `json:"-"`          // the Network Container ID
-	AzID       uint   `json:"azID"`       // home AZ of the Network Container
-	AZREnabled bool   `json:"azrEnabled"` // whether AZR is enabled or not
+	NCID            string `json:"-"`          // the Network Container ID
+	AzID            uint   `json:"azID"`       // home AZ of the Network Container
+	AZREnabled      bool   `json:"azrEnabled"` // whether AZR is enabled or not
+	UseRNCPublisher bool   `json:"useRNCPublisher"`
 
 	// PrimaryAddress is the primary customer address of the interface in the
 	// management VNET
