@@ -110,6 +110,10 @@ code.
 
 ## 6. PR Workflow
 
+> **Exception:** if `$GITHUB_WORKSPACE` is set, work there instead of a
+> worktree — only that path is committed and pushed, so edits made anywhere else
+> are silently discarded. The rest of this section applies to local sessions.
+
 **All local agent work MUST happen in a dedicated git worktree, never in the shared repo root.** The repo root is shared across concurrent agent sessions; mutating it causes parallel branches, working trees, and build artifacts (`output/`, `bin/`) to collide. From the repo root, create a worktree under the active session folder before touching files:
 
 ```bash
@@ -130,7 +134,9 @@ publishing is requested.
 After the maintainer confirms that the work was merged or abandoned, prune with
 `git worktree remove "$WT"` and `git branch -D "$BRANCH"`. The shared root is
 read-only — only use it for inspection (e.g. `git worktree list`, `git fetch`),
-never to edit, build, or commit.
+never to edit, build, or commit. (Again: this read-only rule is for local CLI
+sessions. The cloud coding agent must edit, build, and commit directly in
+`$GITHUB_WORKSPACE`.)
 
 **Go-specific notes (no per-worktree install):**
 - The Go module cache (`$(go env GOMODCACHE)`, default `$GOPATH/pkg/mod`) and build cache (`$(go env GOCACHE)`) are **content-addressed and concurrent-safe**; Go uses file locking. Do not try to isolate them per worktree.

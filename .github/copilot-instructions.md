@@ -1,3 +1,9 @@
+> **If `$GITHUB_WORKSPACE` is set, do all work there and do NOT create a `git
+> worktree`** — only that path is committed and pushed, so edits made anywhere
+> else are silently discarded. Before reporting completion, confirm
+> `git diff --stat "origin/${GITHUB_BASE_REF:-master}"...HEAD` is non-empty; if
+> it is empty, say so instead of describing uncommitted work.
+
 Use all `agents.md` files found from the repository root to the current directory as instructions and context, applying them in root-to-leaf order; if instructions conflict, the `agents.md` closest to the current directory takes precedence. Use relevant repo skills from `.github/skills/` when applicable.
 
 Public authorship is human-owned. Copilot and all other AI agents must never

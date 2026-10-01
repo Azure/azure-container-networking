@@ -588,6 +588,21 @@ When upgrading Go, verify compatibility with AKS supported Kubernetes versions:
 - **Windows builds**: CNG backend typically works without CGO or GOEXPERIMENT — verify per version
 - **Do NOT assume "no GOEXPERIMENT" is safe** — always verify the default backend's CGO requirements
 
+### Working Directory (MANDATORY — read before you edit anything)
+
+**If `$GITHUB_WORKSPACE` is set, work there instead of a worktree.** Only that path is committed and pushed; edits made anywhere else are silently discarded.
+
+Verify before you start, and run every later command from there:
+
+```bash
+set -euo pipefail
+: "${GITHUB_WORKSPACE:?not set — do not fall back to \$HOME}"
+cd "$GITHUB_WORKSPACE"
+[ "$(git rev-parse --show-toplevel)" = "$PWD" ] || {
+  echo "FATAL: $PWD is not the git toplevel"; exit 1
+}
+```
+
 ### Pre-Submit Cleanup (MANDATORY)
 
 **Before committing or updating a PR, you MUST audit your working tree for build artifacts and binaries.** Go builds can produce binaries in module directories that must NOT be committed.
@@ -612,3 +627,31 @@ done
 ```
 
 **Known binary locations to NEVER commit:** `azure-ip-masq-merger/azure-ip-masq-merger`, `azure-iptables-monitor/azure-iptables-monitor`, `cilium-log-collector/cilium-log-collector`, `tools/azure-npm-to-cilium-validator/azure-npm-to-cilium-validator`, and any other ELF binary produced by `go build`.
+
+### Final Verification Before Reporting Done (MANDATORY)
+
+**Never write a PR description describing changes you have not committed.** Before your final `report_progress` / PR update, prove the branch is non-empty:
+
+```bash
+set -euo pipefail
+: "${GITHUB_WORKSPACE:?not set — do not fall back to \$HOME}"
+cd "$GITHUB_WORKSPACE"
+[ "$(git rev-parse --show-toplevel)" = "$PWD" ] || {
+  echo "FATAL: $PWD is not the git toplevel"; exit 1
+}
+
+# Compare against the branch you are targeting, not always master — a
+# release/v1.7 backport must be diffed against release/v1.7.
+BASE="origin/${GITHUB_BASE_REF:-master}"
+
+git status --short
+git diff --stat "$BASE"...HEAD
+
+if git diff --quiet "$BASE"...HEAD; then
+  echo "FATAL: branch has no changes vs $BASE — do not claim the upgrade is done."
+  echo "Re-check that you edited files under \$GITHUB_WORKSPACE and committed them."
+  exit 1
+fi
+```
+
+A Go minor upgrade touches roughly 40-50 files. If `git diff --stat` shows zero (or only a handful), something went wrong — **say so explicitly in the PR description instead of describing work that was not committed.** If a command failed due to a network/DNS block, report the exact blocked command rather than silently giving up.
