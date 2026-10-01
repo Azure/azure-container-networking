@@ -66,6 +66,17 @@ resolve_override_image() {
   echo "$image"
 }
 
+# Optional external images have no repository-owned default to resolve.
+resolve_optional_override_image() {
+  local image="$1"
+
+  if [ -z "$image" ] || [ "$image" = "__use-default__" ]; then
+    return
+  fi
+
+  echo "$image"
+}
+
 format_image() {
   local registry="$1"
   local name="$2"

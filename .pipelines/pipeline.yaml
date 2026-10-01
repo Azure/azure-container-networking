@@ -53,6 +53,22 @@ parameters:
   - name: ciliumLogCollectorImage
     type: string
     default: "__use-default__"
+  # Retina E2E is opt-in and runs only when every external image is supplied.
+  - name: retinaAgentImage
+    type: string
+    default: "__use-default__"
+  - name: retinaInitImage
+    type: string
+    default: "__use-default__"
+  - name: retinaOperatorImage
+    type: string
+    default: "__use-default__"
+  - name: kubectlRetinaImage
+    type: string
+    default: "__use-default__"
+  - name: kubectlRetinaShellImage
+    type: string
+    default: "__use-default__"
   # Optional build-number prefix to differentiate DALEC release runs.
   # Applied in setup only when the value contains "dalec".
   - name: runNamePrefix
@@ -148,6 +164,11 @@ extends:
                   echo "##vso[task.setvariable variable=azureIptablesMonitorImageOverride;isOutput=true]$(resolve_override_image '${{ parameters.azureIptablesMonitorImage }}' azure-iptables-monitor $(make azure-iptables-monitor-version))"
                   echo "##vso[task.setvariable variable=azureIpMasqMergerImageOverride;isOutput=true]$(resolve_override_image '${{ parameters.azureIpMasqMergerImage }}' azure-ip-masq-merger $(make azure-ip-masq-merger-version))"
                   echo "##vso[task.setvariable variable=ciliumLogCollectorImageOverride;isOutput=true]$(resolve_override_image '${{ parameters.ciliumLogCollectorImage }}' cilium-log-collector $(make cilium-log-collector-version))"
+                  echo "##vso[task.setvariable variable=retinaAgentImageOverride;isOutput=true]$(resolve_optional_override_image '${{ parameters.retinaAgentImage }}')"
+                  echo "##vso[task.setvariable variable=retinaInitImageOverride;isOutput=true]$(resolve_optional_override_image '${{ parameters.retinaInitImage }}')"
+                  echo "##vso[task.setvariable variable=retinaOperatorImageOverride;isOutput=true]$(resolve_optional_override_image '${{ parameters.retinaOperatorImage }}')"
+                  echo "##vso[task.setvariable variable=kubectlRetinaImageOverride;isOutput=true]$(resolve_optional_override_image '${{ parameters.kubectlRetinaImage }}')"
+                  echo "##vso[task.setvariable variable=kubectlRetinaShellImageOverride;isOutput=true]$(resolve_optional_override_image '${{ parameters.kubectlRetinaShellImage }}')"
 
                   cat /etc/os-release
                   uname -a
@@ -167,6 +188,9 @@ extends:
                 condition: always()
 
       - template: /.pipelines/templates/run-unit-tests.yaml@self
+
+      - ${{ if and(ne(parameters.retinaAgentImage, '__use-default__'), ne(parameters.retinaAgentImage, ''), ne(parameters.retinaInitImage, '__use-default__'), ne(parameters.retinaInitImage, ''), ne(parameters.retinaOperatorImage, '__use-default__'), ne(parameters.retinaOperatorImage, ''), ne(parameters.kubectlRetinaImage, '__use-default__'), ne(parameters.kubectlRetinaImage, ''), ne(parameters.kubectlRetinaShellImage, '__use-default__'), ne(parameters.kubectlRetinaShellImage, '')) }}:
+        - template: /.pipelines/networkobservability/retina-e2e.stages.yaml@self
 
       - ${{ if not(contains(variables['Build.SourceBranch'], 'refs/pull')) }}:
         - stage: binaries
