@@ -791,12 +791,12 @@ jobs:
           1. Check out \`release/v1.8\`
           2. Apply the same Go version + SHA changes
           3. If \`release/v1.8\` is missing prerequisites (based on your analysis), add those too
-          4. Run \`make dockerfiles\` and \`go mod tidy\` on that branch
+          4. Run \`make dockerfiles\` — do NOT run \`go mod tidy\` (it times out in the agent environment, and existing go.sum entries remain valid for version bumps)
           5. Title: \`chore(release/v1.8): upgrade Go ${GO_MINOR} → ${LATEST_MINOR}\`
           6. Verify \`go build ./...\` passes on release branch
 
           > **Note:** The release branch may have different dependency versions than master.
-          > Run \`go mod tidy\` separately and resolve any conflicts specific to that branch.
+          > Copy the \`go.sum\` entries as needed and resolve any conflicts specific to that branch.
 
           ---
           <!-- go-minor-update:${LATEST_MINOR} -->
