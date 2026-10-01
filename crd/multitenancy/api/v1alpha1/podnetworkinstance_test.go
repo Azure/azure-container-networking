@@ -1,3 +1,9 @@
+//go:build !windows
+
+// envtest does not compile on Windows with controller-runtime v0.25.x
+// (kubernetes-sigs/controller-runtime#3586). Remove this build constraint
+// once a controller-runtime release that includes the fix is adopted.
+
 package v1alpha1
 
 import (
