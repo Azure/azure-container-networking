@@ -27,6 +27,8 @@ IP_PREFIX            ?= serviceTaggedIp
 PUBLIC_IP_ID         ?= /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/publicIPAddresses
 PUBLIC_IPv4          ?= $(PUBLIC_IP_ID)/$(IP_PREFIX)-$(CLUSTER)-v4
 PUBLIC_IPv6          ?= $(PUBLIC_IP_ID)/$(IP_PREFIX)-$(CLUSTER)-v6
+NAT_GATEWAY_V2       ?= ponv6-nat-gateway-v2
+NAT_GATEWAY_V2_ID    ?= /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/natGateways/$(NAT_GATEWAY_V2)
 KUBE_PROXY_JSON_PATH ?= ./kube-proxy.json
 LTS					 ?= auto
 ACNS				 ?= false
@@ -170,6 +172,42 @@ vnetscale-swift-net-up: ## Create vnet, nodenet and podnet subnets for vnet scal
 		$(AZCLI) network vnet create -g $(GROUP) -l $(REGION) --name $(VNET) --address-prefixes 10.0.0.0/8 -o none
 	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name nodenet --address-prefixes 10.240.0.0/16 -o none
 	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name podnet --address-prefixes 10.40.0.0/13 -o none
+
+vnetscale-dualstack-swift-net-up: rg-up ## Create dual-stack vnet, nodenet and podnet subnets for vnet scale
+	@$(AZCLI) network vnet show -g $(GROUP) --name $(VNET) -o none 2>/dev/null || \
+		$(AZCLI) network vnet create -g $(GROUP) -l $(REGION) --name $(VNET) \
+			--address-prefixes 10.0.0.0/8 fd00:aec6:6946::/48 -o none
+	$(AZCLI) network vnet update -g $(GROUP) --name $(VNET) \
+		--address-prefixes 10.0.0.0/8 fd00:aec6:6946::/48 -o none
+	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name nodenet \
+		--address-prefixes 10.240.0.0/16 fd00:aec6:6946::/64 -o none
+	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name podnet \
+		--address-prefixes 10.241.0.0/16 fd00:aec6:6946:1::/64 -o none
+
+nat-gateway-v2-up: vnetscale-dualstack-swift-net-up ## Create a dual-stack StandardV2 NAT Gateway and attach it to both PONv6 subnets
+	$(AZCLI) network public-ip create -g $(GROUP) -l $(REGION) \
+		--name $(IP_PREFIX)-$(CLUSTER)-v4 --allocation-method Static --sku StandardV2 \
+		--tier Regional --version IPv4 --ip-tags $(IP_TAG) -o none
+	$(AZCLI) network public-ip create -g $(GROUP) -l $(REGION) \
+		--name $(IP_PREFIX)-$(CLUSTER)-v6 --allocation-method Static --sku StandardV2 \
+		--tier Regional --version IPv6 --ip-tags $(IP_TAG) -o none
+	$(AZCLI) rest --method put \
+		--url "https://management.azure.com$(NAT_GATEWAY_V2_ID)?api-version=2025-05-01" \
+		--body '{"location":"$(REGION)","sku":{"name":"StandardV2"},"properties":{"publicIpAddresses":[{"id":"$(PUBLIC_IPv4)"}],"publicIpAddressesV6":[{"id":"$(PUBLIC_IPv6)"}]}}' \
+		-o none
+	@for attempt in $$(seq 1 60); do \
+		state=$$($(AZCLI) rest --method get \
+			--url "https://management.azure.com$(NAT_GATEWAY_V2_ID)?api-version=2025-05-01" \
+			--query properties.provisioningState -o tsv); \
+		if [ "$$state" = "Succeeded" ]; then break; fi; \
+		if [ "$$state" = "Failed" ]; then echo "NAT Gateway V2 provisioning failed"; exit 1; fi; \
+		if [ "$$attempt" = "60" ]; then echo "Timed out waiting for NAT Gateway V2"; exit 1; fi; \
+		sleep 10; \
+	done
+	$(AZCLI) network vnet subnet update -g $(GROUP) --vnet-name $(VNET) --name nodenet \
+		--nat-gateway $(NAT_GATEWAY_V2_ID) -o none
+	$(AZCLI) network vnet subnet update -g $(GROUP) --vnet-name $(VNET) --name podnet \
+		--nat-gateway $(NAT_GATEWAY_V2_ID) -o none
 
 overlay-net-up: ## Create vnet, nodenet subnets
 	@$(AZCLI) network vnet show -g $(GROUP) --name $(VNET) -o none 2>/dev/null || \
@@ -361,6 +399,19 @@ vnetscale-swift-byocni-nokubeproxy-up: rg-up ipv4 vnetscale-swift-net-up ## Brin
 		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
 		--pod-ip-allocation-mode StaticBlock \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/Ubuntu2404Preview \
+		--yes
+	@$(MAKE) set-kubeconf
+
+vnetscale-dualstack-swift-byocni-nokubeproxy-up: nat-gateway-v2-up ## Bring up a dual-stack Vnet Scale SWIFT BYO CNI cluster without kube-proxy
+	$(COMMON_AKS_FIELDS) \
+		--outbound-type userAssignedNATGateway \
+		--network-plugin none \
+		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
+		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
+		--pod-ip-allocation-mode StaticBlock \
+		--ip-families ipv4,ipv6 \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureVnetScaleDualStackPreview,AKSHTTPCustomFeatures=Microsoft.ContainerService/Ubuntu2404Preview \
 		--yes
 	@$(MAKE) set-kubeconf
 
