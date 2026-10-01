@@ -532,16 +532,16 @@ done
 - List all files modified
 - Highlight FIPS/crypto requirement changes
 
-### Backport to `release/v1.7`
+### Backport to `release/v1.8`
 
-**Every Go version change on master MUST be backported to `release/v1.7`.**
+**Every Go version change on master MUST be backported to `release/v1.8`.**
 
-1. Check out `release/v1.7`
+1. Check out `release/v1.8`
 2. Apply same version/SHA changes
 3. If release branch is missing GOEXPERIMENT prerequisites, add those too
 4. Do NOT run `go mod tidy` — existing go.sum remains valid for version bumps
 5. Run `make dockerfiles`
-6. Title: `chore(release/v1.7): upgrade Go <OLD> → <NEW>`
+6. Title: `chore(release/v1.8): upgrade Go <OLD> → <NEW>`
 
 ---
 
@@ -576,7 +576,7 @@ done
 When upgrading Go, verify compatibility with AKS supported Kubernetes versions:
 - Reference: https://learn.microsoft.com/en-us/azure/aks/supported-kubernetes-versions
 - Ensure controller-runtime and client-go versions support the target Go version
-- Cross-reference with release branches (`release/v1.7`, etc.) that map to AKS release trains
+- Cross-reference with release branches (`release/v1.8`, etc.) that map to AKS release trains
 ### Important Notes
 
 - **ALWAYS use `1.XX.1` in go.mod** — NOT the latest patch. The container image provides the actual binary version.
