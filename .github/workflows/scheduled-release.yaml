@@ -472,12 +472,16 @@ jobs:
       - name: Build BPF lib and generate sources
         run: |
           set -euo pipefail
-          make bpf-lib
-          for moddir in $(find . -name "go.mod" -not -path "*/vendor/*" -exec dirname {} \;); do
+          # This job is advisory, so nothing here may hard-fail: a broken BPF
+          # build must still reach the scan, so govulncheck reports it as a scan
+          # error and the Teams post still fires.
+          make bpf-lib \
+            || echo "::warning::make bpf-lib failed — govulncheck will report any resulting build errors"
+          while IFS= read -r -d '' moddir; do
             echo "go generate in $moddir..."
             (cd "$moddir" && go generate ./...) \
               || echo "::warning::go generate failed in $moddir — govulncheck will report any resulting build error"
-          done
+          done < <(find . -name go.mod -not -path "*/vendor/*" -printf '%h\0')
 
       - name: Run govulncheck on all modules
         id: scan
@@ -530,7 +534,7 @@ jobs:
             --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
             --run-id "vuln-check-${GITHUB_RUN_ID}" \
             --title "Vuln Check: ${RELEASE_BRANCH}" \
-            --status running \
+            --status succeeded \
             --summary "$MSG" \
             --stage vuln-check
 
