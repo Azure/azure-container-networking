@@ -1,0 +1,179 @@
+stages:
+  - stage: retina_e2e_create_cluster
+    displayName: Retina E2E - Create Cluster
+    dependsOn:
+      - setup
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      os: linux
+    jobs:
+      - template: /.pipelines/templates/create-cluster.yaml@self
+        parameters:
+          name: retina_e2e_cluster
+          displayName: Retina E2E
+          clusterType: cniv1-up
+          clusterName: retinae2e-$(Build.BuildId)
+          vmSize: Standard_B2ms
+          k8sVersion: ""
+          region: $(REGION_AKS_CLUSTER_TEST)
+
+  - stage: retina_e2e
+    displayName: Retina E2E
+    dependsOn:
+      - setup
+      - retina_e2e_create_cluster
+    variables:
+      RETINA_AGENT_IMAGE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.retinaAgentImageOverride'] ]
+      RETINA_INIT_IMAGE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.retinaInitImageOverride'] ]
+      RETINA_OPERATOR_IMAGE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.retinaOperatorImageOverride'] ]
+      KUBECTL_RETINA_IMAGE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.kubectlRetinaImageOverride'] ]
+      KUBECTL_RETINA_SHELL_IMAGE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.kubectlRetinaShellImageOverride'] ]
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      os: linux
+    jobs:
+      - job: retina_e2e
+        displayName: Install and Validate Retina
+        timeoutInMinutes: 45
+        steps:
+          - task: KubectlInstaller@0
+            inputs:
+              kubectlVersion: latest
+
+          - task: HelmInstaller@1
+            inputs:
+              helmVersionToInstall: latest
+
+          - task: AzureCLI@2
+            displayName: Set up kubeconfig
+            inputs:
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              scriptLocation: inlineScript
+              scriptType: bash
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -e
+                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=retinae2e-$(Build.BuildId)
+
+          - bash: |
+              set -euo pipefail
+
+              collect_failure_logs() {
+                echo "Collecting Retina failure diagnostics"
+                kubectl get pods,jobs,daemonsets,deployments -n kube-system -o wide || true
+                kubectl describe daemonset retina-agent -n kube-system || true
+                kubectl describe deployment retina-operator -n kube-system || true
+                kubectl describe jobs retina-kubectl-version retina-kubectl-shell-version -n kube-system || true
+                kubectl logs -n kube-system -l k8s-app=retina --all-containers --prefix --tail=-1 || true
+                kubectl logs -n kube-system -l control-plane=retina-operator --all-containers --prefix --tail=-1 || true
+                kubectl logs -n kube-system job/retina-kubectl-version --all-containers --prefix || true
+                kubectl logs -n kube-system job/retina-kubectl-shell-version --all-containers --prefix || true
+                kubectl get events -n kube-system --sort-by=.lastTimestamp || true
+              }
+
+              finish() {
+                local status=$?
+                if [ "$status" -ne 0 ]; then
+                  collect_failure_logs
+                fi
+                exit "$status"
+              }
+              trap finish EXIT
+
+              chmod +x ./.pipelines/networkobservability/retina-image-post-renderer.sh
+              helm upgrade --install retina oci://ghcr.io/microsoft/retina/charts/retina \
+                --version v1.2.9 \
+                --namespace kube-system \
+                --set os.windows=false \
+                --set operator.enabled=true \
+                --set-string image.repository=retina-agent.invalid/override \
+                --set-string image.initRepository=retina-init.invalid/override \
+                --set-string image.tag=replace \
+                --set-string operator.repository=retina-operator.invalid/override \
+                --set-string operator.tag=replace \
+                --post-renderer ./.pipelines/networkobservability/retina-image-post-renderer.sh \
+                --wait \
+                --timeout 10m
+
+              kubectl rollout status daemonset/retina-agent -n kube-system --timeout=5m
+              kubectl rollout status deployment/retina-operator -n kube-system --timeout=5m
+
+              verify_container_image() {
+                local selector="$1"
+                local container="$2"
+                local expected="$3"
+                local container_type="$4"
+                local pods
+
+                mapfile -t pods < <(kubectl get pods -n kube-system -l "$selector" -o name)
+                if [ "${#pods[@]}" -eq 0 ]; then
+                  echo "No pods found for selector ${selector}" >&2
+                  return 1
+                fi
+
+                for pod in "${pods[@]}"; do
+                  local image
+                  local image_id
+                  if [ "$container_type" = "init" ]; then
+                    image="$(kubectl get -n kube-system "$pod" -o "jsonpath={.spec.initContainers[?(@.name=='${container}')].image}")"
+                    image_id="$(kubectl get -n kube-system "$pod" -o "jsonpath={.status.initContainerStatuses[?(@.name=='${container}')].imageID}")"
+                  else
+                    image="$(kubectl get -n kube-system "$pod" -o "jsonpath={.spec.containers[?(@.name=='${container}')].image}")"
+                    image_id="$(kubectl get -n kube-system "$pod" -o "jsonpath={.status.containerStatuses[?(@.name=='${container}')].imageID}")"
+                  fi
+
+                  if [ "$image" != "$expected" ]; then
+                    echo "${pod}/${container} uses '${image}', expected '${expected}'" >&2
+                    return 1
+                  fi
+                  if [[ "$image_id" != *@sha256:* && "$image_id" != *://sha256:* ]]; then
+                    echo "${pod}/${container} has invalid running image ID '${image_id}'" >&2
+                    return 1
+                  fi
+                  echo "${pod}/${container}: ${image_id}"
+                done
+              }
+
+              verify_container_image "k8s-app=retina" "retina" "$RETINA_AGENT_IMAGE" "container"
+              verify_container_image "k8s-app=retina" "init-retina" "$RETINA_INIT_IMAGE" "init"
+              verify_container_image "control-plane=retina-operator" "retina-operator" "$RETINA_OPERATOR_IMAGE" "container"
+
+              run_version_job() {
+                local name="$1"
+                local image="$2"
+                local command="$3"
+
+                kubectl delete job "$name" -n kube-system --ignore-not-found
+                kubectl create job "$name" -n kube-system --image="$image" -- "$command" version
+                kubectl wait --for=condition=complete "job/${name}" -n kube-system --timeout=5m
+                kubectl logs "job/${name}" -n kube-system
+              }
+
+              run_version_job retina-kubectl-version "$KUBECTL_RETINA_IMAGE" /kubectl-retina
+              run_version_job retina-kubectl-shell-version "$KUBECTL_RETINA_SHELL_IMAGE" /bin/kubectl-retina
+            displayName: Install and smoke-test Retina v1.2.9
+            env:
+              RETINA_AGENT_IMAGE: $(RETINA_AGENT_IMAGE)
+              RETINA_INIT_IMAGE: $(RETINA_INIT_IMAGE)
+              RETINA_OPERATOR_IMAGE: $(RETINA_OPERATOR_IMAGE)
+              KUBECTL_RETINA_IMAGE: $(KUBECTL_RETINA_IMAGE)
+              KUBECTL_RETINA_SHELL_IMAGE: $(KUBECTL_RETINA_SHELL_IMAGE)
+
+  - stage: retina_e2e_delete_cluster
+    displayName: Retina E2E - Delete Cluster
+    condition: always()
+    dependsOn:
+      - retina_e2e_create_cluster
+      - retina_e2e
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      os: linux
+    jobs:
+      - job: delete_retina_e2e_cluster
+        displayName: Delete Retina E2E Cluster
+        steps:
+          - template: /.pipelines/templates/delete-cluster.yaml@self
+            parameters:
+              clusterName: retinae2e-$(Build.BuildId)
+              sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
+              svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
