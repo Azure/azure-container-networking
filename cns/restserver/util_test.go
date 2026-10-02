@@ -520,3 +520,57 @@ func TestSaveNetworkContainerGoalStateSecondaryIPUniqueness(t *testing.T) {
 	assert.Equal(t, nc2, svc.PodIPConfigState[id2].NCID)
 	assert.NotContains(t, svc.PodIPConfigState, id1)
 }
+
+func TestCreateOrUpdateNetworkContainersInternalIsAtomic(t *testing.T) {
+	const nc1, nc2, id1, id2 = "nc1", "nc2", "id1", "id2"
+	svc := getTestService(cns.KubernetesCRD)
+	require.Equal(t, types.Success, svc.CreateOrUpdateNetworkContainerInternal(generateNetworkContainerRequest(map[string]cns.SecondaryIPConfig{id1: newSecondaryIPConfig("10.0.0.1", 2)}, nc1, "2")))
+	require.Equal(t, types.Success, svc.CreateOrUpdateNetworkContainerInternal(generateNetworkContainerRequest(nil, nc2, "2")))
+
+	// The second NC version decreases, so the first NC update must not remain.
+	goals := []NetworkContainerGoal{
+		{Request: generateNetworkContainerRequest(map[string]cns.SecondaryIPConfig{id1: newSecondaryIPConfig("10.0.0.1", 2), id2: newSecondaryIPConfig("10.0.0.2", 3)}, nc1, "3"), ValidateVersion: true},
+		{Request: generateNetworkContainerRequest(nil, nc2, "1"), ValidateVersion: true},
+	}
+	require.Equal(t, types.UnsupportedNCVersion, svc.CreateOrUpdateNetworkContainersInternal(goals))
+	assert.Equal(t, "2", svc.state.ContainerStatus[nc1].CreateNetworkContainerRequest.Version)
+	assert.NotContains(t, svc.PodIPConfigState, id2)
+
+	// A goal without NCs does not persist the state.
+	svc.store = store.NewMockStore("")
+	timeStamp := svc.state.TimeStamp
+	require.Equal(t, types.Success, svc.CreateOrUpdateNetworkContainersInternal(nil))
+	assert.Equal(t, timeStamp, svc.state.TimeStamp)
+}
+
+func TestCreateOrUpdateNetworkContainersInternalMovesIPBetweenNCs(t *testing.T) {
+	const nc1, nc2, id1, id2 = "nc1", "nc2", "id1", "id2"
+	svc := getTestService(cns.KubernetesCRD)
+	require.Equal(t, types.Success, svc.CreateOrUpdateNetworkContainerInternal(generateNetworkContainerRequest(map[string]cns.SecondaryIPConfig{id1: newSecondaryIPConfig("10.0.0.1", -1)}, nc1, "-1")))
+	require.Equal(t, types.Success, svc.CreateOrUpdateNetworkContainerInternal(generateNetworkContainerRequest(nil, nc2, "-1")))
+
+	// NC2 is first in the goal and takes the IP that NC1 releases in the same goal.
+	goals := []NetworkContainerGoal{
+		{Request: generateNetworkContainerRequest(map[string]cns.SecondaryIPConfig{id2: newSecondaryIPConfig("10.0.0.1", -1)}, nc2, "-1")},
+		{Request: generateNetworkContainerRequest(nil, nc1, "-1")},
+	}
+	require.Equal(t, types.Success, svc.CreateOrUpdateNetworkContainersInternal(goals))
+	assert.Equal(t, nc2, svc.PodIPConfigState[id2].NCID)
+	assert.NotContains(t, svc.PodIPConfigState, id1)
+
+	// A goal that gives the IP to both NCs is rejected.
+	goals = []NetworkContainerGoal{
+		{Request: generateNetworkContainerRequest(map[string]cns.SecondaryIPConfig{id1: newSecondaryIPConfig("10.0.0.1", -1)}, nc1, "-1")},
+		{Request: generateNetworkContainerRequest(map[string]cns.SecondaryIPConfig{id2: newSecondaryIPConfig("10.0.0.1", -1)}, nc2, "-1")},
+	}
+	require.Equal(t, types.InconsistentIPConfigState, svc.CreateOrUpdateNetworkContainersInternal(goals))
+	assert.NotContains(t, svc.PodIPConfigState, id1)
+
+	// A goal that lists one IP ID in two NCs is rejected, so the IP of the first listing cannot skip validation.
+	goals = []NetworkContainerGoal{
+		{Request: generateNetworkContainerRequest(map[string]cns.SecondaryIPConfig{id1: newSecondaryIPConfig("10.0.0.1", -1)}, nc1, "-1")},
+		{Request: generateNetworkContainerRequest(map[string]cns.SecondaryIPConfig{id2: newSecondaryIPConfig("10.0.0.1", -1), id1: newSecondaryIPConfig("10.0.0.2", -1)}, nc2, "-1")},
+	}
+	require.Equal(t, types.InconsistentIPConfigState, svc.CreateOrUpdateNetworkContainersInternal(goals))
+	assert.NotContains(t, svc.PodIPConfigState, id1)
+}
