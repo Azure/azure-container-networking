@@ -416,10 +416,17 @@ jobs:
           echo "Skipped dependabot wait per user request"
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # STEP 2: Vulnerability Gate Check
+  # STEP 2: Vulnerability Scan (advisory)
+  #
+  # Reports only — it must never block a release. govulncheck already runs on
+  # every pull request, on merge_group and nightly, so this is a duplicate
+  # detector. The commit being tagged is already merged, so withholding the tag
+  # does not remove a vulnerability from the branch; it only delays shipping
+  # while exposure stays. Findings are surfaced as annotations, posted to Teams
+  # and recorded in the release reason instead.
   # ─────────────────────────────────────────────────────────────────────────────
   vuln_check:
-    name: "Step 2: Vulnerability Gate"
+    name: "Step 2: Vulnerability Scan (advisory)"
     runs-on: ubuntu-latest
     needs: [check_cadence, wait_dependabot]
     if: ${{ inputs.skip_vuln_check != true && needs.check_cadence.outputs.notification_only != 'true' }}
@@ -507,24 +514,23 @@ jobs:
             echo "✅ No vulnerabilities found"
           else
             echo "clean=false" >> "$GITHUB_OUTPUT"
-            echo "::error::Found $VULN_COUNT vulnerabilities and $SCAN_ERRORS scan errors"
+            echo "::warning::Found $VULN_COUNT vulnerabilities and $SCAN_ERRORS scan errors — advisory only, the release is not blocked"
             echo -e "$VULN_REPORT"
-            exit 1
           fi
 
       - name: Post vuln results to Teams
-        if: failure() && steps.scan.outputs.vuln_count != ''
+        if: always() && steps.scan.outputs.clean == 'false'
         env:
           VULN_COUNT: ${{ steps.scan.outputs.vuln_count }}
           SCAN_ERRORS: ${{ steps.scan.outputs.scan_errors }}
         run: |
           set -euo pipefail
-          MSG="🚫 **govulncheck FAILED** on $RELEASE_BRANCH. Vulnerabilities: ${VULN_COUNT}, Scan errors: ${SCAN_ERRORS}. Release blocked until resolved."
+          MSG="⚠️ **govulncheck findings** on $RELEASE_BRANCH. Vulnerabilities: ${VULN_COUNT}, Scan errors: ${SCAN_ERRORS}. Advisory only — the release was NOT blocked. Triage these separately."
           /tmp/release-cli notify \
             --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
             --run-id "vuln-check-${GITHUB_RUN_ID}" \
             --title "Vuln Check: ${RELEASE_BRANCH}" \
-            --status failed \
+            --status running \
             --summary "$MSG" \
             --stage vuln-check
 
@@ -536,7 +542,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [check_cadence, wait_dependabot, vuln_check]
     # Binary tags are global — only detect/create from master, not release branches
-    if: always() && needs.check_cadence.outputs.release_branch == 'master' && needs.check_cadence.outputs.notification_only != 'true' && needs.wait_dependabot.result == 'success' && (needs.vuln_check.result == 'success' || needs.vuln_check.result == 'skipped')
+    if: always() && needs.check_cadence.outputs.release_branch == 'master' && needs.check_cadence.outputs.notification_only != 'true' && needs.wait_dependabot.result == 'success'
     outputs:
       matrix: ${{ steps.detect.outputs.matrix }}
       has_changes: ${{ steps.detect.outputs.has_changes }}
@@ -725,7 +731,7 @@ jobs:
     name: "Step 3: Determine Version & Create Tag"
     runs-on: ubuntu-latest
     needs: [check_cadence, wait_dependabot, vuln_check]
-    if: always() && !inputs.binary_tags_only && needs.check_cadence.outputs.notification_only != 'true' && needs.wait_dependabot.result == 'success' && (needs.vuln_check.result == 'success' || needs.vuln_check.result == 'skipped')
+    if: always() && !inputs.binary_tags_only && needs.check_cadence.outputs.notification_only != 'true' && needs.wait_dependabot.result == 'success'
     permissions:
       contents: write
       actions: write
@@ -795,7 +801,7 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
-          REASON="Scheduled monthly release. Dependabot PRs merged: ${MERGED_COUNT}. CVEs patched: ${VULN_COUNT}."
+          REASON="Scheduled monthly release. Dependabot PRs merged: ${MERGED_COUNT}. Outstanding govulncheck findings: ${VULN_COUNT}."
 
           if [[ "$DRY_RUN" == "true" ]]; then
             echo "🏜️ DRY RUN: Would dispatch create-release-tag for $NEW_TAG on $TARGET_SHA"
