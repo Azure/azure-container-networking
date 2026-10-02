@@ -435,6 +435,7 @@ jobs:
       id-token: write
     outputs:
       vuln_count: ${{ steps.scan.outputs.vuln_count }}
+      scan_errors: ${{ steps.scan.outputs.scan_errors }}
       clean: ${{ steps.scan.outputs.clean }}
     steps:
       - name: Checkout release branch
@@ -827,16 +828,20 @@ jobs:
           NEW_TAG: ${{ steps.version.outputs.new_tag }}
           TARGET_SHA: ${{ steps.version.outputs.target_sha }}
           VULN_COUNT: ${{ needs.vuln_check.outputs.vuln_count || '0' }}
+          VULN_SCAN_ERRORS: ${{ needs.vuln_check.outputs.scan_errors || '0' }}
           VULN_RESULT: ${{ needs.vuln_check.result }}
           MERGED_COUNT: ${{ needs.wait_dependabot.outputs.merged_count || '0' }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
-          # Don't claim zero findings when the scan was skipped or never finished.
-          if [[ "$VULN_RESULT" == "success" ]]; then
-            VULN_TEXT="Outstanding govulncheck findings: ${VULN_COUNT}"
-          else
+          # Don't claim zero findings when the scan was skipped, never finished,
+          # or could not cover every module.
+          if [[ "$VULN_RESULT" != "success" ]]; then
             VULN_TEXT="govulncheck did not run (${VULN_RESULT}), vulnerability status unknown"
+          elif [[ "${VULN_SCAN_ERRORS:-0}" -gt 0 ]]; then
+            VULN_TEXT="govulncheck incomplete, ${VULN_SCAN_ERRORS} module(s) could not be scanned, findings elsewhere: ${VULN_COUNT}"
+          else
+            VULN_TEXT="Outstanding govulncheck findings: ${VULN_COUNT}"
           fi
           REASON="Scheduled monthly release. Dependabot PRs merged: ${MERGED_COUNT}. ${VULN_TEXT}."
 
