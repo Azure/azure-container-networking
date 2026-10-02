@@ -511,11 +511,11 @@ jobs:
               FOUND=$(printf '%s\n' "$OUTPUT" | grep -c '^Vulnerability #' || true)
               if [[ "$FOUND" -gt 0 ]]; then
                 VULN_COUNT=$((VULN_COUNT + FOUND))
-                VULN_REPORT+="$moddir: $FOUND vulnerabilities found\n"
+                VULN_REPORT+="$moddir: $FOUND vulnerabilities found"$'\n'
               else
                 # govulncheck failed but no vulnerabilities reported — build/tooling error
                 SCAN_ERRORS=$((SCAN_ERRORS + 1))
-                VULN_REPORT+="$moddir: scan error (exit $EXIT_CODE, no vulns reported)\n"
+                VULN_REPORT+="$moddir: scan error (exit $EXIT_CODE, no vulns reported)"$'\n'
                 echo "::warning::govulncheck failed in $moddir (exit $EXIT_CODE) without reporting vulnerabilities — possible build error"
                 printf '%s\n' "$OUTPUT"
               fi
@@ -530,7 +530,7 @@ jobs:
           else
             echo "clean=false" >> "$GITHUB_OUTPUT"
             echo "::warning::Found $VULN_COUNT vulnerabilities and $SCAN_ERRORS scan errors — advisory only, the release is not blocked"
-            printf '%b' "$VULN_REPORT"
+            printf '%s' "$VULN_REPORT"
           fi
 
       - name: Post vuln results to Teams
@@ -540,18 +540,27 @@ jobs:
           SCAN_ERRORS: ${{ steps.scan.outputs.scan_errors }}
         run: |
           set -euo pipefail
+          # Status describes whether the scan produced a trustworthy result, not
+          # whether we liked the result. Findings are advisory triage and must
+          # not page, so they stay `succeeded`; missing data means nobody can
+          # tell whether this release is affected, so that does page. Neither
+          # affects whether the release proceeds — `detect_binary_changes` and
+          # `create_tag` no longer gate on this job at all.
           if [[ -z "$VULN_COUNT" ]]; then
-            # The scan aborted before writing its outputs, so we have no counts
-            # to report — say so rather than implying a clean result.
-            MSG="⚠️ **govulncheck did not complete** on $RELEASE_BRANCH. The scan failed before reporting, so vulnerability status is unknown. Advisory only — the release was NOT blocked. Check the workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            STATUS="failed"
+            MSG="⚠️ **govulncheck did not complete** on $RELEASE_BRANCH. The scan failed before reporting, so vulnerability status is unknown. The release was NOT blocked. Check the workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          elif [[ "${SCAN_ERRORS:-0}" -gt 0 ]]; then
+            STATUS="failed"
+            MSG="⚠️ **govulncheck incomplete** on $RELEASE_BRANCH. Vulnerabilities: ${VULN_COUNT}, Scan errors: ${SCAN_ERRORS}. Some modules could not be scanned, so these counts are not a clean bill of health. The release was NOT blocked. Check the workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           else
-            MSG="⚠️ **govulncheck findings** on $RELEASE_BRANCH. Vulnerabilities: ${VULN_COUNT}, Scan errors: ${SCAN_ERRORS}. Advisory only — the release was NOT blocked. Triage these separately."
+            STATUS="succeeded"
+            MSG="⚠️ **govulncheck findings** on $RELEASE_BRANCH. Vulnerabilities: ${VULN_COUNT}. Every module scanned successfully. Advisory only — the release was NOT blocked. Triage these separately."
           fi
           /tmp/release-cli notify \
             --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
             --run-id "vuln-check-${GITHUB_RUN_ID}" \
             --title "Vuln Check: ${RELEASE_BRANCH}" \
-            --status failed \
+            --status "$STATUS" \
             --summary "$MSG" \
             --stage vuln-check
 
