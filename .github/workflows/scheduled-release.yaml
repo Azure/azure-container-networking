@@ -477,7 +477,11 @@ jobs:
           # error and the Teams post still fires.
           make bpf-lib \
             || echo "::warning::make bpf-lib failed — govulncheck will report any resulting build errors"
-          while IFS= read -r -d '' moddir; do
+          mapfile -d '' MODULES < <(find . -name go.mod -not -path "*/vendor/*" -printf '%h\0')
+          if [[ ${#MODULES[@]} -eq 0 ]]; then
+            echo "::warning::no Go modules discovered — skipping generate; govulncheck will report any resulting build errors"
+          fi
+          for moddir in "${MODULES[@]}"; do
             # Skip modules with no directives: `go generate ./...` would still
             # load every package (and may download deps) to do nothing.
             if ! grep -rqs --include='*.go' '^//go:generate' "$moddir"; then
@@ -486,7 +490,7 @@ jobs:
             echo "go generate in $moddir..."
             (cd "$moddir" && go generate ./...) \
               || echo "::warning::go generate failed in $moddir — govulncheck will report any resulting build error"
-          done < <(find . -name go.mod -not -path "*/vendor/*" -printf '%h\0')
+          done
 
       - name: Run govulncheck on all modules
         id: scan
@@ -502,7 +506,9 @@ jobs:
               echo "  ✅ $moddir: clean"
             else
               EXIT_CODE=$?
-              FOUND=$(printf '%s\n' "$OUTPUT" | grep -c "Vulnerability" || true)
+              # govulncheck prints one "Vulnerability #N:" header per finding;
+              # anchor so prose mentioning the word isn't counted as a finding.
+              FOUND=$(printf '%s\n' "$OUTPUT" | grep -c '^Vulnerability #' || true)
               if [[ "$FOUND" -gt 0 ]]; then
                 VULN_COUNT=$((VULN_COUNT + FOUND))
                 VULN_REPORT+="$moddir: $FOUND vulnerabilities found\n"
@@ -524,7 +530,7 @@ jobs:
           else
             echo "clean=false" >> "$GITHUB_OUTPUT"
             echo "::warning::Found $VULN_COUNT vulnerabilities and $SCAN_ERRORS scan errors — advisory only, the release is not blocked"
-            echo -e "$VULN_REPORT"
+            printf '%b' "$VULN_REPORT"
           fi
 
       - name: Post vuln results to Teams
@@ -545,7 +551,7 @@ jobs:
             --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
             --run-id "vuln-check-${GITHUB_RUN_ID}" \
             --title "Vuln Check: ${RELEASE_BRANCH}" \
-            --status succeeded \
+            --status failed \
             --summary "$MSG" \
             --stage vuln-check
 
