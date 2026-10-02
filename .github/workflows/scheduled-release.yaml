@@ -416,10 +416,17 @@ jobs:
           echo "Skipped dependabot wait per user request"
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # STEP 2: Vulnerability Gate Check
+  # STEP 2: Vulnerability Scan (advisory)
+  #
+  # Reports only — it must never block a release. govulncheck already runs on
+  # every pull request, on merge_group and nightly, so this is a duplicate
+  # detector. The commit being tagged is already merged, so withholding the tag
+  # does not remove a vulnerability from the branch; it only delays shipping
+  # while exposure stays. Findings are surfaced as annotations, posted to Teams
+  # and recorded in the release reason instead.
   # ─────────────────────────────────────────────────────────────────────────────
   vuln_check:
-    name: "Step 2: Vulnerability Gate"
+    name: "Step 2: Vulnerability Scan (advisory)"
     runs-on: ubuntu-latest
     needs: [check_cadence, wait_dependabot]
     if: ${{ inputs.skip_vuln_check != true && needs.check_cadence.outputs.notification_only != 'true' }}
@@ -428,6 +435,7 @@ jobs:
       id-token: write
     outputs:
       vuln_count: ${{ steps.scan.outputs.vuln_count }}
+      scan_errors: ${{ steps.scan.outputs.scan_errors }}
       clean: ${{ steps.scan.outputs.clean }}
     steps:
       - name: Checkout release branch
@@ -457,6 +465,34 @@ jobs:
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
 
+      # Modules with BPF-generated sources don't compile from a clean checkout,
+      # so govulncheck reports a build error instead of scanning them. Discover
+      # modules the same way the scan below does, so no module list has to be
+      # kept in sync with govulncheck.yaml, then generate only in those that
+      # actually declare directives.
+      - name: Build BPF lib and generate sources
+        run: |
+          set -euo pipefail
+          # This job is advisory, so nothing here may hard-fail: a broken BPF
+          # build must still reach the scan, so govulncheck reports it as a scan
+          # error and the Teams post still fires.
+          make bpf-lib \
+            || echo "::warning::make bpf-lib failed — govulncheck will report any resulting build errors"
+          mapfile -d '' MODULES < <(find . -name go.mod -not -path "*/vendor/*" -printf '%h\0')
+          if [[ ${#MODULES[@]} -eq 0 ]]; then
+            echo "::warning::no Go modules discovered — skipping generate; govulncheck will report any resulting build errors"
+          fi
+          for moddir in "${MODULES[@]}"; do
+            # Skip modules with no directives: `go generate ./...` would still
+            # load every package (and may download deps) to do nothing.
+            if ! grep -rqs --include='*.go' '^//go:generate' "$moddir"; then
+              continue
+            fi
+            echo "go generate in $moddir..."
+            (cd "$moddir" && go generate ./...) \
+              || echo "::warning::go generate failed in $moddir — govulncheck will report any resulting build error"
+          done
+
       - name: Run govulncheck on all modules
         id: scan
         run: |
@@ -471,15 +507,18 @@ jobs:
               echo "  ✅ $moddir: clean"
             else
               EXIT_CODE=$?
-              FOUND=$(echo "$OUTPUT" | grep -c "Vulnerability" || true)
+              # govulncheck prints one "Vulnerability #N:" header per finding;
+              # anchor so prose mentioning the word isn't counted as a finding.
+              FOUND=$(printf '%s\n' "$OUTPUT" | grep -c '^Vulnerability #' || true)
               if [[ "$FOUND" -gt 0 ]]; then
                 VULN_COUNT=$((VULN_COUNT + FOUND))
-                VULN_REPORT+="$moddir: $FOUND vulnerabilities found\n"
+                VULN_REPORT+="$moddir: $FOUND vulnerabilities found"$'\n'
               else
                 # govulncheck failed but no vulnerabilities reported — build/tooling error
                 SCAN_ERRORS=$((SCAN_ERRORS + 1))
-                VULN_REPORT+="$moddir: scan error (exit $EXIT_CODE, no vulns reported)\n"
-                echo "::error::govulncheck failed in $moddir (exit $EXIT_CODE) without reporting vulnerabilities — possible build error"
+                VULN_REPORT+="$moddir: scan error (exit $EXIT_CODE, no vulns reported)"$'\n'
+                echo "::warning::govulncheck failed in $moddir (exit $EXIT_CODE) without reporting vulnerabilities — possible build error"
+                printf '%s\n' "$OUTPUT"
               fi
             fi
           done
@@ -491,23 +530,38 @@ jobs:
             echo "✅ No vulnerabilities found"
           else
             echo "clean=false" >> "$GITHUB_OUTPUT"
-            echo "::error::Found $VULN_COUNT vulnerabilities and $SCAN_ERRORS scan errors"
-            echo -e "$VULN_REPORT"
-            exit 1
+            echo "::warning::Found $VULN_COUNT vulnerabilities and $SCAN_ERRORS scan errors — advisory only, the release is not blocked"
+            printf '%s' "$VULN_REPORT"
           fi
 
       - name: Post vuln results to Teams
-        if: failure() && steps.scan.outputs.vuln_count != ''
+        if: always() && (steps.scan.outputs.clean == 'false' || failure())
         env:
           VULN_COUNT: ${{ steps.scan.outputs.vuln_count }}
           SCAN_ERRORS: ${{ steps.scan.outputs.scan_errors }}
         run: |
           set -euo pipefail
-          MSG="🚫 **govulncheck FAILED** on $RELEASE_BRANCH. Vulnerabilities: ${VULN_COUNT}, Scan errors: ${SCAN_ERRORS}. Release blocked until resolved."
+          # Status describes whether the scan produced a trustworthy result, not
+          # whether we liked the result. Findings are advisory triage and must
+          # not page, so they stay `succeeded`; missing data means nobody can
+          # tell whether this release is affected, so that does page. Neither
+          # affects whether the release proceeds — `detect_binary_changes` and
+          # `create_tag` no longer gate on this job at all.
+          if [[ -z "$VULN_COUNT" ]]; then
+            STATUS="failed"
+            MSG="⚠️ **govulncheck did not complete** on $RELEASE_BRANCH. The scan failed before reporting, so vulnerability status is unknown. The release was NOT blocked. Check the workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          elif [[ "${SCAN_ERRORS:-0}" -gt 0 ]]; then
+            STATUS="failed"
+            MSG="⚠️ **govulncheck incomplete** on $RELEASE_BRANCH. Vulnerabilities: ${VULN_COUNT}, Scan errors: ${SCAN_ERRORS}. Some modules could not be scanned, so these counts are not a clean bill of health. The release was NOT blocked. Check the workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          else
+            STATUS="succeeded"
+            MSG="⚠️ **govulncheck findings** on $RELEASE_BRANCH. Vulnerabilities: ${VULN_COUNT}. Every module scanned successfully. Advisory only — the release was NOT blocked. Triage these separately."
+          fi
           /tmp/release-cli notify \
             --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
+            --run-id "vuln-check-${GITHUB_RUN_ID}" \
             --title "Vuln Check: ${RELEASE_BRANCH}" \
-            --status failed \
+            --status "$STATUS" \
             --summary "$MSG" \
             --stage vuln-check
 
@@ -519,7 +573,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [check_cadence, wait_dependabot, vuln_check]
     # Binary tags are global — only detect/create from master, not release branches
-    if: always() && needs.check_cadence.outputs.release_branch == 'master' && needs.check_cadence.outputs.notification_only != 'true' && needs.wait_dependabot.result == 'success' && (needs.vuln_check.result == 'success' || needs.vuln_check.result == 'skipped')
+    if: always() && needs.check_cadence.outputs.release_branch == 'master' && needs.check_cadence.outputs.notification_only != 'true' && needs.wait_dependabot.result == 'success'
     outputs:
       matrix: ${{ steps.detect.outputs.matrix }}
       has_changes: ${{ steps.detect.outputs.has_changes }}
@@ -658,6 +712,7 @@ jobs:
             MSG="🏜️ [DRY RUN] Binary releases that WOULD be created: ${CREATED} — These tags were detected as needing a release but were not pushed (dry run mode)."
             /tmp/release-cli notify \
               --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
+              --run-id "binary-release-${GITHUB_RUN_ID}" \
               --title "Binary Release Summary: ${RELEASE_BRANCH}" \
               --status queued \
               --summary "$MSG" \
@@ -675,6 +730,7 @@ jobs:
               MSG="📦 Binary releases created (monthly release cycle): $(echo -e "$CREATED") — These tags were auto-created because changes were detected since the previous release."
               /tmp/release-cli notify \
                 --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
+                --run-id "binary-release-${GITHUB_RUN_ID}" \
                 --title "Binary Release Summary: ${RELEASE_BRANCH}" \
                 --status succeeded \
                 --summary "$MSG" \
@@ -706,7 +762,7 @@ jobs:
     name: "Step 3: Determine Version & Create Tag"
     runs-on: ubuntu-latest
     needs: [check_cadence, wait_dependabot, vuln_check]
-    if: always() && !inputs.binary_tags_only && needs.check_cadence.outputs.notification_only != 'true' && needs.wait_dependabot.result == 'success' && (needs.vuln_check.result == 'success' || needs.vuln_check.result == 'skipped')
+    if: always() && !inputs.binary_tags_only && needs.check_cadence.outputs.notification_only != 'true' && needs.wait_dependabot.result == 'success'
     permissions:
       contents: write
       actions: write
@@ -772,11 +828,22 @@ jobs:
           NEW_TAG: ${{ steps.version.outputs.new_tag }}
           TARGET_SHA: ${{ steps.version.outputs.target_sha }}
           VULN_COUNT: ${{ needs.vuln_check.outputs.vuln_count || '0' }}
+          VULN_SCAN_ERRORS: ${{ needs.vuln_check.outputs.scan_errors || '0' }}
+          VULN_RESULT: ${{ needs.vuln_check.result }}
           MERGED_COUNT: ${{ needs.wait_dependabot.outputs.merged_count || '0' }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
-          REASON="Scheduled monthly release. Dependabot PRs merged: ${MERGED_COUNT}. CVEs patched: ${VULN_COUNT}."
+          # Don't claim zero findings when the scan was skipped, never finished,
+          # or could not cover every module.
+          if [[ "$VULN_RESULT" != "success" ]]; then
+            VULN_TEXT="govulncheck did not run (${VULN_RESULT}), vulnerability status unknown"
+          elif [[ "${VULN_SCAN_ERRORS:-0}" -gt 0 ]]; then
+            VULN_TEXT="govulncheck incomplete, ${VULN_SCAN_ERRORS} module(s) could not be scanned, findings elsewhere: ${VULN_COUNT}"
+          else
+            VULN_TEXT="Outstanding govulncheck findings: ${VULN_COUNT}"
+          fi
+          REASON="Scheduled monthly release. Dependabot PRs merged: ${MERGED_COUNT}. ${VULN_TEXT}."
 
           if [[ "$DRY_RUN" == "true" ]]; then
             echo "🏜️ DRY RUN: Would dispatch create-release-tag for $NEW_TAG on $TARGET_SHA"
@@ -1034,6 +1101,7 @@ jobs:
         run: |
           /tmp/release-cli notify \
             --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
+            --run-id "r2d-draft-${GITHUB_RUN_ID}" \
             --title "R2D Drafts: ${NEW_TAG}" \
             --status running \
             --summary "📋 R2D Drafts prepared for ${NEW_TAG}: UNSIGNED — Clone from SafeFly Request #193479 • Service Group: microsoft.azure.networking.containernetworking.githubrelease • File at: https://aka.ms/R2D | SIGNED — Clone from SafeFly Request #174991 • Service Group: microsoft.azure.networking.containernetworking • File at: https://aka.ms/R2D | ⚠️ Human action required: File both R2Ds, then post the Safefly/R2D links back in this thread." \
@@ -1079,7 +1147,9 @@ jobs:
     name: "Step 5: Pipeline Validation"
     runs-on: ubuntu-latest
     needs: [create_tag, release_channel_post]
-    if: ${{ !inputs.dry_run }}
+    # create_tag and release_channel_post both use always(), so an upstream skip
+    # (e.g. vuln_check via skip_vuln_check) propagates here unless we opt out too.
+    if: ${{ always() && !inputs.dry_run && needs.create_tag.result == 'success' && needs.release_channel_post.result == 'success' }}
     permissions:
       contents: read
       id-token: write
@@ -1215,6 +1285,7 @@ jobs:
 
           /tmp/release-cli notify \
             --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
+            --run-id "pipeline-validation-${GITHUB_RUN_ID}" \
             --title "Pipeline Validation: ${NEW_TAG}" \
             --status "$OVERALL_STATUS" \
             --summary "$MSG" \
