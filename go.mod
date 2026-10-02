@@ -41,10 +41,10 @@ require (
 	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
-	k8s.io/api v0.34.11
-	k8s.io/apiextensions-apiserver v0.34.11
+	k8s.io/api v0.34.12
+	k8s.io/apiextensions-apiserver v0.34.12
 	k8s.io/apimachinery v0.34.12
-	k8s.io/client-go v0.34.11
+	k8s.io/client-go v0.34.12
 	k8s.io/klog v1.0.0
 	k8s.io/klog/v2 v2.140.0
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3
@@ -127,7 +127,7 @@ require (
 	github.com/jsternberg/zap-logfmt v1.3.0
 	golang.org/x/sync v0.22.0
 	gotest.tools/v3 v3.5.2
-	k8s.io/kubectl v0.34.11
+	k8s.io/kubectl v0.34.12
 	sigs.k8s.io/yaml v1.6.0
 )
 
@@ -184,7 +184,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/sagikazarmark/locafero v0.11.0 // indirect
 	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 // indirect
-	k8s.io/kubelet v0.34.11
+	k8s.io/kubelet v0.34.12
 )
 
 replace (
