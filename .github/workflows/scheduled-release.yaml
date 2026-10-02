@@ -458,15 +458,18 @@ jobs:
         run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
 
       # Modules with BPF-generated sources don't compile from a clean checkout,
-      # so govulncheck reports a build error instead of scanning them.
-      # Keep this list in sync with the `bpf: true` entries in govulncheck.yaml.
+      # so govulncheck reports a build error instead of scanning them. Generate
+      # across every module using the same discovery as the scan below, so no
+      # module list has to be kept in sync with govulncheck.yaml. Modules with no
+      # //go:generate directives are a no-op.
       - name: Build BPF lib and generate sources
         run: |
           set -euo pipefail
           make bpf-lib
-          for moddir in . bpf-prog/ipv6-hp-bpf azure-iptables-monitor; do
+          for moddir in $(find . -name "go.mod" -not -path "*/vendor/*" -exec dirname {} \;); do
             echo "go generate in $moddir..."
-            (cd "$moddir" && go generate ./...)
+            (cd "$moddir" && go generate ./...) \
+              || echo "::warning::go generate failed in $moddir — govulncheck will report any resulting build error"
           done
 
       - name: Run govulncheck on all modules
@@ -483,7 +486,7 @@ jobs:
               echo "  ✅ $moddir: clean"
             else
               EXIT_CODE=$?
-              FOUND=$(echo "$OUTPUT" | grep -c "Vulnerability" || true)
+              FOUND=$(printf '%s\n' "$OUTPUT" | grep -c "Vulnerability" || true)
               if [[ "$FOUND" -gt 0 ]]; then
                 VULN_COUNT=$((VULN_COUNT + FOUND))
                 VULN_REPORT+="$moddir: $FOUND vulnerabilities found\n"
@@ -492,7 +495,7 @@ jobs:
                 SCAN_ERRORS=$((SCAN_ERRORS + 1))
                 VULN_REPORT+="$moddir: scan error (exit $EXIT_CODE, no vulns reported)\n"
                 echo "::error::govulncheck failed in $moddir (exit $EXIT_CODE) without reporting vulnerabilities — possible build error"
-                echo "$OUTPUT"
+                printf '%s\n' "$OUTPUT"
               fi
             fi
           done
