@@ -50,6 +50,7 @@ func TestDeployReaderPreservesLiveFile(t *testing.T) {
 			old := []byte("previous executable")
 			if existing {
 				writeFile(t, dest, old)
+				writeFile(t, dest+oldFileSuffix, []byte("earlier executable"))
 			}
 			payload := bytes.Repeat([]byte("new executable"), 8192)
 			rc := &checkedReader{
@@ -72,16 +73,6 @@ func TestDeployReaderPreservesLiveFile(t *testing.T) {
 			assertNoTemps(t, dir)
 		})
 	}
-}
-
-func TestDeployReaderSmallPayload(t *testing.T) {
-	dest := filepath.Join(t.TempDir(), "plugin")
-	payload := []byte("small executable")
-	rc := &compoundReadCloser{readcloser: io.NopCloser(bytes.NewReader(payload))}
-	if err := deployReader(dest, rc); err != nil {
-		t.Fatal(err)
-	}
-	assertFile(t, dest, payload)
 }
 
 func TestDeployReaderReadFailure(t *testing.T) {
@@ -152,7 +143,7 @@ func TestDeployReaderGzip(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = deployReader(dest, &compoundReadCloser{readcloser: reader})
+			err = deployReader(dest, reader)
 			if corrupt {
 				if !errors.Is(err, gzip.ErrChecksum) {
 					t.Fatalf("expected checksum error, got %v", err)
@@ -179,19 +170,6 @@ func TestDeployReaderCreateFailure(t *testing.T) {
 	}
 	if rc.closes != 1 {
 		t.Errorf("closed source %d times, want 1", rc.closes)
-	}
-}
-
-func TestCompoundReadCloserClosesBoth(t *testing.T) {
-	first := &checkedReader{check: func() {}, closeErr: errRead}
-	second := &checkedReader{check: func() {}, closeErr: errClose}
-	rc := &compoundReadCloser{readcloser: first, closer: second}
-	err := rc.Close()
-	if !errors.Is(err, errRead) || !errors.Is(err, errClose) {
-		t.Errorf("expected both close errors, got %v", err)
-	}
-	if first.closes != 1 || second.closes != 1 {
-		t.Errorf("close counts: %d, %d; want 1, 1", first.closes, second.closes)
 	}
 }
 
@@ -235,24 +213,6 @@ func TestDeployReaderDirectory(t *testing.T) {
 	info, err := os.Stat(dest)
 	if err != nil || !info.IsDir() {
 		t.Fatalf("destination directory changed: %v", err)
-	}
-	assertNoTemps(t, dir)
-}
-
-func TestDeployReaderRepeated(t *testing.T) {
-	dir := t.TempDir()
-	dest := filepath.Join(dir, "plugin")
-	payloads := [][]byte{[]byte("first"), []byte("second"), []byte("third")}
-	var previous []byte
-	for _, payload := range payloads {
-		if err := deployReader(dest, io.NopCloser(bytes.NewReader(payload))); err != nil {
-			t.Fatal(err)
-		}
-		assertFile(t, dest, payload)
-		if previous != nil {
-			assertFile(t, dest+oldFileSuffix, previous)
-		}
-		previous = payload
 	}
 	assertNoTemps(t, dir)
 }

@@ -3,19 +3,13 @@ package embed
 import (
 	stderrors "errors"
 	"os"
-	"sync"
 
 	"github.com/pkg/errors"
 )
 
-// Windows can rename an executing binary but cannot overwrite it. Serialize
-// the backup/replace/rollback sequence within this process.
-var publicationLock sync.Mutex
-
+// Windows can rename an executing binary but cannot overwrite it. This sequence
+// is not atomic; callers must serialize deployments to the same destination.
 func publishFile(staged, dest string) error {
-	publicationLock.Lock()
-	defer publicationLock.Unlock()
-
 	exists, err := destinationExists(dest)
 	if err != nil {
 		return err

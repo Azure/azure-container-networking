@@ -9,7 +9,9 @@ import (
 	"github.com/pkg/errors"
 )
 
-func publishFile(staged, dest string) (err error) {
+// The backup copy needs extra disk space. With concurrent installers it is a
+// complete snapshot, not necessarily the immediate predecessor of the winner.
+func publishFile(staged, dest string) error {
 	exists, err := destinationExists(dest)
 	if err != nil {
 		return err
@@ -29,11 +31,8 @@ func publishFile(staged, dest string) (err error) {
 		if stageErr != nil {
 			return errors.Wrap(stageErr, "failed to stage backup")
 		}
-		defer func() {
-			err = stderrors.Join(err, removeTemp(backup))
-		}()
 		if err = os.Rename(backup, dest+oldFileSuffix); err != nil {
-			return errors.Wrap(err, "failed to publish backup")
+			return stderrors.Join(errors.Wrap(err, "failed to publish backup"), removeTemp(backup))
 		}
 	}
 	return errors.Wrapf(os.Rename(staged, dest), "failed to publish file %s", dest)

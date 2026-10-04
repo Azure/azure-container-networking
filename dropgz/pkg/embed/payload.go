@@ -72,11 +72,13 @@ func (c *compoundReadCloser) Read(p []byte) (n int, err error) {
 }
 
 func (c *compoundReadCloser) Close() error {
-	err := c.readcloser.Close()
-	if c.closer != nil {
-		err = stderrors.Join(err, c.closer.Close())
+	if err := c.readcloser.Close(); err != nil {
+		return err
 	}
-	return err
+	if err := c.closer.Close(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func Extract(p string, compression Compression) (*compoundReadCloser, error) {
@@ -85,17 +87,15 @@ func Extract(p string, compression Compression) (*compoundReadCloser, error) {
 		return nil, errors.Wrapf(err, "failed to open file %s", p)
 	}
 	var rc io.ReadCloser = f
-	var closer io.Closer
 	switch compression {
 	case Gzip:
 		rc, err = gzip.NewReader(bufio.NewReader(f))
 		if err != nil {
-			return nil, stderrors.Join(errors.Wrap(err, "failed to build reader"), f.Close())
+			return nil, errors.Wrap(err, "failed to build reader")
 		}
-		closer = f
 	default:
 	}
-	return &compoundReadCloser{closer: closer, readcloser: rc}, nil
+	return &compoundReadCloser{closer: f, readcloser: rc}, nil
 }
 
 func deploy(src, dest string, compression Compression) error {
@@ -106,55 +106,35 @@ func deploy(src, dest string, compression Compression) error {
 	return deployReader(dest, rc)
 }
 
-func deployReader(dest string, rc io.ReadCloser) (err error) {
+func deployReader(dest string, rc io.ReadCloser) error {
 	staged, err := stageFile(dest, rc, 0o755)
 	if err != nil {
 		return err
 	}
-	defer func() {
-		err = stderrors.Join(err, removeTemp(staged))
-	}()
-	return publishFile(staged, dest)
+	if err = publishFile(staged, dest); err != nil {
+		return stderrors.Join(err, removeTemp(staged))
+	}
+	return nil
 }
 
-func stageFile(dest string, rc io.ReadCloser, mode fs.FileMode) (name string, err error) {
-	sourceClosed := false
-	defer func() {
-		if !sourceClosed {
-			err = stderrors.Join(err, errors.Wrap(rc.Close(), "failed to close payload"))
-		}
-	}()
+func stageFile(dest string, rc io.ReadCloser, mode fs.FileMode) (string, error) {
 	target, err := os.CreateTemp(filepath.Dir(dest), "."+filepath.Base(dest)+"-*.tmp")
 	if err != nil {
-		return "", errors.Wrapf(err, "failed to stage file %s", dest)
+		return "", stderrors.Join(errors.Wrapf(err, "failed to stage file %s", dest),
+			errors.Wrap(rc.Close(), "failed to close payload"))
 	}
-	targetClosed := false
-	defer func() {
-		if !targetClosed {
-			err = stderrors.Join(err, errors.Wrap(target.Close(), "failed to close staged file"))
-		}
-		if err != nil {
-			err = stderrors.Join(err, removeTemp(target.Name()))
-		}
-	}()
-	if _, err = io.Copy(target, rc); err != nil {
-		return "", errors.Wrapf(err, "failed to copy payload to %s", dest)
+	_, err = io.Copy(target, rc)
+	err = stderrors.Join(errors.Wrapf(err, "failed to copy payload to %s", dest),
+		errors.Wrap(rc.Close(), "failed to close payload"))
+	if err == nil {
+		err = errors.Wrap(target.Chmod(mode), "failed to set file permissions")
 	}
-	err = rc.Close()
-	sourceClosed = true
+	if err == nil {
+		err = errors.Wrap(target.Sync(), "failed to sync staged file")
+	}
+	err = stderrors.Join(err, errors.Wrap(target.Close(), "failed to close staged file"))
 	if err != nil {
-		return "", errors.Wrap(err, "failed to close payload")
-	}
-	if err = target.Chmod(mode); err != nil {
-		return "", errors.Wrap(err, "failed to set file permissions")
-	}
-	if err = target.Sync(); err != nil {
-		return "", errors.Wrap(err, "failed to sync staged file")
-	}
-	err = target.Close()
-	targetClosed = true
-	if err != nil {
-		return "", errors.Wrap(err, "failed to close staged file")
+		return "", stderrors.Join(err, removeTemp(target.Name()))
 	}
 	return target.Name(), nil
 }
@@ -180,6 +160,9 @@ func destinationExists(dest string) (bool, error) {
 	return true, nil
 }
 
+// Deploy stages complete executable files before replacing destinations in a trusted directory.
+// Unix replacement is atomic; Windows uses rename-to-backup and rollback.
+// Each replacement keeps a .old backup and is independent of other payloads.
 func Deploy(log *zap.Logger, srcs, dests []string, compression Compression) error {
 	if len(srcs) != len(dests) {
 		return errors.Wrapf(ErrArgsMismatched, "%d and %d", len(srcs), len(dests))
