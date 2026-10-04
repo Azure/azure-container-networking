@@ -15,10 +15,19 @@ func publishFile(staged, dest string) (err error) {
 		return err
 	}
 	if exists {
-		// Keep the live inode in place, including for processes executing it.
-		backup := staged + oldFileSuffix
-		if err = os.Link(dest, backup); err != nil {
-			return errors.Wrap(err, "failed to stage backup")
+		// An open descriptor remains readable across concurrent replacements.
+		// A hard link can fail if its source inode is concurrently unlinked.
+		source, openErr := os.Open(dest)
+		if openErr != nil {
+			return errors.Wrap(openErr, "failed to open backup source")
+		}
+		info, statErr := source.Stat()
+		if statErr != nil {
+			return stderrors.Join(errors.Wrap(statErr, "failed to inspect backup source"), source.Close())
+		}
+		backup, stageErr := stageFile(dest+oldFileSuffix, source, info.Mode().Perm())
+		if stageErr != nil {
+			return errors.Wrap(stageErr, "failed to stage backup")
 		}
 		defer func() {
 			err = stderrors.Join(err, removeTemp(backup))

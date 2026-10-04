@@ -107,6 +107,17 @@ func deploy(src, dest string, compression Compression) error {
 }
 
 func deployReader(dest string, rc io.ReadCloser) (err error) {
+	staged, err := stageFile(dest, rc, 0o755)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		err = stderrors.Join(err, removeTemp(staged))
+	}()
+	return publishFile(staged, dest)
+}
+
+func stageFile(dest string, rc io.ReadCloser, mode fs.FileMode) (name string, err error) {
 	sourceClosed := false
 	defer func() {
 		if !sourceClosed {
@@ -115,35 +126,37 @@ func deployReader(dest string, rc io.ReadCloser) (err error) {
 	}()
 	target, err := os.CreateTemp(filepath.Dir(dest), "."+filepath.Base(dest)+"-*.tmp")
 	if err != nil {
-		return errors.Wrapf(err, "failed to stage file %s", dest)
+		return "", errors.Wrapf(err, "failed to stage file %s", dest)
 	}
 	targetClosed := false
 	defer func() {
 		if !targetClosed {
 			err = stderrors.Join(err, errors.Wrap(target.Close(), "failed to close staged file"))
 		}
-		err = stderrors.Join(err, removeTemp(target.Name()))
+		if err != nil {
+			err = stderrors.Join(err, removeTemp(target.Name()))
+		}
 	}()
 	if _, err = io.Copy(target, rc); err != nil {
-		return errors.Wrapf(err, "failed to copy payload to %s", dest)
+		return "", errors.Wrapf(err, "failed to copy payload to %s", dest)
 	}
 	err = rc.Close()
 	sourceClosed = true
 	if err != nil {
-		return errors.Wrap(err, "failed to close payload")
+		return "", errors.Wrap(err, "failed to close payload")
 	}
-	if err = target.Chmod(0o755); err != nil {
-		return errors.Wrap(err, "failed to set executable permissions")
+	if err = target.Chmod(mode); err != nil {
+		return "", errors.Wrap(err, "failed to set file permissions")
 	}
 	if err = target.Sync(); err != nil {
-		return errors.Wrap(err, "failed to sync staged file")
+		return "", errors.Wrap(err, "failed to sync staged file")
 	}
 	err = target.Close()
 	targetClosed = true
 	if err != nil {
-		return errors.Wrap(err, "failed to close staged file")
+		return "", errors.Wrap(err, "failed to close staged file")
 	}
-	return publishFile(target.Name(), dest)
+	return target.Name(), nil
 }
 
 func removeTemp(name string) error {

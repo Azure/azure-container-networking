@@ -6,11 +6,11 @@ permissions (`0755` on Unix), syncs and closes the temporary file, then publishe
 it. Copy, decompression, close, and sync failures leave the destination unchanged.
 Temporary files are removed on return; cleanup errors are reported.
 
-On Unix, deployment creates a hard-link backup of the existing regular file and
-publishes it as `<destination>.old`. It then atomically renames the completed
-temporary file over the destination. The live pathname is not removed first.
+On Unix, deployment copies the existing regular file through an open descriptor
+to a staged backup and publishes it as `<destination>.old`. It then atomically
+renames the completed temporary file over the destination. The live pathname is not removed first.
 Open descriptors and running executables keep the previous inode. The destination
-filesystem must support hard links and same-directory atomic rename.
+filesystem must support same-directory atomic rename.
 
 On Windows, deployment retains the rename-to-`.old` sequence so that an executing
 binary can be moved aside before replacement. Only completed files are published,
