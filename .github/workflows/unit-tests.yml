@@ -63,6 +63,10 @@ jobs:
           cache: false
           go-version: ${{ needs.setup.outputs.go-version }}
 
+      - name: Run dropgz Tests
+        working-directory: dropgz
+        run: go test -race -timeout 2m ./pkg/embed
+
       - name: Install system dependencies
         run: sudo apt-get update -y && sudo apt-get install -y iptables ipset iproute2
 
@@ -117,6 +121,10 @@ jobs:
         with:
           cache: false
           go-version: ${{ needs.setup.outputs.go-version }}
+
+      - name: Run dropgz Tests
+        working-directory: dropgz
+        run: go test -race -timeout 2m ./pkg/embed
 
       - name: Run Windows Tests
         shell: bash

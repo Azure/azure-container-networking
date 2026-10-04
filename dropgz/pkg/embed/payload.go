@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"compress/gzip"
 	"embed"
+	stderrors "errors"
 	"io"
 	"io/fs"
 	"os"
@@ -19,7 +20,10 @@ const (
 	oldFileSuffix = ".old"
 )
 
-var ErrArgsMismatched = errors.New("mismatched argument count")
+var (
+	ErrArgsMismatched = errors.New("mismatched argument count")
+	errNotRegular     = errors.New("embed: destination is not a regular file")
+)
 
 type Compression string
 
@@ -68,13 +72,11 @@ func (c *compoundReadCloser) Read(p []byte) (n int, err error) {
 }
 
 func (c *compoundReadCloser) Close() error {
-	if err := c.readcloser.Close(); err != nil {
-		return err
+	err := c.readcloser.Close()
+	if c.closer != nil {
+		err = stderrors.Join(err, c.closer.Close())
 	}
-	if err := c.closer.Close(); err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func Extract(p string, compression Compression) (*compoundReadCloser, error) {
@@ -83,15 +85,17 @@ func Extract(p string, compression Compression) (*compoundReadCloser, error) {
 		return nil, errors.Wrapf(err, "failed to open file %s", p)
 	}
 	var rc io.ReadCloser = f
+	var closer io.Closer
 	switch compression {
 	case Gzip:
 		rc, err = gzip.NewReader(bufio.NewReader(f))
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to build reader")
+			return nil, stderrors.Join(errors.Wrap(err, "failed to build reader"), f.Close())
 		}
+		closer = f
 	default:
 	}
-	return &compoundReadCloser{closer: f, readcloser: rc}, nil
+	return &compoundReadCloser{closer: closer, readcloser: rc}, nil
 }
 
 func deploy(src, dest string, compression Compression) error {
@@ -99,21 +103,68 @@ func deploy(src, dest string, compression Compression) error {
 	if err != nil {
 		return err
 	}
-	defer rc.Close()
-	// check if the file exists at dest already and rename it as an old one
-	if _, err := os.Stat(dest); err == nil {
-		oldDest := dest + oldFileSuffix
-		if err = os.Rename(dest, oldDest); err != nil {
-			return errors.Wrapf(err, "failed to rename the %s to %s", dest, oldDest)
+	return deployReader(dest, rc)
+}
+
+func deployReader(dest string, rc io.ReadCloser) (err error) {
+	sourceClosed := false
+	defer func() {
+		if !sourceClosed {
+			err = stderrors.Join(err, errors.Wrap(rc.Close(), "failed to close payload"))
 		}
-	}
-	target, err := os.OpenFile(dest, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o755) //nolint:gomnd // executable file bitmask
+	}()
+	target, err := os.CreateTemp(filepath.Dir(dest), "."+filepath.Base(dest)+"-*.tmp")
 	if err != nil {
-		return errors.Wrapf(err, "failed to create file %s", dest)
+		return errors.Wrapf(err, "failed to stage file %s", dest)
 	}
-	defer target.Close()
-	_, err = io.Copy(bufio.NewWriter(target), rc)
-	return errors.Wrapf(err, "failed to copy %s to %s", src, dest)
+	targetClosed := false
+	defer func() {
+		if !targetClosed {
+			err = stderrors.Join(err, errors.Wrap(target.Close(), "failed to close staged file"))
+		}
+		err = stderrors.Join(err, removeTemp(target.Name()))
+	}()
+	if _, err = io.Copy(target, rc); err != nil {
+		return errors.Wrapf(err, "failed to copy payload to %s", dest)
+	}
+	err = rc.Close()
+	sourceClosed = true
+	if err != nil {
+		return errors.Wrap(err, "failed to close payload")
+	}
+	if err = target.Chmod(0o755); err != nil {
+		return errors.Wrap(err, "failed to set executable permissions")
+	}
+	if err = target.Sync(); err != nil {
+		return errors.Wrap(err, "failed to sync staged file")
+	}
+	err = target.Close()
+	targetClosed = true
+	if err != nil {
+		return errors.Wrap(err, "failed to close staged file")
+	}
+	return publishFile(target.Name(), dest)
+}
+
+func removeTemp(name string) error {
+	if err := os.Remove(name); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return errors.Wrapf(err, "failed to remove temporary file %s", name)
+	}
+	return nil
+}
+
+func destinationExists(dest string) (bool, error) {
+	info, err := os.Lstat(dest)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, errors.Wrapf(err, "failed to inspect destination %s", dest)
+	}
+	if !info.Mode().IsRegular() {
+		return false, errors.Wrapf(errNotRegular, "%s", dest)
+	}
+	return true, nil
 }
 
 func Deploy(log *zap.Logger, srcs, dests []string, compression Compression) error {
