@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
+
+	"go.uber.org/zap"
 )
 
 func TestDeployReaderExecutableMode(t *testing.T) {
@@ -55,7 +57,7 @@ func TestDeployIdenticalPermissions(t *testing.T) {
 					}
 				}()
 			}
-			if err = deploy(src, dest, None); err != nil {
+			if err = Deploy(zap.NewNop(), []string{src}, []string{dest}, None); err != nil {
 				t.Fatal(err)
 			}
 			after, err := os.Stat(dest)

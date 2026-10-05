@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"go.uber.org/zap"
 )
 
 var (
@@ -230,7 +232,7 @@ func TestDeployEmbedded(t *testing.T) {
 				t.Fatal(err)
 			}
 			dest := filepath.Join(t.TempDir(), "plugin")
-			if err = deploy(src, dest, None); err != nil {
+			if err = Deploy(zap.NewNop(), []string{src}, []string{dest}, None); err != nil {
 				t.Fatal(err)
 			}
 			assertFile(t, dest, want)
@@ -240,7 +242,7 @@ func TestDeployEmbedded(t *testing.T) {
 			}
 			backup := []byte("previous backup")
 			writeFile(t, dest+oldFileSuffix, backup)
-			if err = deploy(src, dest, None); err != nil {
+			if err = Deploy(zap.NewNop(), []string{src}, []string{dest}, None); err != nil {
 				t.Fatal(err)
 			}
 			after, err := os.Stat(dest)
@@ -253,7 +255,7 @@ func TestDeployEmbedded(t *testing.T) {
 			assertFile(t, dest+oldFileSuffix, backup)
 			different := append(bytes.Clone(want), []byte("different contents")...)
 			writeFile(t, dest, different)
-			if err = deploy(src, dest, None); err != nil {
+			if err = Deploy(zap.NewNop(), []string{src}, []string{dest}, None); err != nil {
 				t.Fatal(err)
 			}
 			assertFile(t, dest, want)
@@ -262,7 +264,7 @@ func TestDeployEmbedded(t *testing.T) {
 	}
 }
 
-func TestMatchesDestination(t *testing.T) {
+func TestDeployComparedPayload(t *testing.T) {
 	block := bytes.Repeat([]byte("a"), 32*1024)
 	for _, tt := range []struct {
 		name      string
@@ -283,11 +285,25 @@ func TestMatchesDestination(t *testing.T) {
 			dir := t.TempDir()
 			dest := filepath.Join(dir, "plugin")
 			writeFile(t, dest, tt.installed)
-			same, err := matchesDestination(bytes.NewReader(tt.payload), dest)
-			if err != nil || same != tt.want {
-				t.Fatalf("matchesDestination = %v, %v; want %v", same, err, tt.want)
+			opens := 0
+			err := deploy(dest, func() (io.ReadCloser, error) {
+				opens++
+				return io.NopCloser(bytes.NewReader(tt.payload)), nil
+			})
+			if err != nil {
+				t.Fatal(err)
 			}
-			assertFile(t, dest, tt.installed)
+			wantOpens := 2
+			if tt.want {
+				wantOpens = 1
+			}
+			if opens != wantOpens {
+				t.Errorf("opened payload %d times, want %d", opens, wantOpens)
+			}
+			assertFile(t, dest, tt.payload)
+			if !tt.want {
+				assertFile(t, dest+oldFileSuffix, tt.installed)
+			}
 			assertNoTemps(t, dir)
 		})
 	}
@@ -317,14 +333,19 @@ func TestMatchesDestinationReadFailure(t *testing.T) {
 	assertNoTemps(t, dir)
 }
 
-func TestMatchesDestinationGzip(t *testing.T) {
+func TestDeployComparedGzip(t *testing.T) {
+	const differentContents = "different"
 	for _, size := range []int{123, 32 * 1024} {
-		for _, failure := range []string{"none", "checksum", "truncated"} {
+		for _, failure := range []string{"none", differentContents, "checksum", "truncated"} {
 			t.Run(fmt.Sprintf("%d/%s", size, failure), func(t *testing.T) {
 				dir := t.TempDir()
 				dest := filepath.Join(dir, "plugin")
 				payload := bytes.Repeat([]byte("a"), size)
-				writeFile(t, dest, payload)
+				installed := bytes.Clone(payload)
+				if failure == differentContents {
+					installed[len(installed)-1] = 'b'
+				}
+				writeFile(t, dest, installed)
 				var compressed bytes.Buffer
 				writer := gzip.NewWriter(&compressed)
 				if _, err := writer.Write(payload); err != nil {
@@ -343,14 +364,21 @@ func TestMatchesDestinationGzip(t *testing.T) {
 					data = data[:len(data)-1]
 					wantErr = io.ErrUnexpectedEOF
 				}
-				reader, err := gzip.NewReader(bytes.NewReader(data))
-				if err != nil {
-					t.Fatal(err)
+				opens := 0
+				err := deploy(dest, func() (io.ReadCloser, error) {
+					opens++
+					return gzip.NewReader(bytes.NewReader(data))
+				})
+				if !errors.Is(err, wantErr) {
+					t.Fatalf("deploy error = %v; want %v", err, wantErr)
 				}
-				defer reader.Close()
-				same, err := matchesDestination(reader, dest)
-				if !errors.Is(err, wantErr) || same != (wantErr == nil) {
-					t.Fatalf("matching bytes: got %v, %v; want error %v", same, err, wantErr)
+				wantOpens := 1
+				if failure == differentContents {
+					wantOpens = 2
+					assertFile(t, dest+oldFileSuffix, installed)
+				}
+				if opens != wantOpens {
+					t.Errorf("opened payload %d times, want %d", opens, wantOpens)
 				}
 				assertFile(t, dest, payload)
 				assertNoTemps(t, dir)
@@ -362,7 +390,10 @@ func TestMatchesDestinationGzip(t *testing.T) {
 func BenchmarkMatchesDestination(b *testing.B) {
 	payload := bytes.Repeat([]byte("embedded payload"), 512*1024)
 	dest := filepath.Join(b.TempDir(), "plugin")
-	if err := os.WriteFile(dest, payload, 0o600); err != nil {
+	if err := os.WriteFile(dest, payload, executablePermissions); err != nil {
+		b.Fatal(err)
+	}
+	if err := os.Chmod(dest, executablePermissions); err != nil {
 		b.Fatal(err)
 	}
 	var compressed bytes.Buffer
@@ -391,7 +422,10 @@ func BenchmarkMatchesDestination(b *testing.B) {
 
 func writeFile(t *testing.T, name string, content []byte) {
 	t.Helper()
-	if err := os.WriteFile(name, content, 0o600); err != nil { // #nosec G703 -- Test destinations are constructed within t.TempDir.
+	if err := os.WriteFile(name, content, executablePermissions); err != nil { // #nosec G703 -- Test destinations are constructed within t.TempDir.
+		t.Fatal(err)
+	}
+	if err := os.Chmod(name, executablePermissions); err != nil {
 		t.Fatal(err)
 	}
 }

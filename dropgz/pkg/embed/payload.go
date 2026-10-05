@@ -99,8 +99,8 @@ func Extract(p string, compression Compression) (*compoundReadCloser, error) {
 	return &compoundReadCloser{closer: f, readcloser: rc}, nil
 }
 
-func deploy(src, dest string, compression Compression) error {
-	rc, err := Extract(src, compression)
+func deploy(dest string, openPayload func() (io.ReadCloser, error)) error {
+	rc, err := openPayload()
 	if err != nil {
 		return err
 	}
@@ -110,15 +110,9 @@ func deploy(src, dest string, compression Compression) error {
 		return err
 	}
 	if same {
-		info, statErr := os.Stat(dest)
-		if statErr != nil {
-			return errors.Wrapf(statErr, "failed to inspect destination %s", dest)
-		}
-		if info.Mode() == executablePermissions {
-			return nil
-		}
+		return nil
 	}
-	rc, err = Extract(src, compression)
+	rc, err = openPayload()
 	if err != nil {
 		return err
 	}
@@ -137,6 +131,13 @@ func matchesDestination(src io.Reader, dest string) (same bool, err error) {
 	defer func() {
 		err = stderrors.Join(err, errors.Wrap(current.Close(), "failed to close destination"))
 	}()
+	info, err := current.Stat()
+	if err != nil {
+		return false, errors.Wrapf(err, "failed to inspect destination %s", dest)
+	}
+	if info.Mode() != executablePermissions {
+		return false, nil
+	}
 	var payload, installed [32 * 1024]byte
 	for {
 		n, readErr := src.Read(payload[:])
@@ -161,7 +162,7 @@ func matchesDestination(src io.Reader, dest string) (same bool, err error) {
 }
 
 func deployReader(dest string, rc io.ReadCloser) error {
-	staged, err := stageFile(dest, rc, 0o755)
+	staged, err := stageFile(dest, rc, executablePermissions)
 	if err != nil {
 		return err
 	}
@@ -226,7 +227,9 @@ func Deploy(log *zap.Logger, srcs, dests []string, compression Compression) erro
 	for i := range srcs {
 		src := srcs[i]
 		dest := dests[i]
-		if err := deploy(src, dest, compression); err != nil {
+		if err := deploy(dest, func() (io.ReadCloser, error) {
+			return Extract(src, compression)
+		}); err != nil {
 			return err
 		}
 		log.Info("deployed file", zap.String("src", src), zap.String("dest", dest))
