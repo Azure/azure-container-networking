@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -229,11 +230,162 @@ func TestDeployEmbedded(t *testing.T) {
 				t.Fatal(err)
 			}
 			dest := filepath.Join(t.TempDir(), "plugin")
-			if err := deploy(src, dest, None); err != nil {
+			if err = deploy(src, dest, None); err != nil {
 				t.Fatal(err)
 			}
 			assertFile(t, dest, want)
+			before, err := os.Stat(dest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			backup := []byte("previous backup")
+			writeFile(t, dest+oldFileSuffix, backup)
+			if err = deploy(src, dest, None); err != nil {
+				t.Fatal(err)
+			}
+			after, err := os.Stat(dest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !os.SameFile(before, after) {
+				t.Error("identical payload replaced the installed file")
+			}
+			assertFile(t, dest+oldFileSuffix, backup)
+			different := append(bytes.Clone(want), []byte("different contents")...)
+			writeFile(t, dest, different)
+			if err = deploy(src, dest, None); err != nil {
+				t.Fatal(err)
+			}
+			assertFile(t, dest, want)
+			assertFile(t, dest+oldFileSuffix, different)
 		})
+	}
+}
+
+func TestMatchesDestination(t *testing.T) {
+	block := bytes.Repeat([]byte("a"), 32*1024)
+	for _, tt := range []struct {
+		name      string
+		payload   []byte
+		installed []byte
+		want      bool
+	}{
+		{"empty", nil, nil, true},
+		{"small", []byte("same"), []byte("same"), true},
+		{"block boundary", block, block, true},
+		{"multiple blocks", bytes.Repeat(block, 3), bytes.Repeat(block, 3), true},
+		{"different", []byte("new"), []byte("old"), false},
+		{"shorter", []byte("same"), []byte("same suffix"), false},
+		{"longer", []byte("same suffix"), []byte("same"), false},
+		{"different tail", append(bytes.Clone(block), 'a'), append(bytes.Clone(block), 'b'), false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			dest := filepath.Join(dir, "plugin")
+			writeFile(t, dest, tt.installed)
+			same, err := matchesDestination(bytes.NewReader(tt.payload), dest)
+			if err != nil || same != tt.want {
+				t.Fatalf("matchesDestination = %v, %v; want %v", same, err, tt.want)
+			}
+			assertFile(t, dest, tt.installed)
+			assertNoTemps(t, dir)
+		})
+	}
+}
+
+func TestMatchesDestinationMissing(t *testing.T) {
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "plugin")
+	same, err := matchesDestination(bytes.NewReader([]byte("payload")), dest)
+	if err != nil || same {
+		t.Fatalf("missing destination: %v, %v", same, err)
+	}
+	assertNoTemps(t, dir)
+}
+
+func TestMatchesDestinationReadFailure(t *testing.T) {
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "plugin")
+	payload := []byte("same payload")
+	writeFile(t, dest, payload)
+	rc := &checkedReader{reader: bytes.NewReader(payload), check: func() {}, err: errRead}
+	same, err := matchesDestination(rc, dest)
+	if !errors.Is(err, errRead) || same {
+		t.Fatalf("expected read failure, got %v, %v", same, err)
+	}
+	assertFile(t, dest, payload)
+	assertNoTemps(t, dir)
+}
+
+func TestMatchesDestinationGzip(t *testing.T) {
+	for _, size := range []int{123, 32 * 1024} {
+		for _, failure := range []string{"none", "checksum", "truncated"} {
+			t.Run(fmt.Sprintf("%d/%s", size, failure), func(t *testing.T) {
+				dir := t.TempDir()
+				dest := filepath.Join(dir, "plugin")
+				payload := bytes.Repeat([]byte("a"), size)
+				writeFile(t, dest, payload)
+				var compressed bytes.Buffer
+				writer := gzip.NewWriter(&compressed)
+				if _, err := writer.Write(payload); err != nil {
+					t.Fatal(err)
+				}
+				if err := writer.Close(); err != nil {
+					t.Fatal(err)
+				}
+				data := compressed.Bytes()
+				var wantErr error
+				switch failure {
+				case "checksum":
+					data[len(data)-8] ^= 1
+					wantErr = gzip.ErrChecksum
+				case "truncated":
+					data = data[:len(data)-1]
+					wantErr = io.ErrUnexpectedEOF
+				}
+				reader, err := gzip.NewReader(bytes.NewReader(data))
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer reader.Close()
+				same, err := matchesDestination(reader, dest)
+				if !errors.Is(err, wantErr) || same != (wantErr == nil) {
+					t.Fatalf("matching bytes: got %v, %v; want error %v", same, err, wantErr)
+				}
+				assertFile(t, dest, payload)
+				assertNoTemps(t, dir)
+			})
+		}
+	}
+}
+
+func BenchmarkMatchesDestination(b *testing.B) {
+	payload := bytes.Repeat([]byte("embedded payload"), 512*1024)
+	dest := filepath.Join(b.TempDir(), "plugin")
+	if err := os.WriteFile(dest, payload, 0o600); err != nil {
+		b.Fatal(err)
+	}
+	var compressed bytes.Buffer
+	writer := gzip.NewWriter(&compressed)
+	if _, err := writer.Write(payload); err != nil {
+		b.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		b.Fatal(err)
+	}
+	b.SetBytes(int64(len(payload)))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		reader, err := gzip.NewReader(bytes.NewReader(compressed.Bytes()))
+		if err != nil {
+			b.Fatal(err)
+		}
+		same, compareErr := matchesDestination(reader, dest)
+		closeErr := reader.Close()
+		if compareErr != nil || closeErr != nil || !same {
+			b.Fatalf("comparison = %v, %v, %v", same, compareErr, closeErr)
+		}
 	}
 }
 

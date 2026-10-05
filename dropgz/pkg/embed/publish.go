@@ -1,5 +1,3 @@
-//go:build unix
-
 package embed
 
 import (
@@ -35,5 +33,6 @@ func publishFile(staged, dest string) error {
 			return stderrors.Join(errors.Wrap(err, "failed to publish backup"), removeTemp(backup))
 		}
 	}
+	// Never move the live file away first: a failed replacement must not need rollback.
 	return errors.Wrapf(os.Rename(staged, dest), "failed to publish file %s", dest)
 }

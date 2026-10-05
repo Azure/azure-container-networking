@@ -62,9 +62,9 @@ func TestDeployReaderRunningExecutable(t *testing.T) {
 	}
 
 	payload := []byte("new executable")
-	if err = deployReader(dest, io.NopCloser(bytes.NewReader(payload))); err != nil {
-		t.Fatal(err)
+	if err = deployReader(dest, io.NopCloser(bytes.NewReader(payload))); err == nil {
+		t.Fatal("expected replacement of the running executable to fail")
 	}
-	assertFile(t, dest, payload)
+	assertFile(t, dest, old)
 	assertFile(t, dest+oldFileSuffix, old)
 }

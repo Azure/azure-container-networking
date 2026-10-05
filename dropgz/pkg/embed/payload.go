@@ -2,6 +2,7 @@ package embed
 
 import (
 	"bufio"
+	"bytes"
 	"compress/gzip"
 	"embed"
 	stderrors "errors"
@@ -103,7 +104,60 @@ func deploy(src, dest string, compression Compression) error {
 	if err != nil {
 		return err
 	}
+	same, err := matchesDestination(rc, dest)
+	err = stderrors.Join(err, errors.Wrap(rc.Close(), "failed to close payload"))
+	if err != nil {
+		return err
+	}
+	if same {
+		info, statErr := os.Stat(dest)
+		if statErr != nil {
+			return errors.Wrapf(statErr, "failed to inspect destination %s", dest)
+		}
+		if info.Mode() == executablePermissions {
+			return nil
+		}
+	}
+	rc, err = Extract(src, compression)
+	if err != nil {
+		return err
+	}
 	return deployReader(dest, rc)
+}
+
+func matchesDestination(src io.Reader, dest string) (same bool, err error) {
+	exists, err := destinationExists(dest)
+	if err != nil || !exists {
+		return false, err
+	}
+	current, err := os.Open(dest)
+	if err != nil {
+		return false, errors.Wrapf(err, "failed to open destination %s", dest)
+	}
+	defer func() {
+		err = stderrors.Join(err, errors.Wrap(current.Close(), "failed to close destination"))
+	}()
+	var payload, installed [32 * 1024]byte
+	for {
+		n, readErr := src.Read(payload[:])
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
+			return false, errors.Wrap(readErr, "failed to read payload")
+		}
+		m, currentErr := io.ReadFull(current, installed[:n])
+		if currentErr != nil && !errors.Is(currentErr, io.EOF) && !errors.Is(currentErr, io.ErrUnexpectedEOF) {
+			return false, errors.Wrap(currentErr, "failed to read destination")
+		}
+		if n != m || !bytes.Equal(payload[:n], installed[:m]) {
+			return false, nil
+		}
+		if readErr != nil {
+			m, currentErr = current.Read(installed[:1])
+			if currentErr != nil && !errors.Is(currentErr, io.EOF) {
+				return false, errors.Wrap(currentErr, "failed to read destination")
+			}
+			return m == 0, nil
+		}
+	}
 }
 
 func deployReader(dest string, rc io.ReadCloser) error {
@@ -160,8 +214,10 @@ func destinationExists(dest string) (bool, error) {
 	return true, nil
 }
 
-// Deploy stages complete executable files before replacing destinations in a trusted directory.
-// Unix replacement is atomic; Windows uses rename-to-backup and rollback.
+// Deploy skips payloads with matching contents and permissions, and stages changed files
+// before replacing destinations in a trusted directory.
+// Unix replacement is atomic. Windows replacement can fail when the destination is in use;
+// the live file is never moved aside to work around a failed replacement.
 // Each replacement keeps a .old backup and is independent of other payloads.
 func Deploy(log *zap.Logger, srcs, dests []string, compression Compression) error {
 	if len(srcs) != len(dests) {
@@ -173,7 +229,7 @@ func Deploy(log *zap.Logger, srcs, dests []string, compression Compression) erro
 		if err := deploy(src, dest, compression); err != nil {
 			return err
 		}
-		log.Info("wrote file", zap.String("src", src), zap.String("dest", dest))
+		log.Info("deployed file", zap.String("src", src), zap.String("dest", dest))
 	}
 	return nil
 }

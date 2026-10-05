@@ -4,6 +4,7 @@ package embed
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -22,6 +23,92 @@ func TestDeployReaderExecutableMode(t *testing.T) {
 	}
 	if info.Mode().Perm() != 0o755 {
 		t.Errorf("mode = %o, want 755", info.Mode().Perm())
+	}
+}
+
+func TestDeployIdenticalPermissions(t *testing.T) {
+	const src = "sum.txt"
+	payload, err := embedfs.ReadFile(cwd + "/" + src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range []os.FileMode{0o755, 0o644} {
+		t.Run(strconv.FormatUint(uint64(mode), 8), func(t *testing.T) {
+			dir := t.TempDir()
+			dest := filepath.Join(dir, "plugin")
+			writeFile(t, dest, payload)
+			if err := os.Chmod(dest, mode); err != nil {
+				t.Fatal(err)
+			}
+			before, err := os.Stat(dest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if mode == 0o755 {
+				// A matching installation needs no directory write permission.
+				if err = os.Chmod(dir, 0o555); err != nil {
+					t.Fatal(err)
+				}
+				defer func() {
+					if chmodErr := os.Chmod(dir, 0o755); chmodErr != nil {
+						t.Error(chmodErr)
+					}
+				}()
+			}
+			if err = deploy(src, dest, None); err != nil {
+				t.Fatal(err)
+			}
+			after, err := os.Stat(dest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if after.Mode().Perm() != 0o755 {
+				t.Fatalf("mode = %o, want 755", after.Mode().Perm())
+			}
+			if os.SameFile(before, after) != (mode == 0o755) {
+				t.Fatal("only a permission mismatch should replace the file")
+			}
+			assertFile(t, dest, payload)
+			assertNoTemps(t, dir)
+		})
+	}
+}
+
+func TestDeployPermissionFailurePreservesDestination(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("permission checks require an unprivileged process")
+	}
+	for _, denied := range []string{"directory write", "destination read"} {
+		t.Run(denied, func(t *testing.T) {
+			dir := t.TempDir()
+			dest := filepath.Join(dir, "plugin")
+			old := []byte("previous executable")
+			backup := []byte("earlier executable")
+			writeFile(t, dest, old)
+			writeFile(t, dest+oldFileSuffix, backup)
+			path, mode := dir, os.FileMode(0o555)
+			if denied == "destination read" {
+				path, mode = dest, 0o000
+			}
+			if err := os.Chmod(path, mode); err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				if err := os.Chmod(path, 0o755); err != nil {
+					t.Error(err)
+				}
+			}()
+			err := deployReader(dest, io.NopCloser(bytes.NewReader([]byte("new executable"))))
+			if !errors.Is(err, os.ErrPermission) {
+				t.Fatalf("expected permission failure, got %v", err)
+			}
+			assertFile(t, dest+oldFileSuffix, backup)
+			assertNoTemps(t, dir)
+			if err = os.Chmod(path, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			assertFile(t, dest, old)
+		})
 	}
 }
 
