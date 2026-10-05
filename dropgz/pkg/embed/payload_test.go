@@ -236,6 +236,9 @@ func TestDeployEmbedded(t *testing.T) {
 				t.Fatal(err)
 			}
 			assertFile(t, dest, want)
+			if err = os.Chmod(dest, 0o444); err != nil {
+				t.Fatal(err)
+			}
 			before, err := os.Stat(dest)
 			if err != nil {
 				t.Fatal(err)
@@ -252,8 +255,14 @@ func TestDeployEmbedded(t *testing.T) {
 			if !os.SameFile(before, after) {
 				t.Error("identical payload replaced the installed file")
 			}
+			if after.Mode() != before.Mode() {
+				t.Errorf("identical payload changed mode from %v to %v", before.Mode(), after.Mode())
+			}
 			assertFile(t, dest+oldFileSuffix, backup)
 			different := append(bytes.Clone(want), []byte("different contents")...)
+			if err = os.Chmod(dest, 0o600); err != nil {
+				t.Fatal(err)
+			}
 			writeFile(t, dest, different)
 			if err = Deploy(zap.NewNop(), []string{src}, []string{dest}, None); err != nil {
 				t.Fatal(err)
@@ -390,10 +399,7 @@ func TestDeployComparedGzip(t *testing.T) {
 func BenchmarkMatchesDestination(b *testing.B) {
 	payload := bytes.Repeat([]byte("embedded payload"), 512*1024)
 	dest := filepath.Join(b.TempDir(), "plugin")
-	if err := os.WriteFile(dest, payload, executablePermissions); err != nil {
-		b.Fatal(err)
-	}
-	if err := os.Chmod(dest, executablePermissions); err != nil {
+	if err := os.WriteFile(dest, payload, 0o600); err != nil {
 		b.Fatal(err)
 	}
 	var compressed bytes.Buffer
@@ -422,10 +428,7 @@ func BenchmarkMatchesDestination(b *testing.B) {
 
 func writeFile(t *testing.T, name string, content []byte) {
 	t.Helper()
-	if err := os.WriteFile(name, content, executablePermissions); err != nil { // #nosec G703 -- Test destinations are constructed within t.TempDir.
-		t.Fatal(err)
-	}
-	if err := os.Chmod(name, executablePermissions); err != nil {
+	if err := os.WriteFile(name, content, 0o600); err != nil { // #nosec G703 -- Test destinations are constructed within t.TempDir.
 		t.Fatal(err)
 	}
 }

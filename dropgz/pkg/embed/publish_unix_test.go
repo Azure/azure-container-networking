@@ -34,7 +34,7 @@ func TestDeployIdenticalPermissions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, mode := range []os.FileMode{0o755, 0o644} {
+	for _, mode := range []os.FileMode{0o444, 0o644, 0o700, 0o755} {
 		t.Run(strconv.FormatUint(uint64(mode), 8), func(t *testing.T) {
 			dir := t.TempDir()
 			dest := filepath.Join(dir, "plugin")
@@ -46,17 +46,14 @@ func TestDeployIdenticalPermissions(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if mode == 0o755 {
-				// A matching installation needs no directory write permission.
-				if err = os.Chmod(dir, 0o555); err != nil {
-					t.Fatal(err)
-				}
-				defer func() {
-					if chmodErr := os.Chmod(dir, 0o755); chmodErr != nil {
-						t.Error(chmodErr)
-					}
-				}()
+			if err = os.Chmod(dir, 0o555); err != nil {
+				t.Fatal(err)
 			}
+			defer func() {
+				if chmodErr := os.Chmod(dir, 0o755); chmodErr != nil {
+					t.Error(chmodErr)
+				}
+			}()
 			if err = Deploy(zap.NewNop(), []string{src}, []string{dest}, None); err != nil {
 				t.Fatal(err)
 			}
@@ -64,11 +61,11 @@ func TestDeployIdenticalPermissions(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if after.Mode().Perm() != 0o755 {
-				t.Fatalf("mode = %o, want 755", after.Mode().Perm())
+			if after.Mode() != before.Mode() {
+				t.Fatalf("mode changed from %v to %v", before.Mode(), after.Mode())
 			}
-			if os.SameFile(before, after) != (mode == 0o755) {
-				t.Fatal("only a permission mismatch should replace the file")
+			if !os.SameFile(before, after) {
+				t.Fatal("identical content should not replace the file")
 			}
 			assertFile(t, dest, payload)
 			assertNoTemps(t, dir)
