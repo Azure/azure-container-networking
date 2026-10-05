@@ -11,9 +11,9 @@ set -eux
 #   3. Hardcoded fallback digest below
 #
 # To update the fallback, run:
-#   IMG=mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0
+#   IMG=mcr.microsoft.com/oss/go/microsoft/golang:1.27-azurelinux3.0
 #   echo "${IMG}@$(skopeo inspect docker://${IMG} --format '{{.Digest}}')"
-DEFAULT_IMAGE="mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0@sha256:8f638b09830f92f4005c56756cbafdd56d6460f41d2c1fd12b9bc02a5c85434c"
+DEFAULT_IMAGE="mcr.microsoft.com/oss/go/microsoft/golang:1.27-azurelinux3.0@sha256:8499154e36fcfe4e600c6f62ca4b37c371b5b2eca6e7ae17658bcb06a13bd3f3"
 
 # Resolves the golang image from the source Dockerfile for the given $name.
 # Echoes the image reference, or empty string if it cannot be determined.

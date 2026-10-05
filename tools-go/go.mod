@@ -1,10 +1,10 @@
-module github.com/Azure/azure-container-networking
+module github.com/Azure/azure-container-networking/tools-go
 
 go 1.25.0
 
-toolchain go1.26.7
+toolchain go1.27.1
 
-// To use/update leverage -modfile=tools.go.mod field in respective go commands
+// To use/update leverage -modfile=tools-go/go.mod field in respective go commands
 tool (
 	github.com/AlekSi/gocov-xml
 	github.com/axw/gocov/gocov

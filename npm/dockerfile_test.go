@@ -29,7 +29,7 @@ const (
 	// CVE remediation. Asserting it — not just that both Dockerfiles match — makes
 	// a synchronized rollback of both files to an older, vulnerable Go tag fail the
 	// test. Raise this when a newer toolchain is required to clear a CVE.
-	minGoBuilderVersion = "1.26.7"
+	minGoBuilderVersion = "1.27.1"
 )
 
 // requiredLinuxPins is the authoritative set of Ubuntu packages that must be
