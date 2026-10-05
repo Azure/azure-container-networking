@@ -14,17 +14,45 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestDeployReaderExecutableMode(t *testing.T) {
-	dest := filepath.Join(t.TempDir(), "plugin")
-	if err := deployReader(dest, io.NopCloser(bytes.NewReader([]byte("executable")))); err != nil {
-		t.Fatal(err)
-	}
-	info, err := os.Stat(dest)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if info.Mode().Perm() != 0o755 {
-		t.Errorf("mode = %o, want 755", info.Mode().Perm())
+func TestDeployReaderPermissions(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		existing bool
+		mode     os.FileMode
+	}{
+		{"first install", false, 0o755},
+		{"read only", true, 0o444},
+		{"group read", true, 0o640},
+		{"private executable", true, 0o700},
+		{"public executable", true, 0o755},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			dest := filepath.Join(dir, "plugin")
+			old := []byte("previous executable")
+			if tt.existing {
+				writeFile(t, dest, old)
+				if err := os.Chmod(dest, tt.mode); err != nil {
+					t.Fatal(err)
+				}
+			}
+			payload := []byte("new executable")
+			if err := deployReader(dest, io.NopCloser(bytes.NewReader(payload))); err != nil {
+				t.Fatal(err)
+			}
+			info, err := os.Stat(dest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if info.Mode().Perm() != tt.mode {
+				t.Errorf("mode = %o, want %o", info.Mode().Perm(), tt.mode)
+			}
+			assertFile(t, dest, payload)
+			if tt.existing {
+				assertFile(t, dest+oldFileSuffix, old)
+			}
+			assertNoTemps(t, dir)
+		})
 	}
 }
 

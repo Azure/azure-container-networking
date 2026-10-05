@@ -209,9 +209,13 @@ func TestDeployReaderDirectory(t *testing.T) {
 	if err := os.Mkdir(dest, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	err := deployReader(dest, io.NopCloser(bytes.NewReader([]byte("new executable"))))
-	if !errors.Is(err, errNotRegular) {
-		t.Fatalf("expected non-regular destination error, got %v", err)
+	rc := &checkedReader{reader: bytes.NewReader([]byte("new executable")), check: func() {}, closeErr: errClose}
+	err := deployReader(dest, rc)
+	if !errors.Is(err, errNotRegular) || !errors.Is(err, errClose) {
+		t.Fatalf("expected non-regular destination and close errors, got %v", err)
+	}
+	if rc.closes != 1 {
+		t.Errorf("closed source %d times, want 1", rc.closes)
 	}
 	info, err := os.Stat(dest)
 	if err != nil || !info.IsDir() {

@@ -10,11 +10,11 @@ import (
 // The backup copy needs extra disk space. With concurrent installers it is a
 // complete snapshot, not necessarily the immediate predecessor of the winner.
 func publishFile(staged, dest string) error {
-	exists, err := destinationExists(dest)
+	destInfo, err := destinationInfo(dest)
 	if err != nil {
 		return err
 	}
-	if exists {
+	if destInfo != nil {
 		// An open descriptor remains readable across concurrent replacements.
 		// A hard link can fail if its source inode is concurrently unlinked.
 		source, openErr := os.Open(dest)

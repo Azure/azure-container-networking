@@ -120,8 +120,8 @@ func deploy(dest string, openPayload func() (io.ReadCloser, error)) error {
 }
 
 func matchesDestination(src io.Reader, dest string) (same bool, err error) {
-	exists, err := destinationExists(dest)
-	if err != nil || !exists {
+	info, err := destinationInfo(dest)
+	if err != nil || info == nil {
 		return false, err
 	}
 	current, err := os.Open(dest)
@@ -155,7 +155,15 @@ func matchesDestination(src io.Reader, dest string) (same bool, err error) {
 }
 
 func deployReader(dest string, rc io.ReadCloser) error {
-	staged, err := stageFile(dest, rc, 0o755)
+	info, err := destinationInfo(dest)
+	if err != nil {
+		return stderrors.Join(err, errors.Wrap(rc.Close(), "failed to close payload"))
+	}
+	mode := fs.FileMode(0o755)
+	if info != nil {
+		mode = info.Mode().Perm()
+	}
+	staged, err := stageFile(dest, rc, mode)
 	if err != nil {
 		return err
 	}
@@ -194,22 +202,23 @@ func removeTemp(name string) error {
 	return nil
 }
 
-func destinationExists(dest string) (bool, error) {
+func destinationInfo(dest string) (fs.FileInfo, error) {
 	info, err := os.Lstat(dest)
 	if errors.Is(err, os.ErrNotExist) {
-		return false, nil
+		return nil, nil
 	}
 	if err != nil {
-		return false, errors.Wrapf(err, "failed to inspect destination %s", dest)
+		return nil, errors.Wrapf(err, "failed to inspect destination %s", dest)
 	}
 	if !info.Mode().IsRegular() {
-		return false, errors.Wrapf(errNotRegular, "%s", dest)
+		return nil, errors.Wrapf(errNotRegular, "%s", dest)
 	}
-	return true, nil
+	return info, nil
 }
 
 // Deploy leaves files with matching contents untouched, including their permissions,
 // and stages changed files before replacing destinations in a trusted directory.
+// Replacements preserve existing rwx permission bits; first installations use 0755.
 // Unix replacement is atomic. Windows replacement can fail when the destination is in use;
 // the live file is never moved aside to work around a failed replacement.
 // Each replacement keeps a .old backup and is independent of other payloads.
