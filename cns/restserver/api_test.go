@@ -17,7 +17,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
@@ -1032,44 +1031,12 @@ func TestPublishNCRequestBodyParsingMatrix(t *testing.T) {
 	}
 }
 
-func TestRNCSupportProbeIsTimeBounded(t *testing.T) {
-	var gotDeadline bool
-	var gotTimeout time.Duration
-
-	cleanupNMA := setMockNMAgent(svc, &fakes.NMAgentClientFake{
-		SupportedAPIsF: func(ctx context.Context) ([]string, error) {
-			deadline, ok := ctx.Deadline()
-			gotDeadline = ok
-			gotTimeout = time.Until(deadline)
-			return nil, errors.New("nmagent unreachable")
-		},
-	})
-	t.Cleanup(cleanupNMA)
-
-	require.False(t, svc.isRNCSupportedByNMAgent(context.Background()))
-	require.True(t, gotDeadline, "rnc support probe must bound the NMAgent call with a deadline")
-	require.LessOrEqual(t, gotTimeout, nmaAPICallTimeout)
-}
-
-// setRNCSupportedNMAgent installs an NMAgent fake that advertises support for the RNC API.
-func setRNCSupportedNMAgent(t *testing.T) {
-	t.Helper()
-	cleanup := setMockNMAgent(svc, &fakes.NMAgentClientFake{
-		SupportedAPIsF: func(_ context.Context) ([]string, error) {
-			return []string{RNCSupportAPIName}, nil
-		},
-	})
-	t.Cleanup(cleanup)
-}
-
 func TestPublishNCWithRNCPublisherJoinsSubnetEveryTime(t *testing.T) {
 	const (
 		networkID          = "vnet-rnc-publish"
 		subnetName         = "subnet-rnc-publish"
 		networkContainerID = "nc-rnc-publish"
 	)
-
-	setRNCSupportedNMAgent(t)
 
 	var (
 		joinSubnetCalls int
@@ -1145,8 +1112,6 @@ func TestPublishNCWithRNCPublisherSubnetJoinFailure(t *testing.T) {
 		networkContainerID = "nc-rnc-subnet-failure"
 	)
 
-	setRNCSupportedNMAgent(t)
-
 	var publishCalls int
 
 	wsproxy := fakes.WireserverProxyFake{
@@ -1199,8 +1164,6 @@ func TestPublishNCWithRNCPublisherSubnetJoinNon200(t *testing.T) {
 		subnetName         = "subnet-rnc-subnet-status-failure"
 		networkContainerID = "nc-rnc-subnet-status-failure"
 	)
-
-	setRNCSupportedNMAgent(t)
 
 	var publishCalls int
 	const subnetJoinStatusCode = http.StatusInternalServerError
@@ -1395,8 +1358,6 @@ func TestPublishNCWithRNCPublisherDoesNotProbeNMAgentSupport(t *testing.T) {
 }
 
 func TestPublishNCWithRNCPublisherEmptySubnetNameRejected(t *testing.T) {
-	setRNCSupportedNMAgent(t)
-
 	var (
 		joinSubnetCalls int
 		publishCalls    int
@@ -1703,8 +1664,6 @@ func TestUnpublishNCWithRNCPublisherJoinsSubnet(t *testing.T) {
 		networkContainerID = "nc-rnc-unpublish"
 	)
 
-	setRNCSupportedNMAgent(t)
-
 	var (
 		joinSubnetCalls int
 		unpublishCalls  int
@@ -1910,8 +1869,6 @@ func TestUnpublishNCWithRNCPublisherDoesNotProbeNMAgentSupport(t *testing.T) {
 }
 
 func TestUnpublishNCWithRNCPublisherEmptySubnetNameRejected(t *testing.T) {
-	setRNCSupportedNMAgent(t)
-
 	var (
 		joinSubnetCalls int
 		unpublishCalls  int
@@ -1962,7 +1919,6 @@ func TestUnpublishNCWithRNCPublisherEmptySubnetNameRejected(t *testing.T) {
 }
 
 func TestUnpublishNCWithRNCPublisherSubnetJoinFailure(t *testing.T) {
-	setRNCSupportedNMAgent(t)
 
 	var unpublishCalls int
 
@@ -2010,7 +1966,6 @@ func TestUnpublishNCWithRNCPublisherSubnetJoinFailure(t *testing.T) {
 }
 
 func TestUnpublishNCWithRNCPublisherSubnetJoinNon200(t *testing.T) {
-	setRNCSupportedNMAgent(t)
 
 	var unpublishCalls int
 	const subnetJoinStatusCode = http.StatusInternalServerError

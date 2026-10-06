@@ -40,10 +40,6 @@ const (
 	ncURLExpectedMatches = 5
 )
 
-// RNCSupportAPIName is the NMAgent supported-API name advertised when NMAgent can serve
-// network container publish/unpublish over the RNC channel.
-const RNCSupportAPIName = "NetworkManagementRNCSupport"
-
 type ncPublishBody struct {
 	UseRNCPublisher bool `json:"useRNCPublisher"`
 }
@@ -924,31 +920,6 @@ func respondJSON(w http.ResponseWriter, statusCode int, body any) {
 	if err := json.NewEncoder(w).Encode(body); err != nil {
 		logger.Printf("could not write json response: %v", err)
 	}
-}
-
-// isRNCSupportedByNMAgent reports whether NMAgent advertises support for the RNC publish channel.
-// The supported-API list is queried on every publish rather than cached, so that CNS picks up
-// NMAgent upgrades without a restart. A query failure is treated as unsupported so publish falls
-// back to the legacy channel instead of failing outright.
-// todo: implement GetHomeAZ like cache
-func (service *HTTPRestService) isRNCSupportedByNMAgent(ctx context.Context) bool {
-	// the NMAgent http client has no timeout of its own, so bound the probe here to keep a hung
-	// capability endpoint from stalling the handler instead of falling back to the legacy channel.
-	ctx, cancel := context.WithTimeout(ctx, nmaAPICallTimeout)
-	defer cancel()
-
-	supportedAPIs, err := service.nma.SupportedAPIs(ctx)
-	if err != nil {
-		logger.Errorf("[Azure-CNS] failed to query nmagent supported apis, falling back to legacy publisher: %v", err)
-		return false
-	}
-
-	if !isAPISupportedByNMAgent(supportedAPIs, RNCSupportAPIName) {
-		logger.Printf("[Azure-CNS] nmagent does not support %s api, falling back to legacy publisher", RNCSupportAPIName)
-		return false
-	}
-
-	return true
 }
 
 func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r *http.Request) {
