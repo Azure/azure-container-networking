@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"time"
@@ -195,8 +196,8 @@ func printMigrationSummary(
 
 // newRenderedTable builds a table that draws separator lines between rows, which
 // replaces the SetRowLine(true) call removed in tablewriter v1.
-func newRenderedTable(headers []string) *tablewriter.Table {
-	table := tablewriter.NewTable(os.Stdout,
+func newRenderedTable(out io.Writer, headers []string) *tablewriter.Table {
+	table := tablewriter.NewTable(out,
 		tablewriter.WithRendition(tw.Rendition{
 			Settings: tw.Settings{
 				Separators: tw.Separators{BetweenRows: tw.On},
@@ -217,7 +218,7 @@ func renderMigrationSummaryTable(
 	egressPolicies,
 	unsafeServices []string,
 ) {
-	migrationSummarytable := newRenderedTable([]string{"Breaking Change", "Upgrade compatibility", "Count"})
+	migrationSummarytable := newRenderedTable(os.Stdout, []string{"Breaking Change", "Upgrade compatibility", "Count"})
 	if len(ingressEndportNetworkPolicy) == 0 && len(egressEndportNetworkPolicy) == 0 {
 		migrationSummarytable.Append([]string{"NetworkPolicy with endPort", "✅", fmt.Sprintf("0")})
 	} else {
@@ -257,7 +258,7 @@ func renderFlaggedNetworkPolicyTable(
 	egressPoliciesWithNamedPort,
 	egressPolicies []string,
 ) {
-	flaggedResourceTable := newRenderedTable([]string{"Network Policy", "NetworkPolicy with endPort", "NetworkPolicy with CIDR", "NetworkPolicy with Named Port", "NetworkPolicy with Egress (Not Allow All Egress)"})
+	flaggedResourceTable := newRenderedTable(os.Stdout, []string{"Network Policy", "NetworkPolicy with endPort", "NetworkPolicy with CIDR", "NetworkPolicy with Named Port", "NetworkPolicy with Egress (Not Allow All Egress)"})
 
 	// Create a map to store the policies and their flags
 	policyFlags := make(map[string][]string)
@@ -319,7 +320,7 @@ func renderFlaggedNetworkPolicyTable(
 
 func renderFlaggedServiceTable(unsafeServices []string) {
 	fmt.Println("\nFlagged Services:")
-	flaggedResourceTable := newRenderedTable([]string{"Service", "Disruption for some Services with externalTrafficPolicy=Cluster"})
+	flaggedResourceTable := newRenderedTable(os.Stdout, []string{"Service", "Disruption for some Services with externalTrafficPolicy=Cluster"})
 	for _, service := range unsafeServices {
 		flaggedResourceTable.Append([]string{fmt.Sprintf("%s", service), "❌"})
 	}
@@ -327,7 +328,7 @@ func renderFlaggedServiceTable(unsafeServices []string) {
 }
 
 func renderClusterResourceTable(policiesByNamespace map[string][]*networkingv1.NetworkPolicy, servicesByNamespace map[string][]*corev1.Service, podsByNamespace map[string][]*corev1.Pod) {
-	resourceTable := newRenderedTable([]string{"Resource", "Count"})
+	resourceTable := newRenderedTable(os.Stdout, []string{"Resource", "Count"})
 
 	// Count the total number of policies
 	totalPolicies := 0
