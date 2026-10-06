@@ -137,7 +137,7 @@ Cross-reference:
 - [ ] Which crypto backend is selected BY DEFAULT (no GOEXPERIMENT set)?
 - [ ] Does the default backend require CGO? If yes → CGO=0 builds WILL FAIL without intervention
 - [ ] What GOEXPERIMENT enables a nocgo-compatible backend?
-- [ ] Is `MS_GO_NOSYSTEMCRYPTO` deprecated?
+- [ ] Is `MS_GO_NOSYSTEMCRYPTO` deprecated? (As of Go 1.27 it is NOT: it is the supported opt-out. Only `GOEXPERIMENT=systemcrypto`/`nosystemcrypto` were removed.)
 - [ ] Any crypto API behavior changes (non-FIPS curves, key sizes)?
 
 #### D. Compatibility & Breaking Changes
@@ -227,7 +227,7 @@ build/images.mk (GO_IMG=golang:1.XX-azurelinux3.0)     ← primary image tag
     │   └── → go.mod (go floor + exact toolchain)
     │
     ├── BUILD ENVIRONMENT:
-    │   ├── → tools-go/go.mod (same floor + toolchain)
+    │   ├── → tools.go.mod (same floor + toolchain)
     │   ├── → .devcontainer/Dockerfile (VARIANT="1.XX") ← dev container version
     │   ├── → .pipelines/build/scripts/install-go.sh (DEFAULT_IMAGE SHA)
     │   ├── → bpf-prog/ipv6-hp-bpf/linux.Dockerfile (Go image SHA)
@@ -257,11 +257,10 @@ build/images.mk (GO_IMG=golang:1.XX-azurelinux3.0)     ← primary image tag
      a newer language version.
 2. **`build/images.mk`** — Update `GO_IMG` tag
    - ALWAYS use 2-part floating tag: `1.27-azurelinux3.0`, never `1.27.0-azurelinux3.0`
-3. **`tools-go/go.mod`** — Update `toolchain` to match root
+3. **`tools.go.mod`** (repo root) — Update `toolchain` to match root: `go mod edit -modfile=tools.go.mod -toolchain=go1.XX.Y`
 4. **All sub-module `go.mod` files** — Update `toolchain` to match (see full list above)
 5. **Do NOT run `go mod tidy`** — it times out in the agent environment
    - Existing `go.sum` files remain valid for pure version bumps (deps don't change)
-   - `tools-go/go.sum` is handled by the migration step (copy from `tools.go.sum`)
    - CI or a follow-up commit will reconcile any checksum drift if needed
 6. **`.devcontainer/Dockerfile`** — Update `VARIANT` arg to `"1.XX"`
 7. **`.pipelines/build/scripts/install-go.sh`** — Update `DEFAULT_IMAGE` to new Go image digest:
@@ -286,8 +285,8 @@ build/images.mk (GO_IMG=golang:1.XX-azurelinux3.0)     ← primary image tag
 9. **`npm/linux.Dockerfile`** and **`npm/windows.Dockerfile`** — Update Go tag
    - ⚠️ npm Dockerfiles use **plain patch tag** (e.g., `golang:1.26.4`), NOT the `-azurelinux3.0` suffixed tag
    - The npm builder uses Ubuntu as runtime base, not Azure Linux
-   - `npm/windows.Dockerfile` builds on a **Linux builder** (`--platform=linux/amd64`) cross-compiling with `GOOS=windows` — it still needs `GOEXPERIMENT` for CGO_ENABLED=0 on the Linux build stage
-   - Replace `MS_GO_NOSYSTEMCRYPTO=1` with appropriate `GOEXPERIMENT=<value>` in BOTH files
+   - `npm/windows.Dockerfile` builds on a **Linux builder** (`--platform=linux/amd64`) cross-compiling with `GOOS=windows`
+   - ⚠️ **KEEP `MS_GO_NOSYSTEMCRYPTO=1`** in BOTH files. Do NOT remove it or replace it with a `GOEXPERIMENT`. npm runs on Ubuntu, which does not ship Microsoft's FIPS OpenSSL. Building it with systemcrypto makes it crash-loop on FIPS-enabled clusters. `MS_GO_NOSYSTEMCRYPTO=1` is still the supported opt-out in Go 1.27+.
 10. **Run `make dockerfiles`** — Regenerate all template-based Dockerfiles
 
 ### Step 1b: Apply GOEXPERIMENT to ALL Build Paths (CRITICAL)
@@ -315,7 +314,7 @@ export CGO_ENABLED=1
 Scripts to update:
 - `.pipelines/build/scripts/cni.sh`
 - `.pipelines/build/scripts/cns.sh`
-- `.pipelines/build/scripts/npm.sh`
+- `.pipelines/build/scripts/npm.sh` ← **exception:** keeps `export MS_GO_NOSYSTEMCRYPTO=1`, so add no GOEXPERIMENT
 - `.pipelines/build/scripts/dropgz.sh`
 - `.pipelines/build/scripts/azure-ipam.sh`
 - `.pipelines/build/scripts/azure-ip-masq-merger.sh`
@@ -348,10 +347,11 @@ Templates to update:
 #### Standalone Dockerfiles (not generated from templates)
 
 - `bpf-prog/ipv6-hp-bpf/linux.Dockerfile`
-- `npm/linux.Dockerfile`
-- `npm/windows.Dockerfile` ← **builds on Linux** (`--platform=linux/amd64`), needs GOEXPERIMENT for CGO=0
+- `npm/linux.Dockerfile` and `npm/windows.Dockerfile` ← **exception:** keep `MS_GO_NOSYSTEMCRYPTO=1` on the `go build` line, so add no GOEXPERIMENT
 
 #### Root Makefile
+
+⚠️ **Keep `all-binaries: export MS_GO_NOSYSTEMCRYPTO := 1`.** Those release binaries run on arbitrary hosts, so they must not depend on Microsoft's FIPS OpenSSL.
 
 The root `Makefile` has CGO_ENABLED=0 build lines for local development. Add a variable and apply it inline:
 
@@ -377,45 +377,13 @@ GOEXPERIMENT=$(ACN_GOEXPERIMENT) CGO_ENABLED=0 go build ...
   ```
   **Do NOT skip this file** — `-buildmode=c-shared` implies CGO but doesn't explicitly set `CGO_ENABLED=1`, so grep for `CGO_ENABLED` won't find it. Search for `-buildmode=c-shared` as well.
 
-### Tools Module Migration (Go 1.26+ requirement)
+### Tools Module (`tools.go.mod`)
 
-Go 1.26's stricter `go mod tidy` rejects root-level modfiles (`tools.go.mod`) that share the same module path as `go.mod`. The tools module MUST live in its own directory.
+The tools module lives at the repo root as `tools.go.mod` / `tools.go.sum`, used with `-modfile=tools.go.mod`.
+**Do NOT move it to `tools-go/`.** That migration is not required: Go 1.26 and 1.27 both resolve `go tool -modfile=tools.go.mod ...` and `go mod tidy -modfile=tools.go.mod` correctly. Moving it adds a new module that CI's govulncheck matrix check rejects, and it changes many unrelated Makefiles.
 
-**If `tools.go.mod` exists at the repo root (not yet migrated):**
-
-1. Create `tools-go/` directory
-2. Move `tools.go.mod` → `tools-go/go.mod`
-3. Move `tools.go.sum` → `tools-go/go.sum`
-4. Change module name in `tools-go/go.mod`:
-   ```
-   - module github.com/Azure/azure-container-networking
-   + module github.com/Azure/azure-container-networking/tools-go
-   ```
-5. Find and update ALL references:
-   ```bash
-   grep -rn "tools\.go\.mod" . --include="*.go" --include="Makefile" --include="*.sh" --include="*.yaml" --include="*.yml" | grep -v vendor
-   ```
-   Common locations that reference `-modfile=tools.go.mod`:
-   - `crd/clustersubnetstate/Makefile`
-   - `crd/multitenancy/Makefile`
-   - `crd/multitenantnetworkcontainer/Makefile`
-   - `crd/nodenetworkconfig/Makefile`
-   - `crd/overlayextensionconfig/Makefile`
-   - `cns/multitenantcontroller/mockclients/Makefile`
-   - `npm/pkg/dataplane/Makefile`
-   - `platform/Makefile`
-   - `scripts/install-protoc.sh`
-   - Root `Makefile` (`TOOLS_GO_MOD` variable)
-
-   Replace all: `tools.go.mod` → `tools-go/go.mod`
-
-6. Do NOT run `go mod tidy` — just copy the sum file (deps don't change for version bumps)
-
-**If `tools-go/go.mod` already exists (already migrated):**
-
-- Just update the `go` directive to match root
-- Do NOT run `go mod tidy` (times out in agent environment)
-- Verify all `-modfile` references point to `tools-go/go.mod` (not old `tools.go.mod`)
+- Update only the `toolchain` directive: `go mod edit -modfile=tools.go.mod -toolchain=go1.XX.Y`. `hack/scripts/update-go-toolchain.sh` already does this.
+- Do NOT run `go mod tidy` (it times out in the agent environment).
 
 ---
 
@@ -512,8 +480,8 @@ done
      fi
    done
    
-   # tools-go module
-   grep "^toolchain go$TARGET_TOOLCHAIN" tools-go/go.mod || echo "FAIL: tools-go/go.mod toolchain not updated!"
+   # tools module
+   grep "^toolchain go$TARGET_TOOLCHAIN" tools.go.mod || echo "FAIL: tools.go.mod toolchain not updated!"
    
    # build/images.mk
    grep "GO_IMG" build/images.mk | grep -q "$TARGET_MINOR" || echo "FAIL: build/images.mk not updated!"
@@ -582,7 +550,7 @@ When upgrading Go, verify compatibility with AKS supported Kubernetes versions:
 - **ALWAYS use `1.XX.1` in go.mod** — NOT the latest patch. The container image provides the actual binary version.
 - The `npm/` component is released as **npm-lite** — ensure Dockerfiles build correctly
 - npm Dockerfiles use **plain Go tags** (e.g., `golang:1.26.4`) without `-azurelinux3.0` suffix
-- `npm/windows.Dockerfile` builds on a Linux builder (`--platform=linux/amd64`) — still needs GOEXPERIMENT for CGO=0
+- npm Dockerfiles and `npm.sh` keep `MS_GO_NOSYSTEMCRYPTO=1` (Ubuntu runtime, no Microsoft FIPS OpenSSL). Never remove it.
 - The `baseimages.yaml` CI workflow fails if `make dockerfiles` output doesn't match committed files
 - ALWAYS use 2-part floating tags in `build/images.mk`
 - **Windows builds**: CNG backend typically works without CGO or GOEXPERIMENT — verify per version
