@@ -32,6 +32,13 @@ var (
 		},
 		[]string{"url", "verb", "cns_return_code"},
 	)
+	ipamUnixRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cns_ipam_unix_requests_total",
+			Help: "Total CNS IPAM requests received on the Unix socket by route.",
+		},
+		[]string{"route"},
+	)
 	ipAssignmentLatency = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Name: "ip_assignment_latency_seconds",
@@ -126,6 +133,7 @@ var (
 func init() {
 	metrics.Registry.MustRegister(
 		HTTPRequestLatency,
+		ipamUnixRequests,
 		ipAssignmentLatency,
 		ipConfigStatusStateTransitionTime,
 		syncHostNCVersionCount,

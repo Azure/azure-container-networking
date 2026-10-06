@@ -35,15 +35,16 @@ type ServiceAPI interface {
 
 // ServiceConfig specifies common configuration.
 type ServiceConfig struct {
-	Name        string
-	Version     string
-	Listener    *acn.Listener
-	ErrChan     chan<- error
-	Store       store.KeyValueStore
-	Server      server
-	ChannelMode string
-	TLSSettings tls.TlsSettings
-	Logger      *zap.Logger
+	Name               string
+	Version            string
+	Listener           *acn.Listener
+	ErrChan            chan<- error
+	Store              store.KeyValueStore
+	Server             server
+	ChannelMode        string
+	IPAMUnixSocketPath string
+	TLSSettings        tls.TlsSettings
+	Logger             *zap.Logger
 }
 
 // server struct to store primaryInterfaceIP from VM, port where customer provides by -p and temporary flag EnableLocalServer
