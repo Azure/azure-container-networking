@@ -21,28 +21,23 @@ func (t *testDo) Do(req *http.Request) (*http.Response, error) {
 }
 
 const (
-	useLegacyChannelFalse = "false"
-	interfaceID           = "iface-1"
-	networkContainerID    = "nc-1"
-	authToken             = "token-1"
+	interfaceID        = "iface-1"
+	networkContainerID = "nc-1"
+	authToken          = "token-1"
 )
 
 func TestProxyRNCPublisherQueryParam(t *testing.T) {
 	tests := []struct {
-		name               string
-		call               func(*Proxy) (*http.Response, error)
-		expectedFlag       string
-		expectLegacySwitch bool
-		expectedTypePath   string
+		name             string
+		call             func(*Proxy) (*http.Response, error)
+		expectedTypePath string
 	}{
 		{
 			name: "JoinNetwork adds useLegacyChannel=false for RNC",
 			call: func(p *Proxy) (*http.Response, error) {
 				return p.JoinNetwork(context.Background(), "vnet-1", true)
 			},
-			expectedFlag:       useLegacyChannelFalse,
-			expectLegacySwitch: true,
-			expectedTypePath:   "NetworkManagement/joinedVirtualNetworks/vnet-1/api-version/1",
+			expectedTypePath: "NetworkManagement/joinedVirtualNetworks/vnet-1/api-version/1?useLegacyChannel=false",
 		},
 		{
 			name: "PublishNC adds useLegacyChannel=false for RNC",
@@ -53,9 +48,7 @@ func TestProxyRNCPublisherQueryParam(t *testing.T) {
 					AuthToken:             authToken,
 				}, []byte(`{}`), true)
 			},
-			expectedFlag:       useLegacyChannelFalse,
-			expectLegacySwitch: true,
-			expectedTypePath:   "NetworkManagement/interfaces/iface-1/networkContainers/nc-1/authenticationToken/token-1/api-version/1",
+			expectedTypePath: "NetworkManagement/interfaces/iface-1/networkContainers/nc-1/authenticationToken/token-1/api-version/1?useLegacyChannel=false",
 		},
 		{
 			name: "UnpublishNC adds useLegacyChannel=false for RNC",
@@ -66,9 +59,7 @@ func TestProxyRNCPublisherQueryParam(t *testing.T) {
 					AuthToken:             authToken,
 				}, []byte(`{}`), true)
 			},
-			expectedFlag:       useLegacyChannelFalse,
-			expectLegacySwitch: true,
-			expectedTypePath:   "NetworkManagement/interfaces/iface-1/networkContainers/nc-1/authenticationToken/token-1/api-version/1/method/DELETE",
+			expectedTypePath: "NetworkManagement/interfaces/iface-1/networkContainers/nc-1/authenticationToken/token-1/api-version/1/method/DELETE?useLegacyChannel=false",
 		},
 		{
 			name: "JoinSubnet includes useLegacyChannel=false",
@@ -77,17 +68,14 @@ func TestProxyRNCPublisherQueryParam(t *testing.T) {
 					AuthToken: authToken,
 				})
 			},
-			expectedFlag:       useLegacyChannelFalse,
-			expectLegacySwitch: true,
-			expectedTypePath:   "NetworkManagement/joinedVirtualNetworks/vnet-1/joinedSubnets/subnet-1/authenticationToken/token-1/api-version/1",
+			expectedTypePath: "NetworkManagement/joinedVirtualNetworks/vnet-1/joinedSubnets/subnet-1/authenticationToken/token-1/api-version/1?useLegacyChannel=false",
 		},
 		{
 			name: "JoinNetwork does not include useLegacyChannel when RNC disabled",
 			call: func(p *Proxy) (*http.Response, error) {
 				return p.JoinNetwork(context.Background(), "vnet-1", false)
 			},
-			expectLegacySwitch: false,
-			expectedTypePath:   "NetworkManagement/joinedVirtualNetworks/vnet-1/api-version/1",
+			expectedTypePath: "NetworkManagement/joinedVirtualNetworks/vnet-1/api-version/1",
 		},
 		{
 			name: "PublishNC does not include useLegacyChannel when RNC disabled",
@@ -98,8 +86,7 @@ func TestProxyRNCPublisherQueryParam(t *testing.T) {
 					AuthToken:             authToken,
 				}, []byte(`{}`), false)
 			},
-			expectLegacySwitch: false,
-			expectedTypePath:   "NetworkManagement/interfaces/iface-1/networkContainers/nc-1/authenticationToken/token-1/api-version/1",
+			expectedTypePath: "NetworkManagement/interfaces/iface-1/networkContainers/nc-1/authenticationToken/token-1/api-version/1",
 		},
 		{
 			name: "UnpublishNC does not include useLegacyChannel when RNC disabled",
@@ -110,8 +97,7 @@ func TestProxyRNCPublisherQueryParam(t *testing.T) {
 					AuthToken:             authToken,
 				}, []byte(`{}`), false)
 			},
-			expectLegacySwitch: false,
-			expectedTypePath:   "NetworkManagement/interfaces/iface-1/networkContainers/nc-1/authenticationToken/token-1/api-version/1/method/DELETE",
+			expectedTypePath: "NetworkManagement/interfaces/iface-1/networkContainers/nc-1/authenticationToken/token-1/api-version/1/method/DELETE",
 		},
 	}
 
@@ -142,16 +128,9 @@ func TestProxyRNCPublisherQueryParam(t *testing.T) {
 			require.NotNil(t, reqURL)
 
 			q := reqURL.Query()
-			typeVal := q.Get("type")
-			require.NotContains(t, typeVal, "?useLegacyChannel=false")
-			require.Equal(t, tt.expectedTypePath, typeVal)
-
-			if tt.expectLegacySwitch {
-				require.Equal(t, tt.expectedFlag, q.Get("useLegacyChannel"))
-			} else {
-				_, exists := q["useLegacyChannel"]
-				require.False(t, exists)
-			}
+			require.Equal(t, tt.expectedTypePath, q.Get("type"))
+			_, exists := q["useLegacyChannel"]
+			require.False(t, exists, "useLegacyChannel must remain part of the type value")
 		})
 	}
 }
