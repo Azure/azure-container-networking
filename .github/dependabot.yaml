@@ -25,7 +25,6 @@ updates:
     directories:
       - "**/*"
     exclude-paths:
-      - "**/*.tmpl"
       - "**/*.yaml"
       - "**/*.yml"
     schedule:
@@ -192,7 +191,6 @@ updates:
     directories:
       - "**/*"
     exclude-paths:
-      - "**/*.tmpl"
       - "**/*.yaml"
       - "**/*.yml"
     schedule:
@@ -288,7 +286,6 @@ updates:
     directories:
       - "**/*"
     exclude-paths:
-      - "**/*.tmpl"
       - "**/*.yaml"
       - "**/*.yml"
     schedule:
@@ -384,7 +381,6 @@ updates:
     directories:
       - "**/*"
     exclude-paths:
-      - "**/*.tmpl"
       - "**/*.yaml"
       - "**/*.yml"
     schedule:

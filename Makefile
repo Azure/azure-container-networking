@@ -989,14 +989,6 @@ test-k8se2e-only: ## Run k8s network conformance test, use TYPE=basic for only d
 
 ##@ Utilities
 
-dockerfiles: renderkit ## Render all Dockerfile templates with current state of world
-	@make -f build/images.mk render IMAGE_PATH=cns
-	@make -f build/images.mk render IMAGE_PATH=cni
-	@make -f build/images.mk render IMAGE_PATH=azure-ipam
-	@make -f build/images.mk render IMAGE_PATH=azure-ip-masq-merger
-	@make -f build/images.mk render IMAGE_PATH=azure-iptables-monitor
-	@make -f build/images.mk render IMAGE_PATH=cilium-log-collector
-
 cilium-versions: ## Update cilium-family image tags in hack/aks/deploy.mk to newest MCR tags (override minor with MINOR=1.18)
 	@hack/scripts/update-cilium-versions.sh $(if $(MINOR),--minor $(MINOR))
 
@@ -1028,10 +1020,7 @@ setup: tools install-hooks gitconfig ## performs common required repo setup
 
 ##@ Tools
 
-tools: renderkit go-junit-report gocov gocov-xml
-
-renderkit: ## Install renderkit for rendering Dockerfile templates
-	@GOWORK=off go install -modfile=$(TOOLS_GO_MOD) github.com/orellazri/renderkit
+tools: go-junit-report gocov gocov-xml
 
 go-junit-report: ## Install go-junit-report for converting test results to JUnit XML format
 	@GOWORK=off go install -modfile=$(TOOLS_GO_MOD) github.com/jstemmer/go-junit-report
