@@ -407,8 +407,8 @@ jobs:
 
           # Determine GOEXPERIMENT requirements
           if [ "$TARGET_MIN_NUM" -ge 27 ]; then
-            GOEXP_CGO1="systemcrypto"
-            GOEXP_CGO0="systemcrypto"
+            GOEXP_CGO1=""
+            GOEXP_CGO0=""
           elif [ "$TARGET_MIN_NUM" -ge 26 ]; then
             GOEXP_CGO1="systemcrypto"
             GOEXP_CGO0="ms_nocgo_opensslcrypto"
@@ -605,8 +605,8 @@ jobs:
 
           # Determine GOEXPERIMENT rules per version
           if [ "$TARGET_MIN_NUM" -ge 27 ]; then
-            echo "goexp_cgo1=systemcrypto" >> "$GITHUB_OUTPUT"
-            echo "goexp_cgo0=systemcrypto" >> "$GITHUB_OUTPUT"
+            echo "goexp_cgo1=" >> "$GITHUB_OUTPUT"
+            echo "goexp_cgo0=" >> "$GITHUB_OUTPUT"
           elif [ "$TARGET_MIN_NUM" -ge 26 ]; then
             echo "goexp_cgo1=systemcrypto" >> "$GITHUB_OUTPUT"
             echo "goexp_cgo0=ms_nocgo_opensslcrypto" >> "$GITHUB_OUTPUT"
@@ -618,9 +618,12 @@ jobs:
       - name: Detect FIPS readiness
         id: fips
         env:
+          TARGET_MINOR: ${{ needs.check-go-update.outputs.latest_minor }}
           GOEXP_CGO1: ${{ steps.msgo_fips_tier3.outputs.goexp_cgo1 }}
           GOEXP_CGO0: ${{ steps.msgo_fips_tier3.outputs.goexp_cgo0 }}
         run: |
+          TARGET_MIN_NUM=$(echo "$TARGET_MINOR" | grep -oP '^\d+\.(\d+)' | cut -d. -f2)
+
           # Check if FIPS setup is correct
           FIPS_CORRECT="true"
 
@@ -644,11 +647,20 @@ jobs:
           # CGO_ENABLED=0 scripts must have the correct GOEXPERIMENT
           if [ -n "$GOEXP_CGO0" ]; then
             while IFS= read -r script; do
-              if grep -q "CGO_ENABLED=0" "$script" && ! grep -q "GOEXPERIMENT=$GOEXP_CGO0" "$script"; then
+              # Scripts that opt out with MS_GO_NOSYSTEMCRYPTO=1 (e.g. npm.sh) need no GOEXPERIMENT
+              if grep -q "CGO_ENABLED=0" "$script" && ! grep -q "GOEXPERIMENT=$GOEXP_CGO0" "$script" \
+                && ! grep -q "MS_GO_NOSYSTEMCRYPTO=1" "$script"; then
                 FIPS_CORRECT="false"
                 echo "::warning::GOEXPERIMENT=$GOEXP_CGO0 missing from CGO=0 script: $script"
               fi
             done < <(find .pipelines/build/scripts -name '*.sh' -type f 2>/dev/null || true)
+          fi
+
+          if [ "$TARGET_MIN_NUM" -ge 27 ] && grep -R -nE '^[^#]*GOEXPERIMENT=(systemcrypto|ms_nocgo_opensslcrypto)' \
+            --include='*.sh' --include='Makefile' --include='*.Dockerfile' --include='*.Dockerfile.tmpl' --include='Dockerfile' \
+            --exclude-dir=.git --exclude-dir=vendor .; then
+            FIPS_CORRECT="false"
+            echo "::warning::Go 1.27+ build configuration contains a removed crypto GOEXPERIMENT"
           fi
 
           HAS_DISTROLESS_BASE="false"
@@ -693,14 +705,15 @@ jobs:
           elif [ "$LATEST_MIN_NUM" -ge 27 ]; then
             FIPS_SECTION="
           ### ⚠️ FIPS / System Crypto Requirements
-          Go 1.27+ lifts the cgo requirement for systemcrypto on Linux.
-          \`GOEXPERIMENT=systemcrypto\` can now be set in ALL scripts/Dockerfiles regardless of CGO setting.
-          Reference: https://github.com/microsoft/go/blob/microsoft/main/eng/doc/NocgoOpenSSL.md
+          Go 1.27+ enables \`systemcrypto\` by default. It is no longer a \`GOEXPERIMENT\`.
+          Linux builds with \`CGO_ENABLED=0\` select the cgo-less OpenSSL backend automatically on supported architectures.
+          Reference: https://github.com/microsoft/go/blob/microsoft/main/eng/doc/fips/README.md#usage-common-configurations
 
-          1. Set \`GOEXPERIMENT=systemcrypto\` in ALL Dockerfile templates and pipeline build scripts
-          2. Remove \`MS_GO_NOSYSTEMCRYPTO=1\` from npm Dockerfiles if present
-          3. Ensure \`MARINER_DISTROLESS_IMG\` in \`build/images.mk\` is \`distroless/base\`
-          4. Update \`bpf-prog/ipv6-hp-bpf/linux.Dockerfile\` runtime base to \`azurelinux/distroless/base:3.0\`"
+          1. Remove all \`GOEXPERIMENT=systemcrypto\` and \`GOEXPERIMENT=ms_nocgo_opensslcrypto\` assignments.
+          2. **Keep** the \`MS_GO_NOSYSTEMCRYPTO=1\` opt-outs (npm Dockerfiles, \`.pipelines/build/scripts/npm.sh\`, root Makefile \`all-binaries\`). Those binaries run on hosts without Microsoft's FIPS OpenSSL, and \`MS_GO_NOSYSTEMCRYPTO=1\` is still the supported opt-out in Go 1.27.
+          3. Ensure Linux runtime images provide OpenSSL, libc, libdl, and pthread libraries.
+          4. Ensure \`MARINER_DISTROLESS_IMG\` in \`build/images.mk\` is \`distroless/base\`.
+          5. Use \`azurelinux/distroless/base:3.0\` for the BPF runtime."
           elif [ "$LATEST_MIN_NUM" -ge 26 ]; then
             FIPS_SECTION="
           ### ⚠️ FIPS / System Crypto Requirements (CRITICAL — builds will FAIL without this)
@@ -718,12 +731,12 @@ jobs:
           **Steps:**
           1. Add \`GOEXPERIMENT=ms_nocgo_opensslcrypto\` to ALL scripts/Dockerfiles/Makefiles with \`CGO_ENABLED=0\` on Linux
           2. Add \`GOEXPERIMENT=systemcrypto\` to scripts/Dockerfiles with \`CGO_ENABLED=1\` (cilium-log-collector)
-          3. Remove \`MS_GO_NOSYSTEMCRYPTO=1\` from npm Dockerfiles and replace with \`GOEXPERIMENT=ms_nocgo_opensslcrypto\`
+          3. **Keep** \`MS_GO_NOSYSTEMCRYPTO=1\` in npm Dockerfiles, \`npm.sh\` and the root Makefile \`all-binaries\` target. Do NOT replace it with a GOEXPERIMENT (npm runs on Ubuntu, without Microsoft's FIPS OpenSSL).
           4. npm Dockerfiles use **plain Go tags** (e.g., \`golang:1.26.4\`) — do NOT add \`-azurelinux3.0\` suffix
-          5. npm/windows.Dockerfile builds on Linux (\`--platform=linux/amd64\`) — it STILL needs GOEXPERIMENT for CGO=0
+          5. npm/windows.Dockerfile builds on Linux (\`--platform=linux/amd64\`) — it keeps \`MS_GO_NOSYSTEMCRYPTO=1\` instead of a GOEXPERIMENT
           6. Ensure \`MARINER_DISTROLESS_IMG\` in \`build/images.mk\` is \`distroless/base\`
           7. In root Makefile: add \`ACN_GOEXPERIMENT\` variable, apply inline to all CGO=0 build commands
-          8. **DO NOT** leave CGO_ENABLED=0 builds without GOEXPERIMENT — they WILL fail with crypto errors"
+          8. **DO NOT** leave CGO_ENABLED=0 builds without GOEXPERIMENT (unless they set \`MS_GO_NOSYSTEMCRYPTO=1\`) — they WILL fail with crypto errors"
           fi
 
           # Agent instructions embedded in issue body
