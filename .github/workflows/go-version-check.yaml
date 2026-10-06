@@ -618,7 +618,7 @@ jobs:
       - name: Detect FIPS readiness
         id: fips
         env:
-          TARGET_MINOR: ${{ needs.check-go-update.outputs.go_minor }}
+          TARGET_MINOR: ${{ needs.check-go-update.outputs.latest_minor }}
           GOEXP_CGO1: ${{ steps.msgo_fips_tier3.outputs.goexp_cgo1 }}
           GOEXP_CGO0: ${{ steps.msgo_fips_tier3.outputs.goexp_cgo0 }}
         run: |
@@ -647,14 +647,16 @@ jobs:
           # CGO_ENABLED=0 scripts must have the correct GOEXPERIMENT
           if [ -n "$GOEXP_CGO0" ]; then
             while IFS= read -r script; do
-              if grep -q "CGO_ENABLED=0" "$script" && ! grep -q "GOEXPERIMENT=$GOEXP_CGO0" "$script"; then
+              # Scripts that opt out with MS_GO_NOSYSTEMCRYPTO=1 (e.g. npm.sh) need no GOEXPERIMENT
+              if grep -q "CGO_ENABLED=0" "$script" && ! grep -q "GOEXPERIMENT=$GOEXP_CGO0" "$script" \
+                && ! grep -q "MS_GO_NOSYSTEMCRYPTO=1" "$script"; then
                 FIPS_CORRECT="false"
                 echo "::warning::GOEXPERIMENT=$GOEXP_CGO0 missing from CGO=0 script: $script"
               fi
             done < <(find .pipelines/build/scripts -name '*.sh' -type f 2>/dev/null || true)
           fi
 
-          if [ "$TARGET_MIN_NUM" -ge 27 ] && grep -R -nE 'GOEXPERIMENT=(systemcrypto|ms_nocgo_opensslcrypto)' \
+          if [ "$TARGET_MIN_NUM" -ge 27 ] && grep -R -nE '^[^#]*GOEXPERIMENT=(systemcrypto|ms_nocgo_opensslcrypto)' \
             --include='*.sh' --include='Makefile' --include='*.Dockerfile' --include='*.Dockerfile.tmpl' --include='Dockerfile' \
             --exclude-dir=.git --exclude-dir=vendor .; then
             FIPS_CORRECT="false"

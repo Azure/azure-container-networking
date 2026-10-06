@@ -291,6 +291,13 @@ build/images.mk (GO_IMG=golang:1.XX-azurelinux3.0)     ← primary image tag
 
 ### Step 1b: Apply GOEXPERIMENT to ALL Build Paths (CRITICAL)
 
+> **Go 1.27+: do NOT follow the GOEXPERIMENT instructions in this step.** In Go 1.27, `systemcrypto` is the default for `CGO_ENABLED=0` and `CGO_ENABLED=1`, and `GOEXPERIMENT=systemcrypto` / `nosystemcrypto` are rejected by the toolchain. Instead:
+> - **Remove** every `GOEXPERIMENT=systemcrypto` and `GOEXPERIMENT=ms_nocgo_opensslcrypto` assignment (scripts, `Dockerfile.tmpl`, Makefiles), then run `make dockerfiles`.
+> - **Keep** `MS_GO_NOSYSTEMCRYPTO=1` where it already exists (npm Dockerfiles, `npm.sh`, root Makefile `all-binaries`).
+> - Validate with the Go 1.27+ check in Step 2.
+>
+> The rest of this step applies to **Go 1.26 only**.
+
 **This step is where the previous agent failed. Do NOT skip any file.**
 
 Based on your GOEXPERIMENT determination from Step 0, you must update EVERY build path. Here is the COMPLETE list of locations that need GOEXPERIMENT:
@@ -437,12 +444,23 @@ After making all changes:
    ```bash
    grep "VARIANT" .devcontainer/Dockerfile  # Must show target version
    ```
-8. **FIPS validation** — run this check:
+8. **FIPS validation** — run the check that matches the target version.
+
+**Go 1.27+:** no crypto GOEXPERIMENT may remain in effective (non-comment) build configuration. This must print nothing:
+
+```bash
+grep -R -nE '^[^#]*GOEXPERIMENT=(systemcrypto|nosystemcrypto|ms_nocgo_opensslcrypto)' \
+  --include='*.sh' --include='Makefile' --include='*.Dockerfile' --include='*.Dockerfile.tmpl' --include='Dockerfile' \
+  --exclude-dir=.git --exclude-dir=vendor .
+```
+
+**Go 1.26 only:**
 
 ```bash
 # Verify ALL CGO_ENABLED=0 scripts have the correct GOEXPERIMENT
+# (scripts that opt out with MS_GO_NOSYSTEMCRYPTO=1, e.g. npm.sh, are exempt)
 for script in .pipelines/build/scripts/*.sh; do
-  if grep -q "CGO_ENABLED=0" "$script"; then
+  if grep -q "CGO_ENABLED=0" "$script" && ! grep -q "MS_GO_NOSYSTEMCRYPTO=1" "$script"; then
     if ! grep -q "GOEXPERIMENT=<value_for_cgo0>" "$script"; then
       echo "MISSING GOEXPERIMENT in: $script"
     fi
