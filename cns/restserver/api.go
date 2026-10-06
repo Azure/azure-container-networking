@@ -981,7 +981,6 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 	ctx := r.Context()
 
 	var publishBody ncPublishBody
-	var useRNCPublisher bool
 
 	err = json.Unmarshal(req.CreateNetworkContainerRequestBody, &publishBody)
 	if err != nil {
@@ -989,9 +988,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 		return
 	}
 
-	if publishBody.UseRNCPublisher {
-		useRNCPublisher = service.isRNCSupportedByNMAgent(ctx)
-	}
+	useRNCPublisher := publishBody.UseRNCPublisher
 
 	if useRNCPublisher && req.SubnetName == "" {
 		http.Error(w, fmt.Sprintf("subnet name is required in network %s when useRNCPublisher is true", req.NetworkID), http.StatusBadRequest)
@@ -1151,9 +1148,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 	} else {
 		// If unmarshalling was successful, it is an AZR NC
 		azrNC = true
-		if unpublishBody.UseRNCPublisher {
-			useRNCPublisher = service.isRNCSupportedByNMAgent(ctx)
-		}
+		useRNCPublisher = unpublishBody.UseRNCPublisher
 	}
 
 	if useRNCPublisher && req.SubnetName == "" {
