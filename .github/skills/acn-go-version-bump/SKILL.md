@@ -288,7 +288,7 @@ build/images.mk (GO_IMG=golang:1.XX-azurelinux3.0)     ← primary image tag
    - The npm builder uses Ubuntu as runtime base, not Azure Linux
    - `npm/windows.Dockerfile` builds on a **Linux builder** (`--platform=linux/amd64`) cross-compiling with `GOOS=windows` — it still needs `GOEXPERIMENT` for CGO_ENABLED=0 on the Linux build stage
    - Replace `MS_GO_NOSYSTEMCRYPTO=1` with appropriate `GOEXPERIMENT=<value>` in BOTH files
-10. **Run `make dockerfiles`** — Regenerate all template-based Dockerfiles
+10. **Update the `FROM ...golang:...@sha` pins directly** in every component Dockerfile and `.pipelines/build/dockerfiles/*.Dockerfile` (the Dockerfiles are the source of truth). Resolve each digest with `skopeo inspect docker://<image> --format "{{.Digest}}"` or read the pre-cached `.github/image-digests/*.txt`; never hand-write a digest
 
 ### Step 1b: Apply GOEXPERIMENT to ALL Build Paths (CRITICAL)
 
@@ -435,34 +435,7 @@ After making all changes:
    # Quick validation that Dockerfiles + GOEXPERIMENT produce working images
    docker build -f cni/Dockerfile -t acn-cni-test --build-arg VERSION=test .
    ```
-5. **`make dockerfiles`** — Regenerate ALL template-based Dockerfiles. This resolves:
-   - `{{.GO_PIN}}` → current Go image as `image:tag@sha`
-   - `{{.MARINER_CORE_PIN}}` → current azurelinux/base/core as `image:tag@sha`
-   - `{{.MARINER_DISTROLESS_PIN}}` → current azurelinux/distroless/base as `image:tag@sha`
-   
-   Pins MUST keep the tag (`image:tag@sha`, not `image@sha`) so Dependabot can update them.
-   
-   The generated files live in TWO locations:
-   - Component directories: `cni/Dockerfile`, `cns/Dockerfile`, `azure-ipam/Dockerfile`, etc.
-   - Pipeline directory: `.pipelines/build/dockerfiles/*.Dockerfile`
-   
-   **If `make dockerfiles` fails** (e.g., skopeo blocked by firewall or MCR auth issues), use the **pre-cached digests**:
-   ```bash
-   # Read pre-resolved digests from setup steps (already image:tag@sha)
-   GO_PIN=$(cat .github/image-digests/go-image.txt 2>/dev/null)
-   MARINER_CORE_PIN=$(cat .github/image-digests/mariner-core.txt 2>/dev/null)
-   MARINER_DISTROLESS_PIN=$(cat .github/image-digests/mariner-distroless.txt 2>/dev/null)
-   WINDOWS_HPC_PIN=$(cat .github/image-digests/windows-hpc.txt 2>/dev/null)
-
-   # If cached files don't exist, try skopeo directly (may fail behind firewall)
-   if [ -z "$GO_PIN" ]; then
-     GO_IMG=mcr.microsoft.com/oss/go/microsoft/golang:1.XX-azurelinux3.0
-     GO_PIN="${GO_IMG}@$(skopeo inspect docker://${GO_IMG} --format "{{.Digest}}" 2>/dev/null)"
-   fi
-   ```
-   Then use `sed` to update image pins in ALL generated `.Dockerfile` files (not `.tmpl`).
-   
-   **IMPORTANT:** Both `.pipelines/build/dockerfiles/*.Dockerfile` AND component `*/Dockerfile` files must be updated — they are ALL generated from templates.
+5. **Update the image pins directly** in every component Dockerfile (`cni/Dockerfile`, `cns/Dockerfile`, `azure-ipam/Dockerfile`, etc.) and `.pipelines/build/dockerfiles/*.Dockerfile` -- the Dockerfiles are the source of truth. Keep the form `image:tag@sha` (not `image@sha`) so Dependabot can update them. Resolve each digest with `skopeo inspect docker://<image> --format "{{.Digest}}"`, or read the pre-cached `.github/image-digests/*.txt` (`go-image.txt`, `mariner-core.txt`, `mariner-distroless.txt`, `windows-hpc.txt`). Never hand-write or guess a digest.
 5. Do NOT run `go mod tidy` — it times out. Existing go.sum files remain valid for version bumps.
 6. Verify no new `replace` directives are needed
 7. **Dev environment check:**
@@ -540,7 +513,7 @@ done
 2. Apply same version/SHA changes
 3. If release branch is missing GOEXPERIMENT prerequisites, add those too
 4. Do NOT run `go mod tidy` — existing go.sum remains valid for version bumps
-5. Run `make dockerfiles`
+5. Update the `FROM ...@sha` pins directly in the component and `.pipelines/build/dockerfiles/` Dockerfiles (resolve digests with `skopeo`; never guess)
 6. Title: `chore(release/v1.8): upgrade Go <OLD> → <NEW>`
 
 ---
