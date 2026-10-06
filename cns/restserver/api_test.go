@@ -958,7 +958,14 @@ func TestPublishNCRequestBodyParsingMatrix(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setRNCSupportedNMAgent(t)
+			var nmaSupportChecks int
+			cleanupNMA := setMockNMAgent(svc, &fakes.NMAgentClientFake{
+				SupportedAPIsF: func(_ context.Context) ([]string, error) {
+					nmaSupportChecks++
+					return nil, nil
+				},
+			})
+			t.Cleanup(cleanupNMA)
 
 			var (
 				joinSubnetCalls    int
@@ -1020,6 +1027,7 @@ func TestPublishNCRequestBodyParsingMatrix(t *testing.T) {
 
 			require.Equal(t, tt.wantJoinSubnetCalls, joinSubnetCalls)
 			require.Equal(t, tt.wantPublishCalls, publishCalls)
+			require.Zero(t, nmaSupportChecks)
 		})
 	}
 }
@@ -1043,8 +1051,7 @@ func TestRNCSupportProbeIsTimeBounded(t *testing.T) {
 	require.LessOrEqual(t, gotTimeout, nmaAPICallTimeout)
 }
 
-// setRNCSupportedNMAgent installs an NMAgent fake that advertises support for the RNC publish API,
-// which publishNetworkContainer probes before enabling the RNC channel.
+// setRNCSupportedNMAgent installs an NMAgent fake that advertises support for the RNC API.
 func setRNCSupportedNMAgent(t *testing.T) {
 	t.Helper()
 	cleanup := setMockNMAgent(svc, &fakes.NMAgentClientFake{
@@ -1301,7 +1308,7 @@ func TestPublishNCWithRNCPublisherDisabledSkipsSubnetJoin(t *testing.T) {
 	require.Equal(t, 1, publishCalls)
 }
 
-func TestPublishNCWithRNCPublisherFallsBackWhenNMAgentLacksSupport(t *testing.T) {
+func TestPublishNCWithRNCPublisherDoesNotProbeNMAgentSupport(t *testing.T) {
 	tests := []struct {
 		name          string
 		supportedAPIs func(context.Context) ([]string, error)
@@ -1332,7 +1339,7 @@ func TestPublishNCWithRNCPublisherFallsBackWhenNMAgentLacksSupport(t *testing.T)
 
 			wsproxy := fakes.WireserverProxyFake{
 				JoinNetworkFunc: func(_ context.Context, _ string, useRNCPublisher bool) (*http.Response, error) {
-					require.False(t, useRNCPublisher)
+					require.True(t, useRNCPublisher)
 					return &http.Response{
 						StatusCode: http.StatusOK,
 						Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
@@ -1347,7 +1354,7 @@ func TestPublishNCWithRNCPublisherFallsBackWhenNMAgentLacksSupport(t *testing.T)
 				},
 				PublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte, useRNCPublisher bool) (*http.Response, error) {
 					publishCalls++
-					require.False(t, useRNCPublisher)
+					require.True(t, useRNCPublisher)
 					return &http.Response{
 						StatusCode: http.StatusOK,
 						Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
@@ -1381,7 +1388,7 @@ func TestPublishNCWithRNCPublisherFallsBackWhenNMAgentLacksSupport(t *testing.T)
 			err = decodeResponse(w, &resp)
 			require.NoError(t, err)
 			require.Equal(t, types.Success, resp.Response.ReturnCode)
-			require.Zero(t, joinSubnetCalls)
+			require.Equal(t, 1, joinSubnetCalls)
 			require.Equal(t, 1, publishCalls)
 		})
 	}
@@ -1809,7 +1816,7 @@ func TestUnpublishNCWithRNCPublisherDisabledSkipsSubnetJoin(t *testing.T) {
 	require.Equal(t, 1, unpublishCalls)
 }
 
-func TestUnpublishNCWithRNCPublisherFallsBackWhenNMAgentLacksSupport(t *testing.T) {
+func TestUnpublishNCWithRNCPublisherDoesNotProbeNMAgentSupport(t *testing.T) {
 	tests := []struct {
 		name          string
 		supportedAPIs func(context.Context) ([]string, error)
@@ -1830,7 +1837,13 @@ func TestUnpublishNCWithRNCPublisherFallsBackWhenNMAgentLacksSupport(t *testing.
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cleanupNMA := setMockNMAgent(svc, &fakes.NMAgentClientFake{SupportedAPIsF: tt.supportedAPIs})
+			var nmaSupportChecks int
+			cleanupNMA := setMockNMAgent(svc, &fakes.NMAgentClientFake{
+				SupportedAPIsF: func(ctx context.Context) ([]string, error) {
+					nmaSupportChecks++
+					return tt.supportedAPIs(ctx)
+				},
+			})
 			t.Cleanup(cleanupNMA)
 
 			var (
@@ -1840,7 +1853,7 @@ func TestUnpublishNCWithRNCPublisherFallsBackWhenNMAgentLacksSupport(t *testing.
 
 			wsproxy := fakes.WireserverProxyFake{
 				JoinNetworkFunc: func(_ context.Context, _ string, useRNCPublisher bool) (*http.Response, error) {
-					require.False(t, useRNCPublisher)
+					require.True(t, useRNCPublisher)
 					return &http.Response{
 						StatusCode: http.StatusOK,
 						Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
@@ -1855,7 +1868,7 @@ func TestUnpublishNCWithRNCPublisherFallsBackWhenNMAgentLacksSupport(t *testing.
 				},
 				UnpublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte, useRNCPublisher bool) (*http.Response, error) {
 					unpublishCalls++
-					require.False(t, useRNCPublisher)
+					require.True(t, useRNCPublisher)
 					return &http.Response{
 						StatusCode: http.StatusOK,
 						Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
@@ -1889,8 +1902,9 @@ func TestUnpublishNCWithRNCPublisherFallsBackWhenNMAgentLacksSupport(t *testing.
 			err = decodeResponse(w, &resp)
 			require.NoError(t, err)
 			require.Equal(t, types.Success, resp.Response.ReturnCode)
-			require.Zero(t, joinSubnetCalls)
+			require.Equal(t, 1, joinSubnetCalls)
 			require.Equal(t, 1, unpublishCalls)
+			require.Zero(t, nmaSupportChecks)
 		})
 	}
 }
