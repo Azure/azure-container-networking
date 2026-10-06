@@ -33,6 +33,7 @@ stages:
       AZURE_IPTABLES_MONITOR_IMAGE_OVERRIDE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIptablesMonitorImageOverride'] ]
       AZURE_IP_MASQ_MERGER_IMAGE_OVERRIDE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpMasqMergerImageOverride'] ]
       CILIUM_LOG_COLLECTOR_IMAGE_OVERRIDE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ciliumLogCollectorImageOverride'] ]
+      IPV6_HP_BPF_IMAGE_OVERRIDE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfImageOverride'] ]
       IPV6_IMAGE_REGISTRY: acnpublic.azurecr.io
     jobs:
       - job: ${{ parameters.name }}

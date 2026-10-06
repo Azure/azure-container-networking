@@ -53,6 +53,9 @@ parameters:
   - name: ciliumLogCollectorImage
     type: string
     default: "__use-default__"
+  - name: ipv6HpBpfImage
+    type: string
+    default: "__use-default__"
   # Optional build-number prefix to differentiate DALEC release runs.
   # Applied in setup only when the value contains "dalec".
   - name: runNamePrefix
@@ -148,6 +151,12 @@ extends:
                   echo "##vso[task.setvariable variable=azureIptablesMonitorImageOverride;isOutput=true]$(resolve_override_image '${{ parameters.azureIptablesMonitorImage }}' azure-iptables-monitor $(make azure-iptables-monitor-version))"
                   echo "##vso[task.setvariable variable=azureIpMasqMergerImageOverride;isOutput=true]$(resolve_override_image '${{ parameters.azureIpMasqMergerImage }}' azure-ip-masq-merger $(make azure-ip-masq-merger-version))"
                   echo "##vso[task.setvariable variable=ciliumLogCollectorImageOverride;isOutput=true]$(resolve_override_image '${{ parameters.ciliumLogCollectorImage }}' cilium-log-collector $(make cilium-log-collector-version))"
+
+                  IPV6_HP_BPF_IMAGE_OVERRIDE=""
+                  if [ -n '${{ parameters.ipv6HpBpfImage }}' ] && [ '${{ parameters.ipv6HpBpfImage }}' != "__use-default__" ]; then
+                    IPV6_HP_BPF_IMAGE_OVERRIDE="$(resolve_override_image '${{ parameters.ipv6HpBpfImage }}' ipv6-hp-bpf $(make ipv6-hp-bpf-version))"
+                  fi
+                  echo "##vso[task.setvariable variable=ipv6HpBpfImageOverride;isOutput=true]${IPV6_HP_BPF_IMAGE_OVERRIDE}"
 
                   cat /etc/os-release
                   uname -a

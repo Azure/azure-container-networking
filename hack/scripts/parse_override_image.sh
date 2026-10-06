@@ -66,6 +66,46 @@ resolve_override_image() {
   echo "$image"
 }
 
+split_image_reference() {
+  local image
+  image="$(resolve_override_image "$1" "$2" "$3")"
+  local expected_name="$2"
+  local path_and_tag="$image"
+  local digest=""
+  local version=""
+
+  if [[ "$path_and_tag" == *@* ]]; then
+    digest="@${path_and_tag##*@}"
+    path_and_tag="${path_and_tag%@*}"
+  fi
+
+  local image_path="$path_and_tag"
+  local last_segment="${path_and_tag##*/}"
+  if [[ "$last_segment" == *:* ]]; then
+    version="${last_segment##*:}"
+    image_path="${path_and_tag%:*}"
+  elif [[ -n "$digest" ]]; then
+    echo "Digest-only image references are not supported for ${expected_name}: ${image}" >&2
+    return 1
+  else
+    version="$3"
+  fi
+
+  local image_name="${image_path##*/}"
+  if [[ "$image_name" != "$expected_name" ]]; then
+    echo "Expected image name '${expected_name}', got '${image_name}' from '${image}'" >&2
+    return 1
+  fi
+
+  local registry_path="${image_path%/*}"
+  if [[ "$registry_path" == "$image_path" || -z "$registry_path" ]]; then
+    echo "Image reference must include a registry or repository prefix: ${image}" >&2
+    return 1
+  fi
+
+  printf '%s %s%s\n' "$registry_path" "$version" "$digest"
+}
+
 format_image() {
   local registry="$1"
   local name="$2"
