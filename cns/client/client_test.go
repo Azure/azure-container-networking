@@ -1102,6 +1102,7 @@ func TestPublishNC(t *testing.T) {
 			},
 			cns.PublishNetworkContainerRequest{
 				NetworkID:                         "foo",
+				UseRNCPublisher:                   true,
 				NetworkContainerID:                "frob",
 				JoinNetworkURL:                    "http://example.com",
 				CreateNetworkContainerURL:         "http://example.com",
@@ -1109,6 +1110,7 @@ func TestPublishNC(t *testing.T) {
 			},
 			&cns.PublishNetworkContainerRequest{
 				NetworkID:                         "foo",
+				UseRNCPublisher:                   true,
 				NetworkContainerID:                "frob",
 				JoinNetworkURL:                    "http://example.com",
 				CreateNetworkContainerURL:         "http://example.com",

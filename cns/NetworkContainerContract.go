@@ -687,6 +687,7 @@ type NetworkInterface struct {
 type PublishNetworkContainerRequest struct {
 	NetworkID                         string
 	SubnetName                        string
+	UseRNCPublisher                   bool
 	NetworkContainerID                string
 	JoinNetworkURL                    string
 	CreateNetworkContainerURL         string
@@ -695,8 +696,8 @@ type PublishNetworkContainerRequest struct {
 
 func (p PublishNetworkContainerRequest) String() string {
 	// %q as a verb on a byte slice prints safely escaped text instead of individual bytes
-	return fmt.Sprintf("{NetworkID:%s SubnetName:%s NetworkContainerID:%s JoinNetworkURL:%s CreateNetworkContainerURL:%s CreateNetworkContainerRequestBody:%q}",
-		p.NetworkID, p.SubnetName, p.NetworkContainerID, p.JoinNetworkURL, p.CreateNetworkContainerURL, p.CreateNetworkContainerRequestBody)
+	return fmt.Sprintf("{NetworkID:%s SubnetName:%s UseRNCPublisher:%t NetworkContainerID:%s JoinNetworkURL:%s CreateNetworkContainerURL:%s CreateNetworkContainerRequestBody:%q}",
+		p.NetworkID, p.SubnetName, p.UseRNCPublisher, p.NetworkContainerID, p.JoinNetworkURL, p.CreateNetworkContainerURL, p.CreateNetworkContainerRequestBody)
 }
 
 // NetworkContainerParameters parameters available in network container operations
@@ -724,6 +725,7 @@ func (p PublishNetworkContainerResponse) String() string {
 type UnpublishNetworkContainerRequest struct {
 	NetworkID                         string
 	SubnetName                        string
+	UseRNCPublisher                   bool
 	NetworkContainerID                string
 	JoinNetworkURL                    string
 	DeleteNetworkContainerURL         string
@@ -731,8 +733,8 @@ type UnpublishNetworkContainerRequest struct {
 }
 
 func (u UnpublishNetworkContainerRequest) String() string {
-	return fmt.Sprintf("{NetworkID:%s SubnetName:%s NetworkContainerID:%s JoinNetworkURL:%s DeleteNetworkContainerURL:%s DeleteNetworkContainerRequestBody:%q}",
-		u.NetworkID, u.SubnetName, u.NetworkContainerID, u.JoinNetworkURL, u.DeleteNetworkContainerURL, u.DeleteNetworkContainerRequestBody)
+	return fmt.Sprintf("{NetworkID:%s SubnetName:%s UseRNCPublisher:%t NetworkContainerID:%s JoinNetworkURL:%s DeleteNetworkContainerURL:%s DeleteNetworkContainerRequestBody:%q}",
+		u.NetworkID, u.SubnetName, u.UseRNCPublisher, u.NetworkContainerID, u.JoinNetworkURL, u.DeleteNetworkContainerURL, u.DeleteNetworkContainerRequestBody)
 }
 
 // UnpublishNetworkContainerResponse specifies the response to unpublish network container request.
