@@ -101,7 +101,7 @@ After determining the correct GOEXPERIMENT per (CGO, OS) pair, audit EVERY build
 grep -rn "CGO_ENABLED" .pipelines/build/scripts/ --include="*.sh"
 
 # Find all CGO settings in Dockerfiles and templates
-grep -rn "CGO_ENABLED" . --include="*.Dockerfile" --include="*.Dockerfile.tmpl" --include="Dockerfile.tmpl"
+grep -rn "CGO_ENABLED" . --include="*.Dockerfile" --include="Dockerfile"
 
 # Find CGO settings in Makefiles
 grep -rn "CGO_ENABLED" Makefile */Makefile
@@ -193,7 +193,7 @@ List EVERY file that needs modification:
 
 ACN uses **floating minor version tags** for the Go build image (`build/images.mk`):
 - `GO_IMG` uses a 2-part minor version tag (e.g., `golang:1.26-azurelinux3.0`)
-- The floating tag resolves to the latest patch via SHA digest at `make dockerfiles` time
+- Dependabot keeps the pinned SHA current for this tag; moving to a new minor tag family is a manual edit to the Dockerfile `FROM` pins
 
 **Separate compatibility from the preferred toolchain:**
 
@@ -233,7 +233,7 @@ build/images.mk (GO_IMG=golang:1.XX-azurelinux3.0)     ← primary image tag
     │   ├── → bpf-prog/ipv6-hp-bpf/linux.Dockerfile (Go image SHA)
     │   ├── → npm/linux.Dockerfile (tag 1.XX.Y)
     │   ├── → npm/windows.Dockerfile (tag 1.XX.Y)
-    │   └── → All .tmpl Dockerfiles (via `make dockerfiles`)
+    │   └── → All component + .pipelines/build/dockerfiles/ Dockerfile FROM pins
     │
     └── INDEPENDENT MODULES (update toolchain in EACH; raise go floor only when required):
         ├── → azure-ipam/go.mod
@@ -323,9 +323,9 @@ Scripts to update:
 - `.pipelines/build/scripts/ipv6-hp-bpf.sh`
 - `.pipelines/build/scripts/cilium-log-collector.sh`
 
-#### Dockerfile Templates (`*.Dockerfile.tmpl`)
+#### Component + pipeline Dockerfiles
 
-Each template that sets `CGO_ENABLED` in a `RUN go build` must have `ENV GOEXPERIMENT=<value>` set BEFORE the build stage:
+Each Dockerfile that sets `CGO_ENABLED` in a `RUN go build` must have `ENV GOEXPERIMENT=<value>` set BEFORE the build stage:
 
 ```dockerfile
 # For CGO_ENABLED=0 stages:
@@ -337,15 +337,15 @@ ENV GOEXPERIMENT=<value_for_cgo1>
 RUN CGO_ENABLED=1 go build ...
 ```
 
-Templates to update:
-- `cni/Dockerfile.tmpl`
-- `cns/Dockerfile.tmpl`
-- `azure-ipam/Dockerfile.tmpl`
-- `azure-ip-masq-merger/Dockerfile.tmpl`
-- `azure-iptables-monitor/Dockerfile.tmpl`
-- `cilium-log-collector/Dockerfile.tmpl`
+Dockerfiles to update (component dir + matching `.pipelines/build/dockerfiles/*.Dockerfile`):
+- `cni/Dockerfile`
+- `cns/Dockerfile`
+- `azure-ipam/Dockerfile`
+- `azure-ip-masq-merger/Dockerfile`
+- `azure-iptables-monitor/Dockerfile`
+- `cilium-log-collector/Dockerfile`
 
-#### Standalone Dockerfiles (not generated from templates)
+#### Standalone Dockerfiles
 
 - `bpf-prog/ipv6-hp-bpf/linux.Dockerfile`
 - `npm/linux.Dockerfile`
@@ -363,7 +363,7 @@ ACN_GOEXPERIMENT ?= <value_for_cgo0>
 GOEXPERIMENT=$(ACN_GOEXPERIMENT) CGO_ENABLED=0 go build ...
 ```
 
-**Do NOT `export GOEXPERIMENT` globally** — it breaks renderkit/tool builds that don't recognize the experiment.
+**Do NOT `export GOEXPERIMENT` globally** -- it breaks tool builds that don't recognize the experiment.
 
 #### Component-Specific Makefiles
 
@@ -454,11 +454,11 @@ for script in .pipelines/build/scripts/*.sh; do
   fi
 done
 
-# Verify ALL CGO_ENABLED=0 Dockerfile templates have it
-for tmpl in $(find . -name '*.Dockerfile.tmpl' -o -name 'Dockerfile.tmpl' | grep -v vendor); do
-  if grep -q "CGO_ENABLED=0" "$tmpl"; then
-    if ! grep -q "GOEXPERIMENT=<value_for_cgo0>" "$tmpl"; then
-      echo "MISSING GOEXPERIMENT in: $tmpl"
+# Verify ALL CGO_ENABLED=0 Dockerfiles have it
+for df in $(find . \( -name 'Dockerfile' -o -name '*.Dockerfile' \) | grep -v vendor); do
+  if grep -q "CGO_ENABLED=0" "$df"; then
+    if ! grep -q "GOEXPERIMENT=<value_for_cgo0>" "$df"; then
+      echo "MISSING GOEXPERIMENT in: $df"
     fi
   fi
 done
@@ -520,10 +520,10 @@ done
 
 ## Architecture Notes
 
-### Template System
-- `build/images.mk` defines `GO_IMG` and `MARINER_DISTROLESS_IMG`
-- `.tmpl` files are rendered into Dockerfiles by `make dockerfiles`
-- Uses `renderkit` and `skopeo` to resolve image tags to `image:tag@sha` pins (tag required for Dependabot)
+### Image Pinning
+- `build/images.mk` declares `GO_IMG` and `MARINER_DISTROLESS_IMG` (read by `go-version-check.yaml`)
+- Dockerfiles are the source of truth; base images are pinned as `image:tag@sha` directly in each `FROM`
+- Dependabot keeps the pinned SHAs (and clean-semver tags) current; resolve a digest manually with `skopeo inspect docker://<image> --format "{{.Digest}}"`
 - Pipeline uses `.pipelines/build/scripts/install-go.sh`
 
 ### Component CGO Map
@@ -556,7 +556,7 @@ When upgrading Go, verify compatibility with AKS supported Kubernetes versions:
 - The `npm/` component is released as **npm-lite** — ensure Dockerfiles build correctly
 - npm Dockerfiles use **plain Go tags** (e.g., `golang:1.26.4`) without `-azurelinux3.0` suffix
 - `npm/windows.Dockerfile` builds on a Linux builder (`--platform=linux/amd64`) — still needs GOEXPERIMENT for CGO=0
-- The `baseimages.yaml` CI workflow fails if `make dockerfiles` output doesn't match committed files
+- Base image tags/SHAs in the Dockerfiles are kept current by Dependabot
 - ALWAYS use 2-part floating tags in `build/images.mk`
 - **Windows builds**: CNG backend typically works without CGO or GOEXPERIMENT — verify per version
 - **Do NOT assume "no GOEXPERIMENT" is safe** — always verify the default backend's CGO requirements
