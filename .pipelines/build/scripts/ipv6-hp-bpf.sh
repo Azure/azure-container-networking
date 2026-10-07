@@ -46,6 +46,8 @@ mkdir -p "$OUT_DIR"/lib
 
 # Package up Needed C Files
 if [[ -f /etc/debian_version ]];then
+  # 1ES network isolation (CFSClean3) blocks archive.ubuntu.com; use the Azure mirror.
+  find /etc/apt -type f \( -name '*.list' -o -name '*.sources' \) -exec sed -i 's#//archive\.ubuntu\.com#//azure.archive.ubuntu.com#g' {} +
   apt-get update -y
   apt-get install -y --no-install-recommends llvm clang linux-libc-dev libbpf-dev libc6-dev nftables iproute2
   if [[ $ARCH =~ amd64 ]]; then
