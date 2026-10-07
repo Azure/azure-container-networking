@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/pkg/errors"
@@ -47,7 +48,8 @@ func (p *Proxy) JoinNetwork(ctx context.Context, vnetID string, useRNCPublisher 
 }
 
 func (p *Proxy) JoinSubnet(ctx context.Context, vnetID, subnetName string, ncParams cns.NetworkContainerParameters) (*http.Response, error) {
-	reqURL := fmt.Sprintf(joinSubnetURLFmt, p.Host, vnetID, subnetName, ncParams.AuthToken)
+	escapedSubnetName := url.QueryEscape(url.PathEscape(subnetName))
+	reqURL := fmt.Sprintf(joinSubnetURLFmt, p.Host, vnetID, escapedSubnetName, ncParams.AuthToken)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bytes.NewBufferString(`""`))
 	if err != nil {
