@@ -839,59 +839,76 @@ func TestPublishNC_NMAgentApplicationErrors(t *testing.T) {
 }
 
 func TestPublishNCAllowsEmptyRequestBody(t *testing.T) {
-	var (
-		joinUsedRNCPublisher    bool
-		publishUsedRNCPublisher bool
-	)
-
-	wsproxy := fakes.WireserverProxyFake{
-		JoinNetworkFunc: func(_ context.Context, _ string, useRNCPublisher bool) (*http.Response, error) {
-			joinUsedRNCPublisher = useRNCPublisher
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
-			}, nil
-		},
-		PublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte, useRNCPublisher bool) (*http.Response, error) {
-			publishUsedRNCPublisher = useRNCPublisher
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
-			}, nil
-		},
+	tests := []struct {
+		name string
+		body []byte
+	}{
+		{name: "nil body"},
+		{name: "empty body", body: []byte{}},
+		{name: "whitespace body", body: []byte(" \n\t")},
+		{name: "empty object", body: []byte("{}")},
 	}
 
-	cleanup := setWireserverProxy(svc, &wsproxy)
-	defer cleanup()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var (
+				joinUsedRNCPublisher    bool
+				publishUsedRNCPublisher bool
+				publishedBody           []byte
+			)
 
-	joinNetworkURL := "http://" + nmagentEndpoint + "/dummyVnetURL"
-	createNetworkContainerURL := "http://" + nmagentEndpoint +
-		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1"
-	publishNCRequest := &cns.PublishNetworkContainerRequest{
-		NetworkID:                         "foo",
-		NetworkContainerID:                "bar",
-		JoinNetworkURL:                    joinNetworkURL,
-		CreateNetworkContainerURL:         createNetworkContainerURL,
-		CreateNetworkContainerRequestBody: []byte("{}"),
+			wsproxy := fakes.WireserverProxyFake{
+				JoinNetworkFunc: func(_ context.Context, _ string, useRNCPublisher bool) (*http.Response, error) {
+					joinUsedRNCPublisher = useRNCPublisher
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
+					}, nil
+				},
+				PublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, payload []byte, useRNCPublisher bool) (*http.Response, error) {
+					publishUsedRNCPublisher = useRNCPublisher
+					publishedBody = payload
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
+					}, nil
+				},
+			}
+
+			cleanup := setWireserverProxy(svc, &wsproxy)
+			t.Cleanup(cleanup)
+
+			joinNetworkURL := "http://" + nmagentEndpoint + "/dummyVnetURL"
+			createNetworkContainerURL := "http://" + nmagentEndpoint +
+				"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1"
+			publishNCRequest := &cns.PublishNetworkContainerRequest{
+				NetworkID:                         "foo",
+				NetworkContainerID:                "bar",
+				JoinNetworkURL:                    joinNetworkURL,
+				CreateNetworkContainerURL:         createNetworkContainerURL,
+				CreateNetworkContainerRequestBody: tt.body,
+			}
+
+			body := encodeRequestBody(t, publishNCRequest)
+
+			//nolint:noctx // not needed in test
+			req, err := http.NewRequest(http.MethodPost, cns.PublishNetworkContainer, &body)
+			require.NoError(t, err)
+
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusOK, w.Code)
+
+			var resp cns.PublishNetworkContainerResponse
+			err = decodeResponse(w, &resp)
+			require.NoError(t, err)
+			require.Equal(t, types.Success, resp.Response.ReturnCode)
+			require.False(t, joinUsedRNCPublisher)
+			require.False(t, publishUsedRNCPublisher)
+			require.Equal(t, tt.body, publishedBody)
+		})
 	}
-
-	body := encodeRequestBody(t, publishNCRequest)
-
-	//nolint:noctx // not needed in test
-	req, err := http.NewRequest(http.MethodPost, cns.PublishNetworkContainer, &body)
-	require.NoError(t, err)
-
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	require.Equal(t, http.StatusOK, w.Code)
-
-	var resp cns.PublishNetworkContainerResponse
-	err = decodeResponse(w, &resp)
-	require.NoError(t, err)
-	require.Equal(t, types.Success, resp.Response.ReturnCode)
-	require.False(t, joinUsedRNCPublisher)
-	require.False(t, publishUsedRNCPublisher)
 }
 
 func TestPublishNCRequestBodyParsingMatrix(t *testing.T) {
