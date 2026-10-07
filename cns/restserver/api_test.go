@@ -2012,7 +2012,6 @@ func TestUnpublishNCWithRNCPublisherEmptySubnetNameRejected(t *testing.T) {
 }
 
 func TestUnpublishNCWithRNCPublisherSubnetJoinFailure(t *testing.T) {
-
 	var unpublishCalls int
 
 	wsproxy := fakes.WireserverProxyFake{
@@ -2060,7 +2059,6 @@ func TestUnpublishNCWithRNCPublisherSubnetJoinFailure(t *testing.T) {
 }
 
 func TestUnpublishNCWithRNCPublisherSubnetJoinNon200(t *testing.T) {
-
 	var unpublishCalls int
 	const subnetJoinStatusCode = http.StatusInternalServerError
 	subnetJoinBody := []byte(`{"httpStatusCode":"500"}`)

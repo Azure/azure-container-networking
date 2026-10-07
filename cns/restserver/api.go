@@ -1113,8 +1113,8 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 			},
 			UnpublishErrorStr: err.Error(),
 		}
-		respondJSON(w, http.StatusOK, resp) // legacy behavior
-		logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
+		respondJSON(w, http.StatusOK, resp)                                // legacy behavior
+		logger.Response(service.Name, resp, resp.Response.ReturnCode, err) //nolint:staticcheck // match existing logger usage in this handler
 		return
 	}
 
@@ -1127,25 +1127,31 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 			UnpublishStatusCode:   joinStatus,
 			UnpublishResponseBody: joinBytes,
 		}
-		respondJSON(w, http.StatusOK, resp) // legacy behavior
-		logger.Response(service.Name, resp, resp.Response.ReturnCode, nil)
+		respondJSON(w, http.StatusOK, resp)                                // legacy behavior
+		logger.Response(service.Name, resp, resp.Response.ReturnCode, nil) //nolint:staticcheck // match existing logger usage in this handler
 		return
 	}
 
-	logger.Printf("[Azure-CNS] joined vnet %s during nc %s unpublish. AZREnabled: %t, wireserver response: %v", req.NetworkID, req.NetworkContainerID, unpublishBody.AZREnabled, string(joinBytes))
+	logger.Printf( //nolint:staticcheck // match existing logger usage in this handler
+		"[Azure-CNS] joined vnet %s during nc %s unpublish. AZREnabled: %t, wireserver response: %v",
+		req.NetworkID,
+		req.NetworkContainerID,
+		unpublishBody.AZREnabled,
+		string(joinBytes),
+	)
 
 	if useRNCPublisher {
-		joinSubnetStatus, subnetJoinBytes, err := service.joinSubnet(ctx, req.NetworkID, req.SubnetName, ncParams)
-		if err != nil {
+		joinSubnetStatus, subnetJoinBytes, errSubnetJoin := service.joinSubnet(ctx, req.NetworkID, req.SubnetName, ncParams)
+		if errSubnetJoin != nil {
 			resp := cns.UnpublishNetworkContainerResponse{
 				Response: cns.Response{
 					ReturnCode: types.SubnetJoinFailed,
-					Message:    fmt.Sprintf("failed to join subnet %s in network %s: %v", req.SubnetName, req.NetworkID, err),
+					Message:    fmt.Sprintf("failed to join subnet %s in network %s: %v", req.SubnetName, req.NetworkID, errSubnetJoin),
 				},
-				UnpublishErrorStr: err.Error(),
+				UnpublishErrorStr: errSubnetJoin.Error(),
 			}
-			respondJSON(w, http.StatusOK, resp)                                // legacy behavior
-			logger.Response(service.Name, resp, resp.Response.ReturnCode, err) //nolint:staticcheck // match existing logger usage in this handler
+			respondJSON(w, http.StatusOK, resp)                                          // legacy behavior
+			logger.Response(service.Name, resp, resp.Response.ReturnCode, errSubnetJoin) //nolint:staticcheck // match existing logger usage in this handler
 			return
 		}
 
@@ -1210,13 +1216,13 @@ func (service *HTTPRestService) joinSubnet(
 	ctx context.Context,
 	networkID, subnetName string,
 	ncParams cns.NetworkContainerParameters,
-) (int, []byte, error) {
+) (statusCode int, body []byte, err error) {
 	resp, err := service.wsproxy.JoinSubnet(ctx, networkID, subnetName, ncParams)
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, errors.Wrap(err, "joining subnet")
 	}
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ = io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
 	return resp.StatusCode, body, nil
 }
@@ -1225,13 +1231,13 @@ func (service *HTTPRestService) joinVNet(
 	ctx context.Context,
 	networkID string,
 	useRNCPublisher bool,
-) (int, []byte, error) {
+) (statusCode int, body []byte, err error) {
 	resp, err := service.wsproxy.JoinNetwork(ctx, networkID, useRNCPublisher)
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, errors.Wrap(err, "joining vnet")
 	}
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ = io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
 	return resp.StatusCode, body, nil
 }
