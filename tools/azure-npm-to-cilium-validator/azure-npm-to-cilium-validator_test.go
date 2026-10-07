@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"strings"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -2901,4 +2903,100 @@ func intstrPtr(i intstr.IntOrString) *intstr.IntOrString {
 // Helper function to create a pointer to an int32
 func int32Ptr(i int32) *int32 {
 	return &i
+}
+
+// splitRowCells returns the trimmed contents of each column in a rendered row.
+func splitRowCells(line string) []string {
+	var cells []string
+	for _, cell := range strings.Split(strings.TrimSpace(line), "│") {
+		if trimmed := strings.TrimSpace(cell); trimmed != "" {
+			cells = append(cells, trimmed)
+		}
+	}
+	return cells
+}
+
+// Test function for newRenderedTable. The report's layout is produced entirely by
+// tablewriter's rendition, so this asserts the header and the separators drawn
+// between rows to keep a future tablewriter change from silently altering it.
+func TestNewRenderedTable(t *testing.T) {
+	tests := []struct {
+		name                  string
+		headers               []string
+		rows                  [][]string
+		expectedHeaderCells   []string
+		expectedRowSeparators int
+	}{
+		{
+			name:                  "multiple rows are separated",
+			headers:               []string{"Breaking Change", "Upgrade compatibility", "Count"},
+			rows:                  [][]string{{"NetworkPolicy with endPort", "✅", "0"}, {"NetworkPolicy with CIDR", "❌", "3"}},
+			expectedHeaderCells:   []string{"BREAKING CHANGE", "UPGRADE COMPATIBILITY", "COUNT"},
+			expectedRowSeparators: 1,
+		},
+		{
+			name:                  "a single row has nothing to separate",
+			headers:               []string{"Resource", "Count"},
+			rows:                  [][]string{{"NetworkPolicy", "7"}},
+			expectedHeaderCells:   []string{"RESOURCE", "COUNT"},
+			expectedRowSeparators: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			table := newRenderedTable(&buf, tt.headers)
+			for _, row := range tt.rows {
+				if err := table.Append(row); err != nil {
+					t.Fatalf("failed to append row %v: %v", row, err)
+				}
+			}
+			if err := table.Render(); err != nil {
+				t.Fatalf("failed to render table: %v", err)
+			}
+
+			lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+
+			// Each header must land in its own column rather than being
+			// collapsed into a single cell.
+			headerIdx := -1
+			for i, line := range lines {
+				if strings.Contains(line, tt.expectedHeaderCells[0]) {
+					headerIdx = i
+					break
+				}
+			}
+			if headerIdx == -1 {
+				t.Fatalf("header row not found in output:\n%s", buf.String())
+			}
+			headerCells := splitRowCells(lines[headerIdx])
+			if len(headerCells) != len(tt.expectedHeaderCells) {
+				t.Fatalf("expected %d header columns, got %d (%q), in output:\n%s", len(tt.expectedHeaderCells), len(headerCells), headerCells, buf.String())
+			}
+			for i, cell := range tt.expectedHeaderCells {
+				if headerCells[i] != cell {
+					t.Errorf("expected header column %d to be %q, got %q", i, cell, headerCells[i])
+				}
+			}
+
+			// Count the horizontal rules that fall between two data rows,
+			// ignoring the one directly beneath the header.
+			separators := 0
+			for i := headerIdx + 2; i < len(lines)-1; i++ {
+				if strings.HasPrefix(strings.TrimSpace(lines[i]), "├") {
+					separators++
+				}
+			}
+			if separators != tt.expectedRowSeparators {
+				t.Errorf("expected %d separator(s) between rows, got %d, in output:\n%s", tt.expectedRowSeparators, separators, buf.String())
+			}
+
+			for _, row := range tt.rows {
+				if !strings.Contains(buf.String(), row[0]) {
+					t.Errorf("expected row %q in output:\n%s", row[0], buf.String())
+				}
+			}
+		})
+	}
 }
