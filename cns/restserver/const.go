@@ -16,6 +16,6 @@ const (
 	// the racing request can only reject work that should have succeeded.
 	endpointDeleteIntentTTL = 10 * time.Minute
 	// Rest service state identifier for named lock
-	dncApiVersion     = "?api-version=2018-03-01"
+	dncAPIVersion     = "?api-version=2018-03-01"
 	nmaAPICallTimeout = 2 * time.Second
 )
