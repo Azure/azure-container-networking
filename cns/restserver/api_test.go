@@ -911,7 +911,7 @@ func TestPublishNCAllowsEmptyRequestBody(t *testing.T) {
 	}
 }
 
-func TestPublishNCRequestBodyParsingMatrix(t *testing.T) {
+func TestPublishNCUsesOuterRNCPublisherFlag(t *testing.T) {
 	const (
 		networkID          = "vnet-publish-body-matrix"
 		subnetName         = "subnet-publish-body-matrix"
@@ -921,6 +921,7 @@ func TestPublishNCRequestBodyParsingMatrix(t *testing.T) {
 	tests := []struct {
 		name                string
 		body                []byte
+		useRNCPublisher     bool
 		wantHTTPStatus      int
 		wantReturnCode      types.ResponseCode
 		wantUseRNCPublisher bool
@@ -955,8 +956,9 @@ func TestPublishNCRequestBodyParsingMatrix(t *testing.T) {
 			wantPublishCalls:    1,
 		},
 		{
-			name:                "rnc body triggers subnet join",
-			body:                []byte(`{"useRNCPublisher":true}`),
+			name:                "outer rnc flag triggers subnet join",
+			body:                []byte(`{"version":"bad"}`),
+			useRNCPublisher:     true,
 			wantHTTPStatus:      http.StatusOK,
 			wantReturnCode:      types.Success,
 			wantUseRNCPublisher: true,
@@ -964,11 +966,13 @@ func TestPublishNCRequestBodyParsingMatrix(t *testing.T) {
 			wantPublishCalls:    1,
 		},
 		{
-			name:                "invalid json returns bad request",
+			name:                "invalid json body is forwarded unchanged",
 			body:                []byte("invalid\n"),
-			wantHTTPStatus:      http.StatusBadRequest,
+			wantHTTPStatus:      http.StatusOK,
+			wantReturnCode:      types.Success,
+			wantUseRNCPublisher: false,
 			wantJoinSubnetCalls: 0,
-			wantPublishCalls:    0,
+			wantPublishCalls:    1,
 		},
 	}
 
@@ -987,6 +991,7 @@ func TestPublishNCRequestBodyParsingMatrix(t *testing.T) {
 				joinSubnetCalls    int
 				publishCalls       int
 				capturedPublishRNC bool
+				capturedBody       []byte
 			)
 
 			wsproxy := fakes.WireserverProxyFake{
@@ -999,9 +1004,10 @@ func TestPublishNCRequestBodyParsingMatrix(t *testing.T) {
 						Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
 					}, nil
 				},
-				PublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte, useRNCPublisher bool) (*http.Response, error) {
+				PublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, payload []byte, useRNCPublisher bool) (*http.Response, error) {
 					publishCalls++
 					capturedPublishRNC = useRNCPublisher
+					capturedBody = payload
 					return &http.Response{
 						StatusCode: http.StatusOK,
 						Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
@@ -1017,6 +1023,7 @@ func TestPublishNCRequestBodyParsingMatrix(t *testing.T) {
 			publishNCRequest := &cns.PublishNetworkContainerRequest{
 				NetworkID:                         networkID,
 				SubnetName:                        subnetName,
+				UseRNCPublisher:                   tt.useRNCPublisher,
 				NetworkContainerID:                networkContainerID,
 				JoinNetworkURL:                    "http://" + nmagentEndpoint + "/dummyVnetURL",
 				CreateNetworkContainerURL:         createNetworkContainerURL,
@@ -1043,6 +1050,7 @@ func TestPublishNCRequestBodyParsingMatrix(t *testing.T) {
 
 			require.Equal(t, tt.wantJoinSubnetCalls, joinSubnetCalls)
 			require.Equal(t, tt.wantPublishCalls, publishCalls)
+			require.Equal(t, tt.body, capturedBody)
 			require.Zero(t, nmaSupportChecks)
 		})
 	}
@@ -1096,10 +1104,11 @@ func TestPublishNCWithRNCPublisherJoinsSubnetEveryTime(t *testing.T) {
 	publishNCRequest := &cns.PublishNetworkContainerRequest{
 		NetworkID:                         networkID,
 		SubnetName:                        subnetName,
+		UseRNCPublisher:                   true,
 		NetworkContainerID:                networkContainerID,
 		JoinNetworkURL:                    "http://" + nmagentEndpoint + "/dummyVnetURL",
 		CreateNetworkContainerURL:         createNetworkContainerURL,
-		CreateNetworkContainerRequestBody: []byte(`{"useRNCPublisher":true}`),
+		CreateNetworkContainerRequestBody: []byte(`{}`),
 	}
 
 	for i := 0; i < 2; i++ {
@@ -1152,10 +1161,11 @@ func TestPublishNCWithRNCPublisherSubnetJoinFailure(t *testing.T) {
 	publishNCRequest := &cns.PublishNetworkContainerRequest{
 		NetworkID:                         networkID,
 		SubnetName:                        subnetName,
+		UseRNCPublisher:                   true,
 		NetworkContainerID:                networkContainerID,
 		JoinNetworkURL:                    "http://" + nmagentEndpoint + "/dummyVnetURL",
 		CreateNetworkContainerURL:         createNetworkContainerURL,
-		CreateNetworkContainerRequestBody: []byte(`{"useRNCPublisher":true}`),
+		CreateNetworkContainerRequestBody: []byte(`{}`),
 	}
 
 	body := encodeRequestBody(t, publishNCRequest)
@@ -1210,10 +1220,11 @@ func TestPublishNCWithRNCPublisherSubnetJoinNon200(t *testing.T) {
 	publishNCRequest := &cns.PublishNetworkContainerRequest{
 		NetworkID:                         networkID,
 		SubnetName:                        subnetName,
+		UseRNCPublisher:                   true,
 		NetworkContainerID:                networkContainerID,
 		JoinNetworkURL:                    "http://" + nmagentEndpoint + "/dummyVnetURL",
 		CreateNetworkContainerURL:         createNetworkContainerURL,
-		CreateNetworkContainerRequestBody: []byte(`{"useRNCPublisher":true}`),
+		CreateNetworkContainerRequestBody: []byte(`{}`),
 	}
 
 	body := encodeRequestBody(t, publishNCRequest)
@@ -1266,10 +1277,11 @@ func TestPublishNCWithRNCPublisherDisabledSkipsSubnetJoin(t *testing.T) {
 	publishNCRequest := &cns.PublishNetworkContainerRequest{
 		NetworkID:                         "vnet-rnc-disabled-publish",
 		SubnetName:                        "subnet-rnc-disabled-publish",
+		UseRNCPublisher:                   false,
 		NetworkContainerID:                "nc-rnc-disabled-publish",
 		JoinNetworkURL:                    "http://" + nmagentEndpoint + "/dummyVnetURL",
 		CreateNetworkContainerURL:         createNetworkContainerURL,
-		CreateNetworkContainerRequestBody: []byte(`{"useRNCPublisher":false}`),
+		CreateNetworkContainerRequestBody: []byte(`{}`),
 	}
 
 	body := encodeRequestBody(t, publishNCRequest)
@@ -1350,10 +1362,11 @@ func TestPublishNCWithRNCPublisherDoesNotProbeNMAgentSupport(t *testing.T) {
 			publishNCRequest := &cns.PublishNetworkContainerRequest{
 				NetworkID:                         "vnet-rnc-unsupported-publish",
 				SubnetName:                        "subnet-rnc-unsupported-publish",
+				UseRNCPublisher:                   true,
 				NetworkContainerID:                "nc-rnc-unsupported-publish",
 				JoinNetworkURL:                    "http://" + nmagentEndpoint + "/dummyVnetURL",
 				CreateNetworkContainerURL:         createNetworkContainerURL,
-				CreateNetworkContainerRequestBody: []byte(`{"useRNCPublisher":true}`),
+				CreateNetworkContainerRequestBody: []byte(`{}`),
 			}
 
 			body := encodeRequestBody(t, publishNCRequest)
@@ -1405,10 +1418,11 @@ func TestPublishNCWithRNCPublisherEmptySubnetNameRejected(t *testing.T) {
 	publishNCRequest := &cns.PublishNetworkContainerRequest{
 		NetworkID:                         "vnet-rnc-empty-subnet-publish",
 		SubnetName:                        "",
+		UseRNCPublisher:                   true,
 		NetworkContainerID:                "nc-rnc-empty-subnet-publish",
 		JoinNetworkURL:                    "http://" + nmagentEndpoint + "/dummyVnetURL",
 		CreateNetworkContainerURL:         createNetworkContainerURL,
-		CreateNetworkContainerRequestBody: []byte(`{"useRNCPublisher":true}`),
+		CreateNetworkContainerRequestBody: []byte(`{}`),
 	}
 
 	body := encodeRequestBody(t, publishNCRequest)
@@ -1712,10 +1726,11 @@ func TestUnpublishNCWithRNCPublisherJoinsSubnet(t *testing.T) {
 	unpublishNCRequest := &cns.UnpublishNetworkContainerRequest{
 		NetworkID:                         networkID,
 		SubnetName:                        subnetName,
+		UseRNCPublisher:                   true,
 		NetworkContainerID:                networkContainerID,
 		JoinNetworkURL:                    "http://" + nmagentEndpoint + "/dummyVnetURL",
 		DeleteNetworkContainerURL:         deleteNetworkContainerURL,
-		DeleteNetworkContainerRequestBody: []byte(`{"azrEnabled":true,"useRNCPublisher":true}`),
+		DeleteNetworkContainerRequestBody: []byte(`{"azrEnabled":true}`),
 	}
 
 	for i := 0; i < 2; i++ {
@@ -1770,10 +1785,11 @@ func TestUnpublishNCWithRNCPublisherDisabledSkipsSubnetJoin(t *testing.T) {
 	unpublishNCRequest := &cns.UnpublishNetworkContainerRequest{
 		NetworkID:                         "vnet-rnc-disabled-unpublish",
 		SubnetName:                        "subnet-rnc-disabled-unpublish",
+		UseRNCPublisher:                   false,
 		NetworkContainerID:                "nc-rnc-disabled-unpublish",
 		JoinNetworkURL:                    "http://" + nmagentEndpoint + "/dummyVnetURL",
 		DeleteNetworkContainerURL:         deleteNetworkContainerURL,
-		DeleteNetworkContainerRequestBody: []byte(`{"azID":1,"azrEnabled":true,"useRNCPublisher":false}`),
+		DeleteNetworkContainerRequestBody: []byte(`{"azID":1,"azrEnabled":true}`),
 	}
 
 	body := encodeRequestBody(t, unpublishNCRequest)
@@ -1860,10 +1876,11 @@ func TestUnpublishNCWithRNCPublisherDoesNotProbeNMAgentSupport(t *testing.T) {
 			unpublishNCRequest := &cns.UnpublishNetworkContainerRequest{
 				NetworkID:                         "vnet-rnc-unsupported-unpublish",
 				SubnetName:                        "subnet-rnc-unsupported-unpublish",
+				UseRNCPublisher:                   true,
 				NetworkContainerID:                "nc-rnc-unsupported-unpublish",
 				JoinNetworkURL:                    "http://" + nmagentEndpoint + "/dummyVnetURL",
 				DeleteNetworkContainerURL:         deleteNetworkContainerURL,
-				DeleteNetworkContainerRequestBody: []byte(`{"azID":1,"azrEnabled":true,"useRNCPublisher":true}`),
+				DeleteNetworkContainerRequestBody: []byte(`{"azID":1,"azrEnabled":true}`),
 			}
 
 			body := encodeRequestBody(t, unpublishNCRequest)
@@ -1916,10 +1933,11 @@ func TestUnpublishNCWithRNCPublisherEmptySubnetNameRejected(t *testing.T) {
 	unpublishNCRequest := &cns.UnpublishNetworkContainerRequest{
 		NetworkID:                         "vnet-rnc-empty-subnet-unpublish",
 		SubnetName:                        "",
+		UseRNCPublisher:                   true,
 		NetworkContainerID:                "nc-rnc-empty-subnet-unpublish",
 		JoinNetworkURL:                    "http://" + nmagentEndpoint + "/dummyVnetURL",
 		DeleteNetworkContainerURL:         deleteNetworkContainerURL,
-		DeleteNetworkContainerRequestBody: []byte(`{"azID":1,"azrEnabled":true,"useRNCPublisher":true}`),
+		DeleteNetworkContainerRequestBody: []byte(`{"azID":1,"azrEnabled":true}`),
 	}
 
 	body := encodeRequestBody(t, unpublishNCRequest)
@@ -1960,10 +1978,11 @@ func TestUnpublishNCWithRNCPublisherSubnetJoinFailure(t *testing.T) {
 	unpublishNCRequest := &cns.UnpublishNetworkContainerRequest{
 		NetworkID:                         "vnet-rnc-unpublish-subnet-failure",
 		SubnetName:                        "subnet-rnc-unpublish-subnet-failure",
+		UseRNCPublisher:                   true,
 		NetworkContainerID:                "nc-rnc-unpublish-subnet-failure",
 		JoinNetworkURL:                    "http://" + nmagentEndpoint + "/dummyVnetURL",
 		DeleteNetworkContainerURL:         deleteNetworkContainerURL,
-		DeleteNetworkContainerRequestBody: []byte(`{"azID":1,"azrEnabled":true,"useRNCPublisher":true}`),
+		DeleteNetworkContainerRequestBody: []byte(`{"azID":1,"azrEnabled":true}`),
 	}
 
 	body := encodeRequestBody(t, unpublishNCRequest)
@@ -2012,10 +2031,11 @@ func TestUnpublishNCWithRNCPublisherSubnetJoinNon200(t *testing.T) {
 	unpublishNCRequest := &cns.UnpublishNetworkContainerRequest{
 		NetworkID:                         "vnet-rnc-unpublish-subnet-status-failure",
 		SubnetName:                        "subnet-rnc-unpublish-subnet-status-failure",
+		UseRNCPublisher:                   true,
 		NetworkContainerID:                "nc-rnc-unpublish-subnet-status-failure",
 		JoinNetworkURL:                    "http://" + nmagentEndpoint + "/dummyVnetURL",
 		DeleteNetworkContainerURL:         deleteNetworkContainerURL,
-		DeleteNetworkContainerRequestBody: []byte(`{"azID":1,"azrEnabled":true,"useRNCPublisher":true}`),
+		DeleteNetworkContainerRequestBody: []byte(`{"azID":1,"azrEnabled":true}`),
 	}
 
 	body := encodeRequestBody(t, unpublishNCRequest)

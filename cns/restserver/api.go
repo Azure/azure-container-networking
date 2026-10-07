@@ -40,10 +40,6 @@ const (
 	ncURLExpectedMatches = 5
 )
 
-type ncPublishBody struct {
-	UseRNCPublisher bool `json:"useRNCPublisher"`
-}
-
 // This file contains implementation of all HTTP APIs which are exposed to external clients.
 // TODO: break it even further per module (network, nc, etc) like it is done for ipam
 
@@ -951,17 +947,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 
 	ctx := r.Context()
 
-	var publishBody ncPublishBody
-
-	if len(bytes.TrimSpace(req.CreateNetworkContainerRequestBody)) > 0 {
-		err = json.Unmarshal(req.CreateNetworkContainerRequestBody, &publishBody)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("could not unmarshal create network container body: %v", err), http.StatusBadRequest)
-			return
-		}
-	}
-
-	useRNCPublisher := publishBody.UseRNCPublisher
+	useRNCPublisher := req.UseRNCPublisher
 
 	if useRNCPublisher && req.SubnetName == "" {
 		http.Error(w, fmt.Sprintf("subnet name is required in network %s when useRNCPublisher is true", req.NetworkID), http.StatusBadRequest)
@@ -1100,7 +1086,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 
 	var unpublishBody nmagent.DeleteContainerRequest
 	var azrNC bool
-	var useRNCPublisher bool
+	useRNCPublisher := req.UseRNCPublisher
 	err = json.Unmarshal(req.DeleteNetworkContainerRequestBody, &unpublishBody)
 	if err != nil {
 		// If the body contains only `""\n`, it is non-AZR NC
@@ -1114,7 +1100,6 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 	} else {
 		// If unmarshalling was successful, it is an AZR NC
 		azrNC = true
-		useRNCPublisher = unpublishBody.UseRNCPublisher
 	}
 
 	if useRNCPublisher && req.SubnetName == "" {
