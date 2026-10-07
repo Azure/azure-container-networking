@@ -95,7 +95,7 @@ type internalNC struct {
 
 func (p *PutNetworkContainerRequest) MarshalJSON() ([]byte, error) {
 	pBody := internalNC{
-		Version:    strconv.FormatUint(p.Version, 10),
+		Version:    strconv.Itoa(int(p.Version)),
 		VNetID:     p.VNetID,
 		SubnetName: p.SubnetName,
 		IPv4Addrs:  p.IPv4Addrs,
