@@ -134,3 +134,36 @@ func TestProxyRNCPublisherQueryParam(t *testing.T) {
 		})
 	}
 }
+
+func TestJoinSubnetEscapesSubnetNamePathSegment(t *testing.T) {
+	var reqURL *url.URL
+	p := &Proxy{
+		Host: "127.0.0.1:9001",
+		HTTPClient: &testDo{
+			do: func(req *http.Request) (*http.Response, error) {
+				reqURL = req.URL
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(bytes.NewBufferString(`{}`)),
+				}, nil
+			},
+		},
+	}
+
+	resp, err := p.JoinSubnet(context.Background(), "vnet-1", "subnet/other?x#fragment&y", cns.NetworkContainerParameters{
+		AuthToken: authToken,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+	})
+	require.NotNil(t, reqURL)
+	require.Empty(t, reqURL.Fragment)
+	require.Contains(t, reqURL.RawQuery, "joinedSubnets/subnet%252Fother%253Fx%2523fragment%26y")
+	require.Equal(t,
+		"NetworkManagement/joinedVirtualNetworks/vnet-1/joinedSubnets/subnet%2Fother%3Fx%23fragment&y/authenticationToken/token-1/api-version/1?useLegacyChannel=false",
+		reqURL.Query().Get("type"),
+	)
+}
