@@ -953,10 +953,12 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 
 	var publishBody ncPublishBody
 
-	err = json.Unmarshal(req.CreateNetworkContainerRequestBody, &publishBody)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("could not unmarshal create network container body: %v", err), http.StatusBadRequest)
-		return
+	if len(bytes.TrimSpace(req.CreateNetworkContainerRequestBody)) > 0 {
+		err = json.Unmarshal(req.CreateNetworkContainerRequestBody, &publishBody)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("could not unmarshal create network container body: %v", err), http.StatusBadRequest)
+			return
+		}
 	}
 
 	useRNCPublisher := publishBody.UseRNCPublisher
