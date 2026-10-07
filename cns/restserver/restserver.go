@@ -206,7 +206,6 @@ type httpRestServiceState struct {
 	ContainerStatus                  map[string]containerstatus // NetworkContainerID is key.
 	Networks                         map[string]*networkInfo
 	TimeStamp                        time.Time
-	joinedNetworks                   map[string]struct{}
 	primaryInterface                 *wireserver.InterfaceInfo
 	PnpIDByMacAddress                map[string]string
 }
@@ -248,7 +247,6 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 
 	serviceState := &httpRestServiceState{
 		Networks:          make(map[string]*networkInfo),
-		joinedNetworks:    make(map[string]struct{}),
 		primaryInterface:  primaryInterface,
 		PnpIDByMacAddress: make(map[string]string),
 	}

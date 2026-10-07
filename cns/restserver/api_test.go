@@ -1753,6 +1753,64 @@ func TestUnpublishNCWithRNCPublisherJoinsSubnet(t *testing.T) {
 	require.Equal(t, 2, unpublishCalls)
 }
 
+func TestUnpublishNCAlwaysJoinsVNet(t *testing.T) {
+	const networkID = "vnet-rnc-unpublish-always-joins"
+
+	var rncJoinCalls int
+	wsproxy := fakes.WireserverProxyFake{
+		JoinNetworkFunc: func(_ context.Context, _ string, useRNCPublisher bool) (*http.Response, error) {
+			require.True(t, useRNCPublisher)
+			rncJoinCalls++
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
+			}, nil
+		},
+		JoinSubnetFunc: func(context.Context, string, string, cns.NetworkContainerParameters) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
+			}, nil
+		},
+		UnpublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte, useRNCPublisher bool) (*http.Response, error) {
+			require.True(t, useRNCPublisher)
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
+			}, nil
+		},
+	}
+
+	cleanup := setWireserverProxy(svc, &wsproxy)
+	t.Cleanup(cleanup)
+
+	deleteNetworkContainerURL := "http://" + nmagentEndpoint +
+		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1/method/DELETE"
+	unpublishNCRequest := &cns.UnpublishNetworkContainerRequest{
+		NetworkID:                         networkID,
+		SubnetName:                        "subnet-rnc-unpublish-always-joins",
+		UseRNCPublisher:                   true,
+		NetworkContainerID:                "nc-rnc-unpublish-always-joins",
+		JoinNetworkURL:                    "http://" + nmagentEndpoint + "/dummyVnetURL",
+		DeleteNetworkContainerURL:         deleteNetworkContainerURL,
+		DeleteNetworkContainerRequestBody: []byte("\"\"\n"),
+	}
+
+	body := encodeRequestBody(t, unpublishNCRequest)
+	//nolint:noctx // not needed in test
+	req, err := http.NewRequest(http.MethodPost, cns.UnpublishNetworkContainer, &body)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	var resp cns.UnpublishNetworkContainerResponse
+	err = decodeResponse(w, &resp)
+	require.NoError(t, err)
+	require.Equal(t, types.Success, resp.Response.ReturnCode)
+	require.Equal(t, 1, rncJoinCalls)
+}
+
 func TestUnpublishNCWithRNCPublisherDisabledSkipsSubnetJoin(t *testing.T) {
 	var (
 		joinSubnetCalls int
