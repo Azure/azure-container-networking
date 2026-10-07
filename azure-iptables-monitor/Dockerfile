@@ -3,7 +3,7 @@
 ARG ARCH
 
 # mcr.microsoft.com/azurelinux/base/core:3.0
-FROM mcr.microsoft.com/azurelinux/base/core:3.0@sha256:1324a2cf7ed34e5f48a1022816b205782b86c7305651658e611dcd3d30756751 AS mariner-core
+FROM mcr.microsoft.com/azurelinux/base/core:3.0@sha256:bfd3e44899fe7c17f6fda42a6ef2a322f2178c2dafb88e69fd87675cdcac39ec AS mariner-core
 
 # mcr.microsoft.com/azurelinux/distroless/base:3.0
 FROM mcr.microsoft.com/azurelinux/distroless/base:3.0@sha256:2b5cec59b51cb0509157e3a1b730e19aa42912b99d7f5300b87eac7000bfea19 AS mariner-distroless
