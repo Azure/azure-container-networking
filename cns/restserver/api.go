@@ -1085,7 +1085,6 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 	ctx := r.Context()
 
 	var unpublishBody nmagent.DeleteContainerRequest
-	var azrNC bool
 	useRNCPublisher := req.UseRNCPublisher
 	err = json.Unmarshal(req.DeleteNetworkContainerRequestBody, &unpublishBody)
 	if err != nil {
@@ -1097,9 +1096,6 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 			http.Error(w, fmt.Sprintf("could not unmarshal delete network container body: %v", err), http.StatusBadRequest)
 			return
 		}
-	} else {
-		// If unmarshalling was successful, it is an AZR NC
-		azrNC = true
 	}
 
 	if useRNCPublisher && req.SubnetName == "" {
@@ -1107,41 +1103,36 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 		return
 	}
 
-	/* For AZR scenarios, if NMAgent is restarted, it loses state and does not know what VNETs to subscribe to.
-	As it no longer has VNET state, delete nc calls would fail. We need to add join VNET call for all AZR
-	nc unpublish calls just like publish nc calls.
-	*/
-	if azrNC || !service.isNetworkJoined(req.NetworkID) {
-		joinStatus, joinBytes, err := service.joinVNet(ctx, req.NetworkID, useRNCPublisher)
-		if err != nil {
-			resp := cns.UnpublishNetworkContainerResponse{
-				Response: cns.Response{
-					ReturnCode: types.NetworkJoinFailed,
-					Message:    fmt.Sprintf("failed to join network %s: %v", req.NetworkID, err),
-				},
-				UnpublishErrorStr: err.Error(),
-			}
-			respondJSON(w, http.StatusOK, resp) // legacy behavior
-			logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
-			return
+	// Always join the VNet before unpublishing so the active publisher channel has the required state.
+	joinStatus, joinBytes, err := service.joinVNet(ctx, req.NetworkID, useRNCPublisher)
+	if err != nil {
+		resp := cns.UnpublishNetworkContainerResponse{
+			Response: cns.Response{
+				ReturnCode: types.NetworkJoinFailed,
+				Message:    fmt.Sprintf("failed to join network %s: %v", req.NetworkID, err),
+			},
+			UnpublishErrorStr: err.Error(),
 		}
-
-		if joinStatus != http.StatusOK {
-			resp := cns.UnpublishNetworkContainerResponse{
-				Response: cns.Response{
-					ReturnCode: types.NetworkJoinFailed,
-					Message:    fmt.Sprintf("failed to join network %s. did not get 200 from wireserver", req.NetworkID),
-				},
-				UnpublishStatusCode:   joinStatus,
-				UnpublishResponseBody: joinBytes,
-			}
-			respondJSON(w, http.StatusOK, resp) // legacy behavior
-			logger.Response(service.Name, resp, resp.Response.ReturnCode, nil)
-			return
-		}
-
-		logger.Printf("[Azure-CNS] joined vnet %s during nc %s unpublish. AZREnabled: %t, wireserver response: %v", req.NetworkID, req.NetworkContainerID, unpublishBody.AZREnabled, string(joinBytes))
+		respondJSON(w, http.StatusOK, resp) // legacy behavior
+		logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
+		return
 	}
+
+	if joinStatus != http.StatusOK {
+		resp := cns.UnpublishNetworkContainerResponse{
+			Response: cns.Response{
+				ReturnCode: types.NetworkJoinFailed,
+				Message:    fmt.Sprintf("failed to join network %s. did not get 200 from wireserver", req.NetworkID),
+			},
+			UnpublishStatusCode:   joinStatus,
+			UnpublishResponseBody: joinBytes,
+		}
+		respondJSON(w, http.StatusOK, resp) // legacy behavior
+		logger.Response(service.Name, resp, resp.Response.ReturnCode, nil)
+		return
+	}
+
+	logger.Printf("[Azure-CNS] joined vnet %s during nc %s unpublish. AZREnabled: %t, wireserver response: %v", req.NetworkID, req.NetworkContainerID, unpublishBody.AZREnabled, string(joinBytes))
 
 	if useRNCPublisher {
 		joinSubnetStatus, subnetJoinBytes, err := service.joinSubnet(ctx, req.NetworkID, req.SubnetName, ncParams)
@@ -1242,9 +1233,6 @@ func (service *HTTPRestService) joinVNet(
 
 	body, _ := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
-	if resp.StatusCode == http.StatusOK {
-		service.setNetworkStateJoined(networkID)
-	}
 	return resp.StatusCode, body, nil
 }
 
