@@ -2,6 +2,7 @@ package multitenancy_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -11,8 +12,50 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+func TestNodeInfoIPv6CapabilityJSONAndDeepCopy(t *testing.T) {
+	tests := []struct {
+		name string
+		wire string
+		want *bool
+	}{
+		{name: "older producer", wire: `{}`},
+		{name: "null report", wire: `{"nmaAppliedTheIPV6Fix":null}`},
+		{name: "advertised", wire: `{"nmaAppliedTheIPV6Fix":true}`, want: ptr.To(true)},
+		{name: "not advertised", wire: `{"nmaAppliedTheIPV6Fix":false}`, want: ptr.To(false)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var nodeInfo v1alpha1.NodeInfo
+			require.NoError(t, json.Unmarshal([]byte(`{"spec":`+tt.wire+`}`), &nodeInfo))
+			require.Equal(t, tt.want, nodeInfo.Spec.NmaAppliedTheIPV6Fix)
+
+			data, err := json.Marshal(nodeInfo.Spec)
+			require.NoError(t, err)
+			if tt.want == nil {
+				require.JSONEq(t, `{}`, string(data))
+			} else {
+				require.JSONEq(t, tt.wire, string(data))
+			}
+
+			copied := nodeInfo.DeepCopy()
+			require.Equal(t, nodeInfo, *copied)
+			list := &v1alpha1.NodeInfoList{Items: []v1alpha1.NodeInfo{nodeInfo}}
+			copiedList := list.DeepCopy()
+			require.Equal(t, list, copiedList)
+			if tt.want != nil {
+				require.NotSame(t, nodeInfo.Spec.NmaAppliedTheIPV6Fix, copied.Spec.NmaAppliedTheIPV6Fix)
+				require.NotSame(t, nodeInfo.Spec.NmaAppliedTheIPV6Fix, copiedList.Items[0].Spec.NmaAppliedTheIPV6Fix)
+				*copied.Spec.NmaAppliedTheIPV6Fix = !*tt.want
+				*copiedList.Items[0].Spec.NmaAppliedTheIPV6Fix = !*tt.want
+				require.Equal(t, tt.want, nodeInfo.Spec.NmaAppliedTheIPV6Fix)
+			}
+		})
+	}
+}
 
 type mockClient struct {
 	client.Client

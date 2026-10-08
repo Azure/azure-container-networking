@@ -41,6 +41,13 @@ type NodeInfoSpec struct {
 	// +kubebuilder:validation:optional
 	// +kubebuilder:validation:Pattern=`^AZ\d{2}$`
 	HomeAZ string `json:"homeAZ,omitempty"`
+
+	// NmaAppliedTheIPV6Fix reports whether the successful NMAgent HomeAZ lookup
+	// advertised the AZR IPv6 fix. False means the lookup did not advertise the
+	// fix; absent or null means no report, including from older CNS producers.
+	// +kubebuilder:validation:Optional
+	// +nullable
+	NmaAppliedTheIPV6Fix *bool `json:"nmaAppliedTheIPV6Fix,omitempty"`
 }
 
 // NodeInfoStatus defines the observed state of NodeInfo. This is information

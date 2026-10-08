@@ -50,6 +50,13 @@ spec:
               homeAZ:
                 pattern: ^AZ\d{2}$
                 type: string
+              nmaAppliedTheIPV6Fix:
+                description: |-
+                  NmaAppliedTheIPV6Fix reports whether the successful NMAgent HomeAZ lookup
+                  advertised the AZR IPv6 fix. False means the lookup did not advertise the
+                  fix; absent or null means no report, including from older CNS producers.
+                nullable: true
+                type: boolean
               vmUniqueID:
                 type: string
             type: object

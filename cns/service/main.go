@@ -1780,7 +1780,7 @@ type NodeInfoCreator interface {
 	CreateOrUpdate(ctx context.Context, nodeInfo *mtv1alpha1.NodeInfo, fieldOwner string) error
 }
 
-// buildAndCreateNodeInfo builds the NodeInfo spec with VMUniqueID and HomeAZ and creates/updates the CRD
+// buildAndCreateNodeInfo publishes VMUniqueID, HomeAZ and its reported fixes in the NodeInfo CRD.
 func buildAndCreateNodeInfo(ctx context.Context, imdsCli VMUniqueIDGetter, nmaCli HomeAzGetter, nodeInfoCli NodeInfoCreator, node *corev1.Node) error {
 	vmUniqueID, err := imdsCli.GetVMUniqueID(ctx)
 	if err != nil {
@@ -1796,6 +1796,8 @@ func buildAndCreateNodeInfo(ctx context.Context, imdsCli VMUniqueIDGetter, nmaCl
 		return errors.Wrap(err, "getting HomeAZ from NMAgent")
 	} else if homeAzResponse.HomeAz > 0 {
 		nodeInfoSpec.HomeAZ = fmt.Sprintf("AZ%02d", homeAzResponse.HomeAz)
+		ipv6Fix := homeAzResponse.ContainsFixes(nmagent.HomeAZFixIPv6)
+		nodeInfoSpec.NmaAppliedTheIPV6Fix = &ipv6Fix
 	}
 
 	nodeInfo := &mtv1alpha1.NodeInfo{

@@ -30,8 +30,20 @@ func TestEmbedNodeInfo(t *testing.T) {
 }
 
 func TestGetNodeInfo(t *testing.T) {
-	_, err := GetNodeInfo()
-	assert.NoError(t, err)
+	nodeInfo, err := GetNodeInfo()
+	require.NoError(t, err)
+	require.NotEmpty(t, nodeInfo.Spec.Versions)
+	for _, version := range nodeInfo.Spec.Versions {
+		require.NotNil(t, version.Schema)
+		require.NotNil(t, version.Schema.OpenAPIV3Schema)
+		spec := version.Schema.OpenAPIV3Schema.Properties["spec"]
+		require.Contains(t, spec.Properties, "nmaAppliedTheIPV6Fix")
+		capability := spec.Properties["nmaAppliedTheIPV6Fix"]
+		assert.Equal(t, "boolean", capability.Type)
+		assert.True(t, capability.Nullable)
+		assert.Nil(t, capability.Default)
+		assert.NotContains(t, spec.Required, "nmaAppliedTheIPV6Fix")
+	}
 }
 
 const podNetworkFilename = "manifests/multitenancy.acn.azure.com_podnetworks.yaml"
