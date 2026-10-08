@@ -43,6 +43,7 @@ type Monitor struct {
 	store                 ipStateStore
 	demand                int64
 	request               int64
+	observedIPsNotInUse   []string
 	demandSource          <-chan int
 	cssSource             <-chan v1alpha1.ClusterSubnetState
 	nncSource             <-chan v1alpha.NodeNetworkConfig
@@ -85,6 +86,7 @@ func (pm *Monitor) Start(ctx context.Context) error {
 			pm.scaler.max = int64(math.Min(float64(nnc.Status.Scaler.MaxIPCount), DefaultMaxIPs))
 			pm.scaler.batch = int64(math.Min(math.Max(float64(nnc.Status.Scaler.BatchSize), 1), float64(pm.scaler.max)))
 			pm.scaler.buffer = math.Abs(float64(nnc.Status.Scaler.RequestThresholdPercent)) / 100 //nolint:gomnd // it's a percentage
+			pm.observedIPsNotInUse = append([]string(nil), nnc.Spec.IPsNotInUse...)
 			pm.once.Do(func() {
 				pm.request = nnc.Spec.RequestedIPCount
 				close(pm.started) // close the init channel the first time we fully receive a NodeNetworkConfig.
@@ -123,22 +125,55 @@ func (pm *Monitor) reconcile(ctx context.Context) error {
 	target := calculateTargetIPCountOrMax(pm.demand, s.batch, s.max, s.buffer)
 	pm.z.Info("calculated new request", zap.Int64("demand", pm.demand), zap.Int64("batch", s.batch), zap.Int64("max", s.max), zap.Float64("buffer", s.buffer), zap.Int64("target", target))
 	delta := target - pm.request
-	if delta == 0 {
+	if delta != 0 {
+		pm.z.Info("scaling pool", zap.Int64("delta", delta))
+		// try to release -delta IPs. this is no-op if delta is negative.
+		if _, err := pm.store.MarkNIPsPendingRelease(int(-delta)); err != nil {
+			return errors.Wrapf(err, "failed to mark sufficient IPs as PendingRelease, wanted %d", pm.request-target)
+		}
+	}
+	spec := pm.buildNNCSpec(target)
+	if delta == 0 && ipIDsEqual(pm.observedIPsNotInUse, spec.IPsNotInUse) {
 		pm.z.Info("NNC already at target IPs, no scaling required")
 		return nil
 	}
-	pm.z.Info("scaling pool", zap.Int64("delta", delta))
-	// try to release -delta IPs. this is no-op if delta is negative.
-	if _, err := pm.store.MarkNIPsPendingRelease(int(-delta)); err != nil {
-		return errors.Wrapf(err, "failed to mark sufficient IPs as PendingRelease, wanted %d", pm.request-target)
+	if delta == 0 {
+		pm.z.Info("syncing NNC pending release IPs",
+			zap.Int("observed", len(pm.observedIPsNotInUse)),
+			zap.Int("desired", len(spec.IPsNotInUse)),
+		)
 	}
-	spec := pm.buildNNCSpec(target)
 	if _, err := pm.nnccli.PatchSpec(ctx, &spec, fieldManager); err != nil {
 		return errors.Wrap(err, "failed to UpdateSpec with NNC client")
 	}
 	pm.request = target
+	pm.observedIPsNotInUse = append([]string(nil), spec.IPsNotInUse...)
+	if delta == 0 {
+		pm.z.Info("synced NNC pending release IPs", zap.Int("count", len(pm.observedIPsNotInUse)))
+		return nil
+	}
 	pm.z.Info("scaled pool", zap.Int64("request", pm.request))
 	return nil
+}
+
+func ipIDsEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	ids := make(map[string]struct{}, len(a))
+	for _, id := range a {
+		ids[id] = struct{}{}
+	}
+	if len(ids) != len(a) {
+		return false
+	}
+	for _, id := range b {
+		if _, ok := ids[id]; !ok {
+			return false
+		}
+		delete(ids, id)
+	}
+	return len(ids) == 0
 }
 
 // buildNNCSpec translates CNS's map of IPs to be released and requested IP count into an NNC Spec.
