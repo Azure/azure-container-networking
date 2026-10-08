@@ -228,6 +228,42 @@ func (i *Installer) InstallOrUpdateNICNetworkConfig(ctx context.Context) (*v1.Cu
 	return current, nil
 }
 
+// Install installs the embedded UVMNetworkConfig CRD definition in the cluster.
+func (i *Installer) InstallUVMNetworkConfig(ctx context.Context) (*v1.CustomResourceDefinition, error) {
+	uvmnc, err := GetUVMNetworkConfigs()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get embedded uvmnetworkconfig crd")
+	}
+	return i.create(ctx, uvmnc)
+}
+
+// InstallOrUpdateUVMNetworkConfig installs the embedded UVMNetworkConfig CRD definition in the cluster or updates it if present.
+func (i *Installer) InstallOrUpdateUVMNetworkConfig(ctx context.Context) (*v1.CustomResourceDefinition, error) {
+	uvmnc, err := GetUVMNetworkConfigs()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get embedded uvmnetworkconfig crd")
+	}
+	current, err := i.create(ctx, uvmnc)
+	if !apierrors.IsAlreadyExists(err) {
+		return current, err
+	}
+	if current == nil {
+		current, err = i.cli.Get(ctx, uvmnc.Name, metav1.GetOptions{})
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get existing uvmnetworkconfig crd")
+		}
+	}
+	if !reflect.DeepEqual(uvmnc.Spec.Versions, current.Spec.Versions) {
+		uvmnc.SetResourceVersion(current.GetResourceVersion())
+		previous := *current
+		current, err = i.cli.Update(ctx, uvmnc, metav1.UpdateOptions{})
+		if err != nil {
+			return &previous, errors.Wrap(err, "failed to update existing uvmnetworkconfig crd")
+		}
+	}
+	return current, nil
+}
+
 type NodeInfoClient struct {
 	Cli client.Client
 }
