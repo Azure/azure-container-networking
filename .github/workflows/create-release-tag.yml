@@ -247,6 +247,6 @@ jobs:
           /tmp/release-cli notify \
             --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
             --title "${FULL_TAG}" \
-            --status completed \
+            --status succeeded \
             --summary "$MSG" \
             --stage binary-tag-created
