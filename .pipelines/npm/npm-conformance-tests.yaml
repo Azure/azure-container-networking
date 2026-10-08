@@ -244,6 +244,30 @@ stages:
                 make policy-assistant
                 cd ../../..
                 mv network-policy-api/cmd/policy-assistant/cmd/policy-assistant/policy-assistant .
+
+                # Pre-create the namespaces passed to policy-assistant via --namespace in the
+                # "Run Test Suite and Get Logs" step, labeled ns=<name> as policy-assistant labels them,
+                # then wait for each default ServiceAccount. Otherwise policy-assistant's first pods can
+                # race kube-controller-manager creating that ServiceAccount and be rejected by admission.
+                # policy-assistant reuses namespaces that already exist.
+                namespaces=(x y z)
+                for ns in "${namespaces[@]}"; do
+                  if ! ./kubectl --kubeconfig="$KUBECONFIG" get namespace "$ns" > /dev/null 2>&1; then
+                    ./kubectl --kubeconfig="$KUBECONFIG" create namespace "$ns"
+                  fi
+                  ./kubectl --kubeconfig="$KUBECONFIG" label namespace "$ns" "ns=$ns" --overwrite
+                done
+                saTimeoutSeconds=300
+                deadline=$((SECONDS + saTimeoutSeconds))
+                for ns in "${namespaces[@]}"; do
+                  until ./kubectl --kubeconfig="$KUBECONFIG" get serviceaccount default -n "$ns"; do
+                    if [ "$SECONDS" -ge "$deadline" ]; then
+                      echo "Timed out after ${saTimeoutSeconds}s waiting for serviceaccount default in namespace $ns" >&2
+                      exit 1
+                    fi
+                    sleep 2
+                  done
+                done
               else
                 # sig-release provides test suite tarball(s) per k8s release. Just need to provide k8s version "v1.xx.xx"
                 # pulling k8s version from AKS.
@@ -279,7 +303,8 @@ stages:
                 fi
                 if [ $(PROFILE) == "v2-place-first" ]; then
                   # 15 minute timeout for creating LoadBalancer with Azure-internal "external IPs"
-                  ./policy-assistant generate --noisy=true --job-timeout-seconds=2 --pod-creation-timeout-seconds 900 --server-protocol TCP,UDP --ignore-loopback --include special-services --exclude cni-brings-source-pod-info-to-other-node
+                  # --namespace must match the namespaces pre-created in the "Setup Environment" step
+                  ./policy-assistant generate --noisy=true --namespace x,y,z --job-timeout-seconds=2 --pod-creation-timeout-seconds 900 --server-protocol TCP,UDP --ignore-loopback --include special-services --exclude cni-brings-source-pod-info-to-other-node
                 else
                   KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 ./e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig="$KUBECONFIG" "${seedArgs[@]}"
                 fi
