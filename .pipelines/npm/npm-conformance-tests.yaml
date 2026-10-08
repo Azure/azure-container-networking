@@ -21,6 +21,14 @@ parameters:
     displayName: "NPM image override"
     type: string
     default: "__use-default__"
+  - name: testLinuxArm64
+    displayName: "Also run v2-background on linux/arm64 nodes (npmImage must include linux/arm64)"
+    type: boolean
+    default: false
+  - name: testWindows
+    displayName: "Also run the Windows Server 2022 leg (npmImage must include windows/amd64)"
+    type: boolean
+    default: false
 
 variables:
   - name: VNET_NAME
@@ -55,6 +63,10 @@ stages:
               TAG=$(make npm-version)
               . ./hack/scripts/parse_override_image.sh
               if [[ -z "${NPM_IMAGE_OVERRIDE:-}" || "$NPM_IMAGE_OVERRIDE" == "__use-default__" ]]; then
+                if [[ "${TEST_LINUX_ARM64,,}" == "true" || "${TEST_WINDOWS,,}" == "true" ]]; then
+                  echo "##vso[task.logissue type=error]testLinuxArm64 and testWindows need an npmImage override: the image must include linux/arm64 for testLinuxArm64 and windows/amd64 for testWindows. This pipeline only builds linux-amd64-$TAG."
+                  exit 1
+                fi
                 NPM_IMAGE=$(format_image "$IMAGE_REGISTRY" azure-npm "linux-amd64-$TAG")
               else
                 NPM_IMAGE="$NPM_IMAGE_OVERRIDE"
@@ -72,6 +84,8 @@ stages:
             condition: always()
             env:
               NPM_IMAGE_OVERRIDE: ${{ parameters.npmImage }}
+              TEST_LINUX_ARM64: ${{ parameters.testLinuxArm64 }}
+              TEST_WINDOWS: ${{ parameters.testWindows }}
 
   - ${{ if or(eq(parameters.npmImage, '__use-default__'), eq(parameters.npmImage, '')) }}:
     - stage: build
@@ -129,6 +143,20 @@ stages:
             PROFILE: "v2-place-first"
             NPM_CONFIG_PROFILE: "v2-place-first"
             IS_STRESS_TEST: "false"
+          ${{ if eq(parameters.testLinuxArm64, true) }}:
+            v2-background-arm64:
+              AZURE_CLUSTER: "conformance-v2-background-arm64"
+              PROFILE: "v2-background-arm64"
+              NPM_CONFIG_PROFILE: "v2-background"
+              IS_STRESS_TEST: "false"
+              NODE_VM_SIZE: "Standard_D4ps_v5"
+              EXPECTED_NODE_ARCH: "arm64"
+          ${{ if eq(parameters.testWindows, true) }}:
+            v2-ws22:
+              AZURE_CLUSTER: "conformance-v2-ws22"
+              PROFILE: "v2-ws22"
+              IS_STRESS_TEST: "false"
+              IS_WINDOWS: "true"
       pool:
         name: $(BUILD_POOL_NAME_DEFAULT)
         demands:
@@ -180,10 +208,19 @@ stages:
             scriptLocation: "inlineScript"
             inlineScript: |
               set -euo pipefail
-              NPM_CONFIG_PATH="$(Pipeline.Workspace)/s/npm/profiles/$NPM_CONFIG_PROFILE.yaml"
-              if [[ ! -f "$NPM_CONFIG_PATH" ]]; then
-                echo "NPM config profile not found: $NPM_CONFIG_PATH" >&2
-                exit 1
+              IS_WINDOWS="${IS_WINDOWS:-false}"
+              NODE_VM_SIZE="${NODE_VM_SIZE:-}"
+              EXPECTED_NODE_ARCH="${EXPECTED_NODE_ARCH:-}"
+              if [[ "$IS_WINDOWS" == "true" ]]; then
+                # the Windows manifest bundles its own azure-npm-config ConfigMap, so no NPM config profile is applied
+                NPM_DAEMONSET="azure-npm-win"
+              else
+                NPM_DAEMONSET="azure-npm"
+                NPM_CONFIG_PATH="$(Pipeline.Workspace)/s/npm/profiles/$NPM_CONFIG_PROFILE.yaml"
+                if [[ ! -f "$NPM_CONFIG_PATH" ]]; then
+                  echo "NPM config profile not found: $NPM_CONFIG_PATH" >&2
+                  exit 1
+                fi
               fi
 
               # get kubectl
@@ -195,34 +232,98 @@ stages:
               PUBLIC_IP_ID=$(az network public-ip show -g $(RESOURCE_GROUP) -n $(PUBLIC_IP_NAME) --query id -o tsv)
               echo Public IP ID $PUBLIC_IP_ID
 
-              echo "Creating Linux Cluster";
-              az aks create --no-ssh-key \
-              --resource-group $(RESOURCE_GROUP) \
-              --name $(AZURE_CLUSTER) \
-              --network-plugin azure \
-              --load-balancer-outbound-ips "$PUBLIC_IP_ID"
+              if [[ "$IS_WINDOWS" == "true" ]]; then
+                echo "Creating Windows Server 2022 Cluster";
+                az aks create --no-ssh-key \
+                --resource-group $(RESOURCE_GROUP) \
+                --name $(AZURE_CLUSTER) \
+                --network-plugin azure \
+                --vm-set-type VirtualMachineScaleSets \
+                --node-vm-size Standard_D4s_v3 \
+                --node-count 1 \
+                --load-balancer-outbound-ips "$PUBLIC_IP_ID"
+
+                # keep test pods off the Linux system pool
+                az aks nodepool update \
+                --resource-group $(RESOURCE_GROUP) \
+                --cluster-name $(AZURE_CLUSTER) \
+                --name nodepool1 \
+                --node-taints CriticalAddonsOnly=true:NoSchedule
+
+                az aks nodepool add \
+                --resource-group $(RESOURCE_GROUP) \
+                --cluster-name $(AZURE_CLUSTER) \
+                --name awin22 \
+                --os-type Windows \
+                --os-sku Windows2022 \
+                --node-vm-size Standard_D4s_v3 \
+                --node-count 2
+              else
+                echo "Creating Linux Cluster";
+                nodeVMSizeArgs=()
+                if [[ -n "$NODE_VM_SIZE" ]]; then
+                  nodeVMSizeArgs=(--node-vm-size "$NODE_VM_SIZE")
+                fi
+                az aks create --no-ssh-key \
+                --resource-group $(RESOURCE_GROUP) \
+                --name $(AZURE_CLUSTER) \
+                --network-plugin azure \
+                --load-balancer-outbound-ips "$PUBLIC_IP_ID" \
+                "${nodeVMSizeArgs[@]}"
+              fi
 
               az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file "$KUBECONFIG"
 
+              if [[ -n "$EXPECTED_NODE_ARCH" ]]; then
+                ./kubectl --kubeconfig="$KUBECONFIG" get nodes -L kubernetes.io/arch
+                NODE_ARCHS=$(./kubectl --kubeconfig="$KUBECONFIG" get nodes -o 'jsonpath={.items[*].status.nodeInfo.architecture}')
+                for arch in ${NODE_ARCHS:-none}; do
+                  if [[ "$arch" != "$EXPECTED_NODE_ARCH" ]]; then
+                    echo "Node architecture mismatch: expected every node to be '$EXPECTED_NODE_ARCH', got '${NODE_ARCHS:-no nodes}'" >&2
+                    exit 1
+                  fi
+                done
+              fi
+
               # deploy azure-npm
-              ./kubectl --kubeconfig="$KUBECONFIG" apply -f $(Pipeline.Workspace)/s/npm/azure-npm.yaml
+              if [[ "$IS_WINDOWS" == "true" ]]; then
+                ./kubectl --kubeconfig="$KUBECONFIG" apply -f $(Pipeline.Workspace)/s/npm/examples/windows/azure-npm.yaml
+                ./kubectl --kubeconfig="$KUBECONFIG" set image daemonset/azure-npm-win -n kube-system "azure-npm=$NPM_IMAGE"
+              else
+                ./kubectl --kubeconfig="$KUBECONFIG" apply -f $(Pipeline.Workspace)/s/npm/azure-npm.yaml
 
-              ./kubectl --kubeconfig="$KUBECONFIG" set image daemonset/azure-npm -n kube-system "azure-npm=$NPM_IMAGE"
+                ./kubectl --kubeconfig="$KUBECONFIG" set image daemonset/azure-npm -n kube-system "azure-npm=$NPM_IMAGE"
 
-              ./kubectl --kubeconfig="$KUBECONFIG" apply -f "$NPM_CONFIG_PATH"
-              ./kubectl --kubeconfig="$KUBECONFIG" rollout restart ds azure-npm -n kube-system
-              ./kubectl --kubeconfig="$KUBECONFIG" rollout status ds azure-npm -n kube-system --timeout=20m
+                ./kubectl --kubeconfig="$KUBECONFIG" apply -f "$NPM_CONFIG_PATH"
+                ./kubectl --kubeconfig="$KUBECONFIG" rollout restart ds azure-npm -n kube-system
+              fi
+              ./kubectl --kubeconfig="$KUBECONFIG" rollout status ds "$NPM_DAEMONSET" -n kube-system --timeout=20m
 
-              DEPLOYED_NPM_IMAGE=$(./kubectl --kubeconfig="$KUBECONFIG" get daemonset azure-npm -n kube-system -o 'jsonpath={.spec.template.spec.containers[?(@.name=="azure-npm")].image}')
+              DEPLOYED_NPM_IMAGE=$(./kubectl --kubeconfig="$KUBECONFIG" get daemonset "$NPM_DAEMONSET" -n kube-system -o 'jsonpath={.spec.template.spec.containers[?(@.name=="azure-npm")].image}')
               if [[ "$DEPLOYED_NPM_IMAGE" != "$NPM_IMAGE" ]]; then
                 echo "NPM image mismatch: expected '$NPM_IMAGE', got '$DEPLOYED_NPM_IMAGE'" >&2
                 exit 1
               fi
               echo "NPM image: $DEPLOYED_NPM_IMAGE"
-              echo "NPM config profile: $NPM_CONFIG_PROFILE"
+              if [[ "$IS_WINDOWS" == "true" ]]; then
+                echo "NPM config: azure-npm-config from npm/examples/windows/azure-npm.yaml"
+              else
+                echo "NPM config profile: $NPM_CONFIG_PROFILE"
+              fi
               ./kubectl --kubeconfig="$KUBECONFIG" get pods -n kube-system -l k8s-app=azure-npm \
                 -o 'custom-columns=NAME:.metadata.name,NODE:.spec.nodeName,IMAGE:.spec.containers[*].image,IMAGE_ID:.status.containerStatuses[*].imageID'
-              ./kubectl --kubeconfig="$KUBECONFIG" describe daemonset azure-npm -n kube-system
+              ./kubectl --kubeconfig="$KUBECONFIG" describe daemonset "$NPM_DAEMONSET" -n kube-system
+
+              if [[ "$IS_WINDOWS" == "true" ]]; then
+                WINDOWS_NODES=$(./kubectl --kubeconfig="$KUBECONFIG" get nodes -l kubernetes.io/os=windows -o name | wc -l)
+                READY_NPM_PODS=$(./kubectl --kubeconfig="$KUBECONFIG" get daemonset azure-npm-win -n kube-system -o 'jsonpath={.status.numberReady}')
+                if [[ "$WINDOWS_NODES" -eq 0 || "${READY_NPM_PODS:-0}" -ne "$WINDOWS_NODES" ]]; then
+                  echo "Expected a ready azure-npm-win pod on each of the $WINDOWS_NODES Windows nodes, got ${READY_NPM_PODS:-0}" >&2
+                  exit 1
+                fi
+                echo "Waiting 3 minutes for Windows NPM to finish its bootup phase"
+                sleep 180
+              fi
 
               FQDN=`az aks show -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --query fqdn -o tsv`
               echo "##vso[task.setvariable variable=FQDN]$FQDN"
@@ -280,10 +381,43 @@ stages:
                 if [ $(PROFILE) == "v2-place-first" ]; then
                   # 15 minute timeout for creating LoadBalancer with Azure-internal "external IPs"
                   ./policy-assistant generate --noisy=true --job-timeout-seconds=2 --pod-creation-timeout-seconds 900 --server-protocol TCP,UDP --ignore-loopback --include special-services --exclude cni-brings-source-pod-info-to-other-node
+                elif [[ "${IS_WINDOWS:-false}" == "true" ]]; then
+                  runConformanceWindows "${seedArgs[@]}"
                 else
                   KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 ./e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig="$KUBECONFIG" "${seedArgs[@]}"
                 fi
                 # there can't be a command after e2e.test/policy-assistant because the exit code is important
+            }
+
+            runConformanceWindows () {
+                # the full suite takes too long on Windows, so run the 14 tests the ws22 leg ran before #3888 removed it
+                # NetworkPolicy between server and...
+                local f1="client should enforce policy to allow traffic only from a different namespace, based on NamespaceSelector"
+                local f2="client should deny egress from pods based on PodSelector"
+                local f3="client should enforce multiple, stacked policies with overlapping podSelectors"
+                local f4="client should enforce egress policy allowing traffic to a server in a different namespace based on PodSelector and NamespaceSelector"
+                local f5="client should work with Ingress, Egress specified together"
+                local f6="client should enforce ingress policy allowing any port traffic to a server on a specific protocol"
+                local f7="client should not allow access by TCP when a policy specifies only UDP"
+                local f8="client should allow egress access to server in CIDR block"
+                local f9="client should enforce policy based on Ports"
+                local f10="client should support allow-all policy"
+                local f11="client should enforce updated policy"
+                local f12="client should support denying of egress traffic on the client side"
+                local f13="client should stop enforcing policies after they are deleted"
+                local f14="client should support a 'default-deny-ingress' policy"
+                local focus="$f1|$f2|$f3|$f4|$f5|$f6|$f7|$f8|$f9|$f10|$f11|$f12|$f13|$f14"
+                # --allowed-not-ready-nodes=1 tolerates the tainted Linux system node
+                KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 \
+                  ./e2e.test \
+                  --provider=local \
+                  --ginkgo.focus="$focus" \
+                  --ginkgo.skip="\[LinuxOnly\]|NetworkPolicyLegacy|SCTP" \
+                  --node-os-distro=windows \
+                  --allowed-not-ready-nodes=1 \
+                  --kubeconfig="$KUBECONFIG" \
+                  --ginkgo.timeout="4h" \
+                  "$@"
             }
 
             exitCode=0
