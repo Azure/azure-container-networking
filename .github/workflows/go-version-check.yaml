@@ -656,7 +656,7 @@ jobs:
             done < <(find .pipelines/build/scripts -name '*.sh' -type f 2>/dev/null || true)
           fi
 
-          if [ "$TARGET_MIN_NUM" -ge 27 ] && grep -R -nE '^[^#]*GOEXPERIMENT=(systemcrypto|ms_nocgo_opensslcrypto)' \
+          if [ "$TARGET_MIN_NUM" -ge 27 ] && grep -R -nE '^[^#]*GOEXPERIMENT=(systemcrypto|nosystemcrypto|ms_nocgo_opensslcrypto)' \
             --include='*.sh' --include='Makefile' --include='*.Dockerfile' --include='*.Dockerfile.tmpl' --include='Dockerfile' \
             --exclude-dir=.git --exclude-dir=vendor .; then
             FIPS_CORRECT="false"
@@ -709,7 +709,7 @@ jobs:
           Linux builds with \`CGO_ENABLED=0\` select the cgo-less OpenSSL backend automatically on supported architectures.
           Reference: https://github.com/microsoft/go/blob/microsoft/main/eng/doc/fips/README.md#usage-common-configurations
 
-          1. Remove all \`GOEXPERIMENT=systemcrypto\` and \`GOEXPERIMENT=ms_nocgo_opensslcrypto\` assignments.
+          1. Remove all \`GOEXPERIMENT=systemcrypto\`, \`GOEXPERIMENT=nosystemcrypto\` and \`GOEXPERIMENT=ms_nocgo_opensslcrypto\` assignments.
           2. **Keep** the \`MS_GO_NOSYSTEMCRYPTO=1\` opt-outs (npm Dockerfiles, \`.pipelines/build/scripts/npm.sh\`, root Makefile \`all-binaries\`). Those binaries run on hosts without Microsoft's FIPS OpenSSL, and \`MS_GO_NOSYSTEMCRYPTO=1\` is still the supported opt-out in Go 1.27.
           3. Ensure Linux runtime images provide OpenSSL, libc, libdl, and pthread libraries.
           4. Ensure \`MARINER_DISTROLESS_IMG\` in \`build/images.mk\` is \`distroless/base\`.
