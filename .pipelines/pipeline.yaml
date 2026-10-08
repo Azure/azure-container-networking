@@ -153,8 +153,8 @@ extends:
                   echo "##vso[task.setvariable variable=ciliumLogCollectorImageOverride;isOutput=true]$(resolve_override_image '${{ parameters.ciliumLogCollectorImage }}' cilium-log-collector $(make cilium-log-collector-version))"
 
                   IPV6_HP_BPF_IMAGE_OVERRIDE=""
-                  if [ -n '${{ parameters.ipv6HpBpfImage }}' ] && [ '${{ parameters.ipv6HpBpfImage }}' != "__use-default__" ]; then
-                    IPV6_HP_BPF_IMAGE_OVERRIDE="$(resolve_override_image '${{ parameters.ipv6HpBpfImage }}' ipv6-hp-bpf $(make ipv6-hp-bpf-version))"
+                  if [ -n "$IPV6_HP_BPF_IMAGE_PARAMETER" ] && [ "$IPV6_HP_BPF_IMAGE_PARAMETER" != "__use-default__" ]; then
+                    IPV6_HP_BPF_IMAGE_OVERRIDE="$(resolve_override_image "$IPV6_HP_BPF_IMAGE_PARAMETER" ipv6-hp-bpf "$(make ipv6-hp-bpf-version)")"
                   fi
                   echo "##vso[task.setvariable variable=ipv6HpBpfImageOverride;isOutput=true]${IPV6_HP_BPF_IMAGE_OVERRIDE}"
 
@@ -173,6 +173,8 @@ extends:
                   echo $(System.PullRequest.targetBranchName)
                 name: "EnvironmentalVariables"
                 displayName: "Set environmental variables"
+                env:
+                  IPV6_HP_BPF_IMAGE_PARAMETER: ${{ parameters.ipv6HpBpfImage }}
                 condition: always()
 
       - template: /.pipelines/templates/run-unit-tests.yaml@self

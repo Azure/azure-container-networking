@@ -127,10 +127,11 @@ steps:
 
         configure_dualstack() {
           if [ -n "${IPV6_HP_BPF_IMAGE_OVERRIDE:-}" ]; then
-            read -r IPV6_IMAGE_REGISTRY IPV6_HP_BPF_VERSION <<< "$(split_image_reference \
+            IPV6_HP_BPF_IMAGE_PARTS="$(split_image_reference \
               "$IPV6_HP_BPF_IMAGE_OVERRIDE" \
               ipv6-hp-bpf \
               "$(make ipv6-hp-bpf-version)")"
+            read -r IPV6_IMAGE_REGISTRY IPV6_HP_BPF_VERSION <<< "$IPV6_HP_BPF_IMAGE_PARTS"
           else
             IPV6_HP_BPF_VERSION=${IPV6_HP_BPF_VERSION:-$(make ipv6-hp-bpf-version)}
             IPV6_IMAGE_REGISTRY=${IPV6_IMAGE_REGISTRY:-acnpublic.azurecr.io}
