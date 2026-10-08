@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 )
 
 const (
@@ -18,7 +19,7 @@ const (
 
 // Dial - try to connect to/create a socket with 'name'
 func (tb *TelemetryBuffer) Dial(name string) (err error) {
-	conn, err := net.Dial("unix", fmt.Sprintf(fdTemplate, name))
+	conn, err := net.Dial("unix", fdPath(name)) //nolint:noctx // legacy Dial API has no context parameter
 	if err == nil {
 		tb.client = conn
 	}
@@ -28,7 +29,7 @@ func (tb *TelemetryBuffer) Dial(name string) (err error) {
 
 // Listen - try to create and listen on socket with 'name'
 func (tb *TelemetryBuffer) Listen(name string) (err error) {
-	conn, err := net.Listen("unix", fmt.Sprintf(fdTemplate, name))
+	conn, err := net.Listen("unix", fdPath(name)) //nolint:noctx // legacy Listen API has no context parameter
 	if err == nil {
 		tb.listener = conn
 	}
@@ -38,7 +39,17 @@ func (tb *TelemetryBuffer) Listen(name string) (err error) {
 
 // cleanup - manually remove socket
 func (tb *TelemetryBuffer) Cleanup(name string) error {
-	return os.Remove(fmt.Sprintf(fdTemplate, name))
+	if err := os.Remove(fdPath(name)); err != nil {
+		return fmt.Errorf("removing telemetry socket: %w", err)
+	}
+	return nil
+}
+
+func fdPath(name string) string {
+	if filepath.IsAbs(name) {
+		return name
+	}
+	return fmt.Sprintf(fdTemplate, name)
 }
 
 func SockExists() bool {

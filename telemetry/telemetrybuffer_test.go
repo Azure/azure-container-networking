@@ -15,31 +15,49 @@ const telemetryConfig = "azure-vnet-telemetry.config"
 
 func createTBServer(t *testing.T) (*TelemetryBuffer, func()) {
 	tbServer := NewTelemetryBuffer(nil)
+	tbServer.fdName = testFDName(t)
 	err := tbServer.StartServer()
 	require.NoError(t, err)
 
 	return tbServer, func() {
 		tbServer.Close()
-		err := tbServer.Cleanup(FdName)
+		err := tbServer.Cleanup(tbServer.fdName)
 		require.Error(t, err)
 	}
 }
 
+func newTBClient(server *TelemetryBuffer, logger *zap.Logger) *TelemetryBuffer {
+	client := NewTelemetryBuffer(logger)
+	client.fdName = server.fdName
+	return client
+}
+
+func requireServerConnCount(t *testing.T, tb *TelemetryBuffer, want int) {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		tb.mutex.Lock()
+		defer tb.mutex.Unlock()
+		return len(tb.connections) == want
+	}, 5*time.Second, time.Millisecond, "server connection count did not reach %d", want)
+}
+
 func TestStartServer(t *testing.T) {
-	_, closeTBServer := createTBServer(t)
+	tbServer, closeTBServer := createTBServer(t)
 	defer closeTBServer()
 
 	secondTBServer := NewTelemetryBuffer(nil)
+	secondTBServer.fdName = tbServer.fdName
 	err := secondTBServer.StartServer()
 	require.Error(t, err)
 }
 
 func TestConnect(t *testing.T) {
-	_, closeTBServer := createTBServer(t)
+	tbServer, closeTBServer := createTBServer(t)
 	defer closeTBServer()
 
 	logger := log.TelemetryLogger.With(zap.String("component", "cni-telemetry"))
-	tbClient := NewTelemetryBuffer(logger)
+	tbClient := newTBClient(tbServer, logger)
 	err := tbClient.Connect()
 	require.NoError(t, err)
 
@@ -50,10 +68,13 @@ func TestServerConnClose(t *testing.T) {
 	tbServer, closeTBServer := createTBServer(t)
 	defer closeTBServer()
 
-	tbClient := NewTelemetryBuffer(nil)
+	tbClient := newTBClient(tbServer, nil)
 	err := tbClient.Connect()
 	require.NoError(t, err)
 	defer tbClient.Close()
+
+	// Connect returns before the server's accept goroutine registers the socket.
+	requireServerConnCount(t, tbServer, 1)
 
 	tbServer.Close()
 
@@ -63,10 +84,10 @@ func TestServerConnClose(t *testing.T) {
 }
 
 func TestClientConnClose(t *testing.T) {
-	_, closeTBServer := createTBServer(t)
+	tbServer, closeTBServer := createTBServer(t)
 	defer closeTBServer()
 
-	tbClient := NewTelemetryBuffer(nil)
+	tbClient := newTBClient(tbServer, nil)
 	err := tbClient.Connect()
 	require.NoError(t, err)
 	tbClient.Close()
@@ -76,7 +97,7 @@ func TestCloseOnWriteError(t *testing.T) {
 	tbServer, closeTBServer := createTBServer(t)
 	defer closeTBServer()
 
-	tbClient := NewTelemetryBuffer(nil)
+	tbClient := newTBClient(tbServer, nil)
 	err := tbClient.Connect()
 	require.NoError(t, err)
 	defer tbClient.Close()
@@ -84,8 +105,7 @@ func TestCloseOnWriteError(t *testing.T) {
 	data := []byte("{\"good\":1}")
 	_, err = tbClient.Write(data)
 	require.NoError(t, err)
-	// need to wait for connection to populate in server
-	time.Sleep(1 * time.Second)
+	requireServerConnCount(t, tbServer, 1)
 	tbServer.mutex.Lock()
 	conns := tbServer.connections
 	tbServer.mutex.Unlock()
@@ -95,7 +115,7 @@ func TestCloseOnWriteError(t *testing.T) {
 	badData := []byte("} malformed json }}}")
 	_, err = tbClient.Write(badData)
 	require.NoError(t, err)
-	time.Sleep(1 * time.Second)
+	requireServerConnCount(t, tbServer, 0)
 	tbServer.mutex.Lock()
 	conns = tbServer.connections
 	tbServer.mutex.Unlock()
@@ -103,10 +123,10 @@ func TestCloseOnWriteError(t *testing.T) {
 }
 
 func TestWrite(t *testing.T) {
-	_, closeTBServer := createTBServer(t)
+	tbServer, closeTBServer := createTBServer(t)
 	defer closeTBServer()
 
-	tbClient := NewTelemetryBuffer(nil)
+	tbClient := newTBClient(tbServer, nil)
 	err := tbClient.Connect()
 	require.NoError(t, err)
 	defer tbClient.Close()
