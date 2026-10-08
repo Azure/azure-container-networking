@@ -7,32 +7,35 @@ This pipeline tests SwiftV2 pod networking in a persistent environment with sche
 **Infrastructure (Persistent)**:
 - **2 AKS Clusters**: aks-1, aks-2 (4 nodes each: 2 low-NIC default pool, 2 high-NIC nplinux pool)
 - **4 VNets**: cx_vnet_v1, cx_vnet_v2, cx_vnet_v3 (Customer 1 with PE to storage), cx_vnet_v4 (Customer 2)
-- **VNet Peerings**: vnet mesh.
-- **Storage Account**: With private endpoint from cx_vnet_v1
+- **VNet Peerings**: Full mesh between the three Customer 1 VNets; Customer 2 remains isolated
+- **2 Storage Accounts**: One with a private endpoint in cx_vnet_v1 and one reserved for future scenarios
 - **NSGs**: Restricting traffic between subnets (s1, s2) in vnet cx_vnet_v1.
 - **Node Labels**: All nodes labeled with `workload-type` and `nic-capacity` for targeted test execution
 
 
 **Node Labeling for Multiple Workload Types**:
-Each node pool gets labeled with its designated workload type during setup:
-```bash
-# During cluster creation or node pool addition:
-kubectl label nodes -l  workload-type=swiftv2-linux
-kubectl label nodes -l  workload-type=swiftv2-linuxbyon
-kubectl label nodes -l  workload-type=swiftv2-l1vhaccelnet
-kubectl label nodes -l  workload-type=swiftv2-l1vhib
-```
+Each managed or BYON node pool gets its designated workload label during setup:
+
+| Node type | `workload-type` |
+|-----------|-----------------|
+| Managed nodepool1 and nplinux | `swiftv2-linux` |
+| Linux BYON | `swiftv2-linux-byon` |
+| Accelerated-networking BYON | `swiftv2-l1vh-accelnet-byon` |
 
 ## How It Works
 
 ### Scheduled Test Flow
 Every scheduled run, the pipeline:
-1. Skips setup stages (infrastructure already exists)
-2. **Job 1 - Create Resources**: Creates 8 test scenarios (PodNetwork, PNI, Pods with TCP netcat listeners on port 8080)
-3. **Job 2 - Connectivity Tests**: Tests TCP connectivity between pods (9 test cases), then waits 20 minutes
-4. **Job 3 - Private Endpoint Tests**: Tests private endpoint access and tenant isolation (5 test cases)
-5. **Job 4 - Delete Resources**: Deletes all test resources (Phase 1: Pods, Phase 2: PNI/PN/Namespaces)
-6. Reports results
+1. Runs the idempotent infrastructure stage for every subscription/region scenario. Existing resources are verified and reused by the setup scripts.
+2. Runs persistent rotating-pod, always-on DaemonSet, and connectivity jobs for every configured long-running zone.
+3. Acquires a per-scenario ConfigMap lease for the ephemeral datapath stages.
+4. For each enabled workload type:
+   - Creates 8 PodNetwork/PNI/pod scenarios.
+   - Runs 8 pod-to-pod connectivity tests.
+   - Runs 4 Private Endpoint tests.
+   - Runs the scale create/delete test.
+   - Deletes the ephemeral test resources.
+5. Releases the datapath lease even when a datapath stage fails.
 
 
 ## Test Case Details
@@ -55,7 +58,7 @@ All test scenarios create the following resources:
 | 7 | Customer1-AKS2-VnetV2-S1-LowNic | aks-2 | cx_vnet_v2 | s1 | low-nic | pod-c1-aks2-v2s1-low | Cross-cluster same VNet test |
 | 8 | Customer1-AKS2-VnetV3-S1-HighNic | aks-2 | cx_vnet_v3 | s1 | high-nic | pod-c1-aks2-v3s1-high | Private endpoint access test |
 
-### Connectivity Tests (9 Test Cases in Job 2)
+### Connectivity Tests (8 Test Cases)
 
 Tests TCP connectivity between pods using netcat with 3-second timeout:
 
@@ -68,7 +71,7 @@ Tests TCP connectivity between pods using netcat with 3-second timeout:
 | PeeredVNets | pod-c1-aks1-v1s2-low → pod-c1-aks1-v2s1-high | TCP Connected | VNet peering (v1 ↔ v2) |
 | PeeredVNets_v2tov3 | pod-c1-aks1-v2s1-high → pod-c1-aks2-v3s1-high | TCP Connected | VNet peering across clusters |
 
-**Expected to FAIL (5 tests)**:
+**Expected to FAIL (4 tests)**:
 
 | Test | Source → Destination | Expected Error | Purpose |
 |------|---------------------|----------------|---------|
@@ -76,7 +79,6 @@ Tests TCP connectivity between pods using netcat with 3-second timeout:
 | NSGBlocked_S2toS1 | pod-c1-aks1-v1s2-low → pod-c1-aks1-v1s1-low | Connection timeout | NSG blocks s2→s1 (bidirectional) |
 | DifferentCustomers_V1toV4 | pod-c1-aks1-v1s2-low → pod-c2-aks2-v4s1-low | Connection timeout | Customer isolation (no peering) |
 | DifferentCustomers_V2toV4 | pod-c1-aks1-v2s1-high → pod-c2-aks2-v4s1-high | Connection timeout | Customer isolation (no peering) |
-| UnpeeredVNets_V3toV4 | pod-c1-aks2-v3s1-high → pod-c2-aks2-v4s1-low | Connection timeout | No peering between v3 and v4 |
 
 **NSG Rules Configuration**:
 - cx_vnet_v1 has NSG rules blocking traffic between s1 and s2 subnets:
@@ -85,9 +87,9 @@ Tests TCP connectivity between pods using netcat with 3-second timeout:
   - Deny outbound from s2 to s1 (priority 100)
   - Deny inbound from s2 to s1 (priority 110)
 
-### Private Endpoint Tests (5 Test Cases in Job 3)
+### Private Endpoint Tests (4 Test Cases)
 
-Tests access to Azure Storage Account via Private Endpoint with public network access disabled:
+Tests access to an Azure Storage account through its Private Endpoint:
 
 **Expected to SUCCEED (4 tests)**:
 
@@ -98,27 +100,20 @@ Tests access to Azure Storage Account via Private Endpoint with public network a
 | TenantA_VNetV2_to_StorageA | pod-c1-aks1-v2s1-high → Storage-A | Blob download via SAS | Access via peered VNet (V2 peered with V1) |
 | TenantA_VNetV3_to_StorageA | pod-c1-aks2-v3s1-high → Storage-A | Blob download via SAS | Access via peered VNet from different cluster |
 
-**Expected to FAIL (1 test)**:
-
-| Test | Source → Storage | Expected Error | Purpose |
-|------|-----------------|----------------|---------|
-| TenantB_to_StorageA_Isolation | pod-c2-aks2-v4s1-low → Storage-A | Connection timeout/failed | Tenant isolation - no private endpoint access, public blocked |
-
 **Private Endpoint Configuration**:
 - Private endpoint created in cx_vnet_v1 subnet 'pe'
 - Private DNS zone `privatelink.blob.core.windows.net` linked to:
   - cx_vnet_v1, cx_vnet_v2, cx_vnet_v3 (Tenant A VNets)
   - aks-1 and aks-2 cluster VNets
 - Storage Account 1 (Tenant A):
-  - Public network access: **Disabled**
   - Shared key access: Disabled (Azure AD only)
   - Blob public access: Disabled
-- Storage Account 2 (Tenant B): Public access enabled (for future tests)
+- Storage Account 2: Provisioned with the same account-level security settings for future tests; it has no Private Endpoint test
 
 **Test Flow**:
-1. DNS resolution: Storage FQDN resolves to private IP for Tenant A, fails/public IP for Tenant B
+1. DNS resolution: Storage FQDN resolves through the Private DNS zone
 2. Generate SAS token: Azure AD authentication via management plane
-3. Download blob: Using curl with SAS token via data plane
+3. Download blob: Using wget with SAS token via data plane
 4. Validation: Verify blob content matches expected value
 
 ### Resource Creation Patterns
@@ -156,21 +151,21 @@ All nodes in the clusters are labeled with two key labels for workload identific
 
 **1. Workload Type Label** (`workload-type`):
 - Purpose: Identifies which test scenario group the node belongs to
-- Current value: `swiftv2-linux` (applied to all nodes in current setup)
-- Applied during: Cluster creation in Stage 1 (AKSClusterAndNetworking)
-- Applied by: `.pipelines/swiftv2-long-running/scripts/create_aks.sh`
+- Managed node value: `swiftv2-linux`
+- Applied during: Infrastructure and BYON setup
+- Applied by: `infrastructure-setup-stage.yaml`, `deploy_linuxbyon.sh`, and `deploy_accelnetbyon.sh`
 - Future use: Supports multiple workload types running as separate stages (e.g., `swiftv2-windows`, `swiftv2-byonodeid`)
 - Stage isolation: Each test stage uses `WORKLOAD_TYPE` environment variable to filter nodes
 
 **2. NIC Capacity Label** (`nic-capacity`):
 - Purpose: Identifies the NIC capacity tier of the node
-- Applied during: Cluster creation in Stage 1 (AKSClusterAndNetworking)
-- Applied by: `.pipelines/swiftv2-long-running/scripts/create_aks.sh`
+- Applied during: The `EnsureNodeLabels` infrastructure job
+- Applied by: `.pipelines/swiftv2-long-running/template/infrastructure-setup-stage.yaml`
 - Values:
   - `low-nic`: Default nodepool (nodepool1) with `Standard_D4s_v3` (1 NIC)
   - `high-nic`: NPLinux nodepool (nplinux) with `Standard_D16s_v3` (7 NICs)
 
-**Label Application in create_aks.sh**:
+**Managed Node Label Application**:
 ```bash
 # Step 1: All nodes get workload-type label
 kubectl label nodes --all workload-type=swiftv2-linux --overwrite
@@ -188,7 +183,7 @@ Tests use these labels to select appropriate nodes dynamically:
 - **Function**: `GetNodesByNicCount()` in `test/integration/swiftv2/longRunningCluster/datapath.go`
 - **Filtering**: Nodes filtered by BOTH `workload-type` AND `nic-capacity` labels
 - **Environment Variable**: `WORKLOAD_TYPE` (set by each test stage) determines which nodes are used
-  - Current: `WORKLOAD_TYPE=swiftv2-linux` in ManagedNodeDataPathTests stage
+  - Managed datapath and long-running stages use `WORKLOAD_TYPE=swiftv2-linux`
   - Future: Different values for each stage (e.g., `swiftv2-byonodeid`, `swiftv2-windows`)
 - **Selection Logic**:
   ```go
@@ -215,23 +210,36 @@ Tests use these labels to select appropriate nodes dynamically:
 
 ```
 .pipelines/swiftv2-long-running/
-├── pipeline.yaml                    # Main pipeline with schedule
-├── README.md                        # This file
+├── pipeline.yaml                              # Main pipeline with schedule and scenario matrix
+├── README.md                                # Datapath pipeline documentation
+├── LONGRUNNING-TESTS.md                     # Persistent zonal test documentation
 ├── template/
-│   └── long-running-pipeline-template.yaml  # Stage definitions (2 jobs)
+│   ├── long-running-pipeline-template.yaml  # Top-level stage composition
+│   ├── infrastructure-setup-stage.yaml      # Regional infrastructure and BYON setup
+│   ├── datapath-tests-stage.yaml            # Ephemeral datapath test jobs
+│   ├── long-running-pod-tests-stage.yaml    # Persistent per-zone test jobs
+│   └── metrics-setup-steps.yaml             # Shared metrics artifact setup
 └── scripts/
-    ├── create_aks.sh               # AKS cluster creation
-    ├── create_vnets.sh             # VNet and subnet creation
-    ├── create_peerings.sh          # VNet peering setup
-    ├── create_storage.sh           # Storage account creation
-    ├── create_nsg.sh               # Network security groups
-    └── create_pe.sh                # Private endpoint setup
+    ├── create_aks.sh                         # AKS cluster creation
+    ├── create_vnets.sh                       # VNet and subnet creation
+    ├── create_peerings.sh                    # VNet peering setup
+    ├── create_storage.sh                     # Storage account creation
+    ├── create_nsg.sh                         # Network security groups
+    ├── create_pe.sh                          # Private endpoint setup
+    ├── ensure_zone_nodepools.sh              # Persistent zonal node pools
+    ├── acquire_pipeline_lease.sh             # Datapath lease acquisition
+    ├── release_pipeline_lease.sh             # Datapath lease release
+    └── lock_resource_groups.sh               # Resource-group locks and lifetime tags
 
 test/integration/swiftv2/longRunningCluster/
-├── datapath_test.go                # Original combined test (deprecated)
-├── datapath_create_test.go         # Create test scenarios (Job 1)
-├── datapath_delete_test.go         # Delete test scenarios (Job 2)
-├── datapath.go                     # Resource orchestration
-└── helpers/
-    └── az_helpers.go               # Azure/kubectl helper functions
+├── datapath_create_test.go                   # Create the 8 ephemeral pod scenarios
+├── datapath_connectivity_test.go             # Run the 8 TCP connectivity tests
+├── datapath_private_endpoint_test.go         # Run the 4 Private Endpoint tests
+├── datapath_scale_test.go                    # Create and delete pods at scale
+├── datapath_delete_test.go                   # Delete ephemeral test resources
+├── datapath_longrunning_rotating_test.go     # Rotate persistent deployments
+├── datapath_longrunning_alwayson_test.go     # Ensure the persistent DaemonSet
+├── datapath_longrunning_connectivity_test.go # Test persistent pod connectivity
+├── datapath_longrunning_shared.go            # Shared persistent-test helpers
+└── datapath.go                               # Resource orchestration and common probes
 ```
