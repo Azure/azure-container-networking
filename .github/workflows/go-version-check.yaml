@@ -72,7 +72,7 @@ jobs:
           set -euo pipefail
 
           # ─── Parse current state from repo using Makefile contracts ───
-          GO_IMG=$(make --no-print-directory -f build/images.mk print-GO_IMG)
+          GO_IMG=$(grep -oP '^FROM.*\Kmcr\.microsoft\.com/\S*golang:[^@\s]+' cni/Dockerfile | head -1)
           GO_TAG=$(echo "$GO_IMG" | grep -oP ':\K.*')
           GO_MINOR=$(echo "$GO_TAG" | grep -oP '^\d+\.\d+')
           GO_MOD_JSON=$(go mod edit -json go.mod)
@@ -435,7 +435,7 @@ jobs:
           fi
 
           # Get current Go minor on this branch
-          BRANCH_GO_MINOR=$(grep -oP 'golang:\K\d+\.\d+' build/images.mk | head -1)
+          BRANCH_GO_MINOR=$(grep -oP '^FROM.*golang:\K\d+\.\d+' cni/Dockerfile | head -1)
           echo "branch_go_minor=$BRANCH_GO_MINOR" >> "$GITHUB_OUTPUT"
           echo "fips_needed=$FIPS_NEEDED" >> "$GITHUB_OUTPUT"
           echo "::notice::Release branch ${MATRIX_BRANCH}: Go=$BRANCH_GO_MINOR, FIPS needed=$FIPS_NEEDED"
@@ -523,14 +523,13 @@ jobs:
           **Base your PR on:** \`${MATRIX_BRANCH}\` (NOT master)
 
           1. Check out \`${MATRIX_BRANCH}\` as your base
-          2. Update \`build/images.mk\` GO_IMG tag if needed
+          2. Update the \`FROM ...golang:...@sha\` pin in every component and \`.pipelines/build/dockerfiles/\` Dockerfile (the Dockerfiles are the source of truth)
           3. Update \`.pipelines/build/scripts/install-go.sh\` DEFAULT_IMAGE digest
           4. Update \`bpf-prog/ipv6-hp-bpf/linux.Dockerfile\` — **WARNING:** uses plain Debian-based image, resolve digest separately
           5. Update \`npm/linux.Dockerfile\` and \`npm/windows.Dockerfile\` Go tag
-          6. Update the \`FROM ...golang:...@sha\` pin in every component and \`.pipelines/build/dockerfiles/\` Dockerfile
-          7. For a patch update, update every module's preferred \`toolchain\` without raising its \`go\` compatibility floor; for a digest refresh, update it only if the image's Go version changed
-          8. Do NOT run \`go mod tidy\` — it times out in the agent environment
-          9. Do NOT change GOEXPERIMENT settings
+          6. For a patch update, update every module's preferred \`toolchain\` without raising its \`go\` compatibility floor; for a digest refresh, update it only if the image's Go version changed
+          7. Do NOT run \`go mod tidy\` — it times out in the agent environment
+          8. Do NOT change GOEXPERIMENT settings
 
           ---
           <!-- ${MARKER} -->
@@ -652,7 +651,7 @@ jobs:
           fi
 
           HAS_DISTROLESS_BASE="false"
-          if grep -q "distroless/base" build/images.mk 2>/dev/null; then
+          if grep -q "distroless/base" cni/Dockerfile 2>/dev/null; then
             HAS_DISTROLESS_BASE="true"
           fi
 
@@ -699,7 +698,7 @@ jobs:
 
           1. Set \`GOEXPERIMENT=systemcrypto\` in ALL Dockerfiles and pipeline build scripts
           2. Remove \`MS_GO_NOSYSTEMCRYPTO=1\` from npm Dockerfiles if present
-          3. Ensure \`MARINER_DISTROLESS_IMG\` in \`build/images.mk\` is \`distroless/base\`
+          3. Ensure the runtime base in the Dockerfiles is \`distroless/base\`
           4. Update \`bpf-prog/ipv6-hp-bpf/linux.Dockerfile\` runtime base to \`azurelinux/distroless/base:3.0\`"
           elif [ "$LATEST_MIN_NUM" -ge 26 ]; then
             FIPS_SECTION="
@@ -721,7 +720,7 @@ jobs:
           3. Remove \`MS_GO_NOSYSTEMCRYPTO=1\` from npm Dockerfiles and replace with \`GOEXPERIMENT=ms_nocgo_opensslcrypto\`
           4. npm Dockerfiles use **plain Go tags** (e.g., \`golang:1.26.4\`) — do NOT add \`-azurelinux3.0\` suffix
           5. npm/windows.Dockerfile builds on Linux (\`--platform=linux/amd64\`) — it STILL needs GOEXPERIMENT for CGO=0
-          6. Ensure \`MARINER_DISTROLESS_IMG\` in \`build/images.mk\` is \`distroless/base\`
+          6. Ensure the runtime base in the Dockerfiles is \`distroless/base\`
           7. In root Makefile: add \`ACN_GOEXPERIMENT\` variable, apply inline to all CGO=0 build commands
           8. **DO NOT** leave CGO_ENABLED=0 builds without GOEXPERIMENT — they WILL fail with crypto errors"
           fi
@@ -764,13 +763,12 @@ jobs:
 
           **Step 1: Execute Changes (based on your analysis)**
 
-          1. Update \`build/images.mk\`: \`GO_IMG\` → \`${MCR_REPO}:${LATEST_MINOR_BASE}-${BASE_OS}\`
+          1. Update the golang \`FROM\` pins in every component and \`.pipelines/build/dockerfiles/\` Dockerfile to \`${MCR_REPO}:${LATEST_MINOR_BASE}-${BASE_OS}\` — use the image digest shown above, or re-resolve it with \`skopeo inspect docker://<image> --format '{{.Digest}}'\`; never hand-write or guess a digest (the Dockerfiles are the source of truth)
           2. Update the preferred \`toolchain\` in every module; raise a module's \`go\` compatibility floor only when required by source or dependencies
           3. Do NOT run \`go mod tidy\` — it times out in the agent environment. Existing go.sum files are valid.
           4. Apply FIPS/crypto changes per your doc analysis (do NOT blindly reuse previous version's rules)
           5. Update all SHA references (install-go.sh, bpf-prog, npm Dockerfiles)
-          6. Update the \`FROM ...golang:...@sha\` pins in the component and \`.pipelines/build/dockerfiles/\` Dockerfiles — use the image digest shown above, or re-resolve it with \`skopeo inspect docker://<image> --format '{{.Digest}}'\`; never hand-write or guess a digest
-          7. Run \`go build ./...\` and \`go vet ./...\`
+          6. Run \`go build ./...\` and \`go vet ./...\`
 
           **Key dependency check:** Verify controller-runtime, client-go, and cilium support Go ${LATEST_MINOR_BASE}
           ${FIPS_SECTION}
