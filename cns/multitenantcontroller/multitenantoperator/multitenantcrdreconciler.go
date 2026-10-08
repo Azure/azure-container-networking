@@ -46,6 +46,7 @@ type multiTenantCrdReconciler struct {
 	KubeClient     client.Client
 	NodeName       string
 	CNSRestService cnsRESTservice
+	EnableIPv6     bool
 }
 
 // Reconcile is called on multi-tenant CRD status changes.
@@ -164,9 +165,11 @@ func (r *multiTenantCrdReconciler) Reconcile(ctx context.Context, request reconc
 			ID:        int(nc.Status.MultiTenantInfo.ID),
 		},
 	}
-	networkContainerRequest.IPv6Configuration, err = ipv6Configuration(nc.Status.IPv6, nc.Status.IPv6Prefix, nc.Status.IPSubnetV6, nc.Status.GatewayV6)
-	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("nc %s ipv6 configuration: %w", nc.Spec.UUID, err)
+	if r.EnableIPv6 {
+		networkContainerRequest.IPv6Configuration, err = ipv6Configuration(nc.Status.IPv6, nc.Status.IPv6Prefix, nc.Status.IPSubnetV6, nc.Status.GatewayV6)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("nc %s ipv6 configuration: %w", nc.Spec.UUID, err)
+		}
 	}
 	logger.Printf("CreateOrUpdateNC with networkContainerRequest: %#v", networkContainerRequest)
 	responseCode := r.CNSRestService.CreateOrUpdateNetworkContainerInternal(networkContainerRequest)

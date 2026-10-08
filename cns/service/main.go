@@ -1285,7 +1285,7 @@ func InitializeMultiTenantController(ctx context.Context, httpRestService cns.HT
 	httpRestServiceImpl.SetNodeOrchestrator(&orchestrator)
 
 	// Create multiTenantController.
-	multiTenantController, err = multitenantoperator.New(httpRestServiceImpl, kubeConfig)
+	multiTenantController, err = multitenantoperator.New(httpRestServiceImpl, kubeConfig, cnsconfig.EnableIPv6Multitenancy)
 	if err != nil {
 		logger.Errorf("Failed to create multiTenantController:%v", err)
 		return err

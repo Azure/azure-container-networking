@@ -135,62 +135,68 @@ func TestDualStackReconcile(t *testing.T) {
 				err: "outside ipSubnetV6",
 			},
 		} {
-			t.Run(state+"/"+scenario.name, func(t *testing.T) {
-				mockCtl := gomock.NewController(t)
-				kubeClient := mockclients.NewMockClient(mockCtl)
-				service := mockclients.NewMockcnsRESTservice(mockCtl)
-				nc := ncapi.MultiTenantNetworkContainer{
-					ObjectMeta: metav1.ObjectMeta{Name: "pod", Namespace: "test"},
-					Spec:       ncapi.MultiTenantNetworkContainerSpec{UUID: "nc-id"},
-					Status:     scenario.status,
+			for _, enableIPv6 := range []bool{false, true} {
+				flag := "IPv6 disabled"
+				if enableIPv6 {
+					flag = "IPv6 enabled"
 				}
-				nc.Status.State = state
-				nc.Status.IP = "10.0.0.4"
-				nc.Status.IPSubnet = "10.0.0.0/24"
-				nc.Status.Gateway = "10.0.0.1"
-				nc.Status.PrimaryInterfaceIdentifier = "primary-interface"
-				nc.Status.MultiTenantInfo = ncapi.MultiTenantInfo{EncapType: "Vlan", ID: 42}
-				key := types.NamespacedName{Name: nc.Name, Namespace: nc.Namespace}
-				orchestratorContext, err := json.Marshal(cns.KubernetesPodInfo{PodName: nc.Name, PodNamespace: nc.Namespace})
-				require.NoError(t, err)
-				kubeClient.EXPECT().Get(gomock.Any(), key, gomock.Any()).SetArg(2, nc)
-				service.EXPECT().GetNetworkContainerInternal(cns.GetNetworkContainerRequest{
-					NetworkContainerid: nc.Spec.UUID, OrchestratorContext: orchestratorContext,
-				}).Return(cns.GetNetworkContainerResponse{}, cnstypes.UnknownContainerID)
-				if scenario.err == "" {
-					want := &cns.CreateNetworkContainerRequest{
-						NetworkContainerid: nc.Spec.UUID, NetworkContainerType: cns.Kubernetes,
-						OrchestratorContext: orchestratorContext, Version: "0",
-						IPConfiguration: cns.IPConfiguration{
-							IPSubnet:         cns.IPSubnet{IPAddress: nc.Status.IP, PrefixLength: 24},
-							GatewayIPAddress: nc.Status.Gateway,
-						},
-						PrimaryInterfaceIdentifier: nc.Status.PrimaryInterfaceIdentifier,
-						MultiTenancyInfo:           cns.MultiTenancyInfo{EncapType: "Vlan", ID: 42},
+				t.Run(state+"/"+scenario.name+"/"+flag, func(t *testing.T) {
+					mockCtl := gomock.NewController(t)
+					kubeClient := mockclients.NewMockClient(mockCtl)
+					service := mockclients.NewMockcnsRESTservice(mockCtl)
+					nc := ncapi.MultiTenantNetworkContainer{
+						ObjectMeta: metav1.ObjectMeta{Name: "pod", Namespace: "test"},
+						Spec:       ncapi.MultiTenantNetworkContainerSpec{UUID: "nc-id"},
+						Status:     scenario.status,
 					}
-					if nc.Status.IPv6 != "" {
-						want.IPv6Configuration = cns.IPConfiguration{
-							IPSubnet:         cns.IPSubnet{IPAddress: nc.Status.IPv6, PrefixLength: 64},
-							GatewayIPAddress: nc.Status.GatewayV6,
-						}
-					}
-					service.EXPECT().CreateOrUpdateNetworkContainerInternal(want).Return(cnstypes.Success)
-					writer := mockclients.NewMockSubResourceWriter(mockCtl)
-					kubeClient.EXPECT().Status().Return(writer)
-					succeeded := nc.DeepCopy()
-					succeeded.Status.State = NCStateSucceeded
-					writer.EXPECT().Update(gomock.Any(), succeeded).Return(nil)
-				}
-				r := &multiTenantCrdReconciler{KubeClient: clientWithApply{kubeClient}, CNSRestService: service}
-				result, err := r.Reconcile(t.Context(), reconcile.Request{NamespacedName: key})
-				require.Empty(t, result)
-				if scenario.err != "" {
-					require.ErrorIs(t, err, errInvalidIPv6Configuration)
-					require.ErrorContains(t, err, scenario.err)
-				} else {
+					nc.Status.State = state
+					nc.Status.IP = "10.0.0.4"
+					nc.Status.IPSubnet = "10.0.0.0/24"
+					nc.Status.Gateway = "10.0.0.1"
+					nc.Status.PrimaryInterfaceIdentifier = "primary-interface"
+					nc.Status.MultiTenantInfo = ncapi.MultiTenantInfo{EncapType: "Vlan", ID: 42}
+					key := types.NamespacedName{Name: nc.Name, Namespace: nc.Namespace}
+					orchestratorContext, err := json.Marshal(cns.KubernetesPodInfo{PodName: nc.Name, PodNamespace: nc.Namespace})
 					require.NoError(t, err)
-				}
-			})
+					kubeClient.EXPECT().Get(gomock.Any(), key, gomock.Any()).SetArg(2, nc)
+					service.EXPECT().GetNetworkContainerInternal(cns.GetNetworkContainerRequest{
+						NetworkContainerid: nc.Spec.UUID, OrchestratorContext: orchestratorContext,
+					}).Return(cns.GetNetworkContainerResponse{}, cnstypes.UnknownContainerID)
+					if !enableIPv6 || scenario.err == "" {
+						want := &cns.CreateNetworkContainerRequest{
+							NetworkContainerid: nc.Spec.UUID, NetworkContainerType: cns.Kubernetes,
+							OrchestratorContext: orchestratorContext, Version: "0",
+							IPConfiguration: cns.IPConfiguration{
+								IPSubnet:         cns.IPSubnet{IPAddress: nc.Status.IP, PrefixLength: 24},
+								GatewayIPAddress: nc.Status.Gateway,
+							},
+							PrimaryInterfaceIdentifier: nc.Status.PrimaryInterfaceIdentifier,
+							MultiTenancyInfo:           cns.MultiTenancyInfo{EncapType: "Vlan", ID: 42},
+						}
+						if enableIPv6 && nc.Status.IPv6 != "" {
+							want.IPv6Configuration = cns.IPConfiguration{
+								IPSubnet:         cns.IPSubnet{IPAddress: nc.Status.IPv6, PrefixLength: 64},
+								GatewayIPAddress: nc.Status.GatewayV6,
+							}
+						}
+						service.EXPECT().CreateOrUpdateNetworkContainerInternal(want).Return(cnstypes.Success)
+						writer := mockclients.NewMockSubResourceWriter(mockCtl)
+						kubeClient.EXPECT().Status().Return(writer)
+						succeeded := nc.DeepCopy()
+						succeeded.Status.State = NCStateSucceeded
+						writer.EXPECT().Update(gomock.Any(), succeeded).Return(nil)
+					}
+					r := &multiTenantCrdReconciler{KubeClient: clientWithApply{kubeClient}, CNSRestService: service, EnableIPv6: enableIPv6}
+					result, err := r.Reconcile(t.Context(), reconcile.Request{NamespacedName: key})
+					require.Empty(t, result)
+					if enableIPv6 && scenario.err != "" {
+						require.ErrorIs(t, err, errInvalidIPv6Configuration)
+						require.ErrorContains(t, err, scenario.err)
+					} else {
+						require.NoError(t, err)
+					}
+				})
+			}
 		}
 	}
 }
@@ -214,7 +220,7 @@ func TestDualStackReconcileExistingNC(t *testing.T) {
 				key := types.NamespacedName{Name: nc.Name, Namespace: nc.Namespace}
 				kubeClient.EXPECT().Get(gomock.Any(), key, gomock.Any()).SetArg(2, nc)
 				service.EXPECT().GetNetworkContainerInternal(gomock.Any()).Return(cns.GetNetworkContainerResponse{}, returnCode)
-				r := &multiTenantCrdReconciler{KubeClient: clientWithApply{kubeClient}, CNSRestService: service}
+				r := &multiTenantCrdReconciler{KubeClient: clientWithApply{kubeClient}, CNSRestService: service, EnableIPv6: true}
 				_, err := r.Reconcile(t.Context(), reconcile.Request{NamespacedName: key})
 				if returnCode == cnstypes.Success {
 					require.NoError(t, err)

@@ -34,6 +34,7 @@ type CNSConfig struct {
 	EnableHomeAZ                    bool
 	EnableHomeAZMultitenancy        bool
 	EnableIPAMv2                    bool
+	EnableIPv6Multitenancy          bool
 	EnableK8sDevicePlugin           bool
 	EnableLoggerV2                  bool
 	EnablePprof                     bool
