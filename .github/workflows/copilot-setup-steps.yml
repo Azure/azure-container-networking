@@ -15,7 +15,7 @@ jobs:
         with:
           persist-credentials: false
 
-      # Install the CURRENT Go version from go.mod (needed for make renderkit, go mod download)
+      # Install the CURRENT Go version from go.mod (needed for go mod download)
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
@@ -25,9 +25,8 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq skopeo jq > /dev/null
 
-      - name: Install repo build tools
+      - name: Configure Go bin on PATH
         run: |
-          make renderkit
           GOPATH=$(go env GOPATH)
           echo "${GOPATH}/bin" >> "$GITHUB_PATH"
           echo "GOPATH=${GOPATH}" >> "$GITHUB_ENV"
@@ -363,8 +362,8 @@ jobs:
           mkdir -p .github/image-digests
           MCR_GO="mcr.microsoft.com/oss/go/microsoft/golang"
 
-          # Current Go builder image (floating tag from build/images.mk)
-          GO_TAG=$(grep -E '^(export[[:space:]]+)?GO_IMG' build/images.mk | head -1 | sed 's/.*golang://' | tr -d ' ')
+          # Current Go builder image (floating tag from cni/Dockerfile, the source of truth)
+          GO_TAG=$(grep -oP '^FROM.*golang:\K[^@\s"]+' cni/Dockerfile | head -1)
           GO_IMG="${MCR_GO}:${GO_TAG}"
           echo "Resolving current Go image: $GO_TAG"
           echo "${GO_IMG}@$(skopeo inspect "docker://${GO_IMG}" --format "{{.Digest}}")" \
@@ -441,15 +440,7 @@ jobs:
           # 1. Current Go is functional
           echo "Current Go: $(go version)"
 
-          # 2. renderkit is available
-          if ! command -v renderkit > /dev/null 2>&1; then
-            echo "::error::renderkit not installed"
-            ERRORS=$((ERRORS + 1))
-          else
-            echo "✓ renderkit available"
-          fi
-
-          # 3. skopeo is available
+          # 2. skopeo is available
           if ! command -v skopeo > /dev/null 2>&1; then
             echo "::error::skopeo not installed"
             ERRORS=$((ERRORS + 1))
@@ -457,7 +448,7 @@ jobs:
             echo "✓ skopeo available"
           fi
 
-          # 4. Module cache is populated — verify offline for every module
+          # 3. Module cache is populated — verify offline for every module
           MOD_ERRORS=0
           while IFS= read -r -d '' modfile; do
             moddir=$(dirname "$modfile")
@@ -473,7 +464,7 @@ jobs:
             echo "::warning::$MOD_ERRORS module(s) failed offline build check"
           fi
 
-          # 5. MS Go docs are present
+          # 4. MS Go docs are present
           DOC_COUNT=$(find .github/ms-go-docs -name '*.md' -size +100c 2>/dev/null | wc -l)
           if [ "$DOC_COUNT" -lt 3 ]; then
             echo "::error::Only $DOC_COUNT MS Go docs cached (expected ≥3)"
@@ -482,7 +473,7 @@ jobs:
             echo "✓ $DOC_COUNT MS Go docs cached"
           fi
 
-          # 6. Current image digests exist
+          # 5. Current image digests exist
           if [ ! -s .github/image-digests/go-image.txt ]; then
             echo "::error::Current Go image digest not resolved"
             ERRORS=$((ERRORS + 1))
@@ -490,7 +481,7 @@ jobs:
             echo "✓ Current Go digest: $(cat .github/image-digests/go-image.txt)"
           fi
 
-          # 7. Target Go version (if available)
+          # 6. Target Go version (if available)
           if [ "${TARGET_GO_AVAILABLE:-false}" = "true" ]; then
             if [ -x "${TARGET_GOROOT}/bin/go" ]; then
               echo "✓ Target Go: $("${TARGET_GOROOT}/bin/go" version)"
