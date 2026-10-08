@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
+	"net/netip"
 	"reflect"
 	"strings"
 
@@ -30,6 +32,8 @@ const (
 	// NCStateTerminated indicates the NC has been terminated by CNS.
 	NCStateTerminated = "Terminated"
 )
+
+var errInvalidIPv6Configuration = errors.New("multitenantoperator: invalid ipv6 configuration")
 
 type cnsRESTservice interface {
 	DeleteNetworkContainerInternal(cns.DeleteNetworkContainerRequest) types.ResponseCode
@@ -160,6 +164,10 @@ func (r *multiTenantCrdReconciler) Reconcile(ctx context.Context, request reconc
 			ID:        int(nc.Status.MultiTenantInfo.ID),
 		},
 	}
+	networkContainerRequest.IPv6Configuration, err = ipv6Configuration(nc.Status.IPv6, nc.Status.IPv6Prefix, nc.Status.IPSubnetV6, nc.Status.GatewayV6)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("nc %s ipv6 configuration: %w", nc.Spec.UUID, err)
+	}
 	logger.Printf("CreateOrUpdateNC with networkContainerRequest: %#v", networkContainerRequest)
 	responseCode := r.CNSRestService.CreateOrUpdateNetworkContainerInternal(networkContainerRequest)
 	err = restserver.ResponseCodeToError(responseCode)
@@ -177,6 +185,43 @@ func (r *multiTenantCrdReconciler) Reconcile(ctx context.Context, request reconc
 
 	logger.Printf("Reconciled NC %s (UUID: %s)", request.NamespacedName.String(), nc.Spec.UUID)
 	return reconcile.Result{}, nil
+}
+
+func ipv6Configuration(address, allocationPrefix, subnetCIDR, gatewayAddress string) (cns.IPConfiguration, error) {
+	if address == "" && allocationPrefix == "" && subnetCIDR == "" && gatewayAddress == "" {
+		return cns.IPConfiguration{}, nil
+	}
+	ip, err := netip.ParseAddr(address)
+	if err != nil || !ip.Is6() || ip.Is4In6() || ip.Zone() != "" {
+		return cns.IPConfiguration{}, fmt.Errorf("%w: invalid ipv6 address %q", errInvalidIPv6Configuration, address)
+	}
+	subnet, err := netip.ParsePrefix(subnetCIDR)
+	if err != nil || !subnet.Addr().Is6() || subnet.Addr().Is4In6() {
+		return cns.IPConfiguration{}, fmt.Errorf("%w: invalid ipSubnetV6 %q", errInvalidIPv6Configuration, subnetCIDR)
+	}
+	if !subnet.Contains(ip) {
+		return cns.IPConfiguration{}, fmt.Errorf("%w: ipv6 %s is outside ipSubnetV6 %s", errInvalidIPv6Configuration, ip, subnet)
+	}
+	if allocationPrefix != "" {
+		prefix, prefixErr := netip.ParsePrefix(allocationPrefix)
+		if prefixErr != nil || !prefix.Addr().Is6() || prefix.Addr().Is4In6() {
+			return cns.IPConfiguration{}, fmt.Errorf("%w: invalid ipv6Prefix %q", errInvalidIPv6Configuration, allocationPrefix)
+		}
+		if !prefix.Contains(ip) || prefix.Bits() < subnet.Bits() || !subnet.Contains(prefix.Addr()) {
+			return cns.IPConfiguration{}, fmt.Errorf("%w: ipv6Prefix %s must contain ipv6 %s and fit within ipSubnetV6 %s", errInvalidIPv6Configuration, prefix, ip, subnet)
+		}
+	}
+	gateway, err := netip.ParseAddr(gatewayAddress)
+	if err != nil || !gateway.Is6() || gateway.Is4In6() || gateway.Zone() != "" {
+		return cns.IPConfiguration{}, fmt.Errorf("%w: invalid gatewayV6 %q", errInvalidIPv6Configuration, gatewayAddress)
+	}
+	return cns.IPConfiguration{
+		IPSubnet: cns.IPSubnet{
+			IPAddress:    ip.String(),
+			PrefixLength: uint8(subnet.Bits()), //nolint:gosec // ParsePrefix guarantees a prefix length in [0, 128].
+		},
+		GatewayIPAddress: gateway.String(),
+	}, nil
 }
 
 // SetupWithManager Sets up the reconciler with a new manager, filtering using NodeNetworkConfigFilter
