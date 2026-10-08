@@ -362,8 +362,8 @@ jobs:
           mkdir -p .github/image-digests
           MCR_GO="mcr.microsoft.com/oss/go/microsoft/golang"
 
-          # Current Go builder image (floating tag from build/images.mk)
-          GO_TAG=$(grep -E '^(export[[:space:]]+)?GO_IMG' build/images.mk | head -1 | sed 's/.*golang://' | tr -d ' ')
+          # Current Go builder image (floating tag from cni/Dockerfile, the source of truth)
+          GO_TAG=$(grep -oP '^FROM.*golang:\K[^@\s"]+' cni/Dockerfile | head -1)
           GO_IMG="${MCR_GO}:${GO_TAG}"
           echo "Resolving current Go image: $GO_TAG"
           echo "${GO_IMG}@$(skopeo inspect "docker://${GO_IMG}" --format "{{.Digest}}")" \

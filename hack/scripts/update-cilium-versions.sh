@@ -3,7 +3,7 @@
 # published on MCR. CILIUM tags stay within the current minor to avoid
 # unintentional minor bumps; sidecar images pick the newest clean semver tag.
 #
-# Requires: skopeo, jq (both are already assumed by build/images.mk).
+# Requires: skopeo, jq.
 #
 # Usage:
 #   hack/scripts/update-cilium-versions.sh                  # write updates in place
