@@ -48,8 +48,27 @@ var clientPaths = []string{
 	cns.EndpointAPI,
 }
 
+var ipamPaths = map[string]struct{}{
+	cns.RequestIPConfig:  {},
+	cns.RequestIPConfigs: {},
+	cns.ReleaseIPConfig:  {},
+	cns.ReleaseIPConfigs: {},
+}
+
 type do interface {
 	Do(*http.Request) (*http.Response, error)
+}
+
+type routeTransport struct {
+	tcp  http.RoundTripper
+	ipam http.RoundTripper
+}
+
+func (t *routeTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if _, ok := ipamPaths[req.URL.Path]; ok {
+		return t.ipam.RoundTrip(req) //nolint:wrapcheck // preserve transport errors
+	}
+	return t.tcp.RoundTrip(req) //nolint:wrapcheck // preserve transport errors
 }
 
 // Client specifies a client to connect to Ipam Plugin.
@@ -87,6 +106,23 @@ func New(baseURL string, requestTimeout time.Duration) (*Client, error) {
 		},
 		routes: routes,
 	}, nil
+}
+
+// NewWithUnixSocket returns a client that sends IPAM requests through the Unix socket and all other requests through TCP.
+func NewWithUnixSocket(baseURL, unixSocketPath string, requestTimeout time.Duration) (*Client, error) {
+	client, err := New(baseURL, requestTimeout)
+	if err != nil || unixSocketPath == "" {
+		return client, err
+	}
+
+	tcpTransport := http.DefaultTransport.(*http.Transport)
+	ipamTransport, err := newUnixIPAMTransport(unixSocketPath, tcpTransport)
+	if err != nil {
+		return nil, err
+	}
+
+	client.client = &http.Client{Transport: &routeTransport{tcp: tcpTransport, ipam: ipamTransport}, Timeout: requestTimeout}
+	return client, nil
 }
 
 func buildRoutes(baseURL string, paths []string) (map[string]url.URL, error) {
