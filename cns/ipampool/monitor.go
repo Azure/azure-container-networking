@@ -35,6 +35,14 @@ type nodeNetworkConfigSpecUpdater interface {
 	PatchSpec(context.Context, *v1alpha.NodeNetworkConfigSpec, string) (*v1alpha.NodeNetworkConfig, error)
 }
 
+// ipConfigState is the narrow view of CNS state that the pool monitor needs.
+// It reads IP allocation counts and can mark available IPs for release.
+type ipConfigState interface {
+	GetPodIPConfigState() map[string]cns.IPConfigurationStatus
+	GetPendingReleaseIPConfigs() []cns.IPConfigurationStatus
+	MarkIPAsPendingRelease(int) (map[string]cns.IPConfigurationStatus, error)
+}
+
 // metaState is the Monitor's configuration state for the IP pool.
 type metaState struct {
 	batch              int64
@@ -59,14 +67,14 @@ type Monitor struct {
 	spec        v1alpha.NodeNetworkConfigSpec
 	metastate   metaState
 	nnccli      nodeNetworkConfigSpecUpdater
-	httpService cns.HTTPService
+	httpService ipConfigState
 	cssSource   <-chan v1alpha1.ClusterSubnetState
 	nncSource   chan v1alpha.NodeNetworkConfig
 	started     chan interface{}
 	once        sync.Once
 }
 
-func NewMonitor(httpService cns.HTTPService, nnccli nodeNetworkConfigSpecUpdater, cssSource <-chan v1alpha1.ClusterSubnetState, opts *Options) *Monitor {
+func NewMonitor(httpService ipConfigState, nnccli nodeNetworkConfigSpecUpdater, cssSource <-chan v1alpha1.ClusterSubnetState, opts *Options) *Monitor {
 	if opts.RefreshDelay < 1 {
 		opts.RefreshDelay = DefaultRefreshDelay
 	}
