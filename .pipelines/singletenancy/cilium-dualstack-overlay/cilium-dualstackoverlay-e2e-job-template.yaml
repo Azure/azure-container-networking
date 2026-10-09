@@ -49,6 +49,7 @@ stages:
       IPAM_IMAGE_NAME_OVERRIDE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipamImageNameOverride'] ]
       CNI_IMAGE_NAME_OVERRIDE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniImageNameOverride'] ]
       CILIUM_LOG_COLLECTOR_IMAGE_OVERRIDE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ciliumLogCollectorImageOverride'] ]
+      IPV6_HP_BPF_IMAGE_OVERRIDE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfImageOverride'] ]
       IPV6_IMAGE_REGISTRY: acnpublic.azurecr.io
     jobs:
       - job: ${{ parameters.name }}
