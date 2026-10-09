@@ -3,11 +3,13 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	mtv1alpha1 "github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
@@ -23,6 +25,74 @@ import (
 type MockHTTPClient struct {
 	Response *http.Response
 	Err      error
+}
+
+func TestConfigureSwiftV2CacheOptions(t *testing.T) {
+	const nodeUIDLabel = "kubernetes.azure.com/node-uid=nodeUID"
+
+	tests := []struct {
+		name                 string
+		cnsConfig            *configuration.CNSConfig
+		expectedCacheOptions map[string]string
+	}{
+		{
+			name: "Cache filter flag disabled",
+			cnsConfig: &configuration.CNSConfig{
+				EnableSwiftV2:                 true,
+				EnableSwiftV2CacheFilter:      false,
+				EnableSwiftV2PrefixAllocation: true,
+			},
+			expectedCacheOptions: map[string]string{},
+		},
+		{
+			name: "MTPNC cache",
+			cnsConfig: &configuration.CNSConfig{
+				EnableSwiftV2CacheFilter:      true,
+				EnableSwiftV2:                 true,
+				EnableSwiftV2PrefixAllocation: false,
+			},
+			expectedCacheOptions: map[string]string{
+				"*v1alpha1.MultitenantPodNetworkConfig": nodeUIDLabel,
+			},
+		},
+		{
+			name: "NICNC cache",
+			cnsConfig: &configuration.CNSConfig{
+				EnableSwiftV2CacheFilter:      true,
+				EnableSwiftV2PrefixAllocation: true,
+			},
+			expectedCacheOptions: map[string]string{
+				"*v1alpha1.NICNetworkConfig": nodeUIDLabel,
+			},
+		},
+		{
+			name: "MTPNC and NICNC cache",
+			cnsConfig: &configuration.CNSConfig{
+				EnableSwiftV2CacheFilter:      true,
+				EnableSwiftV2:                 true,
+				EnableSwiftV2PrefixAllocation: true,
+			},
+			expectedCacheOptions: map[string]string{
+				"*v1alpha1.MultitenantPodNetworkConfig": nodeUIDLabel,
+				"*v1alpha1.NICNetworkConfig":            nodeUIDLabel,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{UID: "nodeUID"}}
+			cacheOpts := buildCacheOptions(nil, node, tt.cnsConfig)
+			actualCacheOptions := make(map[string]string)
+			for obj, opts := range cacheOpts.ByObject {
+				switch obj.(type) {
+				case *mtv1alpha1.MultitenantPodNetworkConfig, *mtv1alpha1.NICNetworkConfig:
+					actualCacheOptions[fmt.Sprintf("%T", obj)] = opts.Label.String()
+				}
+			}
+			assert.Equal(t, tt.expectedCacheOptions, actualCacheOptions)
+		})
+	}
 }
 
 // Post is the implementation of the Post method for MockHTTPClient
