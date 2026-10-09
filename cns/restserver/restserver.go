@@ -48,9 +48,10 @@ type nmagentClient interface {
 }
 
 type wireserverProxy interface {
-	JoinNetwork(ctx context.Context, vnetID string) (*http.Response, error)
-	PublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte) (*http.Response, error)
-	UnpublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte) (*http.Response, error)
+	JoinNetwork(ctx context.Context, vnetID string, useRNCPublisher bool) (*http.Response, error)
+	JoinSubnet(ctx context.Context, vnetID, subnetName string, ncParams cns.NetworkContainerParameters) (*http.Response, error)
+	PublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte, useRNCPublisher bool) (*http.Response, error)
+	UnpublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte, useRNCPublisher bool) (*http.Response, error)
 }
 
 type imdsClient interface {
@@ -205,7 +206,6 @@ type httpRestServiceState struct {
 	ContainerStatus                  map[string]containerstatus // NetworkContainerID is key.
 	Networks                         map[string]*networkInfo
 	TimeStamp                        time.Time
-	joinedNetworks                   map[string]struct{}
 	primaryInterface                 *wireserver.InterfaceInfo
 	PnpIDByMacAddress                map[string]string
 }
@@ -247,7 +247,6 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 
 	serviceState := &httpRestServiceState{
 		Networks:          make(map[string]*networkInfo),
-		joinedNetworks:    make(map[string]struct{}),
 		primaryInterface:  primaryInterface,
 		PnpIDByMacAddress: make(map[string]string),
 	}

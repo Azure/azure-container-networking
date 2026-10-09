@@ -837,21 +837,6 @@ func (service *HTTPRestService) areNCsPresent() bool {
 	return true
 }
 
-// Check if the network is joined
-func (service *HTTPRestService) isNetworkJoined(networkID string) bool {
-	namedLock.LockAcquire(stateJoinedNetworks)
-	defer namedLock.LockRelease(stateJoinedNetworks)
-	_, exists := service.state.joinedNetworks[networkID]
-	return exists
-}
-
-// Set the network as joined
-func (service *HTTPRestService) setNetworkStateJoined(networkID string) {
-	namedLock.LockAcquire(stateJoinedNetworks)
-	defer namedLock.LockRelease(stateJoinedNetworks)
-	service.state.joinedNetworks[networkID] = struct{}{}
-}
-
 func logNCSnapshot(createNetworkContainerRequest cns.CreateNetworkContainerRequest) {
 	aiEvent := aitelemetry.Event{
 		EventName:  logger.CnsNCSnapshotEventStr,
