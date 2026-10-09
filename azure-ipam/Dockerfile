@@ -5,8 +5,8 @@ ARG DROPGZ_VERSION=v0.0.12
 ARG OS_VERSION
 ARG OS
 
-# mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0@sha256:6ff8558f06ddcb8673c73629f1500ac7238cc00d8c714b1884baa821e212ad6e AS go
+# mcr.microsoft.com/oss/go/microsoft/golang:1.27-azurelinux3.0
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.27-azurelinux3.0@sha256:dc5ac916c05eee7d2ac0912a618281747bd870751956bba5c550ecd9764f59ce AS go
 
 # mcr.microsoft.com/azurelinux/base/core:3.0
 FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/base/core:3.0@sha256:bfd3e44899fe7c17f6fda42a6ef2a322f2178c2dafb88e69fd87675cdcac39ec AS mariner-core
@@ -17,7 +17,6 @@ FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/distroless/base:3.0@s
 FROM go AS azure-ipam
 ARG OS
 ARG VERSION
-ENV GOEXPERIMENT=ms_nocgo_opensslcrypto
 WORKDIR /azure-ipam
 COPY ./azure-ipam .
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-ipam -trimpath -ldflags "-s -w -X main.version="$VERSION" -X github.com/Azure/azure-container-networking/azure-ipam/internal/buildinfo.Version="$VERSION"" -gcflags="-dwarflocationlists=true" .
@@ -34,7 +33,6 @@ FROM go AS dropgz
 ARG DROPGZ_VERSION
 ARG OS
 ARG VERSION
-ENV GOEXPERIMENT=ms_nocgo_opensslcrypto
 RUN go mod download github.com/azure/azure-container-networking/dropgz@$DROPGZ_VERSION
 WORKDIR /go/pkg/mod/github.com/azure/azure-container-networking/dropgz\@$DROPGZ_VERSION
 COPY --from=compressor /payload/* pkg/embed/fs/
