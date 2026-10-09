@@ -239,11 +239,10 @@ stages:
               set -e
 
               if [ $(PROFILE) == "v2-place-first" ]; then
-                git clone --depth=1 --branch=huntergregory/service-types https://github.com/huntergregory/network-policy-api.git
-                cd network-policy-api/cmd/policy-assistant
-                make policy-assistant
-                cd ../../..
-                mv network-policy-api/cmd/policy-assistant/cmd/policy-assistant/policy-assistant .
+                (cd .pipelines/npm/policy-assistant && \
+                  CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOPROXY=https://proxy.golang.org \
+                    go build -mod=readonly -o "$(System.DefaultWorkingDirectory)/policy-assistant" \
+                    sigs.k8s.io/network-policy-api/policy-assistant/cmd/policy-assistant)
               else
                 # sig-release provides test suite tarball(s) per k8s release. Just need to provide k8s version "v1.xx.xx"
                 # pulling k8s version from AKS.
