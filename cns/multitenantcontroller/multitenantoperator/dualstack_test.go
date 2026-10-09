@@ -68,6 +68,9 @@ func TestIPv6Configuration(t *testing.T) {
 		{"IPv4 gateway", func(s *ncapi.MultiTenantNetworkContainerStatus) { s.GatewayV6 = "10.0.0.1" }, "gatewayV6"},
 		{"mapped gateway", func(s *ncapi.MultiTenantNetworkContainerStatus) { s.GatewayV6 = "::ffff:10.0.0.1" }, "gatewayV6"},
 		{"zoned gateway", func(s *ncapi.MultiTenantNetworkContainerStatus) { s.GatewayV6 = "fe80::1%eth0" }, "gatewayV6"},
+		{"unspecified gateway", func(s *ncapi.MultiTenantNetworkContainerStatus) { s.GatewayV6 = "::" }, "gatewayV6"},
+		{"loopback gateway", func(s *ncapi.MultiTenantNetworkContainerStatus) { s.GatewayV6 = "::1" }, "gatewayV6"},
+		{"multicast gateway", func(s *ncapi.MultiTenantNetworkContainerStatus) { s.GatewayV6 = "ff02::1" }, "gatewayV6"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

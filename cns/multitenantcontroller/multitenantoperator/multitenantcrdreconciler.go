@@ -227,7 +227,8 @@ func ipv6Configuration(address, allocationPrefix, subnetCIDR, gatewayAddress str
 		}
 	}
 	gateway, err := netip.ParseAddr(gatewayAddress)
-	if err != nil || !gateway.Is6() || gateway.Is4In6() || gateway.Zone() != "" {
+	if err != nil || !gateway.Is6() || gateway.Is4In6() || gateway.Zone() != "" ||
+		gateway.IsUnspecified() || gateway.IsLoopback() || gateway.IsMulticast() {
 		return cns.IPConfiguration{}, fmt.Errorf("%w: invalid gatewayV6 %q", errInvalidIPv6Configuration, gatewayAddress)
 	}
 	return cns.IPConfiguration{
