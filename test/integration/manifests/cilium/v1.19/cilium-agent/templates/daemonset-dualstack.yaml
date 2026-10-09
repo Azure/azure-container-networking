@@ -266,7 +266,7 @@ spec:
             cpu: 100m
             memory: 100Mi
       - name: start-ipv6-hp-bpf
-        image: acnpublic.azurecr.io/ipv6-hp-bpf:$IPV6_HP_BPF_VERSION
+        image: $IPV6_IMAGE_REGISTRY/ipv6-hp-bpf:$IPV6_HP_BPF_VERSION
         imagePullPolicy: IfNotPresent
         command: [/ipv6-hp-bpf]
         securityContext:
