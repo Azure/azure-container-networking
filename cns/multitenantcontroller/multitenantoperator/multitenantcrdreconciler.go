@@ -207,7 +207,8 @@ func ipv6Configuration(address, allocationPrefix, subnetCIDR, gatewayAddress str
 		return cns.IPConfiguration{}, nil
 	}
 	ip, err := netip.ParseAddr(address)
-	if err != nil || !ip.Is6() || ip.Is4In6() || ip.Zone() != "" {
+	if err != nil || !ip.Is6() || ip.Is4In6() || ip.Zone() != "" ||
+		ip.IsUnspecified() || ip.IsLoopback() || ip.IsMulticast() {
 		return cns.IPConfiguration{}, fmt.Errorf("%w: invalid ipv6 address %q", errInvalidIPv6Configuration, address)
 	}
 	subnet, err := netip.ParsePrefix(subnetCIDR)
