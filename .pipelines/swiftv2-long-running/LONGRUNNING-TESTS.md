@@ -206,11 +206,11 @@ pipeline.yaml
   └── long-running-pipeline-template.yaml
         │
         ├── AKSClusterAndNetworking_<loc> (per location, idempotent)
-        │   ├── VerifyInfrastructure  ← smart check, skips setup if all exists
-        │   ├── EnsureNodeLabels      ← re-applies labels every run (survives node replacements)
-        │   ├── CreateResourceGroup   ← conditional on !infraExists
-        │   ├── CreateCluster          ...
-        │   └── NetworkingAndStorage    ...
+        │   ├── CreateResourceGroup   ← create/update the regional resource group
+        │   ├── CreateCluster         ← scripts reuse healthy clusters and node pools
+        │   ├── LockResourceGroups    ← locks and lifetime tags
+        │   ├── EnsureNodeLabels      ← re-applies labels every run
+        │   └── NetworkingAndStorage  ← idempotent VNet, storage, PE, and NSG scripts
         │
         ├── ByonSetup_<loc> (only when a BYON workload is enabled)
         │   ├── (depends on AKSClusterAndNetworking_<loc>)
@@ -232,15 +232,16 @@ pipeline.yaml
         ├── AcquireLease_<loc> (ConfigMap-based, gates datapath tests only)
         │   └── (depends on AKSClusterAndNetworking_<loc>)
         │
-        ├── DataPathTests_<workload>_<loc> (per location × workload type, parallel, lease-gated)
+        ├── DataPathTests_<workload>_<loc> (per location × enabled workload type, lease-gated)
         │   ├── (depends on AKSClusterAndNetworking_<loc> + AcquireLease_<loc>)
         │   ├── BYON workloads additionally depend on ByonSetup_<loc>
-        │   └── swiftv2-linux + swiftv2-linux-byon run in parallel
+        │   ├── SetupKubeconfig + BuildMetricsBinary
+        │   └── CreatePods → ConnectivityTests → PrivateEndpointTests → ScaleTest → DeleteTestResources
         │
         └── ReleaseLease_<loc> (always runs, depends on all DataPathTests)
 ```
 
-All 4 zones run as **separate stages in parallel**, starting immediately after infrastructure setup — in parallel with `AcquireLease` and `DataPathTests`.
+All configured zones run as **separate stages in parallel**, starting immediately after infrastructure setup — in parallel with `AcquireLease` and `DataPathTests`.
 Within each zone stage, `EnsureNodePool_Z<N>` runs first; `SetupKubeconfig` and `BuildMetricsBinary` follow; `RotatingPods` and `AlwaysOnPods` run in parallel; `LongRunningConnectivityTest` waits for both.
 
 **Note**: Long-running pod tests are **not gated by the lease** — each zone stage depends only on `AKSClusterAndNetworking_<loc>`. They start immediately after infrastructure is ready, without waiting for the lease or datapath tests.
@@ -249,7 +250,7 @@ Within each zone stage, `EnsureNodePool_Z<N>` runs first; `SetupKubeconfig` and 
 
 ### Idempotent Infrastructure Setup
 
-The `VerifyInfrastructure` job checks the "final products" (cluster health, VNet existence, peering state, storage accounts) before running any setup scripts. If everything exists, setup is **skipped** — saving 30+ minutes on each run.
+The infrastructure stage runs on every pipeline invocation. Its scripts check current resource state and reuse healthy AKS clusters, node pools, VNets, peerings, storage accounts, Private Endpoint resources, and NSGs where supported. The stage also reapplies node labels, resource-group locks, and lifetime tags on every run.
 
 ### Lease Mechanism
 
@@ -314,27 +315,40 @@ All operations are designed to be safe to re-run. PodNetworks, PodNetworkInstanc
 ```
 .pipelines/swiftv2-long-running/
 ├── pipeline.yaml                              # Main pipeline entry point (every hour)
+├── README.md                                  # Datapath pipeline documentation
 ├── LONGRUNNING-TESTS.md                       # This file
 ├── template/
 │   ├── long-running-pipeline-template.yaml    # Infra setup + datapath tests + long-running tests
 │   ├── infrastructure-setup-stage.yaml        # Per-scenario idempotent infra setup
 │   ├── datapath-tests-stage.yaml              # Per-workload datapath test stage
-│   └── long-running-pod-tests-stage.yaml      # Per-zone: EnsureNodePool + rotating + always-on + connectivity
+│   ├── long-running-pod-tests-stage.yaml      # Per-zone: EnsureNodePool + rotating + always-on + connectivity
+│   └── metrics-setup-steps.yaml               # Shared metrics artifact setup
 └── scripts/
     ├── ensure_zone_nodepools.sh               # Idempotent per-zone node pool creation
     ├── acquire_pipeline_lease.sh              # ConfigMap lease acquisition
-    └── release_pipeline_lease.sh              # ConfigMap lease release
+    ├── release_pipeline_lease.sh              # ConfigMap lease release
+    ├── create_aks.sh                          # AKS cluster and managed node-pool setup
+    ├── create_vnets.sh                        # Customer VNet and delegated subnet setup
+    ├── create_peerings.sh                     # Customer VNet peering setup
+    ├── create_storage.sh                      # Storage account and test blob setup
+    ├── create_pe.sh                           # Private Endpoint and DNS setup
+    ├── create_nsg.sh                          # Subnet isolation rules
+    ├── lock_resource_groups.sh                # Resource-group locks and lifetime tags
+    ├── deploy_linuxbyon.sh                    # Linux BYON scale-set setup
+    └── deploy_accelnetbyon.sh                 # Accelerated-networking BYON setup
 
 test/integration/swiftv2/longRunningCluster/
 ├── datapath_longrunning_shared.go             # Shared constants/utils for long-running tests (zone-aware)
 ├── datapath_longrunning_rotating_test.go      # Rotating deployments (tag: longrunning_rotating_test)
 ├── datapath_longrunning_alwayson_test.go      # DaemonSet always-on (tag: longrunning_alwayson_test)
 ├── datapath_longrunning_connectivity_test.go  # Long-running connectivity (tag: longrunning_connectivity_test)
-├── datapath.go                                # DaemonSetData, DeploymentData, CreateDaemonSet(), CreateDeployment()
-└── k8s_client.go                              # waitForDaemonSetReady(), getDeploymentPodName(), etc.
+└── datapath.go                                # Shared resource orchestration and connectivity helpers
 
 test/integration/manifests/swiftv2/long-running-cluster/
-└── daemonset.yaml                             # DaemonSet manifest template (always-on)
+├── daemonset.yaml                             # DaemonSet manifest template
+├── deployment.yaml                            # Rotating Deployment manifest template
+├── podnetwork.yaml                            # Shared PodNetwork manifest template
+└── podnetworkinstance.yaml                    # PodNetworkInstance manifest template
 ```
 
 ---
