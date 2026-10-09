@@ -33,6 +33,7 @@ stages:
       parameters:
         subscriptionId: ${{ scenario.subscriptionId }}
         location: ${{ scenario.location }}
+        peerLocation: ${{ scenario.peerLocation }}
         stageLabel: ${{ scenario.label }}
         resourceGroupName: ${{ parameters.resourceGroupName }}
         vmSkuDefault: $(vmSkuDefault)
