@@ -3,6 +3,8 @@ parameters:
     type: string
   - name: location
     type: string
+  - name: peerLocation
+    type: string
   - name: stageLabel
     type: string
   - name: resourceGroupName
@@ -28,6 +30,7 @@ stages:
     condition: eq(variables.isAllowedRun, true)
     variables:
       rgName: ${{ parameters.resourceGroupName }}-${{ parameters.location }}
+      peerRgName: ${{ parameters.resourceGroupName }}-${{ parameters.stageLabel }}-peer-${{ parameters.peerLocation }}
     jobs:
       # Idempotent provisioning: always run, scripts skip existing resources
       - job: CreateResourceGroup
@@ -225,6 +228,67 @@ stages:
                 ${{ parameters.subscriptionId }}
                 $(rgName)
                 ${{ parameters.location }}
+
+          - task: AzureCLI@2
+            displayName: "Create cross-region networking"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_cross_region_networking.sh"
+              arguments: >
+                ${{ parameters.subscriptionId }}
+                ${{ parameters.location }}
+                $(rgName)
+                ${{ parameters.stageLabel }}
+                ${{ parameters.peerLocation }}
+                $(peerRgName)
+                $(Build.DefinitionName)
+
+          - task: AzureCLI@2
+            displayName: "Create cross-region test agents"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_cross_region_agents.sh"
+              arguments: >
+                ${{ parameters.subscriptionId }}
+                ${{ parameters.location }}
+                $(rgName)
+                ${{ parameters.stageLabel }}
+                ${{ parameters.peerLocation }}
+                $(peerRgName)
+
+          - task: AzureCLI@2
+            displayName: "Create cross-region Service Tunnel target"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_cross_region_service_tunnel.sh"
+              arguments: >
+                ${{ parameters.subscriptionId }}
+                ${{ parameters.location }}
+                $(rgName)
+                ${{ parameters.stageLabel }}
+                ${{ parameters.peerLocation }}
+                $(peerRgName)
+
+          - task: AzureCLI@2
+            displayName: "Create cross-region Private Link targets"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_cross_region_private_link.sh"
+              arguments: >
+                ${{ parameters.subscriptionId }}
+                ${{ parameters.location }}
+                $(rgName)
+                ${{ parameters.stageLabel }}
+                ${{ parameters.peerLocation }}
+                $(peerRgName)
 
   # BYON scale sets live in their own stage so that a BYON provisioning failure
   # does not fail the infrastructure stage. The zonal long-running tests depend on
