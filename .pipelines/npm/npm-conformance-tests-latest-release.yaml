@@ -63,7 +63,7 @@ jobs:
 
       - bash: |
           cd kubernetes
-          git checkout vakr/sleepinnpmtests
+          git checkout --detach 5b0d95b7b0e033fbbe63fc19b275326cf354ee18
           export PATH=$PATH:/usr/local/go/bin/
           make WHAT=test/e2e/e2e.test
         displayName: "Build Kubernetes e2e.test"
@@ -250,7 +250,7 @@ jobs:
             fi
             git clone https://github.com/huntergregory/kubernetes.git
             cd kubernetes
-            git checkout sleep-before-probing
+            git checkout --detach fc67a48b5e3ccb44a3b8143b65ede161d8a234bb
             export PATH=$PATH:/usr/local/go/bin/
             make WHAT=test/e2e/e2e.test
             cd ..
