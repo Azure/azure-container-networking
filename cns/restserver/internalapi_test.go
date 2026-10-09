@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	nma "github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/store"
+	"github.com/Azure/azure-container-networking/testutils"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -39,6 +40,7 @@ const (
 	SWIFTv2IP           = "192.168.0.1"
 	SWIFTv2MAC          = "00:00:00:00:00:00"
 	gatewayIP           = "10.0.0.1"
+	gatewayIPv6         = "fe80::1"
 	subnetPrfixLength   = 24
 	dockerContainerType = cns.Docker
 	releasePercent      = 50
@@ -58,6 +60,85 @@ func TestCreateOrUpdateNetworkContainerInternal(t *testing.T) {
 	setOrchestratorTypeInternal(cns.KubernetesCRD)
 	// NC version set as -1 which is the same as default host version value.
 	validateCreateOrUpdateNCInternal(t, 2, "-1")
+}
+
+func TestUpdateNetworkContainerIPv6Configuration(t *testing.T) {
+	const secondaryIP, updatedIPv6 = "10.0.0.6", "fd00:1234::5"
+	service := getTestService(cns.Kubernetes)
+	service.store = store.NewMockStore("")
+	req := generateNetworkContainerRequest(map[string]cns.SecondaryIPConfig{
+		"secondary": {IPAddress: secondaryIP, NCVersion: 7},
+	}, ncID, "7")
+	req.OrchestratorContext = []byte(`{"PodName":"pod","PodNamespace":"test"}`)
+	req.PrimaryInterfaceIdentifier = "primary-interface"
+	req.MultiTenancyInfo = cns.MultiTenancyInfo{EncapType: "Vlan", ID: 42}
+	req.Routes = []cns.Route{{IPAddress: "10.1.0.0/16", GatewayIPAddress: gatewayIP}}
+	req.IPv6Configuration.DNSServers = []string{"fd00::53"}
+	existing := containerstatus{
+		ID: ncID, VMVersion: "7", HostVersion: "6", VfpUpdateComplete: true,
+		CreateNetworkContainerRequest: *req,
+	}
+	service.state.ContainerStatus = map[string]containerstatus{ncID: existing, "other-nc": existing}
+	require.NoError(t, service.saveState())
+	persisted := service.store
+	service = getTestService(cns.Kubernetes)
+	service.store = persisted
+	require.NoError(t, service.restoreState())
+	want := existing
+
+	for _, tt := range []struct {
+		name    string
+		subnet  cns.IPSubnet
+		gateway string
+	}{
+		{name: "add IPv6 to restored IPv4 NC", subnet: cns.IPSubnet{IPAddress: "fd00:1234::4", PrefixLength: 64}, gateway: gatewayIPv6},
+		{name: "change address", subnet: cns.IPSubnet{IPAddress: updatedIPv6, PrefixLength: 64}, gateway: gatewayIPv6},
+		{name: "change prefix length", subnet: cns.IPSubnet{IPAddress: updatedIPv6, PrefixLength: 80}, gateway: gatewayIPv6},
+		{name: "change gateway", subnet: cns.IPSubnet{IPAddress: updatedIPv6, PrefixLength: 80}, gateway: "fe80::2"},
+		{name: "remove IPv6"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			require.NoError(t, service.UpdateNetworkContainerIPv6Configuration(ncID, tt.subnet, tt.gateway))
+			want.CreateNetworkContainerRequest.IPv6Configuration.IPSubnet = tt.subnet
+			want.CreateNetworkContainerRequest.IPv6Configuration.GatewayIPAddress = tt.gateway
+			require.Equal(t, want, service.state.ContainerStatus[ncID])
+			require.Equal(t, existing, service.state.ContainerStatus["other-nc"])
+
+			timeStamp := service.state.TimeStamp
+			require.NoError(t, service.UpdateNetworkContainerIPv6Configuration(ncID, tt.subnet, tt.gateway))
+			require.Equal(t, timeStamp, service.state.TimeStamp, "unchanged configuration must not persist again")
+
+			restored := getTestService(cns.Kubernetes)
+			restored.store = service.store
+			require.NoError(t, restored.restoreState())
+			require.Equal(t, want, restored.state.ContainerStatus[ncID])
+			require.Equal(t, existing, restored.state.ContainerStatus["other-nc"])
+			service = restored
+		})
+	}
+}
+
+func TestUpdateNetworkContainerIPv6ConfigurationErrors(t *testing.T) {
+	service := getTestService(cns.Kubernetes)
+	subnet := cns.IPSubnet{IPAddress: "fd00:1234::4", PrefixLength: 64}
+	err := service.UpdateNetworkContainerIPv6Configuration(ncID, subnet, gatewayIPv6)
+	var cnsErr *CNSRESTError
+	require.ErrorAs(t, err, &cnsErr)
+	require.Equal(t, types.UnknownContainerID, cnsErr.ResponseCode)
+	require.Empty(t, service.state.ContainerStatus)
+
+	existing := containerstatus{ID: ncID, CreateNetworkContainerRequest: *generateNetworkContainerRequest(nil, ncID, "7")}
+	service.state.ContainerStatus = map[string]containerstatus{ncID: existing}
+	writeErr := os.ErrPermission
+	service.store = &testutils.KeyValueStoreMock{WriteError: writeErr}
+	require.ErrorIs(t, service.UpdateNetworkContainerIPv6Configuration(ncID, subnet, gatewayIPv6), writeErr)
+	require.Equal(t, existing, service.state.ContainerStatus[ncID])
+
+	service.store = store.NewMockStore("")
+	require.NoError(t, service.UpdateNetworkContainerIPv6Configuration(ncID, subnet, gatewayIPv6))
+	var saved httpRestServiceState
+	require.NoError(t, service.store.Read(storeKey, &saved))
+	require.Equal(t, subnet, saved.ContainerStatus[ncID].CreateNetworkContainerRequest.IPv6Configuration.IPSubnet)
 }
 
 func TestCreateOrUpdateNetworkContainerInternalWithVersionValidation(t *testing.T) {
