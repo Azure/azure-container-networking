@@ -46,6 +46,15 @@ type MultiTenantNetworkContainerStatus struct {
 	State string `json:"state,omitempty"`
 	// The subnet CIDR
 	IPSubnet string `json:"ipSubnet,omitempty"`
+	// The IPv6 address. Requires IPSubnetV6 and GatewayV6 when set.
+	IPv6 string `json:"ipv6,omitempty"`
+	// The optional IPv6 allocation CIDR containing IPv6, within IPSubnetV6.
+	// This is not the interface subnet mask.
+	IPv6Prefix string `json:"ipv6Prefix,omitempty"`
+	// The IPv6 gateway address, which may be link-local.
+	GatewayV6 string `json:"gatewayV6,omitempty"`
+	// The IPv6 subnet CIDR containing IPv6. Its prefix length is the interface subnet mask.
+	IPSubnetV6 string `json:"ipSubnetV6,omitempty"`
 	// The primary interface identifier
 	PrimaryInterfaceIdentifier string `json:"primaryInterfaceIdentifier,omitempty"`
 	// MultiTenantInfo holds the encap type and id
