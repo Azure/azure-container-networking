@@ -119,14 +119,16 @@ func (r *multiTenantCrdReconciler) Reconcile(ctx context.Context, request reconc
 	})
 	err = restserver.ResponseCodeToError(returnCode)
 	if err == nil {
+		// Disabling IPv6 also clears configuration restored from a previously enabled run.
+		var config cns.IPConfiguration
 		if r.EnableIPv6 {
-			config, configErr := ipv6Configuration(nc.Status.IPv6, nc.Status.IPv6Prefix, nc.Status.IPSubnetV6, nc.Status.GatewayV6)
-			if configErr != nil {
-				return ctrl.Result{}, fmt.Errorf("nc %s ipv6 configuration: %w", nc.Spec.UUID, configErr)
+			config, err = ipv6Configuration(nc.Status.IPv6, nc.Status.IPv6Prefix, nc.Status.IPSubnetV6, nc.Status.GatewayV6)
+			if err != nil {
+				return ctrl.Result{}, fmt.Errorf("nc %s ipv6 configuration: %w", nc.Spec.UUID, err)
 			}
-			if updateErr := r.CNSRestService.UpdateNetworkContainerIPv6Configuration(nc.Spec.UUID, config.IPSubnet, config.GatewayIPAddress); updateErr != nil {
-				return ctrl.Result{}, fmt.Errorf("update nc %s ipv6 configuration: %w", nc.Spec.UUID, updateErr)
-			}
+		}
+		if updateErr := r.CNSRestService.UpdateNetworkContainerIPv6Configuration(nc.Spec.UUID, config.IPSubnet, config.GatewayIPAddress); updateErr != nil {
+			return ctrl.Result{}, fmt.Errorf("update nc %s ipv6 configuration: %w", nc.Spec.UUID, updateErr)
 		}
 		logger.Printf("NC %s (UUID: %s) has already been created in CNS", request.NamespacedName.String(), nc.Spec.UUID)
 		return ctrl.Result{}, nil

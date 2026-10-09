@@ -2,17 +2,23 @@
 package multitenantoperator
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/common"
+	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller/mockclients"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	cnstypes "github.com/Azure/azure-container-networking/cns/types"
+	rootcommon "github.com/Azure/azure-container-networking/common"
 	ncapi "github.com/Azure/azure-container-networking/crd/multitenantnetworkcontainer/api/v1alpha1"
+	"github.com/Azure/azure-container-networking/nmagent"
+	"github.com/Azure/azure-container-networking/store"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -251,12 +257,14 @@ func TestDualStackReconcileExistingNC(t *testing.T) {
 					service.EXPECT().GetNetworkContainerInternal(gomock.Any()).Return(cns.GetNetworkContainerResponse{
 						NetworkContainerID: nc.Spec.UUID,
 					}, tt.fetchCode)
-					if enableIPv6 && tt.fetchCode == cnstypes.Success && !errors.Is(tt.wantErr, errInvalidIPv6Configuration) {
+					if tt.fetchCode == cnstypes.Success && (!enableIPv6 || !errors.Is(tt.wantErr, errInvalidIPv6Configuration)) {
 						var subnet cns.IPSubnet
-						if tt.status.IPv6 != "" {
+						var gateway string
+						if enableIPv6 && tt.status.IPv6 != "" {
 							subnet = cns.IPSubnet{IPAddress: tt.status.IPv6, PrefixLength: 64}
+							gateway = tt.status.GatewayV6
 						}
-						service.EXPECT().UpdateNetworkContainerIPv6Configuration(nc.Spec.UUID, subnet, tt.status.GatewayV6).Return(tt.updateErr)
+						service.EXPECT().UpdateNetworkContainerIPv6Configuration(nc.Spec.UUID, subnet, gateway).Return(tt.updateErr)
 					}
 					r := &multiTenantCrdReconciler{KubeClient: clientWithApply{kubeClient}, CNSRestService: service, EnableIPv6: enableIPv6}
 					result, err := r.Reconcile(t.Context(), reconcile.Request{NamespacedName: key})
@@ -266,7 +274,7 @@ func TestDualStackReconcileExistingNC(t *testing.T) {
 						var cnsErr *restserver.CNSRESTError
 						require.ErrorAs(t, err, &cnsErr)
 						require.Equal(t, tt.fetchCode, cnsErr.ResponseCode)
-					case enableIPv6 && tt.updateErr != nil:
+					case tt.updateErr != nil:
 						require.ErrorIs(t, err, tt.updateErr)
 					case enableIPv6 && tt.wantErr != nil:
 						require.ErrorIs(t, err, tt.wantErr)
@@ -277,4 +285,80 @@ func TestDualStackReconcileExistingNC(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestDualStackReconcileFlagRollback(t *testing.T) {
+	logger.InitLogger("dualstack-flag-rollback", 0, 0, t.TempDir()) //nolint:staticcheck // The reconciler still uses the global logger.
+	const ncID = "nc-id"
+	persisted := store.NewMockStore("")
+	newService := func() *restserver.HTTPRestService {
+		config := &common.ServiceConfig{Store: persisted, ChannelMode: cns.Direct}
+		nma := &fakes.NMAgentClientFake{
+			GetNCVersionListF: func(context.Context) (nmagent.NCVersionList, error) {
+				return nmagent.NCVersionList{Containers: []nmagent.NCVersion{{NetworkContainerID: ncID, Version: "0"}}}, nil
+			},
+		}
+		service, err := restserver.NewHTTPRestService(config, &fakes.WireserverClientFake{}, &fakes.WireserverProxyFake{},
+			&restserver.IPtablesProvider{}, nma, nil, nil, nil, fakes.NewMockIMDSClient())
+		require.NoError(t, err)
+		service.SetOption(rootcommon.OptCnsURL, "tcp://127.0.0.1:0")
+		service.SetOption(rootcommon.OptCnsPort, "0")
+		require.NoError(t, service.Init(config))
+		t.Cleanup(service.Stop)
+		return service
+	}
+	service := newService()
+	service.SetNodeOrchestrator(&cns.SetOrchestratorTypeRequest{OrchestratorType: cns.Kubernetes})
+	nc := ncapi.MultiTenantNetworkContainer{
+		ObjectMeta: metav1.ObjectMeta{Name: "pod", Namespace: "test"},
+		Spec:       ncapi.MultiTenantNetworkContainerSpec{UUID: ncID},
+		Status: ncapi.MultiTenantNetworkContainerStatus{
+			State: NCStateInitialized,
+			IP:    "10.0.0.4", IPSubnet: "10.0.0.0/24", Gateway: "10.0.0.1",
+			IPv6: "fd00:1234::4", IPSubnetV6: "fd00:1234::/64", GatewayV6: "fe80::1",
+			PrimaryInterfaceIdentifier: "primary-interface",
+			MultiTenantInfo:            ncapi.MultiTenantInfo{EncapType: "Vlan", ID: 42},
+		},
+	}
+	key := types.NamespacedName{Name: nc.Name, Namespace: nc.Namespace}
+	orchestratorContext, err := json.Marshal(cns.KubernetesPodInfo{PodName: nc.Name, PodNamespace: nc.Namespace})
+	require.NoError(t, err)
+	getRequest := cns.GetNetworkContainerRequest{NetworkContainerid: ncID, OrchestratorContext: orchestratorContext}
+	mockCtl := gomock.NewController(t)
+	kubeClient := mockclients.NewMockClient(mockCtl)
+	kubeClient.EXPECT().Get(gomock.Any(), key, gomock.Any()).SetArg(2, nc)
+	writer := mockclients.NewMockSubResourceWriter(mockCtl)
+	kubeClient.EXPECT().Status().Return(writer)
+	succeeded := nc.DeepCopy()
+	succeeded.Status.State = NCStateSucceeded
+	writer.EXPECT().Update(gomock.Any(), succeeded).Return(nil)
+	r := &multiTenantCrdReconciler{KubeClient: clientWithApply{kubeClient}, CNSRestService: service, EnableIPv6: true}
+	_, err = r.Reconcile(t.Context(), reconcile.Request{NamespacedName: key})
+	require.NoError(t, err)
+	before, code := service.GetNetworkContainerInternal(getRequest)
+	require.Equal(t, cnstypes.Success, code)
+	require.Equal(t, nc.Status.IPv6, before.IPv6Configuration.IPSubnet.IPAddress)
+
+	restored := newService()
+	got, code := restored.GetNetworkContainerInternal(getRequest)
+	require.Equal(t, cnstypes.Success, code)
+	require.Equal(t, before, got)
+	r.CNSRestService = restored
+	r.EnableIPv6 = false
+	kubeClient.EXPECT().Get(gomock.Any(), key, gomock.Any()).SetArg(2, *succeeded).Times(2)
+	for range 2 {
+		_, err = r.Reconcile(t.Context(), reconcile.Request{NamespacedName: key})
+		require.NoError(t, err)
+	}
+	want := before
+	want.IPv6Configuration.IPSubnet = cns.IPSubnet{}
+	want.IPv6Configuration.GatewayIPAddress = ""
+	got, code = restored.GetNetworkContainerInternal(getRequest)
+	require.Equal(t, cnstypes.Success, code)
+	require.Equal(t, want, got)
+
+	restored = newService()
+	got, code = restored.GetNetworkContainerInternal(getRequest)
+	require.Equal(t, cnstypes.Success, code)
+	require.Equal(t, want, got, "disabled IPv6 must stay cleared across another restart")
 }
