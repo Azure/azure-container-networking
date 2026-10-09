@@ -27,8 +27,6 @@ variables:
     value: npm-vnet
   - name: NUM_PARALLEL_JOBS_FOR_STRESS_TEST
     value: "3"
-  - name: BUILD_POOL_NAME_LINUX_ARM64
-    value: Networking-ContainerNetworking-linux-arm
 
 
 stages:
@@ -58,20 +56,16 @@ stages:
               . ./hack/scripts/parse_override_image.sh
               if [[ -z "${NPM_IMAGE_OVERRIDE:-}" || "$NPM_IMAGE_OVERRIDE" == "__use-default__" ]]; then
                 NPM_IMAGE=$(format_image "$IMAGE_REGISTRY" azure-npm "linux-amd64-$TAG")
-                NPM_IMAGE_ARM64=$(format_image "$IMAGE_REGISTRY" azure-npm "linux-arm64-$TAG")
               else
                 NPM_IMAGE="$NPM_IMAGE_OVERRIDE"
-                NPM_IMAGE_ARM64="$NPM_IMAGE_OVERRIDE"
               fi
               echo "Resource group: $RG"
               echo "Image tag: $TAG"
               echo "NPM image: $NPM_IMAGE"
-              echo "NPM arm64 image: $NPM_IMAGE_ARM64"
 
               echo "##vso[task.setvariable variable=RESOURCE_GROUP;isOutput=true;]$RG"
               echo "##vso[task.setvariable variable=TAG;isOutput=true;]$TAG"
               echo "##vso[task.setvariable variable=NPM_IMAGE;isOutput=true;]$NPM_IMAGE"
-              echo "##vso[task.setvariable variable=NPM_IMAGE_ARM64;isOutput=true;]$NPM_IMAGE_ARM64"
 
             name: "EnvironmentalVariables"
             displayName: "Set environmental variables"
@@ -94,24 +88,6 @@ stages:
           matrix:
             npm_linux_amd64:
               arch: amd64
-              name: npm
-              os: linux
-        steps:
-          - template: ../containers/container-template.yaml
-            parameters:
-              arch: $(arch)
-              name: $(name)
-              os: $(os)
-      - job: containerize_linux_arm64
-        displayName: Build Images
-        variables:
-          TAG: $[ stagedependencies.setup.setup.outputs['EnvironmentalVariables.TAG'] ]
-        pool:
-          name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
-        strategy:
-          matrix:
-            npm_linux_arm64:
-              arch: arm64
               name: npm
               os: linux
         steps:
@@ -143,13 +119,15 @@ stages:
             PROFILE: "v2-background"
             NPM_CONFIG_PROFILE: "v2-background"
             IS_STRESS_TEST: "false"
-          v2-background-arm64:
-            AZURE_CLUSTER: "conformance-v2-background-arm64"
-            PROFILE: "v2-background-arm64"
-            NPM_CONFIG_PROFILE: "v2-background"
-            IS_STRESS_TEST: "false"
-            NODE_VM_SIZE: "Standard_D4ps_v5"
-            EXPECTED_NODE_ARCH: "arm64"
+          # Runs only with an npmImage override (such as a Dalec build) because the build stage pushes only linux/amd64.
+          ${{ if not(or(eq(parameters.npmImage, '__use-default__'), eq(parameters.npmImage, ''))) }}:
+            v2-background-arm64:
+              AZURE_CLUSTER: "conformance-v2-background-arm64"
+              PROFILE: "v2-background-arm64"
+              NPM_CONFIG_PROFILE: "v2-background"
+              IS_STRESS_TEST: "false"
+              NODE_VM_SIZE: "Standard_D4ps_v5"
+              EXPECTED_NODE_ARCH: "arm64"
           v2-linux-stress:
             AZURE_CLUSTER: "conformance-v2-linux-stress"
             PROFILE: "v2-linux-stress"
@@ -168,7 +146,6 @@ stages:
       variables:
         RESOURCE_GROUP: $[ stagedependencies.setup.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
         NPM_IMAGE: $[ stagedependencies.setup.setup.outputs['EnvironmentalVariables.NPM_IMAGE'] ]
-        NPM_IMAGE_ARM64: $[ stagedependencies.setup.setup.outputs['EnvironmentalVariables.NPM_IMAGE_ARM64'] ]
         KUBECONFIG: $(Agent.TempDirectory)/npm-$(Build.BuildId)-$(System.JobId).kubeconfig
         FQDN: empty
         PUBLIC_IP_NAME: $(RESOURCE_GROUP)-$(PROFILE)-public-ip
@@ -247,9 +224,6 @@ stages:
                   fi
                 done
               fi
-              if [[ "${EXPECTED_NODE_ARCH:-}" == "arm64" ]]; then
-                NPM_IMAGE="$NPM_IMAGE_ARM64"
-              fi
 
               # deploy azure-npm
               ./kubectl --kubeconfig="$KUBECONFIG" apply -f $(Pipeline.Workspace)/s/npm/azure-npm.yaml
@@ -275,7 +249,6 @@ stages:
               echo "##vso[task.setvariable variable=FQDN]$FQDN"
           env:
             NPM_IMAGE: $(NPM_IMAGE)
-            NPM_IMAGE_ARM64: $(NPM_IMAGE_ARM64)
 
         - task: AzureCLI@2
           inputs:
