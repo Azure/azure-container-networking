@@ -119,6 +119,15 @@ stages:
             PROFILE: "v2-background"
             NPM_CONFIG_PROFILE: "v2-background"
             IS_STRESS_TEST: "false"
+          # Runs only with an npmImage override (such as a Dalec build) because the build stage pushes only linux/amd64.
+          ${{ if not(or(eq(parameters.npmImage, '__use-default__'), eq(parameters.npmImage, ''))) }}:
+            v2-background-arm64:
+              AZURE_CLUSTER: "conformance-v2-background-arm64"
+              PROFILE: "v2-background-arm64"
+              NPM_CONFIG_PROFILE: "v2-background"
+              IS_STRESS_TEST: "false"
+              NODE_VM_SIZE: "Standard_D4ps_v5"
+              EXPECTED_NODE_ARCH: "arm64"
           v2-linux-stress:
             AZURE_CLUSTER: "conformance-v2-linux-stress"
             PROFILE: "v2-linux-stress"
@@ -200,9 +209,21 @@ stages:
               --resource-group $(RESOURCE_GROUP) \
               --name $(AZURE_CLUSTER) \
               --network-plugin azure \
-              --load-balancer-outbound-ips "$PUBLIC_IP_ID"
+              --load-balancer-outbound-ips "$PUBLIC_IP_ID" \
+              ${NODE_VM_SIZE:+--node-vm-size "$NODE_VM_SIZE"}
 
               az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file "$KUBECONFIG"
+
+              if [[ -n "${EXPECTED_NODE_ARCH:-}" ]]; then
+                ./kubectl --kubeconfig="$KUBECONFIG" get nodes -L kubernetes.io/arch
+                NODE_ARCHS=$(./kubectl --kubeconfig="$KUBECONFIG" get nodes -o 'jsonpath={.items[*].status.nodeInfo.architecture}')
+                for arch in ${NODE_ARCHS:-none}; do
+                  if [[ "$arch" != "$EXPECTED_NODE_ARCH" ]]; then
+                    echo "Node architecture mismatch: expected every node to be '$EXPECTED_NODE_ARCH', got '${NODE_ARCHS:-no nodes}'" >&2
+                    exit 1
+                  fi
+                done
+              fi
 
               # deploy azure-npm
               ./kubectl --kubeconfig="$KUBECONFIG" apply -f $(Pipeline.Workspace)/s/npm/azure-npm.yaml
