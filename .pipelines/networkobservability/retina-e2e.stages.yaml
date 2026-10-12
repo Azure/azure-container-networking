@@ -42,7 +42,7 @@ stages:
 
           - task: HelmInstaller@1
             inputs:
-              helmVersionToInstall: latest
+              helmVersionToInstall: '3.19.0'
 
           - task: AzureCLI@2
             displayName: Set up kubeconfig
