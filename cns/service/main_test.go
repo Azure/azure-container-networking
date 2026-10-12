@@ -17,6 +17,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -333,7 +335,7 @@ func TestReconcileNodeInfo(t *testing.T) {
 			nodeInfo := &mockNodeInfoClient{}
 			node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "test-node", UID: "test-uid"}}
 			attempts := 0
-			err := reconcileNodeInfo(ctx, time.Millisecond, func(attemptCtx context.Context) error {
+			err := reconcileNodeInfo(ctx, zap.NewNop(), time.Millisecond, func(attemptCtx context.Context) error {
 				attempts++
 				require.NotEqual(t, ctx, attemptCtx)
 				deadline, ok := attemptCtx.Deadline()
@@ -367,7 +369,8 @@ func TestReconcileNodeInfoPersistentUnauthorized(t *testing.T) {
 	nodeInfo := &mockNodeInfoClient{}
 	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "test-node", UID: "test-uid"}}
 	attempts := 0
-	err := reconcileNodeInfo(ctx, time.Millisecond, func(attemptCtx context.Context) error {
+	core, logs := observer.New(zap.WarnLevel)
+	err := reconcileNodeInfo(ctx, zap.New(core), time.Millisecond, func(attemptCtx context.Context) error {
 		attempts++
 		if attempts == 3 {
 			cancel()
@@ -376,6 +379,7 @@ func TestReconcileNodeInfoPersistentUnauthorized(t *testing.T) {
 	})
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Equal(t, 3, attempts)
+	assert.Equal(t, 2, logs.FilterMessage("NodeInfo registration pending, will retry").Len(), "canceled attempt must not log a pending retry")
 	assert.Nil(t, nodeInfo.createdNodeInfo)
 }
 
@@ -388,8 +392,9 @@ func TestReconcileNodeInfoCancellation(t *testing.T) {
 			defer cancel()
 			attempted := make(chan struct{})
 			done := make(chan error, 1)
+			core, logs := observer.New(zap.WarnLevel)
 			go func() {
-				done <- reconcileNodeInfo(ctx, time.Hour, func(attemptCtx context.Context) error {
+				done <- reconcileNodeInfo(ctx, zap.New(core), time.Hour, func(attemptCtx context.Context) error {
 					close(attempted)
 					if duringRequest {
 						<-attemptCtx.Done()
@@ -407,6 +412,9 @@ func TestReconcileNodeInfoCancellation(t *testing.T) {
 			select {
 			case err := <-done:
 				require.ErrorIs(t, err, context.Canceled)
+				if duringRequest {
+					assert.Zero(t, logs.Len(), "shutdown during an attempt must not log a pending retry")
+				}
 			case <-time.After(time.Second):
 				t.Fatal("registration did not stop on cancellation")
 			}
