@@ -292,7 +292,7 @@ Go builder tag: golang:1.XX-azurelinux3.0 (pinned in the component Dockerfile FR
 ### Step 1b: Apply GOEXPERIMENT to ALL Build Paths (CRITICAL)
 
 > **Go 1.27+: do NOT follow the GOEXPERIMENT instructions in this step.** In Go 1.27, `systemcrypto` is the default for `CGO_ENABLED=0` and `CGO_ENABLED=1`, and `GOEXPERIMENT=systemcrypto` / `nosystemcrypto` are rejected by the toolchain. Instead:
-> - **Remove** every `GOEXPERIMENT=systemcrypto`, `GOEXPERIMENT=nosystemcrypto` and `GOEXPERIMENT=ms_nocgo_opensslcrypto` assignment (scripts, `Dockerfile.tmpl`, Makefiles), then run `make dockerfiles`.
+> - **Remove** every `GOEXPERIMENT=systemcrypto`, `GOEXPERIMENT=nosystemcrypto` and `GOEXPERIMENT=ms_nocgo_opensslcrypto` assignment (scripts, Dockerfiles, Makefiles).
 > - **Keep** `MS_GO_NOSYSTEMCRYPTO=1` where it already exists (npm Dockerfiles, `npm.sh`, root Makefile `all-binaries`).
 > - Validate with the Go 1.27+ check in Step 2.
 >
@@ -423,7 +423,7 @@ After making all changes:
 
 ```bash
 grep -R -nE '^[^#]*GOEXPERIMENT=(systemcrypto|nosystemcrypto|ms_nocgo_opensslcrypto)' \
-  --include='*.sh' --include='Makefile' --include='*.Dockerfile' --include='*.Dockerfile.tmpl' --include='Dockerfile' \
+  --include='*.sh' --include='Makefile' --include='*.Dockerfile' --include='Dockerfile' \
   --exclude-dir=.git --exclude-dir=vendor .
 ```
 
