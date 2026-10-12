@@ -17,6 +17,9 @@ trigger:
       - "*"
 
 parameters:
+  - name: verifyDalecSignatures
+    type: boolean
+    default: false
   - name: npmImage
     displayName: "NPM image override"
     type: string
@@ -42,9 +45,17 @@ stages:
             - Role -equals Build
         steps:
           - checkout: self
-
+          - ${{ if eq(parameters.verifyDalecSignatures, true) }}:
+            - template: ../templates/verify-dalec-signatures.steps.yaml
+              parameters:
+                images:
+                  npmImage: ${{ parameters.npmImage }}
           - script: |
               set -euo pipefail
+              if [[ "${VERIFY_DALEC_SIGNATURES,,}" == true && "$DALEC_SIGNATURES_VERIFIED" != true ]]; then
+                echo "Dalec signatures were not verified; refusing to publish installation inputs" >&2
+                exit 1
+              fi
               go version
               go env
               which go
@@ -71,7 +82,12 @@ stages:
             displayName: "Set environmental variables"
             condition: always()
             env:
-              NPM_IMAGE_OVERRIDE: ${{ parameters.npmImage }}
+              VERIFY_DALEC_SIGNATURES: ${{ parameters.verifyDalecSignatures }}
+              DALEC_SIGNATURES_VERIFIED: $(dalecSignaturesVerified)
+              ${{ if eq(parameters.verifyDalecSignatures, true) }}:
+                NPM_IMAGE_OVERRIDE: $(verified_npmImage)
+              ${{ else }}:
+                NPM_IMAGE_OVERRIDE: ${{ parameters.npmImage }}
 
   - ${{ if or(eq(parameters.npmImage, '__use-default__'), eq(parameters.npmImage, '')) }}:
     - stage: build

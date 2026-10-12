@@ -33,6 +33,9 @@ schedules:
   always: true
 
 parameters:
+  - name: verifyDalecSignatures
+    type: boolean
+    default: false
   # Empty or __use-default__ builds and publishes the component image.
   # A supplied image skips those entries and is used by the install path.
   - name: cniImage
@@ -106,7 +109,22 @@ extends:
               prTargetBranch: $[ variables['System.PullRequest.TargetBranchName'] ]
             steps:
               - template: /.pipelines/templates/git-diff-check.yaml@self
+              - ${{ if eq(parameters.verifyDalecSignatures, true) }}:
+                - template: /.pipelines/templates/verify-dalec-signatures.steps.yaml@self
+                  parameters:
+                    images:
+                      cniImage: ${{ parameters.cniImage }}
+                      cnsImage: ${{ parameters.cnsImage }}
+                      ipamImage: ${{ parameters.ipamImage }}
+                      azureIptablesMonitorImage: ${{ parameters.azureIptablesMonitorImage }}
+                      azureIpMasqMergerImage: ${{ parameters.azureIpMasqMergerImage }}
+                      ciliumLogCollectorImage: ${{ parameters.ciliumLogCollectorImage }}
+                      ipv6HpBpfImage: ${{ parameters.ipv6HpBpfImage }}
               - script: |
+                  if [[ "${VERIFY_DALEC_SIGNATURES,,}" == true && "$DALEC_SIGNATURES_VERIFIED" != true ]]; then
+                    echo "Dalec signatures were not verified; refusing to publish installation inputs" >&2
+                    exit 1
+                  fi
                   # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
                   CUSTOM_RUN_NAME_PREFIX="${{ parameters.runNamePrefix }}"
                   if [ -n "$CUSTOM_RUN_NAME_PREFIX" ] && [[ "${CUSTOM_RUN_NAME_PREFIX,,}" == *dalec* ]]; then
@@ -127,9 +145,9 @@ extends:
                   # Shared parser for component image override inputs.
                   . ./hack/scripts/parse_override_image.sh
 
-                  read -r CNI_REPO CNI_NAME CNI_VERSION <<< "$(parse_override_image '${{ parameters.cniImage }}' azure-cni $(make cni-version))"
-                  read -r CNS_REPO CNS_NAME CNS_VERSION <<< "$(parse_override_image '${{ parameters.cnsImage }}' azure-cns $(make cns-version))"
-                  read -r IPAM_REPO IPAM_NAME IPAM_VERSION <<< "$(parse_override_image '${{ parameters.ipamImage }}' azure-ipam $(make azure-ipam-version))"
+                  read -r CNI_REPO CNI_NAME CNI_VERSION <<< "$(parse_override_image "$CNI_IMAGE_PARAMETER" azure-cni $(make cni-version))"
+                  read -r CNS_REPO CNS_NAME CNS_VERSION <<< "$(parse_override_image "$CNS_IMAGE_PARAMETER" azure-cns $(make cns-version))"
+                  read -r IPAM_REPO IPAM_NAME IPAM_VERSION <<< "$(parse_override_image "$IPAM_IMAGE_PARAMETER" azure-ipam $(make azure-ipam-version))"
 
                   echo "##vso[task.setvariable variable=cniImageRepo;isOutput=true]${CNI_REPO}"
                   echo "##vso[task.setvariable variable=cniImageNameOverride;isOutput=true]${CNI_NAME}"
@@ -148,9 +166,9 @@ extends:
                   echo "##vso[task.setvariable variable=ipamImageNameOverride;isOutput=true]${IPAM_NAME}"
                   echo "##vso[task.setvariable variable=ipamVersion;isOutput=true]${IPAM_VERSION}"
 
-                  echo "##vso[task.setvariable variable=azureIptablesMonitorImageOverride;isOutput=true]$(resolve_override_image '${{ parameters.azureIptablesMonitorImage }}' azure-iptables-monitor $(make azure-iptables-monitor-version))"
-                  echo "##vso[task.setvariable variable=azureIpMasqMergerImageOverride;isOutput=true]$(resolve_override_image '${{ parameters.azureIpMasqMergerImage }}' azure-ip-masq-merger $(make azure-ip-masq-merger-version))"
-                  echo "##vso[task.setvariable variable=ciliumLogCollectorImageOverride;isOutput=true]$(resolve_override_image '${{ parameters.ciliumLogCollectorImage }}' cilium-log-collector $(make cilium-log-collector-version))"
+                  echo "##vso[task.setvariable variable=azureIptablesMonitorImageOverride;isOutput=true]$(resolve_override_image "$MONITOR_IMAGE_PARAMETER" azure-iptables-monitor $(make azure-iptables-monitor-version))"
+                  echo "##vso[task.setvariable variable=azureIpMasqMergerImageOverride;isOutput=true]$(resolve_override_image "$MERGER_IMAGE_PARAMETER" azure-ip-masq-merger $(make azure-ip-masq-merger-version))"
+                  echo "##vso[task.setvariable variable=ciliumLogCollectorImageOverride;isOutput=true]$(resolve_override_image "$COLLECTOR_IMAGE_PARAMETER" cilium-log-collector $(make cilium-log-collector-version))"
 
                   IPV6_HP_BPF_IMAGE_OVERRIDE=""
                   if [ -n "$IPV6_HP_BPF_IMAGE_PARAMETER" ] && [ "$IPV6_HP_BPF_IMAGE_PARAMETER" != "__use-default__" ]; then
@@ -174,7 +192,24 @@ extends:
                 name: "EnvironmentalVariables"
                 displayName: "Set environmental variables"
                 env:
-                  IPV6_HP_BPF_IMAGE_PARAMETER: ${{ parameters.ipv6HpBpfImage }}
+                  VERIFY_DALEC_SIGNATURES: ${{ parameters.verifyDalecSignatures }}
+                  DALEC_SIGNATURES_VERIFIED: $(dalecSignaturesVerified)
+                  ${{ if eq(parameters.verifyDalecSignatures, true) }}:
+                    CNI_IMAGE_PARAMETER: ${{ iif(and(ne(parameters.cniImage, ''), ne(parameters.cniImage, '__use-default__')), '$(verified_cniImage)', parameters.cniImage) }}
+                    CNS_IMAGE_PARAMETER: ${{ iif(and(ne(parameters.cnsImage, ''), ne(parameters.cnsImage, '__use-default__')), '$(verified_cnsImage)', parameters.cnsImage) }}
+                    IPAM_IMAGE_PARAMETER: ${{ iif(and(ne(parameters.ipamImage, ''), ne(parameters.ipamImage, '__use-default__')), '$(verified_ipamImage)', parameters.ipamImage) }}
+                    MONITOR_IMAGE_PARAMETER: ${{ iif(and(ne(parameters.azureIptablesMonitorImage, ''), ne(parameters.azureIptablesMonitorImage, '__use-default__')), '$(verified_azureIptablesMonitorImage)', parameters.azureIptablesMonitorImage) }}
+                    MERGER_IMAGE_PARAMETER: ${{ iif(and(ne(parameters.azureIpMasqMergerImage, ''), ne(parameters.azureIpMasqMergerImage, '__use-default__')), '$(verified_azureIpMasqMergerImage)', parameters.azureIpMasqMergerImage) }}
+                    COLLECTOR_IMAGE_PARAMETER: ${{ iif(and(ne(parameters.ciliumLogCollectorImage, ''), ne(parameters.ciliumLogCollectorImage, '__use-default__')), '$(verified_ciliumLogCollectorImage)', parameters.ciliumLogCollectorImage) }}
+                    IPV6_HP_BPF_IMAGE_PARAMETER: ${{ iif(and(ne(parameters.ipv6HpBpfImage, ''), ne(parameters.ipv6HpBpfImage, '__use-default__')), '$(verified_ipv6HpBpfImage)', parameters.ipv6HpBpfImage) }}
+                  ${{ else }}:
+                    CNI_IMAGE_PARAMETER: ${{ parameters.cniImage }}
+                    CNS_IMAGE_PARAMETER: ${{ parameters.cnsImage }}
+                    IPAM_IMAGE_PARAMETER: ${{ parameters.ipamImage }}
+                    MONITOR_IMAGE_PARAMETER: ${{ parameters.azureIptablesMonitorImage }}
+                    MERGER_IMAGE_PARAMETER: ${{ parameters.azureIpMasqMergerImage }}
+                    COLLECTOR_IMAGE_PARAMETER: ${{ parameters.ciliumLogCollectorImage }}
+                    IPV6_HP_BPF_IMAGE_PARAMETER: ${{ parameters.ipv6HpBpfImage }}
                 condition: always()
 
       - template: /.pipelines/templates/run-unit-tests.yaml@self
