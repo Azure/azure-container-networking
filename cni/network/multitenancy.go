@@ -74,17 +74,18 @@ func (m *Multitenancy) Init(cnsclient cnsclient, netioshim netioshim) {
 }
 
 // DetermineSnatFeatureOnHost - Temporary function to determine whether we need to disable SNAT due to NMAgent support
+// snatFile is the cache filename without its .json extension.
 func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApisURL string) (snatForDNS, snatOnHost bool, err error) {
 	var (
 		snatConfig            snatConfiguration
 		retrieveSnatConfigErr error
 		jsonFile              *os.File
 		httpClient            = &http.Client{Timeout: time.Second * httpTimeout}
-		snatConfigFile        = snatConfigFileName + jsonFileExtension
+		snatConfigFile        = snatFile + jsonFileExtension
 	)
 
 	// Check if we've already retrieved NMAgent version and determined whether to disable snat on host
-	if jsonFile, retrieveSnatConfigErr = os.Open(snatFile); retrieveSnatConfigErr == nil {
+	if jsonFile, retrieveSnatConfigErr = os.Open(snatConfigFile); retrieveSnatConfigErr == nil {
 		bytes, _ := io.ReadAll(jsonFile)
 		jsonFile.Close()
 		if retrieveSnatConfigErr = json.Unmarshal(bytes, &snatConfig); retrieveSnatConfigErr != nil {
