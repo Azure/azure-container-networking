@@ -137,7 +137,7 @@ Cross-reference:
 - [ ] Which crypto backend is selected BY DEFAULT (no GOEXPERIMENT set)?
 - [ ] Does the default backend require CGO? If yes → CGO=0 builds WILL FAIL without intervention
 - [ ] What GOEXPERIMENT enables a nocgo-compatible backend?
-- [ ] Is `MS_GO_NOSYSTEMCRYPTO` deprecated? (As of Go 1.27 it is NOT: it is the supported opt-out. Only `GOEXPERIMENT=systemcrypto`/`nosystemcrypto` were removed.)
+- [ ] Is `MS_GO_NOSYSTEMCRYPTO` deprecated? (As of Go 1.27 it is NOT: it is the supported opt-out. Go 1.27 removed `GOEXPERIMENT=systemcrypto`, `nosystemcrypto` and `ms_nocgo_opensslcrypto`; the toolchain rejects all three.)
 - [ ] Any crypto API behavior changes (non-FIPS curves, key sizes)?
 
 #### D. Compatibility & Breaking Changes
@@ -236,29 +236,24 @@ build/images.mk (GO_IMG=golang:1.XX-azurelinux3.0)     ← primary image tag
     │   └── → All .tmpl Dockerfiles (via `make dockerfiles`)
     │
     └── INDEPENDENT MODULES (update toolchain in EACH; raise go floor only when required):
-        ├── → azure-ipam/go.mod
-        ├── → azure-ip-masq-merger/go.mod
-        ├── → azure-iptables-monitor/go.mod
-        ├── → bpf-prog/ipv6-hp-bpf/go.mod
-        ├── → cilium-log-collector/go.mod
-        ├── → cni/go.mod
-        ├── → crd/go.mod
-        ├── → dropgz/go.mod
-        ├── → npm/go.mod
-        ├── → pkgerrlint/go.mod
-        ├── → tools/azure-npm-to-cilium-validator/go.mod
-        └── → zapai/go.mod
+        └── → every other go.mod in the repo, found with
+              `git ls-files '*go.mod' ':!:**/vendor/**'`
+              (e.g. azure-ipam/, dropgz/, zapai/, tools/failure-agent/, tools/release/)
 ```
+
+> Do NOT maintain a hand-written module list. Modules are added over time; a static list goes stale and leaves toolchains behind.
 
 ### Files to Update (in order)
 
-1. **`go.mod` (ROOT)** — Update the exact `toolchain` directive.
+1. **All `go.mod` files and `tools.go.mod`** — REQUIRED: run `hack/scripts/update-go-toolchain.sh 1.XX.Y`.
+   It sets the exact `toolchain` in every `go.mod` (root and all submodules, found with `find`) and in `tools.go.mod`.
+   Do not edit toolchains by hand.
    - Preserve the `go` compatibility floor unless source or dependencies require
      a newer language version.
 2. **`build/images.mk`** — Update `GO_IMG` tag
    - ALWAYS use 2-part floating tag: `1.27-azurelinux3.0`, never `1.27.0-azurelinux3.0`
-3. **`tools.go.mod`** (repo root) — Update `toolchain` to match root: `go mod edit -modfile=tools.go.mod -toolchain=go1.XX.Y`
-4. **All sub-module `go.mod` files** — Update `toolchain` to match (see full list above)
+3. **`tools.go.mod`** (repo root) — covered by step 1 (`go mod edit -modfile=tools.go.mod -toolchain=go1.XX.Y`)
+4. **All sub-module `go.mod` files** — covered by step 1; Step 2 validation checks every module
 5. **Do NOT run `go mod tidy`** — it times out in the agent environment
    - Existing `go.sum` files remain valid for pure version bumps (deps don't change)
    - CI or a follow-up commit will reconcile any checksum drift if needed
@@ -490,12 +485,9 @@ done
    # .devcontainer must reference new version
    grep -q "VARIANT=\"$TARGET_MINOR\"" .devcontainer/Dockerfile || echo "FAIL: .devcontainer not updated!"
    
-   # All sub-module go.mod files
-   for mod in azure-ipam cni crd dropgz npm zapai azure-ip-masq-merger azure-iptables-monitor \
-              bpf-prog/ipv6-hp-bpf cilium-log-collector pkgerrlint tools/azure-npm-to-cilium-validator; do
-     if [ -f "$mod/go.mod" ]; then
-       grep "^toolchain go$TARGET_TOOLCHAIN" "$mod/go.mod" || echo "FAIL: $mod/go.mod toolchain not updated!"
-     fi
+   # Every go.mod in the repo (discovered, not hand-listed)
+   git ls-files '*go.mod' ':!:**/vendor/**' | while read -r mod; do
+     grep -q "^toolchain go$TARGET_TOOLCHAIN$" "$mod" || echo "FAIL: $mod toolchain not updated!"
    done
    
    # tools module
