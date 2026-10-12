@@ -6,7 +6,7 @@ toolchain go1.27.1
 
 require (
 	github.com/google/uuid v1.6.0
-	github.com/openai/openai-go/v3 v3.71.1
+	github.com/openai/openai-go/v3 v3.71.2
 	go.uber.org/zap v1.28.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.60.1
