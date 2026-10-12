@@ -136,8 +136,8 @@ type InterfaceGetter interface {
 
 // snatConfiguration contains a bool that determines whether CNI enables snat on host and snat for dns
 type snatConfiguration struct {
-	EnableSnatOnHost bool
-	EnableSnatForDns bool
+	EnableSnatOnHost bool `json:"EnableSnatOnHost"`
+	EnableSnatForDNS bool `json:"EnableSnatForDns"`
 }
 
 // NewPlugin creates a new NetPlugin object.

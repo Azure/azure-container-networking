@@ -195,9 +195,10 @@ func getIPNetWithString(ipaddrwithcidr string) *net.IPNet {
 
 func TestDetermineSnatFeatureOnHostUsesJSONCache(t *testing.T) {
 	snatFile := filepath.Join(t.TempDir(), "customSnatConfig")
-	expected := snatConfiguration{EnableSnatOnHost: true, EnableSnatForDns: true}
+	expected := snatConfiguration{EnableSnatOnHost: true, EnableSnatForDNS: true}
 	data, err := json.Marshal(expected)
 	require.NoError(t, err)
+	require.JSONEq(t, `{"EnableSnatOnHost":true,"EnableSnatForDns":true}`, string(data))
 	require.NoError(t, os.WriteFile(snatFile+jsonFileExtension, data, 0o600))
 
 	var requests atomic.Int32
@@ -210,7 +211,7 @@ func TestDetermineSnatFeatureOnHostUsesJSONCache(t *testing.T) {
 	m := &Multitenancy{}
 	dns, host, err := m.DetermineSnatFeatureOnHost(snatFile, buildNmAgentSupportedApisURL(server.Listener.Addr().String()))
 	require.NoError(t, err)
-	require.Equal(t, expected.EnableSnatForDns, dns)
+	require.Equal(t, expected.EnableSnatForDNS, dns)
 	require.Equal(t, expected.EnableSnatOnHost, host)
 	require.Zero(t, requests.Load())
 }
@@ -225,12 +226,12 @@ func TestDetermineSnatFeatureOnHostCachesSupportedAPIs(t *testing.T) {
 		{
 			name:     "host_and_dns_snat_required",
 			response: `[]`,
-			expected: snatConfiguration{EnableSnatOnHost: true, EnableSnatForDns: true},
+			expected: snatConfiguration{EnableSnatOnHost: true, EnableSnatForDNS: true},
 		},
 		{
 			name:     "host_snat_supported",
 			response: `["NetworkManagementSnatSupport"]`,
-			expected: snatConfiguration{EnableSnatForDns: true},
+			expected: snatConfiguration{EnableSnatForDNS: true},
 		},
 		{
 			name:     "host_and_dns_snat_supported",
@@ -240,7 +241,7 @@ func TestDetermineSnatFeatureOnHostCachesSupportedAPIs(t *testing.T) {
 			name:          "invalid_cache_is_refreshed",
 			response:      `["NetworkManagementSnatSupport"]`,
 			cacheContents: `{invalid`,
-			expected:      snatConfiguration{EnableSnatForDns: true},
+			expected:      snatConfiguration{EnableSnatForDNS: true},
 		},
 	}
 
@@ -272,7 +273,7 @@ func TestDetermineSnatFeatureOnHostCachesSupportedAPIs(t *testing.T) {
 			for i := 0; i < 3; i++ {
 				dns, host, err := m.DetermineSnatFeatureOnHost(snatFile, url)
 				require.NoError(t, err)
-				require.Equal(t, tt.expected.EnableSnatForDns, dns)
+				require.Equal(t, tt.expected.EnableSnatForDNS, dns)
 				require.Equal(t, tt.expected.EnableSnatOnHost, host)
 			}
 			require.EqualValues(t, 1, requests.Load())
