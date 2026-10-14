@@ -41,10 +41,13 @@ stages:
           isCustom: true
           type: linux
         steps:
+          # templateParameters must match the parameters declared by pipeline 391699 (Networking-Aquarius
+          # .pipelines/singularity-runner/pipeline.singularity-runner.yml); undeclared names fail queueing.
+          # Region selection is per-region booleans that all default to true.
           - task: TriggerBuild@3
             inputs:
               buildDefinition: '391699'
-              templateParameters: 'regions: ["australiaeast"], useAcnPublic: true, cnscniversion: $(CNS_VERSION), cnscniversionwindows: $(CNS_VERSION), cnscniImagePrefix: $(IMAGE_REPO_PATH_REF), npmversion: $(NPM_VERSION)'
+              templateParameters: 'westus2: false, centraluseuap: false, australiaeast: true, useAcnPublic: true, cnscniversion: $(CNS_VERSION), cnscniversionwindows: $(CNS_VERSION), cnscniImagePrefix: $(IMAGE_REPO_PATH_REF), npmversion: $(NPM_VERSION)'
               useSameBranch: false
               queueBuildForUserThatTriggeredBuild: true
               branchToUse: 'refs/heads/master'

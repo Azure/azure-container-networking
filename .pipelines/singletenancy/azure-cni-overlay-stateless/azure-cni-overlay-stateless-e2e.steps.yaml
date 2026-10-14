@@ -39,8 +39,10 @@ steps:
             kubectl taint nodes $node node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule-
         fi
       done
+      # INSTALL_AZURE_VNET_STATELESS deploys the stateful azure-vnet CNI on Linux (ManageEndpointState=false),
+      # so Linux state must be validated as cniv2; CNI_TYPE=stateless expects CNS-managed azure-endpoints.json.
       sudo -E env "PATH=$PATH" make test-load \
-        SCALE_UP=32 OS_TYPE=linux CNI_TYPE=stateless VALIDATE_STATEFILE=true VALIDATE_V4OVERLAY=true \
+        SCALE_UP=32 OS_TYPE=linux CNI_TYPE=cniv2 VALIDATE_STATEFILE=true VALIDATE_V4OVERLAY=true \
         INSTALL_AZURE_VNET_STATELESS=true CLEANUP=true \
         AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION) CNS_VERSION=$(CNS_VERSION) CNI_VERSION=$(CNI_VERSION) \
         IPAM_IMAGE_NAME_OVERRIDE=$(IPAM_IMAGE_NAME_OVERRIDE) CNS_IMAGE_NAME_OVERRIDE=$(CNS_IMAGE_NAME_OVERRIDE) \
@@ -78,7 +80,7 @@ steps:
         make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
         kubectl get pods -owide -A
         echo "Validating Node Restart"
-        CNI_TYPE=stateless RESTART_CASE=true go test -timeout 30m -tags load -run ^TestValidateState$
+        CNI_TYPE=cniv2 RESTART_CASE=true go test -timeout 30m -tags load -run ^TestValidateState$
     displayName: "Validate Node Restart"
     retryCountOnTaskFailure: 3
 
