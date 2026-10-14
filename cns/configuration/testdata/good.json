@@ -4,6 +4,7 @@
     "EnablePprof": true,
     "EnableHomeAZ": true,
     "EnableHomeAZMultitenancy": true,
+    "EnableIPv6Multitenancy": true,
     "EnableSubnetScarcity": true,
     "EnableSwiftV1DualStack": true,
     "ManagedSettings": {

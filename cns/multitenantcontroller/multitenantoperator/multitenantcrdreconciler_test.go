@@ -177,7 +177,7 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 			Expect(err).To(BeNil())
 		})
 
-		It("Should skip reconciliation when CR is in Succeeded state and NC exists in CNS", func() {
+		It("Should reconcile IPv6 without recreating an existing Succeeded NC", func() {
 			uuid := uuidValue
 			nc := ncapi.MultiTenantNetworkContainer{
 				ObjectMeta: metav1.ObjectMeta{
@@ -200,11 +200,12 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 			Expect(err).To(BeNil())
 
 			kubeClient.EXPECT().Get(gomock.Any(), namespacedName, gomock.Any()).SetArg(2, nc)
-			// NC exists in CNS — should skip without reprogramming
+			// The existing NC must not be recreated.
 			cnsRestService.EXPECT().GetNetworkContainerInternal(cns.GetNetworkContainerRequest{
 				NetworkContainerid:  uuid,
 				OrchestratorContext: orchestratorContext,
 			}).Return(cns.GetNetworkContainerResponse{}, cnstypes.Success)
+			cnsRestService.EXPECT().UpdateNetworkContainerIPv6Configuration(uuid, cns.IPSubnet{}, "").Return(nil)
 
 			_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{
 				NamespacedName: namespacedName,
@@ -335,6 +336,7 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 				NetworkContainerid:  uuid,
 				OrchestratorContext: orchestratorContext,
 			}).Return(cns.GetNetworkContainerResponse{}, cnstypes.Success)
+			cnsRestService.EXPECT().UpdateNetworkContainerIPv6Configuration(uuid, cns.IPSubnet{}, "").Return(nil)
 			_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{
 				NamespacedName: namespacedName,
 			})
@@ -427,6 +429,7 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 				NetworkContainerid:  uuid,
 				OrchestratorContext: orchestratorContext,
 			}).Return(cns.GetNetworkContainerResponse{}, cnstypes.Success)
+			cnsRestService.EXPECT().UpdateNetworkContainerIPv6Configuration(uuid, cns.IPSubnet{}, "").Return(nil)
 			cnsRestService.EXPECT().CreateOrUpdateNetworkContainerInternal(networkContainerRequest).Return(cnstypes.Success)
 			_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{
 				NamespacedName: namespacedName,

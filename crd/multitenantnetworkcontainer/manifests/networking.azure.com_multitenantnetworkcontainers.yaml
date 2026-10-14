@@ -70,11 +70,27 @@ spec:
               gateway:
                 description: The gateway IP address
                 type: string
+              gatewayV6:
+                description: The IPv6 gateway address, which may be link-local.
+                type: string
               ip:
                 description: The IP address
                 type: string
               ipSubnet:
                 description: The subnet CIDR
+                type: string
+              ipSubnetV6:
+                description: The IPv6 subnet CIDR containing IPv6. Its prefix length
+                  is the interface subnet mask.
+                type: string
+              ipv6:
+                description: The IPv6 address. Requires IPSubnetV6 and GatewayV6 when
+                  set.
+                type: string
+              ipv6Prefix:
+                description: |-
+                  The optional IPv6 allocation CIDR containing IPv6, within IPSubnetV6.
+                  This is not the interface subnet mask.
                 type: string
               multiTenantInfo:
                 description: MultiTenantInfo holds the encap type and id
