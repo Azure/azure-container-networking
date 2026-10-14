@@ -1,4 +1,5 @@
 parameters:
+  testBundle: full
   use1ESPublishTask: false
   name: ""
   displayName: ""
@@ -12,7 +13,10 @@ parameters:
 stages:
   - stage: ${{ parameters.clusterName }}
     displayName: ${{ parameters.displayName }} - Create Cluster
-    condition: and(succeeded(), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true'))
+    ${{ if eq(parameters.testBundle, 'full') }}:
+      condition: and(succeeded(), or(eq(dependencies.setup.outputs['env.ImageBundle.externalImages'], 'true'), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true')))
+    ${{ else }}:
+      condition: and(not(canceled()), eq(dependencies.setup.outputs['env.ImageBundle.run_${{ parameters.name }}'], 'true'), eq(dependencies.setup.result, 'Succeeded'), or(eq(dependencies.publish.result, 'Succeeded'), and(eq(dependencies.setup.outputs['env.ImageBundle.buildImages'], 'false'), eq(dependencies.publish.result, 'Skipped'))), eq(dependencies.test.result, 'Succeeded'))
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
@@ -55,7 +59,10 @@ stages:
               installFlag: INSTALL_OVERLAY
   - stage: ${{ parameters.name }}
     displayName: E2E-${{ parameters.displayName }}
-    condition: and(succeeded(), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true'))
+    ${{ if eq(parameters.testBundle, 'full') }}:
+      condition: and(succeeded(), or(eq(dependencies.setup.outputs['env.ImageBundle.externalImages'], 'true'), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true')))
+    ${{ else }}:
+      condition: and(not(canceled()), eq(dependencies.setup.outputs['env.ImageBundle.run_${{ parameters.name }}'], 'true'), eq(dependencies.setup.result, 'Succeeded'), or(eq(dependencies.publish.result, 'Succeeded'), and(eq(dependencies.setup.outputs['env.ImageBundle.buildImages'], 'false'), eq(dependencies.publish.result, 'Skipped'))), eq(dependencies.${{ parameters.clusterName }}.result, 'Succeeded'))
     dependsOn:
     - setup
     - publish

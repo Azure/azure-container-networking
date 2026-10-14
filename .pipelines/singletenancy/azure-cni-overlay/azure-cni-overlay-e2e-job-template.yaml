@@ -1,4 +1,7 @@
 parameters:
+  - name: testBundle
+    type: string
+    default: full
   - name: use1ESPublishTask
     type: boolean
     default: false
@@ -33,13 +36,10 @@ parameters:
 stages:
   - stage: ${{ parameters.clusterName }}
     displayName: ${{ parameters.displayName }} - Create Cluster
-    condition: and(
-        succeeded(),
-        or(
-          eq('${{ parameters.os }}', 'linux'),
-          and(eq('${{ parameters.os }}', 'windows'), eq(dependencies.setup.outputs['env.GitDiffCheck.RunWindowsTests'], 'true'))
-        )
-      )
+    ${{ if eq(parameters.testBundle, 'full') }}:
+      condition: and( succeeded(), or( eq('${{ parameters.os }}', 'linux'), and(eq('${{ parameters.os }}', 'windows'), or(eq(dependencies.setup.outputs['env.ImageBundle.externalImages'], 'true'), eq(dependencies.setup.outputs['env.GitDiffCheck.RunWindowsTests'], 'true'))) ) )
+    ${{ else }}:
+      condition: and(not(canceled()), eq(dependencies.setup.outputs['env.ImageBundle.run_${{ parameters.name }}'], 'true'), eq(dependencies.setup.result, 'Succeeded'), or(eq(dependencies.publish.result, 'Succeeded'), and(eq(dependencies.setup.outputs['env.ImageBundle.buildImages'], 'false'), eq(dependencies.publish.result, 'Skipped'))), eq(dependencies.test.result, 'Succeeded'))
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
@@ -82,6 +82,8 @@ stages:
               os: ${{ parameters.os }}
   - stage: ${{ parameters.name }}
     displayName: E2E-${{ parameters.displayName }}
+    ${{ if eq(parameters.testBundle, 'images') }}:
+      condition: and(not(canceled()), eq(dependencies.setup.outputs['env.ImageBundle.run_${{ parameters.name }}'], 'true'), eq(dependencies.setup.result, 'Succeeded'), or(eq(dependencies.publish.result, 'Succeeded'), and(eq(dependencies.setup.outputs['env.ImageBundle.buildImages'], 'false'), eq(dependencies.publish.result, 'Skipped'))), eq(dependencies.${{ parameters.clusterName }}.result, 'Succeeded'))
     dependsOn:
     - setup
     - publish

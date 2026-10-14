@@ -33,6 +33,12 @@ schedules:
   always: true
 
 parameters:
+  - name: testBundle
+    type: string
+    default: full
+    values:
+      - full
+      - images
   # Empty or __use-default__ builds and publishes the component image.
   # A supplied image skips those entries and is used by the install path.
   - name: cniImage
@@ -106,6 +112,19 @@ extends:
               prTargetBranch: $[ variables['System.PullRequest.TargetBranchName'] ]
             steps:
               - template: /.pipelines/templates/git-diff-check.yaml@self
+              - bash: |
+                  python3 hack/scripts/image_test_bundle.py --mode "$TEST_BUNDLE"
+                name: ImageBundle
+                displayName: Resolve image test bundle
+                env:
+                  TEST_BUNDLE: ${{ parameters.testBundle }}
+                  CNI_IMAGE: ${{ parameters.cniImage }}
+                  CNS_IMAGE: ${{ parameters.cnsImage }}
+                  IPAM_IMAGE: ${{ parameters.ipamImage }}
+                  AZURE_IPTABLES_MONITOR_IMAGE: ${{ parameters.azureIptablesMonitorImage }}
+                  AZURE_IP_MASQ_MERGER_IMAGE: ${{ parameters.azureIpMasqMergerImage }}
+                  CILIUM_LOG_COLLECTOR_IMAGE: ${{ parameters.ciliumLogCollectorImage }}
+                  IPV6_HP_BPF_IMAGE: ${{ parameters.ipv6HpBpfImage }}
               - script: |
                   # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
                   CUSTOM_RUN_NAME_PREFIX="${{ parameters.runNamePrefix }}"
@@ -182,6 +201,7 @@ extends:
       - ${{ if not(contains(variables['Build.SourceBranch'], 'refs/pull')) }}:
         - stage: binaries
           displayName: Build Binaries
+          condition: and(succeeded(), eq('${{ parameters.testBundle }}', 'full'))
           dependsOn:
             - setup
           jobs:
@@ -230,14 +250,17 @@ extends:
 
         - stage: containerize
           displayName: Build Images
+          condition: and(succeeded(), or(eq('${{ parameters.testBundle }}', 'full'), eq(dependencies.setup.outputs['env.ImageBundle.buildImages'], 'true')))
           dependsOn:
             - setup
           variables:
+            buildComponents: $[ stageDependencies.setup.env.outputs['ImageBundle.buildComponents'] ]
             # Buildah cannot preserve non-root ownership while unpacking image layers on 1ESPT image.
             CONTAINER_BUILDER: docker
           jobs:
             - job: containerize_amd64
               displayName: Build Images
+              condition: and(succeeded(), or(eq('${{ parameters.testBundle }}', 'full'), contains(variables.buildComponents, format(',{0},', variables.name))))
               pool:
                 name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
                 os: linux
@@ -298,6 +321,7 @@ extends:
                     os_version: $(os_version)
             - job: containerize_linux_arm64
               displayName: Build Images
+              condition: and(succeeded(), or(eq('${{ parameters.testBundle }}', 'full'), contains(variables.buildComponents, format(',{0},', variables.name))))
               pool:
                 name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
                 os: linux
@@ -347,6 +371,7 @@ extends:
 
         - stage: containerize_npm
           displayName: Build NPM Images
+          condition: and(succeeded(), eq('${{ parameters.testBundle }}', 'full'))
           dependsOn:
             - setup
           variables:
@@ -410,11 +435,16 @@ extends:
           displayName: Publish Multiarch Manifests
           dependsOn:
             - containerize
+            - ${{ if eq(parameters.testBundle, 'images') }}:
+              - setup
+          condition: and(succeeded(), or(eq('${{ parameters.testBundle }}', 'full'), eq(dependencies.setup.outputs['env.ImageBundle.buildImages'], 'true')))
           variables:
             Packaging.EnableSBOMSigning: true
+            buildComponents: $[ stageDependencies.setup.env.outputs['ImageBundle.buildComponents'] ]
           jobs:
             - job: manifest
               displayName: Compile Manifests
+              condition: and(succeeded(), or(eq('${{ parameters.testBundle }}', 'full'), contains(variables.buildComponents, format(',{0},', variables.name))))
               pool:
                 name: "$(BUILD_POOL_NAME_DEFAULT)"
                 os: linux
@@ -422,7 +452,10 @@ extends:
                 outputs:
                   - output: buildArtifacts
                     PathtoPublish: "$(Build.ArtifactStagingDirectory)"
-                    ArtifactName: "output_staging"
+                    ${{ if eq(parameters.testBundle, 'full') }}:
+                      ArtifactName: output_staging
+                    ${{ else }}:
+                      ArtifactName: image_validation_staging
                     sbomEnabled: false
                     condition: succeeded()
               strategy:
@@ -463,6 +496,7 @@ extends:
     
         - stage: publish_npm
           displayName: Publish NPM Multiarch Manifest
+          condition: and(succeeded(), eq('${{ parameters.testBundle }}', 'full'))
           dependsOn:
             - containerize_npm
           jobs:
@@ -488,11 +522,20 @@ extends:
         - stage: sbom
           displayName: Generate SBOM
           dependsOn:
-            - binaries
-            - publish
-            - publish_npm
+            - ${{ if eq(parameters.testBundle, 'full') }}:
+              - binaries
+              - publish
+              - publish_npm
+            - ${{ else }}:
+              - publish
+              - setup
+          condition: and(succeeded(), or(eq('${{ parameters.testBundle }}', 'full'), eq(dependencies.setup.outputs['env.ImageBundle.buildImages'], 'true')))
           variables:
             Packaging.EnableSBOMSigning: true
+            ${{ if eq(parameters.testBundle, 'full') }}:
+              stagingArtifact: output_staging
+            ${{ else }}:
+              stagingArtifact: image_validation_staging
           jobs:
             - job: sbom
               displayName: Generate and Sign SBOM
@@ -508,8 +551,12 @@ extends:
                   # staged drop plus the signed _manifest and publishes it exactly once.
                   - output: pipelineArtifact
                     displayName: Publish assembled output pipeline artifact
-                    targetPath: $(Pipeline.Workspace)/output_staging
-                    artifactName: output
+                    ${{ if eq(parameters.testBundle, 'full') }}:
+                      targetPath: $(Pipeline.Workspace)/output_staging
+                      artifactName: output
+                    ${{ else }}:
+                      targetPath: $(Pipeline.Workspace)/image_validation_staging
+                      artifactName: image-validation-companions
                     sbomEnabled: false
                     condition: succeeded()
               steps:
@@ -517,7 +564,7 @@ extends:
                   displayName: Download full output artifact drop
                   inputs:
                     buildType: current
-                    artifactName: output_staging
+                    artifactName: $(stagingArtifact)
                     downloadPath: $(Pipeline.Workspace)
 
                 - script: mkdir -p "$(Build.ArtifactStagingDirectory)/sbom"
@@ -526,15 +573,16 @@ extends:
                 - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
                   displayName: Generate SBOM over full output artifact drop and sign _manifest
                   inputs:
-                    BuildDropPath: $(Pipeline.Workspace)/output_staging
+                    BuildDropPath: $(Pipeline.Workspace)/$(stagingArtifact)
                     ManifestDirPath: $(Build.ArtifactStagingDirectory)/sbom
 
-                - script: cp -r "$(Build.ArtifactStagingDirectory)/sbom/_manifest" "$(Pipeline.Workspace)/output_staging/_manifest"
+                - script: cp -r "$(Build.ArtifactStagingDirectory)/sbom/_manifest" "$(Pipeline.Workspace)/$(stagingArtifact)/_manifest"
                   displayName: Assemble signed _manifest into the release drop
 
         # Cilium Podsubnet E2E tests
         - template: /.pipelines/singletenancy/cilium/cilium-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "cilium_e2e"
             displayName: Cil Podsubnet
@@ -547,6 +595,7 @@ extends:
         # Cilium Podsubnet Vnet Scale E2E tests
         - template: /.pipelines/singletenancy/cilium/cilium-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "cilium_vnetscale_e2e"
             displayName: Cil Podsubnet Vnet Scale Ubuntu
@@ -560,6 +609,7 @@ extends:
         # Cilium EBPF Podsubnet E2E tests
         - template: /.pipelines/singletenancy/cilium-ebpf/cilium-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "cilium_ebpf_podsubnet_e2e"
             displayName: Cil EBPF Podsubnet Ubuntu 24
@@ -572,6 +622,7 @@ extends:
         # Cilium Nodesubnet E2E tests
         - template: /.pipelines/singletenancy/cilium-nodesubnet/cilium-nodesubnet-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "cilium_nodesubnet_e2e"
             displayName: Cil NodeSubnet
@@ -583,6 +634,7 @@ extends:
         # Cilium Overlay E2E tests
         - template: /.pipelines/singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "cilium_overlay_e2e"
             displayName: Cil on AKS Overlay
@@ -595,6 +647,7 @@ extends:
         # Cilium Dualstack Overlay E2E tests
         - template: /.pipelines/singletenancy/cilium-dualstack-overlay/cilium-dualstackoverlay-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "cilium_dualstackoverlay_e2e"
             displayName: Cil on AKS DualStack Overlay
@@ -608,6 +661,7 @@ extends:
         # Cilium EBPF Overlay E2E tests
         - template: /.pipelines/singletenancy/cilium-overlay-ebpf/cilium-overlay-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "cilium_ebpf_overlay_e2e"
             displayName: Cil EBPF on AKS Overlay Azure Linux
@@ -620,6 +674,7 @@ extends:
         # Cilium EBPF Dualstack Overlay E2E tests
         - template: /.pipelines/singletenancy/cilium-dualstack-ebpf/cilium-dualstack-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "cilium_ebpf_ds_e2e"
             displayName: Cilium EBPF on AKS DualStack Overlay
@@ -633,6 +688,7 @@ extends:
         # Cilium Overlay with hubble E2E tests
         - template: /.pipelines/singletenancy/cilium-overlay-withhubble/cilium-overlay-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "cilium_h_overlay_e2e"
             displayName: Cil on AKS Overlay with Hubble
@@ -646,6 +702,7 @@ extends:
         # Azure Overlay E2E tests
         - template: /.pipelines/singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "linux_azure_overlay_e2e"
             displayName: Azure Overlay Linux
@@ -660,6 +717,7 @@ extends:
         # Windows Azure Overlay E2E tests
         - template: /.pipelines/singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "win_azure_overlay_e2e"
             displayName: Azure Overlay Windows
@@ -674,6 +732,7 @@ extends:
         # Azure Overlay E2E Stateless CNI tests
         - template: /.pipelines/singletenancy/azure-cni-overlay-stateless/azure-cni-overlay-stateless-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "azure_overlay_stateless_e2e"
             displayName: Azure Stateless CNI Overlay
@@ -685,6 +744,7 @@ extends:
         # AKS Swift E2E tests
         - template: /.pipelines/singletenancy/aks-swift/e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "aks_swift_e2e"
             displayName: AKS Swift Ubuntu
@@ -700,6 +760,7 @@ extends:
         # AKS Swift Vnet Scale E2E tests
         - template: /.pipelines/singletenancy/aks-swift/e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "aks_swift_vnetscale_e2e"
             displayName: AKS Swift Vnet Scale Ubuntu
@@ -712,6 +773,7 @@ extends:
         # CNIv1 E2E tests
         - template: /.pipelines/singletenancy/aks/e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "aks_ubuntu_22_linux_e2e"
             displayName: AKS Ubuntu 22
@@ -726,6 +788,7 @@ extends:
         # Windows AKS E2E tests
         - template: /.pipelines/singletenancy/aks/e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "aks_windows_22_e2e"
             displayName: AKS Windows 2022
@@ -741,6 +804,7 @@ extends:
         # CNI dual stack overlay E2E tests
         - template: /.pipelines/singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "linux_dualstackoverlay_e2e"
             displayName: AKS DualStack Overlay Linux
@@ -754,6 +818,7 @@ extends:
         # Windows DualStack Overlay E2E tests
         - template: /.pipelines/singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "win_dualstackoverlay_e2e"
             displayName: AKS DualStack Overlay Windows
@@ -833,3 +898,41 @@ extends:
                       - vscaleswifte2e
                       - ubuntu22e2e
                       - linuxdsovere2e
+
+        - ${{ if eq(parameters.testBundle, 'images') }}:
+          - stage: image_bundle_summary
+            displayName: Image Bundle Results
+            dependsOn:
+              - setup
+              - test
+              - test_windows
+              - code_coverage
+              - containerize
+              - publish
+              - sbom
+              - delete_clusters
+            condition: always()
+            variables:
+              imageSelection: $[ stageDependencies.setup.env.outputs['ImageBundle.selection'] ]
+            jobs:
+              - job: summary
+                displayName: Check required stage outcomes
+                pool:
+                  name: $(BUILD_POOL_NAME_DEFAULT)
+                  os: linux
+                templateContext:
+                  outputs:
+                    - output: pipelineArtifact
+                      targetPath: $(Build.ArtifactStagingDirectory)/image-bundle
+                      artifactName: image-bundle-results
+                      sbomEnabled: false
+                      condition: always()
+                steps:
+                  - bash: |
+                      mkdir -p "$REPORT_DIRECTORY"
+                      python3 hack/scripts/summarize_image_bundle.py
+                    displayName: Report selected stage completion
+                    env:
+                      IMAGE_SELECTION: $(imageSelection)
+                      REPORT_DIRECTORY: $(Build.ArtifactStagingDirectory)/image-bundle
+                      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
