@@ -17,6 +17,7 @@ trigger:
     include:
       - gh-readonly-queue/master/*
       - gh-readonly-queue/release/*
+      - gh-readonly-queue/dalaagenttestmaster/*
   tags:
     include:
       - "*"
