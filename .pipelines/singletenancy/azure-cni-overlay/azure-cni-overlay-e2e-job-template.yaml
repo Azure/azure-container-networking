@@ -126,8 +126,8 @@ stages:
               parameters:
                 name: ${{ parameters.name }}
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
-                cniType: cniv2
-                validateCniType: cniv2
+                cniType: stateless
+                validateCniType: stateless
                 testLoadArgs: "INSTALL_AZURE_CNI_OVERLAY=true VALIDATE_V4OVERLAY=true"
                 scaleup: ${{ parameters.scaleup }}
           - template: ../../templates/k8s-e2e-step-template.yaml
