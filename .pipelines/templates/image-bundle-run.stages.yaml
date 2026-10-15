@@ -1,0 +1,467 @@
+parameters:
+  - name: testBundle
+    type: string
+  - name: suites
+    type: object
+  - name: companions
+    type: object
+  - name: images
+    type: object
+  - name: useImageOverrides
+    type: boolean
+
+stages:
+  - ${{ if eq(parameters.testBundle, 'full') }}:
+    - stage: binaries
+      displayName: Build Binaries
+      dependsOn:
+        - setup
+      jobs:
+        - job: build
+          displayName: Build Binaries
+          variables:
+            STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
+          pool:
+            name: "$(BUILD_POOL_NAME_DEFAULT)"
+            os: linux
+          templateContext:
+            outputs:
+              # 1ES owns artifact publishing. sbomEnabled is off on every leg that
+              # writes to `output_staging` so the sbom stage stays the only SBOM
+              # producer. Build legs accumulate into the `output_staging` build
+              # artifact because build artifacts merge across jobs; the sbom stage
+              # republishes the assembled drop as the single `output` pipeline
+              # artifact that releases consume.
+              - output: buildArtifacts
+                PathtoPublish: "$(Build.ArtifactStagingDirectory)"
+                ArtifactName: "output_staging"
+                sbomEnabled: false
+                condition: succeeded()
+          steps:
+            - template: /.pipelines/templates/disk-cleanup.steps.yaml@self
+            - script: |
+                make all-binaries-platforms
+              name: "BuildAllPlatformBinaries"
+              displayName: "Build all platform binaries"
+
+            - script: |
+                mkdir -p ./output/bins
+                cd ./output
+                find . -name '*.tgz' -print -exec mv -t ./bins/ {} +
+                find . -name '*.zip' -print -exec mv -t ./bins/ {} +
+                shopt -s extglob
+                rm -rf !("bins")
+              name: "PrepareArtifacts"
+              displayName: "Prepare Artifacts"
+
+            - task: CopyFiles@2
+              inputs:
+                sourceFolder: "output"
+                targetFolder: $(Build.ArtifactStagingDirectory)
+              condition: succeeded()
+  - ${{ if gt(length(parameters.companions), 0) }}:
+    - stage: containerize
+      displayName: Build Images
+      dependsOn:
+        - setup
+      variables:
+        # Buildah cannot preserve non-root ownership while unpacking image layers on 1ESPT image.
+        CONTAINER_BUILDER: docker
+      jobs:
+        - job: containerize_amd64
+          displayName: Build Images
+          pool:
+            name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
+            os: linux
+          strategy:
+            matrix:
+              ${{ if containsValue(parameters.companions, 'azure-ipam') }}:
+                azure_ipam_linux_amd64:
+                  arch: amd64
+                  name: azure-ipam
+                  os: linux
+                azure_ipam_windows:
+                  arch: amd64
+                  name: azure-ipam
+                  os: windows
+              ${{ if containsValue(parameters.companions, 'azure-ip-masq-merger') }}:
+                azure_ip_masq_merger_linux_amd64:
+                  arch: amd64
+                  name: azure-ip-masq-merger
+                  os: linux
+              ${{ if containsValue(parameters.companions, 'azure-iptables-monitor') }}:
+                azure_iptables_monitor_linux_amd64:
+                  arch: amd64
+                  name: azure-iptables-monitor
+                  os: linux
+              ${{ if containsValue(parameters.companions, 'cni') }}:
+                cni_linux_amd64:
+                  arch: amd64
+                  name: cni
+                  os: linux
+                cni_windows_amd64:
+                  arch: amd64
+                  name: cni
+                  os: windows
+              ${{ if containsValue(parameters.companions, 'cns') }}:
+                cns_linux_amd64:
+                  arch: amd64
+                  name: cns
+                  os: linux
+                cns_windows_amd64:
+                  arch: amd64
+                  name: cns
+                  os: windows
+              ${{ if containsValue(parameters.companions, 'ipv6-hp-bpf') }}:
+                ipv6_hp_bpf_linux_amd64:
+                  arch: amd64
+                  name: ipv6-hp-bpf
+                  os: linux
+              ${{ if containsValue(parameters.companions, 'cilium-log-collector') }}:
+                cilium_log_collector_amd64:
+                  arch: amd64
+                  name: cilium-log-collector
+                  os: linux
+          steps:
+            - template: /.pipelines/containers/container-template.yaml@self
+              parameters:
+                arch: $(arch)
+                name: $(name)
+                os: $(os)
+                os_version: $(os_version)
+        - job: containerize_linux_arm64
+          displayName: Build Images
+          pool:
+            name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
+            os: linux
+          strategy:
+            maxParallel: 2
+            matrix:
+              ${{ if containsValue(parameters.companions, 'azure-ipam') }}:
+                azure_ipam_linux_arm64:
+                  arch: arm64
+                  name: azure-ipam
+                  os: linux
+              ${{ if containsValue(parameters.companions, 'azure-ip-masq-merger') }}:
+                azure_ip_masq_merger_linux_arm64:
+                  arch: arm64
+                  name: azure-ip-masq-merger
+                  os: linux
+              ${{ if containsValue(parameters.companions, 'azure-iptables-monitor') }}:
+                azure_iptables_monitor_linux_arm64:
+                  arch: arm64
+                  name: azure-iptables-monitor
+                  os: linux
+              ${{ if containsValue(parameters.companions, 'cni') }}:
+                cni_linux_arm64:
+                  arch: arm64
+                  name: cni
+                  os: linux
+              ${{ if containsValue(parameters.companions, 'cns') }}:
+                cns_linux_arm64:
+                  arch: arm64
+                  name: cns
+                  os: linux
+              ${{ if containsValue(parameters.companions, 'ipv6-hp-bpf') }}:
+                ipv6_hp_bpf_linux_arm64:
+                  arch: arm64
+                  name: ipv6-hp-bpf
+                  os: linux
+              ${{ if containsValue(parameters.companions, 'cilium-log-collector') }}:
+                cilium_log_collector_arm64:
+                  arch: arm64
+                  name: cilium-log-collector
+                  os: linux
+          steps:
+            - template: /.pipelines/containers/container-template.yaml@self
+              parameters:
+                arch: $(arch)
+                name: $(name)
+                os: $(os)
+  - ${{ if eq(parameters.testBundle, 'full') }}:
+    - stage: containerize_npm
+      displayName: Build NPM Images
+      dependsOn:
+        - setup
+      variables:
+        # Buildah cannot preserve non-root ownership while unpacking image layers on 1ESPT image.
+        CONTAINER_BUILDER: docker
+      jobs:
+        - job: containerize_npm_amd64
+          displayName: Build NPM Images
+          pool:
+            name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
+            os: linux
+          strategy:
+            matrix:
+              npm_linux_amd64:
+                arch: amd64
+                name: npm
+                os: linux
+              npm_windows_amd64:
+                arch: amd64
+                name: npm
+                os: windows
+          steps:
+            - template: /.pipelines/containers/container-template.yaml@self
+              parameters:
+                arch: $(arch)
+                name: $(name)
+                os: $(os)
+                os_version: $(os_version)
+        - job: containerize_npm_linux_arm64
+          displayName: Build NPM Images
+          pool:
+            name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
+            os: linux
+          strategy:
+            matrix:
+              npm_linux_arm64:
+                arch: arm64
+                name: npm
+                os: linux
+          steps:
+            - template: /.pipelines/containers/container-template.yaml@self
+              parameters:
+                arch: $(arch)
+                name: $(name)
+                os: $(os)
+  - ${{ if gt(length(parameters.companions), 0) }}:
+    - stage: build_failure_analysis
+      displayName: Build Failure Analysis
+      dependsOn:
+        - containerize
+        - ${{ if eq(parameters.testBundle, 'full') }}:
+          - binaries
+          - containerize_npm
+      condition: failed()
+      jobs:
+        - template: /.pipelines/templates/pipeline-failure-analysis.job.yaml@self
+          parameters:
+            use1ESPublishTask: true
+            scope: build
+  - ${{ if gt(length(parameters.companions), 0) }}:
+    - stage: publish
+      displayName: Publish Multiarch Manifests
+      dependsOn:
+        - containerize
+      variables:
+        Packaging.EnableSBOMSigning: true
+      jobs:
+        - job: manifest
+          displayName: Compile Manifests
+          pool:
+            name: "$(BUILD_POOL_NAME_DEFAULT)"
+            os: linux
+          templateContext:
+            outputs:
+              - output: buildArtifacts
+                PathtoPublish: "$(Build.ArtifactStagingDirectory)"
+                ${{ if eq(parameters.testBundle, 'full') }}:
+                  ArtifactName: output_staging
+                ${{ else }}:
+                  ArtifactName: image_validation_staging
+                sbomEnabled: false
+                condition: succeeded()
+          strategy:
+            matrix:
+              ${{ if containsValue(parameters.companions, 'azure-ipam') }}:
+                azure_ipam:
+                  name: azure-ipam
+                  platforms: linux/amd64 linux/arm64 windows/amd64
+              ${{ if containsValue(parameters.companions, 'cni') }}:
+                cni:
+                  name: cni
+                  platforms: linux/amd64 linux/arm64 windows/amd64
+              ${{ if containsValue(parameters.companions, 'cns') }}:
+                cns:
+                  name: cns
+                  platforms: linux/amd64 linux/arm64 windows/amd64
+              ${{ if containsValue(parameters.companions, 'ipv6-hp-bpf') }}:
+                ipv6_hp_bpf:
+                  name: ipv6-hp-bpf
+                  platforms: linux/amd64 linux/arm64
+              ${{ if containsValue(parameters.companions, 'azure-ip-masq-merger') }}:
+                azure_ip_masq_merger:
+                  name: azure-ip-masq-merger
+                  platforms: linux/amd64 linux/arm64
+              ${{ if containsValue(parameters.companions, 'azure-iptables-monitor') }}:
+                azure_iptables_monitor:
+                  name: azure-iptables-monitor
+                  platforms: linux/amd64 linux/arm64
+              ${{ if containsValue(parameters.companions, 'cilium-log-collector') }}:
+                cilium_log_collector:
+                  name: cilium-log-collector
+                  platforms: linux/amd64 linux/arm64
+          steps:
+            - template: /.pipelines/containers/manifest-template.yaml@self
+              parameters:
+                name: $(name)
+                platforms: $(platforms)
+                publishArtifact: false
+  - ${{ if eq(parameters.testBundle, 'full') }}:
+    - stage: publish_npm
+      displayName: Publish NPM Multiarch Manifest
+      dependsOn:
+        - containerize_npm
+      jobs:
+        - job: npm_manifest
+          displayName: Compile NPM Manifest
+          pool:
+            name: "$(BUILD_POOL_NAME_DEFAULT)"
+            os: linux
+          templateContext:
+            outputs:
+              - output: buildArtifacts
+                PathtoPublish: "$(Build.ArtifactStagingDirectory)"
+                ArtifactName: "output_staging"
+                sbomEnabled: false
+                condition: succeeded()
+          steps:
+            - template: /.pipelines/containers/manifest-template.yaml@self
+              parameters:
+                name: npm
+                platforms: linux/amd64 linux/arm64 windows/amd64
+                publishArtifact: false
+  - ${{ if gt(length(parameters.companions), 0) }}:
+    - stage: sbom
+      displayName: Generate SBOM
+      dependsOn:
+        - ${{ if eq(parameters.testBundle, 'full') }}:
+          - binaries
+          - publish
+          - publish_npm
+        - ${{ else }}:
+          - publish
+          - setup
+      variables:
+        Packaging.EnableSBOMSigning: true
+        ${{ if eq(parameters.testBundle, 'full') }}:
+          stagingArtifact: output_staging
+        ${{ else }}:
+          stagingArtifact: image_validation_staging
+      jobs:
+        - job: sbom
+          displayName: Generate and Sign SBOM
+          pool:
+            name: "$(BUILD_POOL_NAME_DEFAULT)"
+            os: linux
+          templateContext:
+            outputs:
+              # Releases consume `output` and 1ES source-build validation rejects
+              # build artifacts ("Container") in release jobs, so the release drop
+              # must be a pipeline artifact. Pipeline artifacts are immutable and
+              # cannot be published by more than one job, so this job assembles the
+              # staged drop plus the signed _manifest and publishes it exactly once.
+              - output: pipelineArtifact
+                displayName: Publish assembled output pipeline artifact
+                ${{ if eq(parameters.testBundle, 'full') }}:
+                  targetPath: $(Pipeline.Workspace)/output_staging
+                  artifactName: output
+                ${{ else }}:
+                  targetPath: $(Pipeline.Workspace)/image_validation_staging
+                  artifactName: image-validation-companions
+                sbomEnabled: false
+                condition: succeeded()
+          steps:
+            - task: DownloadBuildArtifacts@1
+              displayName: Download full output artifact drop
+              inputs:
+                buildType: current
+                artifactName: $(stagingArtifact)
+                downloadPath: $(Pipeline.Workspace)
+
+            - script: mkdir -p "$(Build.ArtifactStagingDirectory)/sbom"
+              displayName: Create SBOM staging directory
+
+            - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+              displayName: Generate SBOM over full output artifact drop and sign _manifest
+              inputs:
+                BuildDropPath: $(Pipeline.Workspace)/$(stagingArtifact)
+                ManifestDirPath: $(Build.ArtifactStagingDirectory)/sbom
+
+            - script: cp -r "$(Build.ArtifactStagingDirectory)/sbom/_manifest" "$(Pipeline.Workspace)/$(stagingArtifact)/_manifest"
+              displayName: Assemble signed _manifest into the release drop
+  - ${{ each suite in parameters.suites }}:
+    - template: ${{ suite.template }}
+      parameters:
+        ${{ insert }}: ${{ suite.parameters }}
+        useImageOverrides: ${{ parameters.useImageOverrides }}
+        requirePublish: ${{ gt(length(parameters.companions), 0) }}
+
+  - ${{ if and(eq(parameters.testBundle, 'full'), eq(variables['Build.CronSchedule.DisplayName'], 'Official Nightly Pipeline')) }}:
+    # AKS Swiftv2 Manifold E2E tests
+    - template: /.pipelines/multitenancy/swiftv2-manifold-e2e.stages.yaml@self
+      parameters:
+        name: "swiftv2_manifold_e2e"
+        dependsOn: publish
+
+  # Delete All Clusters (cilium + windows + linux) — unified stage.
+  # Async delete with leak detection; safe to attempt against clusters that
+  # were never created (az group show returns empty → treated as "gone").
+  - stage: delete_clusters
+    displayName: Delete Clusters
+    condition: always()
+    dependsOn:
+      - setup
+      - ${{ each suite in parameters.suites }}:
+        - ${{ suite.parameters.name }}
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      os: linux
+    jobs:
+      - job: delete
+        displayName: Delete Clusters
+        steps:
+          - template: /.pipelines/templates/delete-cluster.yaml@self
+            parameters:
+              sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
+              svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              suffix: -$(commitID)
+              clusters:
+                - ${{ each suite in parameters.suites }}:
+                  - ${{ suite.parameters.clusterName }}
+
+  - ${{ if eq(parameters.testBundle, 'images') }}:
+    - stage: image_bundle_summary
+      displayName: Image Bundle Results
+      dependsOn:
+        - setup
+        - test
+        - test_windows
+        - code_coverage
+        - ${{ if gt(length(parameters.companions), 0) }}:
+          - containerize
+          - publish
+          - sbom
+        - delete_clusters
+        - ${{ each suite in parameters.suites }}:
+          - ${{ suite.parameters.clusterName }}
+          - ${{ suite.parameters.name }}
+      condition: always()
+      jobs:
+        - job: summary
+          displayName: Check required stage outcomes
+          pool:
+            name: $(BUILD_POOL_NAME_DEFAULT)
+            os: linux
+          templateContext:
+            outputs:
+              - output: pipelineArtifact
+                targetPath: $(Build.ArtifactStagingDirectory)/image-bundle
+                artifactName: image-bundle-results
+                sbomEnabled: false
+                condition: always()
+          steps:
+            - bash: |
+                mkdir -p "$REPORT_DIRECTORY"
+                python3 hack/scripts/summarize_image_bundle.py
+              displayName: Report selected stage completion
+              env:
+                SELECTED_SUITES: ${{ convertToJson(parameters.suites) }}
+                COMPANION_IMAGES: ${{ convertToJson(parameters.companions) }}
+                IMAGE_INPUTS: ${{ convertToJson(parameters.images) }}
+                REPORT_DIRECTORY: $(Build.ArtifactStagingDirectory)/image-bundle
+                SYSTEM_ACCESSTOKEN: $(System.AccessToken)

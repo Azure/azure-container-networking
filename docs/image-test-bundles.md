@@ -10,9 +10,9 @@ Swift/Cilium current-source-tag gates no longer suppress their validation.
 Ordinary callers without image overrides retain those gates.
 
 For `images`, supply at least one of the existing image override parameters.
-The existing `setup` stage resolves the union of their consumer stages and the
-companion images those stages need. It emits runtime outputs; the complete
-stage graph is still visible, with unrelated stages skipped.
+The consumer-owned YAML catalog selects the union of their consumer stages at
+compile time. Unselected stage pairs are absent from the expanded graph.
+Setup only validates image references; it emits no selection flags.
 
 | Override | Selected existing E2E stages |
 | --- | --- |
@@ -24,22 +24,24 @@ stage graph is still visible, with unrelated stages skipped.
 | `ipv6HpBpfImage` | Cilium dualstack overlay and EBPF dualstack |
 
 Each suite includes its existing cluster creation/install stage and E2E stage.
-The resolver and exact stage names live in `hack/scripts/image_test_bundle.py`.
+The suite invocations and consumed images live in
+`.pipelines/templates/image-bundle.stages.yaml`.
 Overlapping selections are deduplicated. CNI/CNS pairing is simply the union of
 the two existing image overrides. Scheduled-only suites remain scheduled-only.
 
 Only missing companion images used by the selected suites are built/published.
-The existing build/publish matrix legs are gated as complete jobs; their build
+The existing build/publish matrix legs are selected at compile time; their build
 steps are unchanged. NPM images and binary release packages are not required by
-these bundles and are skipped. Source unit tests, Windows unit tests, coverage,
+these bundles and are omitted. Source unit tests, Windows unit tests, coverage,
 and governed checks remain unchanged, including Linux CodeQL build tracing.
-Cleanup still runs after failed or skipped suites. A failed prerequisite cannot
-be treated as an intentionally omitted build.
+Cleanup dependencies and cluster names are generated from the selected catalog.
+Cleanup still runs after failed or skipped suites. Native dependencies require
+included publishers to succeed; an omitted publisher is not a skipped dependency.
 
 Images mode keeps companion archives and signed SBOM metadata under the
 `image-validation-companions` pipeline artifact, not the full release-ready
-`output` artifact. With no missing companions, build/publish/SBOM are skipped.
-`image-bundle-results` records the supplied image references, selected suites,
+`output` artifact. With no missing companions, build/publish/SBOM are omitted.
+`image-bundle-results` records the supplied references, selected catalog entries,
 companion builds, and actual stage results. Its new summary stage fails if a
 required stage is missing, skipped, failed, canceled, or only partially
 successful. Existing exception/approval policy is not changed.
@@ -75,8 +77,16 @@ Run local regression checks:
 python3 -m unittest discover -s hack/scripts -p 'test_image_test_bundle.py'
 ```
 
-When adding an image or suite, update consumer membership, companion closure,
-stage gates, and the focused regression tests together. Verify the unchanged
+The catalog feeds a companion selector and a stage dispatcher. Companion
+selection uses the consumed images declared on the selected records; there is
+no second membership map in Python. Both architecture matrices and manifest
+publishing use the same companion list. Suite templates expose only Boolean
+options for bypassing source filters and requiring a publisher; they do not
+know which bundle selected them.
+
+When adding a suite, update its single catalog record and the focused regression
+tests. When adding an image input, also update the centralized selection
+predicate and root parameter wiring. Verify the unchanged
 installation path actually consumes the supplied reference. Stage success alone
 does not prove image identity or new functional coverage. Do not add or change
 tests inside stages as part of bundling.

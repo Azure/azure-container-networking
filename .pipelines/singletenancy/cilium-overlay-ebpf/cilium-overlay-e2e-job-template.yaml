@@ -1,26 +1,48 @@
 parameters:
-  testBundle: full
-  use1ESPublishTask: false
-  name: ""
-  displayName: ""
-  clusterType: ""
-  clusterName: ""
-  vmSize: ""
-  k8sVersion: ""
-  dependsOn: ""
-  os: "linux"
+  - name: useImageOverrides
+    type: boolean
+    default: false
+  - name: requirePublish
+    type: boolean
+    default: true
+  - name: use1ESPublishTask
+    type: boolean
+    default: false
+  - name: name
+    type: string
+    default: ""
+  - name: displayName
+    type: string
+    default: ""
+  - name: clusterType
+    type: string
+    default: ""
+  - name: clusterName
+    type: string
+    default: ""
+  - name: vmSize
+    type: string
+    default: ""
+  - name: k8sVersion
+    type: string
+    default: ""
+  - name: dependsOn
+    type: object
+    default: ""
+  - name: os
+    type: string
+    default: linux
 
 stages:
   - stage: ${{ parameters.clusterName }}
     displayName: ${{ parameters.displayName }} - Create Cluster
-    ${{ if eq(parameters.testBundle, 'full') }}:
-      condition: and(succeeded(), or(eq(dependencies.setup.outputs['env.ImageBundle.externalImages'], 'true'), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true')))
-    ${{ else }}:
-      condition: and(not(canceled()), eq(dependencies.setup.outputs['env.ImageBundle.run_${{ parameters.name }}'], 'true'), eq(dependencies.setup.result, 'Succeeded'), or(eq(dependencies.publish.result, 'Succeeded'), and(eq(dependencies.setup.outputs['env.ImageBundle.buildImages'], 'false'), eq(dependencies.publish.result, 'Skipped'))), eq(dependencies.test.result, 'Succeeded'))
+    ${{ if not(parameters.useImageOverrides) }}:
+      condition: and(succeeded(), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true'))
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
-      - publish
+      - ${{ if parameters.requirePublish }}:
+        - publish
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     variables:
@@ -59,13 +81,12 @@ stages:
               installFlag: INSTALL_OVERLAY
   - stage: ${{ parameters.name }}
     displayName: E2E-${{ parameters.displayName }}
-    ${{ if eq(parameters.testBundle, 'full') }}:
-      condition: and(succeeded(), or(eq(dependencies.setup.outputs['env.ImageBundle.externalImages'], 'true'), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true')))
-    ${{ else }}:
-      condition: and(not(canceled()), eq(dependencies.setup.outputs['env.ImageBundle.run_${{ parameters.name }}'], 'true'), eq(dependencies.setup.result, 'Succeeded'), or(eq(dependencies.publish.result, 'Succeeded'), and(eq(dependencies.setup.outputs['env.ImageBundle.buildImages'], 'false'), eq(dependencies.publish.result, 'Skipped'))), eq(dependencies.${{ parameters.clusterName }}.result, 'Succeeded'))
+    ${{ if not(parameters.useImageOverrides) }}:
+      condition: and(succeeded(), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true'))
     dependsOn:
     - setup
-    - publish
+    - ${{ if parameters.requirePublish }}:
+      - publish
     - ${{ parameters.clusterName }}
     variables:
       commitID: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
