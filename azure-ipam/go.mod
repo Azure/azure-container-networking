@@ -9,7 +9,7 @@ require (
 	github.com/containernetworking/cni v1.3.1
 	github.com/containernetworking/plugins v1.9.1
 	github.com/pkg/errors v0.9.1
-	github.com/stretchr/testify v1.12.1
+	github.com/stretchr/testify v1.12.2
 	go.uber.org/zap v1.28.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
