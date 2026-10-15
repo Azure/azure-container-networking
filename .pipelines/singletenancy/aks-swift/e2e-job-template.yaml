@@ -1,10 +1,7 @@
 parameters:
-  - name: useImageOverrides
-    type: boolean
-    default: false
-  - name: requirePublish
-    type: boolean
-    default: true
+  - name: testBundle
+    type: string
+    default: full
   - name: use1ESPublishTask
     type: boolean
     default: false
@@ -42,11 +39,12 @@ parameters:
 stages:
   - stage: ${{ parameters.clusterName }}
     displayName: ${{ parameters.displayName }} - Create Cluster
+    ${{ if eq(parameters.testBundle, 'images') }}:
+      condition: and(succeeded(), eq(dependencies.setup.outputs['env.ImageBundle.run_${{ parameters.name }}'], 'true'))
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
-      - ${{ if parameters.requirePublish }}:
-        - publish
+      - publish
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     variables:
@@ -83,12 +81,13 @@ stages:
               os: ${{ parameters.os }}
   - stage: ${{ parameters.name }}
     displayName: E2E-${{ parameters.displayName }}
-    ${{ if not(parameters.useImageOverrides) }}:
+    ${{ if eq(parameters.testBundle, 'images') }}:
+      condition: and(succeeded(), eq(dependencies.setup.outputs['env.ImageBundle.run_${{ parameters.name }}'], 'true'))
+    ${{ else }}:
       condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION))
     dependsOn:
     - setup
-    - ${{ if parameters.requirePublish }}:
-      - publish
+    - publish
     - ${{ parameters.clusterName }}
     variables:
       TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]

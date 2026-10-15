@@ -1,111 +1,107 @@
-"""Focused catalog, input-validation, and completion-report regression tests."""
+"""Regression tests for the setup-stage image bundle decision."""
 
+import contextlib
+import io
+import os
 import unittest
-from pathlib import Path
+from unittest.mock import patch
 
-import yaml
-
-from summarize_image_bundle import summarize
-from validate_image_bundle import validate
+from image_test_bundle import CONSUMERS, IMAGE_ENV, SUITES, main, select_suites
 
 
-class CatalogTests(unittest.TestCase):
-    def test_suite_catalog_has_complete_unique_stage_pairs(self):
-        root = Path(__file__).resolve().parents[2]
-        catalog = yaml.safe_load(
-            (root / ".pipelines/templates/image-bundle.stages.yaml").read_text()
-        )["parameters"][2]["default"]
-        self.assertEqual(len(catalog), 18)
-        self.assertEqual(len({suite["parameters"]["name"] for suite in catalog}), 18)
-        self.assertEqual(len({suite["parameters"]["clusterName"] for suite in catalog}), 18)
-        for suite in catalog:
-            path = suite["template"].removesuffix("@self").lstrip("/")
-            self.assertTrue((root / path).is_file(), path)
-        expected = {
-            "cni": 18, "cns": 16, "azure-ipam": 16,
-            "azure-iptables-monitor": 3, "azure-ip-masq-merger": 2,
-            "cilium-log-collector": 9, "ipv6-hp-bpf": 2,
-        }
-        for image, count in expected.items():
-            with self.subTest(image=image):
-                consumers = [suite for suite in catalog if image in suite["images"]]
-                self.assertEqual(len(consumers), count)
-        # The narrowest bundle must retain both original complete EBPF suites.
-        consumers = {
-            suite["parameters"]["name"]
-            for suite in catalog if "azure-ip-masq-merger" in suite["images"]
-        }
-        self.assertEqual(consumers, {"cilium_ebpf_overlay_e2e", "cilium_ebpf_ds_e2e"})
+def image(component):
+    name = {"cni": "azure-cni", "cns": "azure-cns"}.get(component, component)
+    return f"acnpublic.azurecr.io/{name}:v1"
 
 
-class InputTests(unittest.TestCase):
-    def test_images_mode_requires_explicit_valid_reference(self):
-        for images in ({}, {"cni": ""}, {"cni": "__use-default__"}, {"cni": "latest"}):
-            with self.subTest(images=images), self.assertRaises(ValueError):
-                validate("images", images)
+class ImageBundleTests(unittest.TestCase):
+    def test_narrow_bundle_selects_existing_stage_pairs(self):
+        self.assertEqual(
+            select_suites({"azure-ip-masq-merger": image("azure-ip-masq-merger")}),
+            {"cilium_ebpf_overlay_e2e", "cilium_ebpf_ds_e2e"},
+        )
 
-    def test_supported_tag_digest_and_registry_contract(self):
-        validate("images", {
-            "cni": "mcr.microsoft.com/containernetworking/azure-cni:v1@sha256:" + "a" * 64,
-            "ipv6-hp-bpf": "acnpublic.azurecr.io/ipv6-hp-bpf:v1",
-        })
-        for reference in (
-            "example.com/azure-cni:v1",
-            "mcr.microsoft.com/wrong/azure-cni:v1",
-            "acnpublic.azurecr.io/azure-cns:v1",
+    def test_core_images_keep_existing_consumer_scope(self):
+        self.assertEqual(select_suites({"cni": image("cni")}), SUITES)
+        for component in ("cns", "azure-ipam"):
+            with self.subTest(component=component):
+                self.assertEqual(
+                    select_suites({component: image(component)}),
+                    SUITES - {"aks_ubuntu_22_linux_e2e", "aks_windows_22_e2e"},
+                )
+
+    def test_auxiliary_image_consumers(self):
+        self.assertEqual(
+            select_suites({"azure-iptables-monitor": image("azure-iptables-monitor")}),
+            {"cilium_ebpf_podsubnet_e2e", "cilium_ebpf_overlay_e2e", "cilium_ebpf_ds_e2e"},
+        )
+        self.assertEqual(
+            select_suites({"ipv6-hp-bpf": image("ipv6-hp-bpf")}),
+            {"cilium_dualstackoverlay_e2e", "cilium_ebpf_ds_e2e"},
+        )
+        self.assertEqual(
+            select_suites({"cilium-log-collector": image("cilium-log-collector")}),
+            {suite for suite in SUITES if suite.startswith("cilium_")},
+        )
+
+    def test_overlapping_inputs_are_deduplicated(self):
+        self.assertEqual(
+            select_suites({
+                "azure-iptables-monitor": image("azure-iptables-monitor"),
+                "azure-ip-masq-merger": image("azure-ip-masq-merger"),
+            }),
+            {"cilium_ebpf_podsubnet_e2e", "cilium_ebpf_overlay_e2e", "cilium_ebpf_ds_e2e"},
+        )
+
+    def test_missing_or_invalid_inputs_fail(self):
+        for inputs in (
+            {}, {"cni": ""}, {"cni": "__use-default__"}, {"unknown": "image"},
+            {"cni": "latest"}, {"cni": "example.com/azure-cni:v1"},
+            {"cni": "mcr.microsoft.com/wrong/azure-cni:v1"},
+            {"cni": image("cns")},
         ):
-            with self.subTest(reference=reference), self.assertRaises(ValueError):
-                validate("images", {"cni": reference})
+            with self.subTest(inputs=inputs), self.assertRaises(ValueError):
+                select_suites(inputs)
 
-    def test_full_mode_keeps_legacy_parsing(self):
-        validate("full", {"cni": "legacy-input"})
-        validate("full", {})
+    def test_tag_digest_and_mcr_inputs(self):
+        self.assertEqual(
+            select_suites({
+                "cni": "mcr.microsoft.com/containernetworking/azure-cni:v1@sha256:" + "a" * 64,
+                "ipv6-hp-bpf": image("ipv6-hp-bpf") + "@sha256:" + "b" * 64,
+            }),
+            SUITES,
+        )
 
+    def test_all_supplied_images_select_all_suites(self):
+        self.assertEqual(select_suites({key: image(key) for key in CONSUMERS}), SUITES)
 
-class StageSummaryTests(unittest.TestCase):
-    def setUp(self):
-        self.suites = [{"parameters": {"name": "suite", "clusterName": "cluster"}}]
-        self.companions = ["cni"]
-        self.required = {
-            "setup", "test", "test_windows", "code_coverage", "delete_clusters",
-            "containerize", "publish", "sbom", "suite", "cluster",
-        }
-
-    def records(self, overrides=None):
-        results = dict.fromkeys(self.required, "succeeded")
-        results.update(overrides or {})
-        return [
-            {"type": "Stage", "identifier": stage, "result": result, "attempt": 1}
-            for stage, result in results.items()
+    def test_setup_publishes_one_boolean_for_every_suite(self):
+        env = dict.fromkeys(IMAGE_ENV.values(), "__use-default__")
+        env[IMAGE_ENV["azure-ip-masq-merger"]] = image("azure-ip-masq-merger")
+        output = io.StringIO()
+        with patch.dict(os.environ, env), contextlib.redirect_stdout(output):
+            main()
+        flags = [
+            line for line in output.getvalue().splitlines()
+            if line.startswith("##vso[task.setvariable")
         ]
+        self.assertEqual(len(flags), len(SUITES))
+        expected = {"cilium_ebpf_overlay_e2e", "cilium_ebpf_ds_e2e"}
+        for suite in SUITES:
+            self.assertIn(
+                f"##vso[task.setvariable variable=run_{suite};isOutput=true]"
+                f"{str(suite in expected).lower()}",
+                flags,
+            )
 
-    def test_unselected_stages_are_not_required(self):
-        report = summarize(self.suites, self.companions, self.records({"unselected": "skipped"}))
-        self.assertEqual(report["errors"], [])
-
-    def test_every_required_stage_must_fully_succeed(self):
-        for stage in self.required:
-            for state in ("skipped", "failed", "canceled", "succeededWithIssues", None):
-                with self.subTest(stage=stage, state=state):
-                    report = summarize(self.suites, self.companions, self.records({stage: state}))
-                    self.assertEqual(len(report["errors"]), 1)
-                    self.assertIn(stage, report["errors"][0])
-
-    def test_all_supplied_omits_companion_stages(self):
-        records = [
-            row for row in self.records()
-            if row["identifier"] not in {"containerize", "publish", "sbom"}
-        ]
-        self.assertEqual(summarize(self.suites, [], records)["errors"], [])
-
-    def test_missing_stage_and_latest_attempt(self):
-        records = [row for row in self.records() if row["identifier"] != "suite"]
-        self.assertTrue(summarize(self.suites, self.companions, records)["errors"])
-        records = self.records({"suite": "failed"})
-        records.insert(0, {
-            "type": "Stage", "identifier": "suite", "result": "succeeded", "attempt": 2,
-        })
-        self.assertEqual(summarize(self.suites, self.companions, records)["errors"], [])
+    def test_invalid_input_does_not_publish_partial_decisions(self):
+        env = dict.fromkeys(IMAGE_ENV.values(), "__use-default__")
+        env["CNI_IMAGE"] = "invalid"
+        output = io.StringIO()
+        with patch.dict(os.environ, env), contextlib.redirect_stdout(output):
+            with self.assertRaises(ValueError):
+                main()
+        self.assertEqual(output.getvalue(), "")
 
 
 if __name__ == "__main__":

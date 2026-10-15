@@ -1,48 +1,26 @@
 parameters:
-  - name: useImageOverrides
-    type: boolean
-    default: false
-  - name: requirePublish
-    type: boolean
-    default: true
-  - name: use1ESPublishTask
-    type: boolean
-    default: false
-  - name: name
-    type: string
-    default: ""
-  - name: displayName
-    type: string
-    default: ""
-  - name: clusterType
-    type: string
-    default: ""
-  - name: clusterName
-    type: string
-    default: ""
-  - name: vmSize
-    type: string
-    default: ""
-  - name: k8sVersion
-    type: string
-    default: ""
-  - name: dependsOn
-    type: object
-    default: ""
-  - name: os
-    type: string
-    default: linux
+  testBundle: full
+  use1ESPublishTask: false
+  name: ""
+  displayName: ""
+  clusterType: ""
+  clusterName: ""
+  vmSize: ""
+  k8sVersion: ""
+  dependsOn: ""
+  os: "linux"
 
 stages:
   - stage: ${{ parameters.clusterName }}
     displayName: ${{ parameters.displayName }} - Create Cluster
-    ${{ if not(parameters.useImageOverrides) }}:
+    ${{ if eq(parameters.testBundle, 'images') }}:
+      condition: and(succeeded(), eq(dependencies.setup.outputs['env.ImageBundle.run_${{ parameters.name }}'], 'true'))
+    ${{ else }}:
       condition: and(succeeded(), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true'))
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
-      - ${{ if parameters.requirePublish }}:
-        - publish
+      - publish
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     variables:
@@ -81,12 +59,13 @@ stages:
               installFlag: INSTALL_OVERLAY
   - stage: ${{ parameters.name }}
     displayName: E2E-${{ parameters.displayName }}
-    ${{ if not(parameters.useImageOverrides) }}:
+    ${{ if eq(parameters.testBundle, 'images') }}:
+      condition: and(succeeded(), eq(dependencies.setup.outputs['env.ImageBundle.run_${{ parameters.name }}'], 'true'))
+    ${{ else }}:
       condition: and(succeeded(), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true'))
     dependsOn:
     - setup
-    - ${{ if parameters.requirePublish }}:
-      - publish
+    - publish
     - ${{ parameters.clusterName }}
     variables:
       commitID: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
