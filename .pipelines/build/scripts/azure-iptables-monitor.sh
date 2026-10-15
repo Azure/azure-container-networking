@@ -5,6 +5,7 @@ set -eux
 FILE_EXT=''
 
 export CGO_ENABLED=0
+export GOEXPERIMENT=ms_nocgo_opensslcrypto
 export C_INCLUDE_PATH=/usr/include/bpf
 
 mkdir -p "$OUT_DIR"/bin
