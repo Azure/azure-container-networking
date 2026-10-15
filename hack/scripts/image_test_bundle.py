@@ -16,16 +16,16 @@ SUITES = {
     "linux_dualstackoverlay_e2e", "win_dualstackoverlay_e2e",
 }
 CNIV2 = SUITES - {"aks_ubuntu_22_linux_e2e", "aks_windows_22_e2e"}
-CONSUMERS = {
-    "cni": SUITES,
-    "cns": CNIV2,
-    "azure-ipam": CNIV2,
-    "azure-iptables-monitor": {
+BUNDLES = {
+    "full": SUITES,
+    "cni-cns": SUITES,
+    "ipam": CNIV2,
+    "cilium": {suite for suite in SUITES if suite.startswith("cilium_")},
+    "cilium-ebpf": {
         "cilium_ebpf_podsubnet_e2e", "cilium_ebpf_overlay_e2e", "cilium_ebpf_ds_e2e",
     },
-    "azure-ip-masq-merger": {"cilium_ebpf_overlay_e2e", "cilium_ebpf_ds_e2e"},
-    "cilium-log-collector": {suite for suite in SUITES if suite.startswith("cilium_")},
-    "ipv6-hp-bpf": {"cilium_dualstackoverlay_e2e", "cilium_ebpf_ds_e2e"},
+    "cilium-masq": {"cilium_ebpf_overlay_e2e", "cilium_ebpf_ds_e2e"},
+    "ipv6-bpf": {"cilium_dualstackoverlay_e2e", "cilium_ebpf_ds_e2e"},
 }
 IMAGE_ENV = {
     "cni": "CNI_IMAGE", "cns": "CNS_IMAGE", "azure-ipam": "IPAM_IMAGE",
@@ -56,22 +56,23 @@ def validate_image(component, image):
             raise ValueError(f"{component}: MCR installer requires containernetworking/ prefix")
 
 
-def select_suites(inputs):
-    unknown = inputs.keys() - CONSUMERS.keys()
+def select_suites(bundle, inputs):
+    if bundle not in BUNDLES:
+        raise ValueError(f"Unknown test bundle: {bundle}")
+    unknown = inputs.keys() - IMAGE_ENV.keys()
     if unknown:
         raise ValueError(f"Unknown image components: {sorted(unknown)}")
     supplied = {key: value for key, value in inputs.items() if value not in {"", "__use-default__"}}
-    if not supplied:
-        raise ValueError("testBundle=images requires at least one image override")
     for component, image in supplied.items():
         validate_image(component, image)
-    return set().union(*(CONSUMERS[component] for component in supplied))
+    return set(BUNDLES[bundle])
 
 
 def main():
     inputs = {component: os.environ[env] for component, env in IMAGE_ENV.items()}
-    selected = select_suites(inputs)
-    print(json.dumps({"selectedSuites": sorted(selected)}, indent=2))
+    bundle = os.environ["TEST_BUNDLE"]
+    selected = select_suites(bundle, inputs)
+    print(json.dumps({"bundle": bundle, "selectedSuites": sorted(selected)}, indent=2))
     for suite in sorted(SUITES):
         print(
             f"##vso[task.setvariable variable=run_{suite};isOutput=true]"

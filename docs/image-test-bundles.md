@@ -1,46 +1,50 @@
 # Image test bundles
 
-`testBundle: full` is the default and preserves the existing pipeline behavior.
-`testBundle: images` selects existing E2E/create-cluster stage pairs using the
-image override parameters.
+Choose `testBundle` when queueing; named values replace `images`.
+`setup` decides once and emits flags that the existing stages read.
+Image overrides choose images, not coverage; omit them for normal builds.
 
-The decision happens once in the existing `setup` stage:
+| Bundle | Image category | Stage pairs below |
+| --- | --- | --- |
+| `full` (default) | All components | Original full path, including pairs 1-18 |
+| `cni-cns` | `azure-cni`, `azure-cns` | 1-18 |
+| `ipam` | `azure-ipam` | 1-14, 17-18 |
+| `cilium` | `cilium-log-collector` | 1-9 |
+| `cilium-ebpf` | `azure-iptables-monitor` | 3, 7, 8 |
+| `cilium-masq` | `azure-ip-masq-merger` | 7, 8 |
+| `ipv6-bpf` | `ipv6-hp-bpf` | 6, 8 |
+| `npm` | `azure-npm` | Separate pipeline `195725`, not an ACN `testBundle` value |
 
-1. `ImageBundle` runs `hack/scripts/image_test_bundle.py`.
-2. It validates the supplied references and selects the union of their consumers.
-3. It publishes `run_<suite>` Boolean outputs.
-4. Each existing create/E2E stage checks its output and normal dependencies.
+## Selected stage pairs
 
-For example, the stage condition is:
+Each selected row runs **Create -> E2E** after its existing prerequisites succeed.
+Unselected pairs skip. `full` retains original source/tag filters; named bundles
+bypass those filters. No jobs, assertions, or failure/exception policies change.
 
-```yaml
-condition: and(succeeded(), eq(dependencies.setup.outputs['env.ImageBundle.run_${{ parameters.name }}'], 'true'))
-```
+| # | Create stage | E2E stage |
+| --- | --- | --- |
+| 1 | `ciliume2e` | `cilium_e2e` |
+| 2 | `ciliumvscalee2e` | `cilium_vnetscale_e2e` |
+| 3 | `cilbpfpode2e` | `cilium_ebpf_podsubnet_e2e` |
+| 4 | `cilndsubnete2e` | `cilium_nodesubnet_e2e` |
+| 5 | `cilovere2e` | `cilium_overlay_e2e` |
+| 6 | `cildsovere2e` | `cilium_dualstackoverlay_e2e` |
+| 7 | `cilbpfovere2e` | `cilium_ebpf_overlay_e2e` |
+| 8 | `cilbpfdse2e` | `cilium_ebpf_ds_e2e` |
+| 9 | `cilwhleovere2e` | `cilium_h_overlay_e2e` |
+| 10 | `linuxazovere2e` | `linux_azure_overlay_e2e` |
+| 11 | `winazovere2e` | `win_azure_overlay_e2e` |
+| 12 | `statelesswin` | `azure_overlay_stateless_e2e` |
+| 13 | `swifte2e` | `aks_swift_e2e` |
+| 14 | `vscaleswifte2e` | `aks_swift_vnetscale_e2e` |
+| 15 | `ubuntu22e2e` | `aks_ubuntu_22_linux_e2e` |
+| 16 | `win22e2e` | `aks_windows_22_e2e` |
+| 17 | `linuxdsovere2e` | `linux_dualstackoverlay_e2e` |
+| 18 | `windsovere2e` | `win_dualstackoverlay_e2e` |
 
-| Override | Selected existing E2E stages |
-| --- | --- |
-| `cniImage` | All 18 CNI/Cilium suites |
-| `cnsImage`, `ipamImage` | The 16 CNIv2/Cilium suites; not CNIv1 |
-| `azureIptablesMonitorImage` | Cilium EBPF podsubnet, overlay, dualstack |
-| `azureIpMasqMergerImage` | Cilium EBPF overlay, dualstack |
-| `ciliumLogCollectorImage` | All 9 Cilium suites |
-| `ipv6HpBpfImage` | Cilium dualstack overlay and EBPF dualstack |
+Unchanged base stages: `setup`, `test`, `test_windows`, `code_coverage`, `binaries`,
+`containerize`, `containerize_npm`, `publish`, `publish_npm`, `sbom`, `delete_clusters`.
+Failure analysis, governed checks, and nightly stages keep their existing conditions.
+Builds, artifacts, cleanup, and image-reference validation are unchanged.
 
-Image mode requires at least one fully qualified tagged image. An optional
-`@sha256:<64 hex characters>` suffix is accepted. Core CNI/CNS/IPAM images must
-use `acnpublic.azurecr.io` or `mcr.microsoft.com/containernetworking`, as required
-by the existing installer. Invalid input fails setup before provisioning.
-
-Only the suite-selection conditions change in image mode. Selected suites are
-not suppressed by source-diff/current-source-tag filters. Unselected pairs skip.
-Full mode retains the original conditions, including those source filters.
-
-Builds, publishing, image override handling, artifacts, unit tests, governed
-checks, cleanup, and all E2E job bodies remain unchanged. This does not optimize
-build selection or change existing test failure/exception policy.
-
-Run the focused resolver tests with:
-
-```sh
-python3 -m unittest discover -s hack/scripts -p 'test_image_test_bundle.py'
-```
+Tests: `python3 -m unittest discover -s hack/scripts -p 'test_image_test_bundle.py'`.

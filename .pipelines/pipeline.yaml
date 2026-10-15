@@ -38,7 +38,12 @@ parameters:
     default: full
     values:
       - full
-      - images
+      - cni-cns
+      - ipam
+      - cilium
+      - cilium-ebpf
+      - cilium-masq
+      - ipv6-bpf
   # Empty or __use-default__ builds and publishes the component image.
   # A supplied image skips those entries and is used by the install path.
   - name: cniImage
@@ -112,11 +117,12 @@ extends:
               prTargetBranch: $[ variables['System.PullRequest.TargetBranchName'] ]
             steps:
               - template: /.pipelines/templates/git-diff-check.yaml@self
-              - ${{ if eq(parameters.testBundle, 'images') }}:
+              - ${{ if ne(parameters.testBundle, 'full') }}:
                 - bash: python3 hack/scripts/image_test_bundle.py
                   name: ImageBundle
                   displayName: Select image bundle stages
                   env:
+                    TEST_BUNDLE: ${{ parameters.testBundle }}
                     CNI_IMAGE: ${{ parameters.cniImage }}
                     CNS_IMAGE: ${{ parameters.cnsImage }}
                     IPAM_IMAGE: ${{ parameters.ipamImage }}
@@ -197,7 +203,7 @@ extends:
 
       - template: /.pipelines/templates/run-unit-tests.yaml@self
 
-      - ${{ if or(eq(parameters.testBundle, 'images'), not(contains(variables['Build.SourceBranch'], 'refs/pull'))) }}:
+      - ${{ if or(ne(parameters.testBundle, 'full'), not(contains(variables['Build.SourceBranch'], 'refs/pull'))) }}:
         - stage: binaries
           displayName: Build Binaries
           dependsOn:

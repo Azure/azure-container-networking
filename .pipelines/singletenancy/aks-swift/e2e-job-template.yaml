@@ -39,7 +39,7 @@ parameters:
 stages:
   - stage: ${{ parameters.clusterName }}
     displayName: ${{ parameters.displayName }} - Create Cluster
-    ${{ if eq(parameters.testBundle, 'images') }}:
+    ${{ if ne(parameters.testBundle, 'full') }}:
       condition: and(succeeded(), eq(dependencies.setup.outputs['env.ImageBundle.run_${{ parameters.name }}'], 'true'))
     dependsOn:
       - ${{ parameters.dependsOn }}
@@ -81,7 +81,7 @@ stages:
               os: ${{ parameters.os }}
   - stage: ${{ parameters.name }}
     displayName: E2E-${{ parameters.displayName }}
-    ${{ if eq(parameters.testBundle, 'images') }}:
+    ${{ if ne(parameters.testBundle, 'full') }}:
       condition: and(succeeded(), eq(dependencies.setup.outputs['env.ImageBundle.run_${{ parameters.name }}'], 'true'))
     ${{ else }}:
       condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION))
