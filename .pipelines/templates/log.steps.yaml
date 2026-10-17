@@ -42,7 +42,15 @@ steps:
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
-          make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+          # Write credentials to a job-scoped file and export KUBECONFIG so the later bash steps
+          # (which may run in a different container/HOME) reach the cluster instead of localhost:8080.
+          kubeconfig="$(Agent.TempDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}.kubeconfig"
+          if az aks get-credentials -n ${{ parameters.clusterName }} -g ${{ parameters.clusterName }} --file "$kubeconfig" --overwrite-existing; then
+            export KUBECONFIG="$kubeconfig"
+            echo "##vso[task.setvariable variable=KUBECONFIG]$kubeconfig"
+          else
+            echo "##vso[task.logissue type=warning]Unable to get credentials for cluster ${{ parameters.clusterName }}"
+          fi
 
           acnLogs=$(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
           mkdir -p $acnLogs
@@ -65,6 +73,7 @@ steps:
       kubectl describe nodes
     displayName: Node Status
     condition: always()
+    continueOnError: true
 
   - bash: |
       kubectl get ds -A -owide
