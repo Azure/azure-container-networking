@@ -952,11 +952,12 @@ func main() {
 		}
 
 		if cnsconfig.EnableHomeAZMultitenancy {
-			// Populate the NodeInfo CRD with HomeAZ for multi-tenant nodes
-			if err = createOrUpdateNodeInfoCRDForMultiTenant(rootCtx); err != nil {
-				z.Error("Failed to create or update NodeInfo CRD for multi-tenant", zap.Error(err))
-				return
-			}
+			// Retry NodeInfo registration without blocking CNS while NMAgent authorization is pending.
+			go func() {
+				if nodeInfoErr := reconcileNodeInfo(rootCtx, z, defaultNodeInfoCRDPollInterval, createOrUpdateNodeInfoCRDForMultiTenant); nodeInfoErr != nil && !errors.Is(nodeInfoErr, context.Canceled) {
+					z.Error("NodeInfo registration stopped", zap.Error(nodeInfoErr))
+				}
+			}()
 		}
 	}
 
@@ -1712,6 +1713,28 @@ func getPodInfoByIPProvider(
 		}
 	}
 	return podInfoByIPProvider, nil
+}
+
+func reconcileNodeInfo(ctx context.Context, zlog *zap.Logger, retryInterval time.Duration, ensureNodeInfo func(context.Context) error) error {
+	err := retry.Do(func() error {
+		attemptCtx, cancel := context.WithTimeout(ctx, cnsReqTimeout)
+		defer cancel()
+		return ensureNodeInfo(attemptCtx)
+	},
+		retry.Context(ctx),
+		retry.UntilSucceeded(),
+		retry.Delay(retryInterval),
+		retry.DelayType(retry.BackOffDelay),
+		retry.MaxDelay(time.Minute),
+		retry.OnRetry(func(_ uint, err error) {
+			// retry-go calls OnRetry before checking ctx; don't report shutdown as pending.
+			if ctx.Err() != nil {
+				return
+			}
+			zlog.Warn("NodeInfo registration pending, will retry", zap.Error(err))
+		}),
+	)
+	return errors.Wrap(err, "failed to reconcile NodeInfo")
 }
 
 func createOrUpdateNodeInfoCRD(ctx context.Context, restConfig *rest.Config, node *corev1.Node) error {
