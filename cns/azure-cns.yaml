@@ -116,6 +116,8 @@ spec:
               mountPath: /var/run/azure-vnet.json
           ports:
             - containerPort: 10090
+            - containerPort: 9090
+              name: metrics
           env:
             - name: CNSIpAddress
               value: "127.0.0.1"
