@@ -32,7 +32,6 @@ type CNSConfig struct {
 	EnableAsyncPodDelete            bool
 	EnableCNIConflistGeneration     bool
 	EnableHomeAZ                    bool
-	EnableIPAMUnixSocket            bool
 	EnableIPAMv2                    bool
 	EnableK8sDevicePlugin           bool
 	EnableLoggerV2                  bool
@@ -67,6 +66,7 @@ type CNSConfig struct {
 	GRPCSettings                    GRPCSettings
 	MinTLSVersion                   string
 	MtlsClientCertSubjectName       string
+	EnableIPAMUnixSocket            bool
 }
 
 type TelemetrySettings struct {
