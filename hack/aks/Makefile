@@ -29,6 +29,10 @@ PUBLIC_IPv4          ?= $(PUBLIC_IP_ID)/$(IP_PREFIX)-$(CLUSTER)-v4
 PUBLIC_IPv6          ?= $(PUBLIC_IP_ID)/$(IP_PREFIX)-$(CLUSTER)-v6
 NAT_GATEWAY_V2       ?= ponv6-nat-gateway-v2
 NAT_GATEWAY_V2_ID    ?= /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/natGateways/$(NAT_GATEWAY_V2)
+NAT_GATEWAY_V2_PUBLIC_IPv4_NAME ?= $(IP_PREFIX)-$(CLUSTER)-v2-v4
+NAT_GATEWAY_V2_PUBLIC_IPv6_NAME ?= $(IP_PREFIX)-$(CLUSTER)-v2-v6
+NAT_GATEWAY_V2_PUBLIC_IPv4_ID   ?= $(PUBLIC_IP_ID)/$(NAT_GATEWAY_V2_PUBLIC_IPv4_NAME)
+NAT_GATEWAY_V2_PUBLIC_IPv6_ID   ?= $(PUBLIC_IP_ID)/$(NAT_GATEWAY_V2_PUBLIC_IPv6_NAME)
 KUBE_PROXY_JSON_PATH ?= ./kube-proxy.json
 LTS					 ?= auto
 ACNS				 ?= false
@@ -177,8 +181,12 @@ vnetscale-dualstack-swift-net-up: rg-up ## Create dual-stack vnet, nodenet and p
 	@$(AZCLI) network vnet show -g $(GROUP) --name $(VNET) -o none 2>/dev/null || \
 		$(AZCLI) network vnet create -g $(GROUP) -l $(REGION) --name $(VNET) \
 			--address-prefixes 10.0.0.0/8 fd00:aec6:6946::/48 -o none
-	$(AZCLI) network vnet update -g $(GROUP) --name $(VNET) \
-		--address-prefixes 10.0.0.0/8 fd00:aec6:6946::/48 -o none
+	@address_prefixes=$$($(AZCLI) network vnet show -g $(GROUP) --name $(VNET) \
+		--query 'addressSpace.addressPrefixes[]' -o tsv); \
+	if ! printf '%s\n' "$$address_prefixes" | grep -Fxq 'fd00:aec6:6946::/48'; then \
+		$(AZCLI) network vnet update -g $(GROUP) --name $(VNET) \
+			--address-prefixes $$address_prefixes fd00:aec6:6946::/48 -o none; \
+	fi
 	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name nodenet \
 		--address-prefixes 10.240.0.0/16 fd00:aec6:6946::/64 -o none
 	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name podnet \
@@ -186,14 +194,14 @@ vnetscale-dualstack-swift-net-up: rg-up ## Create dual-stack vnet, nodenet and p
 
 nat-gateway-v2-up: vnetscale-dualstack-swift-net-up ## Create a dual-stack StandardV2 NAT Gateway and attach it to both PONv6 subnets
 	$(AZCLI) network public-ip create -g $(GROUP) -l $(REGION) \
-		--name $(IP_PREFIX)-$(CLUSTER)-v4 --allocation-method Static --sku StandardV2 \
+		--name $(NAT_GATEWAY_V2_PUBLIC_IPv4_NAME) --allocation-method Static --sku StandardV2 \
 		--tier Regional --version IPv4 --ip-tags $(IP_TAG) -o none
 	$(AZCLI) network public-ip create -g $(GROUP) -l $(REGION) \
-		--name $(IP_PREFIX)-$(CLUSTER)-v6 --allocation-method Static --sku StandardV2 \
+		--name $(NAT_GATEWAY_V2_PUBLIC_IPv6_NAME) --allocation-method Static --sku StandardV2 \
 		--tier Regional --version IPv6 --ip-tags $(IP_TAG) -o none
 	$(AZCLI) rest --method put \
 		--url "https://management.azure.com$(NAT_GATEWAY_V2_ID)?api-version=2025-05-01" \
-		--body '{"location":"$(REGION)","sku":{"name":"StandardV2"},"properties":{"publicIpAddresses":[{"id":"$(PUBLIC_IPv4)"},{"id":"$(PUBLIC_IPv6)"}]}}' \
+		--body '{"location":"$(REGION)","sku":{"name":"StandardV2"},"properties":{"publicIpAddresses":[{"id":"$(NAT_GATEWAY_V2_PUBLIC_IPv4_ID)"}],"publicIpAddressesV6":[{"id":"$(NAT_GATEWAY_V2_PUBLIC_IPv6_ID)"}]}}' \
 		-o none
 	@for attempt in $$(seq 1 60); do \
 		state=$$($(AZCLI) rest --method get \
