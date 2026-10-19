@@ -7,16 +7,54 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"syscall"
+	"time"
 )
 
 const ipamSocketMode = 0o600
 
-// listenIPAMSocket removes a socket that a previous CNS process left, and listens on a new socket with mode 0600.
-// CNS starts its TCP listener first, so a second CNS process fails before it can remove an active socket.
+var (
+	errRelativeIPAMSocket  = stderrors.New("cns Unix socket path must be absolute")
+	errIPAMSocketDirectory = stderrors.New("unix socket directory must be root-owned with mode 0700")
+	errIPAMSocketType      = stderrors.New("unix socket path is not a socket")
+	errIPAMSocketActive    = stderrors.New("unix socket already has a listener")
+)
+
+// listenIPAMSocket replaces only stale sockets in a root-owned directory with mode 0700.
 func listenIPAMSocket(socketPath string) (net.Listener, error) {
-	if err := os.Remove(socketPath); err != nil && !stderrors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("removing old Unix socket %q: %w", socketPath, err)
+	if !filepath.IsAbs(socketPath) {
+		return nil, fmt.Errorf("%w: %q", errRelativeIPAMSocket, socketPath)
+	}
+	directory := filepath.Dir(socketPath)
+	directoryInfo, err := os.Lstat(directory)
+	if err != nil {
+		return nil, fmt.Errorf("checking Unix socket directory %q: %w", directory, err)
+	}
+	owner, ok := directoryInfo.Sys().(*syscall.Stat_t)
+	if !directoryInfo.IsDir() || directoryInfo.Mode().Perm() != 0o700 || !ok || owner.Uid != 0 {
+		return nil, fmt.Errorf("%w: %q", errIPAMSocketDirectory, directory)
+	}
+
+	socketInfo, err := os.Lstat(socketPath)
+	if err != nil && !stderrors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("checking Unix socket %q: %w", socketPath, err)
+	}
+	if err == nil {
+		if socketInfo.Mode()&os.ModeSocket == 0 {
+			return nil, fmt.Errorf("%w: %q", errIPAMSocketType, socketPath)
+		}
+		conn, dialErr := net.DialTimeout("unix", socketPath, time.Second) //nolint:noctx // startup has no context. The probe times out after one second.
+		if dialErr == nil {
+			_ = conn.Close()
+			return nil, fmt.Errorf("%w: %q", errIPAMSocketActive, socketPath)
+		}
+		if !stderrors.Is(dialErr, syscall.ECONNREFUSED) {
+			return nil, fmt.Errorf("checking old Unix socket %q: %w", socketPath, dialErr)
+		}
+		if err = os.Remove(socketPath); err != nil {
+			return nil, fmt.Errorf("removing old Unix socket %q: %w", socketPath, err)
+		}
 	}
 
 	// Set the socket mode before listen so that no client can connect while the socket has the umask mode.

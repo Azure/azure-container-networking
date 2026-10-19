@@ -27,10 +27,10 @@ func startIPAMServer(socketPath string, service *HTTPRestService, errChan chan<-
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(cns.RequestIPConfig, service.RequestIPConfigHandler)
-	mux.HandleFunc(cns.RequestIPConfigs, service.RequestIPConfigsHandler)
-	mux.HandleFunc(cns.ReleaseIPConfig, service.ReleaseIPConfigHandler)
-	mux.HandleFunc(cns.ReleaseIPConfigs, service.ReleaseIPConfigsHandler)
+	mux.HandleFunc(cns.RequestIPConfig, NewIPAMHandler(service.RequestIPConfigHandler, "unix"))
+	mux.HandleFunc(cns.RequestIPConfigs, NewIPAMHandler(service.RequestIPConfigsHandler, "unix"))
+	mux.HandleFunc(cns.ReleaseIPConfig, NewIPAMHandler(service.ReleaseIPConfigHandler, "unix"))
+	mux.HandleFunc(cns.ReleaseIPConfigs, NewIPAMHandler(service.ReleaseIPConfigsHandler, "unix"))
 	server := &http.Server{Handler: mux, ReadHeaderTimeout: ipamReadHeaderTimeout}
 	ipam := &ipamServer{server: server, listener: listener}
 

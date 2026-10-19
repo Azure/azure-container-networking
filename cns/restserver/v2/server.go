@@ -22,10 +22,10 @@ func New(s *restserver.HTTPRestService) *Server {
 func (s Server) Start(ctx context.Context, addr string) error {
 	e := echo.New()
 	e.HideBanner = true
-	e.POST(cns.RequestIPConfig, echo.WrapHandler(restserver.NewHandlerFuncWithHistogram(s.RequestIPConfigHandler, restserver.HTTPRequestLatency)))
-	e.POST(cns.RequestIPConfigs, echo.WrapHandler(restserver.NewHandlerFuncWithHistogram(s.RequestIPConfigsHandler, restserver.HTTPRequestLatency)))
-	e.POST(cns.ReleaseIPConfig, echo.WrapHandler(restserver.NewHandlerFuncWithHistogram(s.ReleaseIPConfigHandler, restserver.HTTPRequestLatency)))
-	e.POST(cns.ReleaseIPConfigs, echo.WrapHandler(restserver.NewHandlerFuncWithHistogram(s.ReleaseIPConfigsHandler, restserver.HTTPRequestLatency)))
+	e.POST(cns.RequestIPConfig, echo.WrapHandler(restserver.NewIPAMHandler(s.RequestIPConfigHandler, "tcp")))
+	e.POST(cns.RequestIPConfigs, echo.WrapHandler(restserver.NewIPAMHandler(s.RequestIPConfigsHandler, "tcp")))
+	e.POST(cns.ReleaseIPConfig, echo.WrapHandler(restserver.NewIPAMHandler(s.ReleaseIPConfigHandler, "tcp")))
+	e.POST(cns.ReleaseIPConfigs, echo.WrapHandler(restserver.NewIPAMHandler(s.ReleaseIPConfigsHandler, "tcp")))
 	e.POST(cns.PathDebugIPAddresses, echo.WrapHandler(http.HandlerFunc(s.HandleDebugIPAddresses)))
 	e.POST(cns.PathDebugPodContext, echo.WrapHandler(http.HandlerFunc(s.HandleDebugPodContext)))
 	e.POST(cns.PathDebugRestData, echo.WrapHandler(http.HandlerFunc(s.HandleDebugRestData)))
