@@ -161,6 +161,75 @@ func TestIsSafeUnixFallbackError(t *testing.T) {
 	require.False(t, isSafeUnixFallbackError(&net.OpError{Err: syscall.EACCES}))
 }
 
+func TestNewWithUnixSocketRejectsRelativePath(t *testing.T) {
+	_, err := NewWithUnixSocket("", "cns.sock", time.Second)
+	require.Error(t, err)
+}
+
+func TestNewWithUnixSocketRejectsCustomRoundTripper(t *testing.T) {
+	original := http.DefaultTransport
+	t.Cleanup(func() { http.DefaultTransport = original })
+	for _, tt := range []struct {
+		name      string
+		transport http.RoundTripper
+	}{
+		{name: "custom transport", transport: &routeTransport{}},
+		{name: "nil transport"},
+		{name: "typed nil transport", transport: (*http.Transport)(nil)},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			http.DefaultTransport = tt.transport
+			_, err := NewWithUnixSocket("", filepath.Join(t.TempDir(), "cns.sock"), time.Second)
+			require.Error(t, err)
+			_, err = NewWithUnixSocket("", "", time.Second)
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestNewWithUnixSocketUsesDefaultDialer(t *testing.T) {
+	var tcpRequests atomic.Int32
+	server := httptest.NewServer(ipConfigsHandler(&tcpRequests))
+	t.Cleanup(server.Close)
+
+	original := http.DefaultTransport
+	t.Cleanup(func() { http.DefaultTransport = original })
+	http.DefaultTransport = &http.Transport{}
+
+	client, err := NewWithUnixSocket(server.URL, filepath.Join(t.TempDir(), "cns.sock"), time.Second)
+	require.NoError(t, err)
+	_, err = client.RequestIPs(t.Context(), cns.IPConfigsRequest{})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, tcpRequests.Load())
+}
+
+func TestNewWithUnixSocketRoutesAllIPAMPaths(t *testing.T) {
+	socketPath := filepath.Join(t.TempDir(), "cns.sock")
+	var unixRequests atomic.Int32
+	startUnixHTTPServer(t, socketPath, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		unixRequests.Add(1)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	var tcpRequests atomic.Int32
+	server := httptest.NewServer(ipConfigsHandler(&tcpRequests))
+	t.Cleanup(server.Close)
+
+	client, err := NewWithUnixSocket(server.URL, socketPath, time.Second)
+	require.NoError(t, err)
+	for _, route := range []string{cns.RequestIPConfig, cns.RequestIPConfigs, cns.ReleaseIPConfig, cns.ReleaseIPConfigs} {
+		t.Run(route, func(t *testing.T) {
+			req, requestErr := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL+route, http.NoBody)
+			require.NoError(t, requestErr)
+			response, responseErr := client.client.Do(req)
+			require.NoError(t, responseErr)
+			require.NoError(t, response.Body.Close())
+			require.Equal(t, http.StatusNoContent, response.StatusCode)
+		})
+	}
+	require.EqualValues(t, 4, unixRequests.Load())
+	require.Zero(t, tcpRequests.Load())
+}
+
 func startUnixHTTPServer(t *testing.T, socketPath string, handler http.Handler) {
 	t.Helper()
 

@@ -8,13 +8,23 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"path/filepath"
 	"sync/atomic"
 	"syscall"
 )
 
+var errRelativeUnixSocket = stderrors.New("cns Unix socket path must be absolute")
+
 func newUnixIPAMTransport(socketPath string, tcpTransport *http.Transport) (http.RoundTripper, error) {
+	if !filepath.IsAbs(socketPath) {
+		return nil, fmt.Errorf("%w: %q", errRelativeUnixSocket, socketPath)
+	}
 	ipamTransport := tcpTransport.Clone()
 	unixDialer := &net.Dialer{}
+	tcpDialContext := tcpTransport.DialContext
+	if tcpDialContext == nil {
+		tcpDialContext = (&net.Dialer{}).DialContext
+	}
 	var unixConnected atomic.Bool
 	ipamTransport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
 		conn, err := unixDialer.DialContext(ctx, "unix", socketPath)
@@ -26,7 +36,7 @@ func newUnixIPAMTransport(socketPath string, tcpTransport *http.Transport) (http
 		if unixConnected.Load() || !isSafeUnixFallbackError(err) {
 			return nil, fmt.Errorf("dialing CNS Unix socket %q: %w", socketPath, err)
 		}
-		return tcpTransport.DialContext(ctx, network, address)
+		return tcpDialContext(ctx, network, address)
 	}
 	return ipamTransport, nil
 }
