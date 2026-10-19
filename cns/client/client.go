@@ -108,14 +108,17 @@ func New(baseURL string, requestTimeout time.Duration) (*Client, error) {
 	}, nil
 }
 
-// NewWithUnixSocket returns a client that sends IPAM requests through the Unix socket and all other requests through TCP.
+// NewWithUnixSocket sends IPAM requests through an absolute Unix socket path. Other requests use TCP.
 func NewWithUnixSocket(baseURL, unixSocketPath string, requestTimeout time.Duration) (*Client, error) {
 	client, err := New(baseURL, requestTimeout)
 	if err != nil || unixSocketPath == "" {
 		return client, err
 	}
 
-	tcpTransport := http.DefaultTransport.(*http.Transport)
+	tcpTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok || tcpTransport == nil {
+		return nil, errors.New("cns Unix transport requires http.DefaultTransport to be *http.Transport")
+	}
 	ipamTransport, err := newUnixIPAMTransport(unixSocketPath, tcpTransport)
 	if err != nil {
 		return nil, err
