@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
@@ -525,6 +526,77 @@ func TestGetNumOfCPUCores(t *testing.T) {
 		t.Errorf("getNumberOfCPUCores failed with response %+v", numOfCoresResponse)
 	} else {
 		fmt.Printf("getNumberOfCPUCores Responded with %+v\n", numOfCoresResponse)
+	}
+}
+
+func TestGetNetworkContainerVFPPendingRetry(t *testing.T) {
+	setEnv(t)
+	require.NoError(t, setOrchestratorType(t, cns.Kubernetes))
+
+	mnma := &fakes.NMAgentClientFake{}
+	cleanupNMA := setMockNMAgent(svc, mnma)
+	defer cleanupNMA()
+	wsproxy := fakes.WireserverProxyFake{}
+	cleanupWSP := setWireserverProxy(svc, &wsproxy)
+	defer cleanupWSP()
+	defer svc.SetOption(acncommon.OptVFPPendingRetryTimeoutMs, 0)
+
+	params := createOrUpdateNetworkContainerParams{
+		ncID:         "f47ac10b-58cc-0372-8567-0e02b2c3d479",
+		ncIP:         "11.0.0.5",
+		ncType:       cns.AzureContainerInstance,
+		ncVersion:    "0",
+		vnetID:       "vnet-vfp-retry",
+		podName:      "testpod",
+		podNamespace: "testpodnamespace",
+	}
+
+	// NMAgent lists the NC only after listedAfter calls. Call number errAt returns a wireserver 429. Each call
+	// after the first sleeps callDelay to model a slow wireserver.
+	calls, listedAfter, errAt := 0, 0, 0
+	var callDelay time.Duration
+	mnma.GetNCVersionListF = func(_ context.Context) (nmagent.NCVersionList, error) {
+		calls++
+		if calls > 1 {
+			time.Sleep(callDelay)
+		}
+		if calls == errAt {
+			return nmagent.NCVersionList{}, nmagent.Error{Code: http.StatusTooManyRequests, Source: "wireserver"}
+		}
+		if calls <= listedAfter {
+			return nmagent.NCVersionList{}, nil
+		}
+		return nmagent.NCVersionList{Containers: []nmagent.NCVersion{{NetworkContainerID: params.ncID, Version: params.ncVersion}}}, nil
+	}
+
+	tests := []struct {
+		name        string
+		timeoutMs   int
+		listedAfter int
+		errAt       int
+		callDelay   time.Duration
+		wantCode    types.ResponseCode
+		wantCalls   int
+	}{
+		{"retry off fails fast", 0, 1, 0, 0, types.NetworkContainerVfpProgramPending, 1},
+		{"retry succeeds once NMAgent lists the NC", 3000, 2, 0, 0, types.Success, 3},
+		{"retry gives up at the timeout", 1000, 100, 0, 0, types.NetworkContainerVfpProgramPending, 3},
+		{"wireserver 429 on a retry stops it and keeps code 31", 3000, 100, 2, 0, types.NetworkContainerVfpProgramPending, 2},
+		{"wireserver 429 on the first check fails open as before", 3000, 100, 1, 0, types.Success, 1},
+		{"slow wireserver is bounded by the timeout", 1500, 100, 0, time.Second, types.NetworkContainerVfpProgramPending, 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.NoError(t, createNC(params))
+			defer func() { require.NoError(t, deleteNetworkContainerWithParams(params)) }()
+			svc.SetOption(acncommon.OptVFPPendingRetryTimeoutMs, tt.timeoutMs)
+			calls, listedAfter, errAt, callDelay = 0, tt.listedAfter, tt.errAt, tt.callDelay
+
+			resp, err := getNetworkContainerByContext(params)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantCode, resp.Response.ReturnCode)
+			require.Equal(t, tt.wantCalls, calls)
+		})
 	}
 }
 

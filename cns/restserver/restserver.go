@@ -126,6 +126,9 @@ type HTTPRestService struct {
 	mtpncClient                mtpncClient
 	nodeinfoClient             nodeinfoClient
 	nodeName                   string
+	// last NMAgent NC version list, reused by VFP pending retries. Guarded by the service lock.
+	ncVersionList   nma.NCVersionList
+	ncVersionListAt time.Time
 }
 
 type CNIConflistGenerator interface {
