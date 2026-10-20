@@ -578,12 +578,51 @@ func TestGetNetworkContainerVFPPendingRetry(t *testing.T) {
 		wantCode    types.ResponseCode
 		wantCalls   int
 	}{
-		{"retry off fails fast", 0, 1, 0, 0, types.NetworkContainerVfpProgramPending, 1},
-		{"retry succeeds once NMAgent lists the NC", 3000, 2, 0, 0, types.Success, 3},
-		{"retry gives up at the timeout", 1000, 100, 0, 0, types.NetworkContainerVfpProgramPending, 3},
-		{"wireserver 429 on a retry stops it and keeps code 31", 3000, 100, 2, 0, types.NetworkContainerVfpProgramPending, 2},
-		{"wireserver 429 on the first check fails open as before", 3000, 100, 1, 0, types.Success, 1},
-		{"slow wireserver is bounded by the timeout", 1500, 100, 0, time.Second, types.NetworkContainerVfpProgramPending, 2},
+		{
+			name:        "retry off (timeout 0): fails fast with code 31",
+			timeoutMs:   0,
+			listedAfter: 1,
+			wantCode:    types.NetworkContainerVfpProgramPending,
+			wantCalls:   1,
+		},
+		{
+			name:        "retry on (timeout 3000ms): succeeds once NMAgent lists the NC",
+			timeoutMs:   3000,
+			listedAfter: 2,
+			wantCode:    types.Success,
+			wantCalls:   3,
+		},
+		{
+			name:        "retry on (timeout 1000ms): gives up at the timeout with code 31",
+			timeoutMs:   1000,
+			listedAfter: 100,
+			wantCode:    types.NetworkContainerVfpProgramPending,
+			wantCalls:   3,
+		},
+		{
+			name:        "retry on (timeout 3000ms): wireserver 429 on a retry stops it and keeps code 31",
+			timeoutMs:   3000,
+			listedAfter: 100,
+			errAt:       2,
+			wantCode:    types.NetworkContainerVfpProgramPending,
+			wantCalls:   2,
+		},
+		{
+			name:        "retry on (timeout 3000ms): wireserver 429 on the first check fails open as before",
+			timeoutMs:   3000,
+			listedAfter: 100,
+			errAt:       1,
+			wantCode:    types.Success,
+			wantCalls:   1,
+		},
+		{
+			name:        "retry on (timeout 1500ms): slow wireserver is bounded by the timeout",
+			timeoutMs:   1500,
+			listedAfter: 100,
+			callDelay:   time.Second,
+			wantCode:    types.NetworkContainerVfpProgramPending,
+			wantCalls:   2,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

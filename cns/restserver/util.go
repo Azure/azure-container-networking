@@ -500,7 +500,8 @@ func (service *HTTPRestService) removeToBeDeletedIPStateUntransacted(
 func (service *HTTPRestService) getAllNetworkContainerResponses(
 	req cns.GetNetworkContainerRequest,
 ) []cns.GetNetworkContainerResponse {
-	resps, _ := service.getAllNetworkContainerResponsesOnce(req, 0) // first check fails open on error, as before
+	// First check is unchanged: if the NMAgent call returns an error, CNS skips the VFP check and returns the NC config anyways.
+	resps, _ := service.getAllNetworkContainerResponsesOnce(req, 0)
 	timeoutMs, _ := service.GetOption(acn.OptVFPPendingRetryTimeoutMs).(int)
 	timeout := time.Duration(timeoutMs) * time.Millisecond
 	if timeout <= 0 || !vfpPending(resps) {
@@ -519,7 +520,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 		}
 		resps = next
 	}
-	logger.Printf("[Azure-CNS] VFP pending retry ended: pod=%s retries=%d waitMs=%d stillPending=%t", //nolint:staticcheck // will migrate to logger/v2
+	logger.Printf("[Azure-CNS] VFP programming pending retry ended: pod=%s retries=%d waitMs=%d stillPending=%t", //nolint:staticcheck // will migrate to logger/v2
 		req.OrchestratorContext, retries, time.Since(start).Milliseconds(), vfpPending(resps))
 	return resps
 }
