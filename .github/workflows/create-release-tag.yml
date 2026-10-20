@@ -91,6 +91,40 @@ jobs:
           echo "full_tag=$FULL_TAG" >> "$GITHUB_OUTPUT"
           echo "Validated request for $FULL_TAG on $TARGET_SHA"
 
+  prepare_dalec:
+    name: Prepare Dalec Template PR
+    needs: validate
+    if: vars.DALEC_TEMPLATE_SYNC_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      id-token: write
+    concurrency:
+      group: dalec-template-${{ needs.validate.outputs.full_tag }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout release workflow tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - name: Azure Login
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906
+        with:
+          client-id: ${{ vars.DALEC_SYNC_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+      - name: Open or reuse Dalec template PR
+        env:
+          PIPELINE_ID: ${{ vars.DALEC_SYNC_PIPELINE_ID }}
+          RELEASE_TAG: ${{ needs.validate.outputs.full_tag }}
+          TARGET_SHA: ${{ needs.validate.outputs.target_sha }}
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/prepare-dalec.py \
+            --pipeline-id "$PIPELINE_ID" --tag "$RELEASE_TAG" --sha "$TARGET_SHA"
+
   create_tag:
     name: Create and Push Tag
     runs-on: ubuntu-latest
@@ -103,6 +137,10 @@ jobs:
       deployments: write
     needs:
       - validate
+      - prepare_dalec
+    if: >-
+      !cancelled() && needs.validate.result == 'success' &&
+      (needs.prepare_dalec.result == 'success' || needs.prepare_dalec.result == 'skipped')
     concurrency:
       group: create-release-tag-${{ needs.validate.outputs.full_tag }}
       cancel-in-progress: false
