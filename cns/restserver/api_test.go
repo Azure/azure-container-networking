@@ -551,9 +551,8 @@ func TestGetNetworkContainerVFPPendingRetry(t *testing.T) {
 		podNamespace: "testpodnamespace",
 	}
 
-	// NMAgent lists the NC only after listedAfter calls. Call number errAt returns a wireserver 429. Each call
-	// after the first sleeps callDelay to model a slow wireserver.
-	calls, listedAfter, errAt := 0, 0, 0
+	// Fake NMAgent driven by the test case fields below; calls counts every NC version list call.
+	calls, ncListedAfter, errAt := 0, 0, 0
 	var callDelay time.Duration
 	mnma.GetNCVersionListF = func(_ context.Context) (nmagent.NCVersionList, error) {
 		calls++
@@ -563,65 +562,65 @@ func TestGetNetworkContainerVFPPendingRetry(t *testing.T) {
 		if calls == errAt {
 			return nmagent.NCVersionList{}, nmagent.Error{Code: http.StatusTooManyRequests, Source: "wireserver"}
 		}
-		if calls <= listedAfter {
+		if calls <= ncListedAfter {
 			return nmagent.NCVersionList{}, nil
 		}
 		return nmagent.NCVersionList{Containers: []nmagent.NCVersion{{NetworkContainerID: params.ncID, Version: params.ncVersion}}}, nil
 	}
 
 	tests := []struct {
-		name        string
-		timeoutMs   int
-		listedAfter int
-		errAt       int
-		callDelay   time.Duration
-		wantCode    types.ResponseCode
-		wantCalls   int
+		name          string
+		timeoutMs     int                // CNS VFPPendingRetryTimeoutMs; 0 = retry off (one NMAgent check), >0 = re-check every 500 ms until it elapses
+		ncListedAfter int                // retry on which the NC first shows up in NMAgent's NC version list (0 = first check, 100 = never)
+		errAt         int                // NC version list call that returns a wireserver 429 (1 = first check, 2 = first retry, 0 = none)
+		callDelay     time.Duration      // delay on every NC version list call after the first, to model a slow wireserver
+		wantCode      types.ResponseCode // return code CNS gives CNI
+		wantCalls     int                // total NC version list calls CNS made
 	}{
 		{
-			name:        "retry off (timeout 0): fails fast with code 31",
-			timeoutMs:   0,
-			listedAfter: 1,
-			wantCode:    types.NetworkContainerVfpProgramPending,
-			wantCalls:   1,
+			name:          "retry off (timeout 0): fails fast with code 31",
+			timeoutMs:     0,
+			ncListedAfter: 1,
+			wantCode:      types.NetworkContainerVfpProgramPending,
+			wantCalls:     1,
 		},
 		{
-			name:        "retry on (timeout 3000ms): succeeds once NMAgent lists the NC",
-			timeoutMs:   3000,
-			listedAfter: 2,
-			wantCode:    types.Success,
-			wantCalls:   3,
+			name:          "retry on (timeout 3000ms): succeeds once NMAgent lists the NC",
+			timeoutMs:     3000,
+			ncListedAfter: 2,
+			wantCode:      types.Success,
+			wantCalls:     3,
 		},
 		{
-			name:        "retry on (timeout 1000ms): gives up at the timeout with code 31",
-			timeoutMs:   1000,
-			listedAfter: 100,
-			wantCode:    types.NetworkContainerVfpProgramPending,
-			wantCalls:   3,
+			name:          "retry on (timeout 1000ms): gives up at the timeout with code 31",
+			timeoutMs:     1000,
+			ncListedAfter: 100,
+			wantCode:      types.NetworkContainerVfpProgramPending,
+			wantCalls:     3,
 		},
 		{
-			name:        "retry on (timeout 3000ms): wireserver 429 on a retry stops it and keeps code 31",
-			timeoutMs:   3000,
-			listedAfter: 100,
-			errAt:       2,
-			wantCode:    types.NetworkContainerVfpProgramPending,
-			wantCalls:   2,
+			name:          "retry on (timeout 3000ms): wireserver 429 on a retry stops it and keeps code 31",
+			timeoutMs:     3000,
+			ncListedAfter: 100,
+			errAt:         2,
+			wantCode:      types.NetworkContainerVfpProgramPending,
+			wantCalls:     2,
 		},
 		{
-			name:        "retry on (timeout 3000ms): wireserver 429 on the first check fails open as before",
-			timeoutMs:   3000,
-			listedAfter: 100,
-			errAt:       1,
-			wantCode:    types.Success,
-			wantCalls:   1,
+			name:          "retry on (timeout 3000ms): wireserver 429 on the first check fails open as before",
+			timeoutMs:     3000,
+			ncListedAfter: 100,
+			errAt:         1,
+			wantCode:      types.Success,
+			wantCalls:     1,
 		},
 		{
-			name:        "retry on (timeout 1500ms): slow wireserver is bounded by the timeout",
-			timeoutMs:   1500,
-			listedAfter: 100,
-			callDelay:   time.Second,
-			wantCode:    types.NetworkContainerVfpProgramPending,
-			wantCalls:   2,
+			name:          "retry on (timeout 1500ms): slow wireserver is bounded by the timeout",
+			timeoutMs:     1500,
+			ncListedAfter: 100,
+			callDelay:     time.Second,
+			wantCode:      types.NetworkContainerVfpProgramPending,
+			wantCalls:     2,
 		},
 	}
 	for _, tt := range tests {
@@ -629,7 +628,7 @@ func TestGetNetworkContainerVFPPendingRetry(t *testing.T) {
 			require.NoError(t, createNC(params))
 			defer func() { require.NoError(t, deleteNetworkContainerWithParams(params)) }()
 			svc.SetOption(acncommon.OptVFPPendingRetryTimeoutMs, tt.timeoutMs)
-			calls, listedAfter, errAt, callDelay = 0, tt.listedAfter, tt.errAt, tt.callDelay
+			calls, ncListedAfter, errAt, callDelay = 0, tt.ncListedAfter, tt.errAt, tt.callDelay
 
 			resp, err := getNetworkContainerByContext(params)
 			require.NoError(t, err)
