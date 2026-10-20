@@ -1,6 +1,6 @@
 module github.com/Azure/azure-container-networking
 
-go 1.24.0
+go 1.26.1
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.2

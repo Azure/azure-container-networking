@@ -1,6 +1,7 @@
 ARG ARCH
-# skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.24 --format "{{.Name}}@{{.Digest}}"
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:f3e556c9de4dd93be774dc0fa2ce3cfa76f7744d0bacada92d1624f04ce69461 AS builder
+# IMG=mcr.microsoft.com/oss/go/microsoft/golang:1.26.9-1
+# echo "${IMG}@$(skopeo inspect docker://${IMG} --format '{{.Digest}}')"
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.26.9-1@sha256:07723909e12ce15ad9171c65fe81715f504348818951e055f0361a5505305917 AS builder
 ARG VERSION
 ARG DEBUG
 ARG OS
@@ -35,11 +36,12 @@ RUN if [ "$ARCH" = "arm64" ]; then \
     cp /lib/"$ARCH"/libbsd.so.0 /tmp/lib/ && \
     cp /lib/"$ARCH"/libmd.so.0 /tmp/lib/
 ENV C_INCLUDE_PATH=/usr/include/bpf
+ENV GOEXPERIMENT=ms_nocgo_opensslcrypto
 RUN if [ "$DEBUG" = "true" ]; then echo "\n#define DEBUG" >> /bpf-prog/ipv6-hp-bpf/include/helper.h; fi
 RUN GOOS=$OS CGO_ENABLED=0 go generate ./...
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/ipv6-hp-bpf -trimpath -ldflags "-X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" .
 
-FROM mcr.microsoft.com/cbl-mariner/distroless/minimal:2.0 AS linux
+FROM mcr.microsoft.com/azurelinux/distroless/base:3.0 AS linux
 COPY --from=builder /go/bin/ipv6-hp-bpf /ipv6-hp-bpf
 COPY --from=builder /usr/sbin/nft /usr/sbin/nft
 COPY --from=builder /sbin/ip /sbin/ip

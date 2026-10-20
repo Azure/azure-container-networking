@@ -119,6 +119,12 @@ all-binaries-platforms: ## Make all platform binaries
 
 # OS specific binaries/images
 ifeq ($(GOOS),linux)
+# These binaries run on arbitrary hosts, so we can't assume Microsoft's
+# FIPS OpenSSL backend is present. MS_GO_NOSYSTEMCRYPTO=1 opts out of the
+# build image's ambient GOEXPERIMENT=systemcrypto default, which fails every
+# CGO_ENABLED=0 Linux binary here. Exported as a target-specific variable so
+# it applies to all-binaries regardless of entry point.
+all-binaries: export MS_GO_NOSYSTEMCRYPTO := 1
 all-binaries: acncli azure-cni-plugin azure-cns azure-npm azure-ipam ipv6-hp-bpf
 all-images: npm-image cns-image cni-manager-image ipv6-hp-bpf-image
 else
