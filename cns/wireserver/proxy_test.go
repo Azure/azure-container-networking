@@ -40,26 +40,26 @@ func TestProxyRNCPublisherQueryParam(t *testing.T) {
 			expectedTypePath: "NetworkManagement/joinedVirtualNetworks/vnet-1/api-version/1?useLegacyChannel=false",
 		},
 		{
-			name: "PublishNC adds useLegacyChannel=false for RNC",
+			name: "PublishNC does not include useLegacyChannel",
 			call: func(p *Proxy) (*http.Response, error) {
 				return p.PublishNC(context.Background(), cns.NetworkContainerParameters{
 					AssociatedInterfaceID: interfaceID,
 					NCID:                  networkContainerID,
 					AuthToken:             authToken,
-				}, []byte(`{}`), true)
+				}, []byte(`{}`))
 			},
-			expectedTypePath: "NetworkManagement/interfaces/iface-1/networkContainers/nc-1/authenticationToken/token-1/api-version/1?useLegacyChannel=false",
+			expectedTypePath: "NetworkManagement/interfaces/iface-1/networkContainers/nc-1/authenticationToken/token-1/api-version/1",
 		},
 		{
-			name: "UnpublishNC adds useLegacyChannel=false for RNC",
+			name: "UnpublishNC does not include useLegacyChannel",
 			call: func(p *Proxy) (*http.Response, error) {
 				return p.UnpublishNC(context.Background(), cns.NetworkContainerParameters{
 					AssociatedInterfaceID: interfaceID,
 					NCID:                  networkContainerID,
 					AuthToken:             authToken,
-				}, []byte(`{}`), true)
+				}, []byte(`{}`))
 			},
-			expectedTypePath: "NetworkManagement/interfaces/iface-1/networkContainers/nc-1/authenticationToken/token-1/api-version/1/method/DELETE?useLegacyChannel=false",
+			expectedTypePath: "NetworkManagement/interfaces/iface-1/networkContainers/nc-1/authenticationToken/token-1/api-version/1/method/DELETE",
 		},
 		{
 			name: "JoinSubnet includes useLegacyChannel=false",
@@ -76,28 +76,6 @@ func TestProxyRNCPublisherQueryParam(t *testing.T) {
 				return p.JoinNetwork(context.Background(), "vnet-1", false)
 			},
 			expectedTypePath: "NetworkManagement/joinedVirtualNetworks/vnet-1/api-version/1",
-		},
-		{
-			name: "PublishNC does not include useLegacyChannel when RNC disabled",
-			call: func(p *Proxy) (*http.Response, error) {
-				return p.PublishNC(context.Background(), cns.NetworkContainerParameters{
-					AssociatedInterfaceID: interfaceID,
-					NCID:                  networkContainerID,
-					AuthToken:             authToken,
-				}, []byte(`{}`), false)
-			},
-			expectedTypePath: "NetworkManagement/interfaces/iface-1/networkContainers/nc-1/authenticationToken/token-1/api-version/1",
-		},
-		{
-			name: "UnpublishNC does not include useLegacyChannel when RNC disabled",
-			call: func(p *Proxy) (*http.Response, error) {
-				return p.UnpublishNC(context.Background(), cns.NetworkContainerParameters{
-					AssociatedInterfaceID: interfaceID,
-					NCID:                  networkContainerID,
-					AuthToken:             authToken,
-				}, []byte(`{}`), false)
-			},
-			expectedTypePath: "NetworkManagement/interfaces/iface-1/networkContainers/nc-1/authenticationToken/token-1/api-version/1/method/DELETE",
 		},
 	}
 

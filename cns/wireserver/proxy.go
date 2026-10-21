@@ -66,14 +66,8 @@ func (p *Proxy) JoinSubnet(ctx context.Context, vnetID, subnetName string, ncPar
 	return resp, nil
 }
 
-func (p *Proxy) PublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte, useRNCPublisher bool) (*http.Response, error) {
-	var publishNCURLFormat string
-	if useRNCPublisher {
-		publishNCURLFormat = publishNCURLFmt + "?useLegacyChannel=false"
-	} else {
-		publishNCURLFormat = publishNCURLFmt
-	}
-	reqURL := fmt.Sprintf(publishNCURLFormat, p.Host, ncParams.AssociatedInterfaceID, ncParams.NCID, ncParams.AuthToken)
+func (p *Proxy) PublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte) (*http.Response, error) {
+	reqURL := fmt.Sprintf(publishNCURLFmt, p.Host, ncParams.AssociatedInterfaceID, ncParams.NCID, ncParams.AuthToken)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bytes.NewBuffer(payload))
 	if err != nil {
@@ -90,14 +84,8 @@ func (p *Proxy) PublishNC(ctx context.Context, ncParams cns.NetworkContainerPara
 	return resp, nil
 }
 
-func (p *Proxy) UnpublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte, useRNCPublisher bool) (*http.Response, error) {
-	var unpublishNCURLFormat string
-	if useRNCPublisher {
-		unpublishNCURLFormat = unpublishNCURLFmt + "?useLegacyChannel=false"
-	} else {
-		unpublishNCURLFormat = unpublishNCURLFmt
-	}
-	reqURL := fmt.Sprintf(unpublishNCURLFormat, p.Host, ncParams.AssociatedInterfaceID, ncParams.NCID, ncParams.AuthToken)
+func (p *Proxy) UnpublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte) (*http.Response, error) {
+	reqURL := fmt.Sprintf(unpublishNCURLFmt, p.Host, ncParams.AssociatedInterfaceID, ncParams.NCID, ncParams.AuthToken)
 
 	// a POST to wireserver must contain a body. For legacy purposes,
 	// an empty json string (two quote characters) should be sent by default.
