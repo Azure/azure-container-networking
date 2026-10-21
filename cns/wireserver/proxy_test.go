@@ -29,6 +29,28 @@ func TestProxyRNCPublisherQueryParam(t *testing.T) {
 		expectedTypePath string
 	}{
 		{
+			name: "PublishNC does not include useLegacyChannel",
+			call: func(p *Proxy) (*http.Response, error) {
+				return p.PublishNC(context.Background(), cns.NetworkContainerParameters{
+					AssociatedInterfaceID: "iface-1",
+					NCID:                  "nc-1",
+					AuthToken:             authToken,
+				}, []byte(`{}`))
+			},
+			expectedTypePath: "NetworkManagement/interfaces/iface-1/networkContainers/nc-1/authenticationToken/token-1/api-version/1",
+		},
+		{
+			name: "UnpublishNC does not include useLegacyChannel",
+			call: func(p *Proxy) (*http.Response, error) {
+				return p.UnpublishNC(context.Background(), cns.NetworkContainerParameters{
+					AssociatedInterfaceID: "iface-1",
+					NCID:                  "nc-1",
+					AuthToken:             authToken,
+				}, []byte(`{}`))
+			},
+			expectedTypePath: "NetworkManagement/interfaces/iface-1/networkContainers/nc-1/authenticationToken/token-1/api-version/1/method/DELETE",
+		},
+		{
 			name: "JoinNetwork adds useLegacyChannel=false for RNC",
 			call: func(p *Proxy) (*http.Response, error) {
 				return p.JoinNetwork(context.Background(), "vnet-1", true)
@@ -82,7 +104,7 @@ func TestProxyRNCPublisherQueryParam(t *testing.T) {
 			q := reqURL.Query()
 			require.Equal(t, tt.expectedTypePath, q.Get("type"))
 			_, exists := q["useLegacyChannel"]
-			require.False(t, exists, "useLegacyChannel must remain part of the type value")
+			require.False(t, exists, "useLegacyChannel must not appear in the outer query")
 		})
 	}
 }
