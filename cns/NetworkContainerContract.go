@@ -687,7 +687,7 @@ type NetworkInterface struct {
 type PublishNetworkContainerRequest struct {
 	NetworkID                         string
 	SubnetName                        string
-	UseRNCPublisher                   bool // Selects RNC for VNet/subnet joins; NMAgent selects the NC publisher.
+	UseRNCPublisher                   bool
 	NetworkContainerID                string
 	JoinNetworkURL                    string
 	CreateNetworkContainerURL         string
@@ -725,7 +725,7 @@ func (p PublishNetworkContainerResponse) String() string {
 type UnpublishNetworkContainerRequest struct {
 	NetworkID                         string
 	SubnetName                        string
-	UseRNCPublisher                   bool // Selects RNC for VNet/subnet joins; NMAgent selects the NC publisher.
+	UseRNCPublisher                   bool
 	NetworkContainerID                string
 	JoinNetworkURL                    string
 	DeleteNetworkContainerURL         string
