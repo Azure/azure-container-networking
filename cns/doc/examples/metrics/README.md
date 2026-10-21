@@ -1,5 +1,6 @@
 # Azure CNS metrics
-azure-cns exposes metrics via Prometheus on `:10092/metrics`
+azure-cns exposes metrics on the configured `MetricsBindAddress` at `/metrics`.
+The default bind address is `:9090`; some deployment configurations override it to `:10092`.
 
 ## Scraping 
 Prometheus can be configured using these examples: 
