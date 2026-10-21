@@ -119,12 +119,6 @@ all-binaries-platforms: ## Make all platform binaries
 
 # OS specific binaries/images
 ifeq ($(GOOS),linux)
-# These binaries run on arbitrary hosts, so we can't assume Microsoft's
-# FIPS OpenSSL backend is present. MS_GO_NOSYSTEMCRYPTO=1 opts out of the
-# build image's ambient GOEXPERIMENT=systemcrypto default, which fails every
-# CGO_ENABLED=0 Linux binary here. Exported as a target-specific variable so
-# it applies to all-binaries regardless of entry point.
-all-binaries: export MS_GO_NOSYSTEMCRYPTO := 1
 all-binaries: acncli azure-cni-plugin azure-cns azure-npm azure-ipam ipv6-hp-bpf
 all-images: npm-image cns-image cni-manager-image ipv6-hp-bpf-image
 else
@@ -173,6 +167,19 @@ zapai-version: ## prints the zapai version
 ##@ Binaries
 
 # Build the delegated IPAM plugin binary.
+# These binaries run on arbitrary hosts, so we can't assume Microsoft's
+# FIPS OpenSSL backend is present. MS_GO_NOSYSTEMCRYPTO=1 opts out of the
+# build image's ambient GOEXPERIMENT=systemcrypto default, which fails every
+# CGO_ENABLED=0 Linux binary here. Exported as a target-specific variable on
+# each leaf binary target so it applies regardless of entry point
+# (all-binaries, azure-cns, make tools/setup via acncli-binary, or directly).
+ifeq ($(GOOS),linux)
+LINUX_NOSYSTEMCRYPTO_BINARIES = azure-ipam-binary ipv6-hp-bpf-binary azure-vnet-binary \
+	azure-vnet-stateless-binary azure-vnet-ipam-binary azure-vnet-ipamv6-binary \
+	azure-vnet-telemetry-binary acncli-binary azure-cns-binary azure-npm-binary
+$(LINUX_NOSYSTEMCRYPTO_BINARIES): export MS_GO_NOSYSTEMCRYPTO := 1
+endif
+
 azure-ipam-binary:
 	cd $(AZURE_IPAM_DIR) && CGO_ENABLED=0 go build -v -o $(AZURE_IPAM_BUILD_DIR)/azure-ipam$(EXE_EXT) -ldflags "-X github.com/Azure/azure-container-networking/azure-ipam/internal/buildinfo.Version=$(AZURE_IPAM_VERSION)" -gcflags="-dwarflocationlists=true"
 
