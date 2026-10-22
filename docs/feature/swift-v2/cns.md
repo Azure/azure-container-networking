@@ -191,7 +191,7 @@ type HTTPRestService struct {
 	ipamClient               *ipamclient.IpamClient
 	nma                      nmagentClient
 	wsproxy                  wireserverProxy
-	homeAzMonitor            *HomeAzMonitor
+	nmagentMonitor           *NMAgentMonitor
 	networkContainer         *networkcontainers.NetworkContainers
 	PodIPIDByPodInterfaceKey map[string][]string                  // PodInterfaceId is key and value is slice of Pod IP (SecondaryIP) uuids.
 	PodIPConfigState         map[string]cns.IPConfigurationStatus // Secondary IP ID(uuid) is key

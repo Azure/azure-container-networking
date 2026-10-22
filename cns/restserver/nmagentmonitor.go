@@ -15,22 +15,25 @@ import (
 )
 
 const (
-	GetHomeAzAPIName = "GetHomeAz"
-	ContextTimeOut   = 5 * time.Second
-	homeAzCacheKey   = "HomeAz"
+	GetHomeAzAPIName   = "GetHomeAz"
+	RNCSupportAPIName  = "NetworkManagementRNCSupport"
+	ContextTimeOut     = 5 * time.Second
+	homeAzCacheKey     = "HomeAz"
+	rncSupportCacheKey = "RNCSupported"
 )
 
-type HomeAzMonitor struct {
+// NMAgentMonitor caches HomeAZ and RNC capability observations from NMAgent.
+type NMAgentMonitor struct {
 	nmagentClient
 	values *cache.Cache
-	// channel used as signal to end of the goroutine for populating home az cache
+	// channel used as signal to end the cache refresh goroutine
 	closing                  chan struct{}
 	cacheRefreshIntervalSecs time.Duration
 }
 
-// NewHomeAzMonitor creates a new HomeAzMonitor object
-func NewHomeAzMonitor(client nmagentClient, cacheRefreshIntervalSecs time.Duration) *HomeAzMonitor {
-	return &HomeAzMonitor{
+// NewNMAgentMonitor creates a monitor with an empty, non-expiring cache.
+func NewNMAgentMonitor(client nmagentClient, cacheRefreshIntervalSecs time.Duration) *NMAgentMonitor {
+	return &NMAgentMonitor{
 		nmagentClient:            client,
 		cacheRefreshIntervalSecs: cacheRefreshIntervalSecs,
 		values:                   cache.New(cache.NoExpiration, cache.NoExpiration),
@@ -39,17 +42,27 @@ func NewHomeAzMonitor(client nmagentClient, cacheRefreshIntervalSecs time.Durati
 }
 
 // GetHomeAz returns home az cache value directly
-func (h *HomeAzMonitor) GetHomeAz(_ context.Context) cns.GetHomeAzResponse {
+func (h *NMAgentMonitor) GetHomeAz(_ context.Context) cns.GetHomeAzResponse {
 	return h.readCacheValue()
 }
 
+// IsRNCSupported returns the last successfully observed RNC support value.
+// known is false until SupportedAPIs succeeds; refresh errors retain the last value.
+func (h *NMAgentMonitor) IsRNCSupported() (supported, known bool) {
+	cachedSupport, found := h.values.Get(rncSupportCacheKey)
+	if !found {
+		return false, false
+	}
+	return cachedSupport.(bool), true
+}
+
 // updateCacheValue updates home az cache value
-func (h *HomeAzMonitor) updateCacheValue(resp cns.GetHomeAzResponse) {
+func (h *NMAgentMonitor) updateCacheValue(resp cns.GetHomeAzResponse) {
 	h.values.Set(homeAzCacheKey, resp, cache.NoExpiration)
 }
 
 // readCacheValue reads home az cache value
-func (h *HomeAzMonitor) readCacheValue() cns.GetHomeAzResponse {
+func (h *NMAgentMonitor) readCacheValue() cns.GetHomeAzResponse {
 	cachedResp, found := h.values.Get(homeAzCacheKey)
 	if !found {
 		return cns.GetHomeAzResponse{Response: cns.Response{
@@ -60,19 +73,19 @@ func (h *HomeAzMonitor) readCacheValue() cns.GetHomeAzResponse {
 	return cachedResp.(cns.GetHomeAzResponse)
 }
 
-// Start starts a new thread to refresh home az cache
-func (h *HomeAzMonitor) Start() {
-	logger.Printf("[HomeAzMonitor] start the goroutine for refreshing homeAz")
+// Start starts a new thread to refresh the NMAgent cache.
+func (h *NMAgentMonitor) Start() {
+	logger.Printf("[NMAgentMonitor] starting cache refresh")
 	go h.refresh()
 }
 
 // Stop ends the refresh thread
-func (h *HomeAzMonitor) Stop() {
+func (h *NMAgentMonitor) Stop() {
 	close(h.closing)
 }
 
-// refresh periodically pulls home az from nmagent
-func (h *HomeAzMonitor) refresh() {
+// refresh periodically pulls capabilities and home az from nmagent.
+func (h *NMAgentMonitor) refresh() {
 	// Ticker will not tick right away, so proactively make a call here to achieve that
 	ctx, cancel := context.WithTimeout(context.Background(), ContextTimeOut)
 	h.Populate(ctx)
@@ -92,8 +105,8 @@ func (h *HomeAzMonitor) refresh() {
 	}
 }
 
-// Populate makes call to nmagent to retrieve home az if getHomeAz api is supported by nmagent
-func (h *HomeAzMonitor) Populate(ctx context.Context) {
+// Populate caches RNC support and retrieves HomeAZ if GetHomeAz is supported.
+func (h *NMAgentMonitor) Populate(ctx context.Context) {
 	supportedApis, err := h.SupportedAPIs(ctx)
 	if err != nil {
 		returnMessage := fmt.Sprintf("[HomeAzMonitor] failed to query nmagent's supported apis, %v", err)
@@ -101,6 +114,13 @@ func (h *HomeAzMonitor) Populate(ctx context.Context) {
 		h.update(returnCode, returnMessage, cns.HomeAzResponse{IsSupported: false})
 		return
 	}
+
+	rncSupported := isAPISupportedByNMAgent(supportedApis, RNCSupportAPIName)
+	if previous, known := h.IsRNCSupported(); !known || previous != rncSupported {
+		h.values.Set(rncSupportCacheKey, rncSupported, cache.NoExpiration)
+		logger.Printf("[NMAgentMonitor] RNC support updated: %t", rncSupported)
+	}
+
 	// check if getHomeAz api is supported by nmagent
 	if !isAPISupportedByNMAgent(supportedApis, GetHomeAzAPIName) {
 		returnMessage := fmt.Sprintf("[HomeAzMonitor] nmagent does not support %s api.", GetHomeAzAPIName)
@@ -158,7 +178,7 @@ func (h *HomeAzMonitor) Populate(ctx context.Context) {
 }
 
 // update constructs a GetHomeAzResponse entity and update its cache
-func (h *HomeAzMonitor) update(code types.ResponseCode, msg string, homeAzResponse cns.HomeAzResponse) {
+func (h *NMAgentMonitor) update(code types.ResponseCode, msg string, homeAzResponse cns.HomeAzResponse) {
 	resp := cns.GetHomeAzResponse{
 		Response: cns.Response{
 			ReturnCode: code,

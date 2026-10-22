@@ -490,7 +490,7 @@ func (service *HTTPRestService) getHomeAz(w http.ResponseWriter, r *http.Request
 
 	switch r.Method {
 	case http.MethodGet:
-		getHomeAzResponse := service.homeAzMonitor.GetHomeAz(ctx)
+		getHomeAzResponse := service.nmagentMonitor.GetHomeAz(ctx)
 		service.setResponse(w, getHomeAzResponse.Response.ReturnCode, getHomeAzResponse)
 	default:
 		returnMessage := "[Azure CNS] Error. getHomeAz did not receive a GET."
