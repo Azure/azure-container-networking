@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"sort"
@@ -22,6 +23,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/cns/types"
+	acncommon "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
@@ -44,6 +46,7 @@ const (
 
 var (
 	svc           *restserver.HTTPRestService
+	testBaseURL   string
 	dnsServers    = []string{"8.8.8.8", "8.8.4.4"}
 	errBadRequest = errors.New("bad request")
 )
@@ -121,6 +124,10 @@ func getIPNetFromResponse(resp *cns.IPConfigResponse) (net.IPNet, error) {
 }
 
 func TestMain(m *testing.M) {
+	os.Exit(runTestMain(m))
+}
+
+func runTestMain(m *testing.M) int {
 	var (
 		info = &cns.SetOrchestratorTypeRequest{
 			OrchestratorType: cns.KubernetesCRD,
@@ -130,23 +137,26 @@ func TestMain(m *testing.M) {
 	)
 
 	tmpFileState, err := os.CreateTemp(os.TempDir(), "cns-*.json")
+	if err != nil {
+		fmt.Println(err)
+		return 1
+	}
+	_ = tmpFileState.Close()
+	defer os.Remove(tmpFileState.Name())
+
 	tmpLogDir, err := os.MkdirTemp("", "cns-")
 	fmt.Printf("logdir: %+v", tmpLogDir)
 
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
+		return 1
 	}
 
 	defer os.RemoveAll(tmpLogDir)
-	defer os.Remove(tmpFileState.Name())
 
 	logName := "azure-cns.log"
 	fmt.Printf("Test logger file: %v", tmpLogDir+"/"+logName)
 	fmt.Printf("Test state :%v", tmpFileState.Name())
-
-	if err != nil {
-		panic(err)
-	}
 
 	logger.InitLogger(logName, 0, 0, tmpLogDir+"/")
 	config := common.ServiceConfig{}
@@ -154,45 +164,49 @@ func TestMain(m *testing.M) {
 	httpRestService, err := restserver.NewHTTPRestService(&config, &fakes.WireserverClientFake{},
 		&fakes.WireserverProxyFake{}, &restserver.IPtablesProvider{}, &fakes.NMAgentClientFake{}, nil, nil, nil,
 		fakes.NewMockIMDSClient())
-	svc = httpRestService
-	httpRestService.Name = "cns-test-server"
-
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)
-		return
+		return 1
 	}
-
+	svc = httpRestService
 	if httpRestService != nil {
+		httpRestService.Name = "cns-test-server"
+		httpRestService.SetOption(acncommon.OptCnsURL, "")
+		httpRestService.SetOption(acncommon.OptCnsPort, "")
+
 		err = httpRestService.Init(&config)
 		if err != nil {
 			logger.Errorf("Failed to initialize HttpService, err:%v.\n", err)
-			return
+			return 1
 		}
+		defer httpRestService.Stop()
 
-		err = httpRestService.Start(&config)
-		if err != nil {
-			logger.Errorf("Failed to start HttpService, err:%v.\n", err)
-			return
-		}
+		testServer := httptest.NewServer(httpRestService.Listener.GetMux())
+		defer testServer.Close()
+		testBaseURL = testServer.URL
 	}
 
 	if jsonErr := json.NewEncoder(&body).Encode(info); jsonErr != nil {
 		log.Errorf("encoding json failed with %v", jsonErr)
-		return
+		return 1
 	}
 
 	httpc := &http.Client{}
-	setOrchURL := defaultBaseURL + cns.SetOrchestratorType
+	setOrchURL := testBaseURL + cns.SetOrchestratorType
 
 	res, err = httpc.Post(setOrchURL, "application/json", &body) //nolint:noctx // ignore for unit test
 	if err != nil {
 		fmt.Println(err)
+		return 1
 	}
 	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		fmt.Printf("SetOrchestratorType returned status %d\n", res.StatusCode)
+		return 1
+	}
 	fmt.Println(res)
 
-	exitCode := m.Run()
-	os.Exit(exitCode)
+	return m.Run()
 }
 
 func TestCNSClientRequestAndRelease(t *testing.T) {
@@ -208,20 +222,29 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 
 	secondaryIps := make([]string, 0)
 	secondaryIps = append(secondaryIps, desiredIPAddress)
-	cnsClient, _ := New("", 2*time.Hour)
+	cnsClient, err := New(testBaseURL, 2*time.Hour)
+	require.NoError(t, err)
 
 	addTestStateToRestServer(t, secondaryIps)
 
-	podInfo := cns.KubernetesPodInfo{PodName: podName, PodNamespace: podNamespace}
+	podInfo := cns.NewPodInfo("some-guid-1", "abc-eth0", podName, podNamespace)
 	orchestratorContext, err := json.Marshal(podInfo)
 	require.NoError(t, err)
 
 	// no IP reservation found with that context, expect no failure.
-	err = cnsClient.ReleaseIPAddress(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
+	err = cnsClient.ReleaseIPAddress(context.TODO(), cns.IPConfigRequest{
+		PodInterfaceID:      podInfo.InterfaceID(),
+		InfraContainerID:    podInfo.InfraContainerID(),
+		OrchestratorContext: orchestratorContext,
+	})
 	require.NoError(t, err, "Release ip idempotent call failed")
 
 	// request IP address
-	resp, err := cnsClient.RequestIPAddress(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
+	resp, err := cnsClient.RequestIPAddress(context.TODO(), cns.IPConfigRequest{
+		PodInterfaceID:      podInfo.InterfaceID(),
+		InfraContainerID:    podInfo.InfraContainerID(),
+		OrchestratorContext: orchestratorContext,
+	})
 	require.NoError(t, err, "get IP from CNS failed")
 
 	podIPInfo := resp.PodIpInfo
@@ -253,7 +276,12 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 	}
 
 	// release requested IP address, expect success
-	err = cnsClient.ReleaseIPAddress(context.TODO(), cns.IPConfigRequest{DesiredIPAddress: ipaddresses[0].IPAddress, OrchestratorContext: orchestratorContext})
+	err = cnsClient.ReleaseIPAddress(context.TODO(), cns.IPConfigRequest{
+		DesiredIPAddress:    ipaddresses[0].IPAddress,
+		PodInterfaceID:      podInfo.InterfaceID(),
+		InfraContainerID:    podInfo.InfraContainerID(),
+		OrchestratorContext: orchestratorContext,
+	})
 	require.NoError(t, err, "Expected to not fail when releasing IP reservation found with context")
 }
 
@@ -261,7 +289,8 @@ func TestCNSClientPodContextApi(t *testing.T) {
 	desiredIPAddress := primaryIP
 
 	secondaryIps := []string{desiredIPAddress}
-	cnsClient, _ := New("", 2*time.Second)
+	cnsClient, err := New(testBaseURL, 2*time.Second)
+	require.NoError(t, err)
 
 	addTestStateToRestServer(t, secondaryIps)
 
@@ -270,7 +299,11 @@ func TestCNSClientPodContextApi(t *testing.T) {
 	require.NoError(t, err)
 
 	// request IP address
-	_, err = cnsClient.RequestIPAddress(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
+	_, err = cnsClient.RequestIPAddress(context.TODO(), cns.IPConfigRequest{
+		PodInterfaceID:      podInfo.InterfaceID(),
+		InfraContainerID:    podInfo.InfraContainerID(),
+		OrchestratorContext: orchestratorContext,
+	})
 	require.NoError(t, err, "get IP from CNS failed")
 
 	// test for pod ip by orch context map
@@ -281,7 +314,11 @@ func TestCNSClientPodContextApi(t *testing.T) {
 	t.Log(podcontext)
 
 	// release requested IP address, expect success
-	err = cnsClient.ReleaseIPAddress(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
+	err = cnsClient.ReleaseIPAddress(context.TODO(), cns.IPConfigRequest{
+		PodInterfaceID:      podInfo.InterfaceID(),
+		InfraContainerID:    podInfo.InfraContainerID(),
+		OrchestratorContext: orchestratorContext,
+	})
 	require.NoError(t, err, "Expected to not fail when releasing IP reservation found with context")
 }
 
@@ -291,7 +328,8 @@ func TestCNSClientDebugAPI(t *testing.T) {
 	desiredIPAddress := primaryIP
 
 	secondaryIps := []string{desiredIPAddress}
-	cnsClient, _ := New("", 2*time.Hour)
+	cnsClient, err := New(testBaseURL, 2*time.Hour)
+	require.NoError(t, err)
 
 	addTestStateToRestServer(t, secondaryIps)
 
@@ -300,7 +338,11 @@ func TestCNSClientDebugAPI(t *testing.T) {
 	require.NoError(t, err)
 
 	// request IP address
-	_, err1 := cnsClient.RequestIPAddress(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
+	_, err1 := cnsClient.RequestIPAddress(context.TODO(), cns.IPConfigRequest{
+		PodInterfaceID:      podInfo.InterfaceID(),
+		InfraContainerID:    podInfo.InfraContainerID(),
+		OrchestratorContext: orchestratorContext,
+	})
 	require.NoError(t, err1, "get IP from CNS failed")
 
 	// test for debug api/cmd to get inmemory data from HTTPRestService
@@ -323,6 +365,13 @@ func TestCNSClientDebugAPI(t *testing.T) {
 		t.Logf("PodIPIDByOrchestratorContext: %+v", inmemory.HTTPRestServiceData.PodIPIDByPodInterfaceKey[i])
 	}
 	t.Logf("PodIPConfigState: %+v", inmemory.HTTPRestServiceData.PodIPConfigState)
+
+	err = cnsClient.ReleaseIPAddress(context.TODO(), cns.IPConfigRequest{
+		PodInterfaceID:      podInfo.InterfaceID(),
+		InfraContainerID:    podInfo.InfraContainerID(),
+		OrchestratorContext: orchestratorContext,
+	})
+	require.NoError(t, err, "Expected to not fail when releasing IP reservation found with context")
 }
 
 func TestNew(t *testing.T) {
