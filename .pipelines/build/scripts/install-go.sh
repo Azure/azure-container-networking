@@ -12,7 +12,7 @@ set -euxo pipefail
 #
 # To update the fallback, run:
 #   skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0 --format "{{.Name}}@{{.Digest}}"
-DEFAULT_IMAGE="mcr.microsoft.com/oss/go/microsoft/golang@sha256:d5a3cfc0ed790887f779575ad0889de08c9290f21dd6893fcd90f9746ebab0f8"
+DEFAULT_IMAGE="mcr.microsoft.com/oss/go/microsoft/golang@sha256:d104fef62900c2ca101f52568f43e0e6b6499b60be324fdd4d2ad5bae4bc3203"
 
 # Resolves the golang image from the source Dockerfile for the given $name.
 # Echoes the image reference, or empty string if it cannot be determined.
