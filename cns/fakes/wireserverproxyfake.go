@@ -12,8 +12,8 @@ import (
 type WireserverProxyFake struct {
 	JoinNetworkFunc func(context.Context, string, bool) (*http.Response, error)
 	JoinSubnetFunc  func(context.Context, string, string, cns.NetworkContainerParameters) (*http.Response, error)
-	PublishNCFunc   func(context.Context, cns.NetworkContainerParameters, []byte, bool) (*http.Response, error)
-	UnpublishNCFunc func(context.Context, cns.NetworkContainerParameters, []byte, bool) (*http.Response, error)
+	PublishNCFunc   func(context.Context, cns.NetworkContainerParameters, []byte) (*http.Response, error)
+	UnpublishNCFunc func(context.Context, cns.NetworkContainerParameters, []byte) (*http.Response, error)
 }
 
 const defaultResponseBody = `{"httpStatusCode":"200"}`
@@ -42,17 +42,17 @@ func (w *WireserverProxyFake) JoinSubnet(ctx context.Context, vnetID, subnetName
 	return defaultResponse(), nil
 }
 
-func (w *WireserverProxyFake) PublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte, useRNCPublisher bool) (*http.Response, error) {
+func (w *WireserverProxyFake) PublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte) (*http.Response, error) {
 	if w.PublishNCFunc != nil {
-		return w.PublishNCFunc(ctx, ncParams, payload, useRNCPublisher)
+		return w.PublishNCFunc(ctx, ncParams, payload)
 	}
 
 	return defaultResponse(), nil
 }
 
-func (w *WireserverProxyFake) UnpublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte, useRNCPublisher bool) (*http.Response, error) {
+func (w *WireserverProxyFake) UnpublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte) (*http.Response, error) {
 	if w.UnpublishNCFunc != nil {
-		return w.UnpublishNCFunc(ctx, ncParams, payload, useRNCPublisher)
+		return w.UnpublishNCFunc(ctx, ncParams, payload)
 	}
 
 	return defaultResponse(), nil

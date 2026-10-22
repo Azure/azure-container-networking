@@ -1022,7 +1022,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 		)
 	}
 
-	publishResp, err := service.wsproxy.PublishNC(ctx, ncParams, req.CreateNetworkContainerRequestBody, useRNCPublisher)
+	publishResp, err := service.wsproxy.PublishNC(ctx, ncParams, req.CreateNetworkContainerRequestBody)
 	if err != nil {
 		resp := cns.PublishNetworkContainerResponse{
 			Response: cns.Response{
@@ -1179,7 +1179,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 		)
 	}
 
-	unpublishResp, err := service.wsproxy.UnpublishNC(ctx, ncParams, req.DeleteNetworkContainerRequestBody, useRNCPublisher)
+	unpublishResp, err := service.wsproxy.UnpublishNC(ctx, ncParams, req.DeleteNetworkContainerRequestBody)
 	if err != nil {
 		resp := cns.UnpublishNetworkContainerResponse{
 			Response: cns.Response{
