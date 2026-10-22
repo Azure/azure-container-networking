@@ -648,7 +648,7 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		return nil, errors.New("boom") //nolint:goerr113 // it's just a test
 	}
 
-	wsproxy.PublishNCFunc = func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte, _ bool) (*http.Response, error) {
+	wsproxy.PublishNCFunc = func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte) (*http.Response, error) {
 		return nil, errors.New("boom") //nolint:goerr113 // it's just a test
 	}
 
@@ -763,7 +763,7 @@ func TestPublishNC_NMAgentApplicationErrors(t *testing.T) {
 	wireserverBody := `{"httpStatusCode":"401"}`
 
 	wsproxy := fakes.WireserverProxyFake{
-		PublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte, _ bool) (*http.Response, error) {
+		PublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Body:       io.NopCloser(bytes.NewBufferString(wireserverBody)),
@@ -852,9 +852,8 @@ func TestPublishNCAllowsEmptyRequestBody(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var (
-				joinUsedRNCPublisher    bool
-				publishUsedRNCPublisher bool
-				publishedBody           []byte
+				joinUsedRNCPublisher bool
+				publishedBody        []byte
 			)
 
 			wsproxy := fakes.WireserverProxyFake{
@@ -865,8 +864,7 @@ func TestPublishNCAllowsEmptyRequestBody(t *testing.T) {
 						Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
 					}, nil
 				},
-				PublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, payload []byte, useRNCPublisher bool) (*http.Response, error) {
-					publishUsedRNCPublisher = useRNCPublisher
+				PublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, payload []byte) (*http.Response, error) {
 					publishedBody = payload
 					return &http.Response{
 						StatusCode: http.StatusOK,
@@ -905,7 +903,6 @@ func TestPublishNCAllowsEmptyRequestBody(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, types.Success, resp.Response.ReturnCode)
 			require.False(t, joinUsedRNCPublisher)
-			require.False(t, publishUsedRNCPublisher)
 			require.Equal(t, tt.body, publishedBody)
 		})
 	}
@@ -988,13 +985,20 @@ func TestPublishNCUsesOuterRNCPublisherFlag(t *testing.T) {
 			t.Cleanup(cleanupNMA)
 
 			var (
-				joinSubnetCalls    int
-				publishCalls       int
-				capturedPublishRNC bool
-				capturedBody       []byte
+				joinSubnetCalls int
+				publishCalls    int
+				capturedJoinRNC bool
+				capturedBody    []byte
 			)
 
 			wsproxy := fakes.WireserverProxyFake{
+				JoinNetworkFunc: func(_ context.Context, _ string, useRNCPublisher bool) (*http.Response, error) {
+					capturedJoinRNC = useRNCPublisher
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
+					}, nil
+				},
 				JoinSubnetFunc: func(_ context.Context, vnetID, gotSubnetName string, _ cns.NetworkContainerParameters) (*http.Response, error) {
 					joinSubnetCalls++
 					require.Equal(t, networkID, vnetID)
@@ -1004,9 +1008,8 @@ func TestPublishNCUsesOuterRNCPublisherFlag(t *testing.T) {
 						Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
 					}, nil
 				},
-				PublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, payload []byte, useRNCPublisher bool) (*http.Response, error) {
+				PublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, payload []byte) (*http.Response, error) {
 					publishCalls++
-					capturedPublishRNC = useRNCPublisher
 					capturedBody = payload
 					return &http.Response{
 						StatusCode: http.StatusOK,
@@ -1045,7 +1048,7 @@ func TestPublishNCUsesOuterRNCPublisherFlag(t *testing.T) {
 				err = decodeResponse(w, &resp)
 				require.NoError(t, err)
 				require.Equal(t, tt.wantReturnCode, resp.Response.ReturnCode)
-				require.Equal(t, tt.wantUseRNCPublisher, capturedPublishRNC)
+				require.Equal(t, tt.wantUseRNCPublisher, capturedJoinRNC)
 			}
 
 			require.Equal(t, tt.wantJoinSubnetCalls, joinSubnetCalls)
@@ -1086,9 +1089,8 @@ func TestPublishNCWithRNCPublisherJoinsSubnetEveryTime(t *testing.T) {
 				Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
 			}, nil
 		},
-		PublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte, useRNCPublisher bool) (*http.Response, error) {
+		PublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte) (*http.Response, error) {
 			publishCalls++
-			require.True(t, useRNCPublisher)
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
@@ -1144,7 +1146,7 @@ func TestPublishNCWithRNCPublisherSubnetJoinFailure(t *testing.T) {
 		JoinSubnetFunc: func(context.Context, string, string, cns.NetworkContainerParameters) (*http.Response, error) {
 			return nil, errors.New("subnet join failed")
 		},
-		PublishNCFunc: func(context.Context, cns.NetworkContainerParameters, []byte, bool) (*http.Response, error) {
+		PublishNCFunc: func(context.Context, cns.NetworkContainerParameters, []byte) (*http.Response, error) {
 			publishCalls++
 			return &http.Response{
 				StatusCode: http.StatusOK,
@@ -1203,7 +1205,7 @@ func TestPublishNCWithRNCPublisherSubnetJoinNon200(t *testing.T) {
 				Body:       io.NopCloser(bytes.NewBuffer(subnetJoinBody)),
 			}, nil
 		},
-		PublishNCFunc: func(context.Context, cns.NetworkContainerParameters, []byte, bool) (*http.Response, error) {
+		PublishNCFunc: func(context.Context, cns.NetworkContainerParameters, []byte) (*http.Response, error) {
 			publishCalls++
 			return &http.Response{
 				StatusCode: http.StatusOK,
@@ -1259,9 +1261,8 @@ func TestPublishNCWithRNCPublisherDisabledSkipsSubnetJoin(t *testing.T) {
 				Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
 			}, nil
 		},
-		PublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte, useRNCPublisher bool) (*http.Response, error) {
+		PublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte) (*http.Response, error) {
 			publishCalls++
-			require.False(t, useRNCPublisher)
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
@@ -1344,9 +1345,8 @@ func TestPublishNCWithRNCPublisherDoesNotProbeNMAgentSupport(t *testing.T) {
 						Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
 					}, nil
 				},
-				PublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte, useRNCPublisher bool) (*http.Response, error) {
+				PublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte) (*http.Response, error) {
 					publishCalls++
-					require.True(t, useRNCPublisher)
 					return &http.Response{
 						StatusCode: http.StatusOK,
 						Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
@@ -1401,7 +1401,7 @@ func TestPublishNCWithRNCPublisherEmptySubnetNameRejected(t *testing.T) {
 				Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
 			}, nil
 		},
-		PublishNCFunc: func(context.Context, cns.NetworkContainerParameters, []byte, bool) (*http.Response, error) {
+		PublishNCFunc: func(context.Context, cns.NetworkContainerParameters, []byte) (*http.Response, error) {
 			publishCalls++
 			return &http.Response{
 				StatusCode: http.StatusOK,
@@ -1611,7 +1611,7 @@ func TestUnpublishViaCNSRequestBody(t *testing.T) {
 
 func TestUnpublishNCViaCNS401(t *testing.T) {
 	wsproxy := fakes.WireserverProxyFake{
-		UnpublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte, _ bool) (*http.Response, error) {
+		UnpublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"401"}`)),
@@ -1708,9 +1708,8 @@ func TestUnpublishNCWithRNCPublisherJoinsSubnet(t *testing.T) {
 				Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
 			}, nil
 		},
-		UnpublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte, useRNCPublisher bool) (*http.Response, error) {
+		UnpublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte) (*http.Response, error) {
 			unpublishCalls++
-			require.True(t, useRNCPublisher)
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
@@ -1772,8 +1771,7 @@ func TestUnpublishNCAlwaysJoinsVNet(t *testing.T) {
 				Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
 			}, nil
 		},
-		UnpublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte, useRNCPublisher bool) (*http.Response, error) {
-			require.True(t, useRNCPublisher)
+		UnpublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
@@ -1825,9 +1823,8 @@ func TestUnpublishNCWithRNCPublisherDisabledSkipsSubnetJoin(t *testing.T) {
 				Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
 			}, nil
 		},
-		UnpublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte, useRNCPublisher bool) (*http.Response, error) {
+		UnpublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte) (*http.Response, error) {
 			unpublishCalls++
-			require.False(t, useRNCPublisher)
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
@@ -1916,9 +1913,8 @@ func TestUnpublishNCWithRNCPublisherDoesNotProbeNMAgentSupport(t *testing.T) {
 						Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
 					}, nil
 				},
-				UnpublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte, useRNCPublisher bool) (*http.Response, error) {
+				UnpublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte) (*http.Response, error) {
 					unpublishCalls++
-					require.True(t, useRNCPublisher)
 					return &http.Response{
 						StatusCode: http.StatusOK,
 						Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
@@ -1974,7 +1970,7 @@ func TestUnpublishNCWithRNCPublisherEmptySubnetNameRejected(t *testing.T) {
 				Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
 			}, nil
 		},
-		UnpublishNCFunc: func(context.Context, cns.NetworkContainerParameters, []byte, bool) (*http.Response, error) {
+		UnpublishNCFunc: func(context.Context, cns.NetworkContainerParameters, []byte) (*http.Response, error) {
 			unpublishCalls++
 			return &http.Response{
 				StatusCode: http.StatusOK,
@@ -2018,7 +2014,7 @@ func TestUnpublishNCWithRNCPublisherSubnetJoinFailure(t *testing.T) {
 		JoinSubnetFunc: func(context.Context, string, string, cns.NetworkContainerParameters) (*http.Response, error) {
 			return nil, errors.New("subnet join failed")
 		},
-		UnpublishNCFunc: func(context.Context, cns.NetworkContainerParameters, []byte, bool) (*http.Response, error) {
+		UnpublishNCFunc: func(context.Context, cns.NetworkContainerParameters, []byte) (*http.Response, error) {
 			unpublishCalls++
 			return &http.Response{
 				StatusCode: http.StatusOK,
@@ -2070,7 +2066,7 @@ func TestUnpublishNCWithRNCPublisherSubnetJoinNon200(t *testing.T) {
 				Body:       io.NopCloser(bytes.NewBuffer(subnetJoinBody)),
 			}, nil
 		},
-		UnpublishNCFunc: func(context.Context, cns.NetworkContainerParameters, []byte, bool) (*http.Response, error) {
+		UnpublishNCFunc: func(context.Context, cns.NetworkContainerParameters, []byte) (*http.Response, error) {
 			unpublishCalls++
 			return &http.Response{
 				StatusCode: http.StatusOK,
