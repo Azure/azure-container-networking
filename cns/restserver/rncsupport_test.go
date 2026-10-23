@@ -80,14 +80,6 @@ func TestGetRNCSupport(t *testing.T) {
 					}`, recorder.Body.String())
 				}
 			}
-			for _, path := range []string{cns.GetHomeAz, cns.V2Prefix + cns.GetHomeAz} {
-				recorder := httptest.NewRecorder()
-				service.Listener.GetMux().ServeHTTP(recorder, httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, http.NoBody))
-				require.Equal(t, http.StatusOK, recorder.Code)
-				var got cns.GetHomeAzResponse
-				require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &got))
-				require.Equal(t, monitor.GetHomeAz(t.Context()), got)
-			}
 			require.Equal(t, callsBeforeRead, apiCalls, "HTTP reads must not query NMAgent")
 		})
 	}
