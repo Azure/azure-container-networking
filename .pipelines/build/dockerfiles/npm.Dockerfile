@@ -13,17 +13,19 @@ COPY ${ARTIFACT_DIR}/bin/azure-npm.exe npm.exe
 CMD ["npm.exe", "start", "--kubeconfig=.\\kubeconfig"]
 
 
-FROM --platform=linux/${ARCH} mcr.microsoft.com/mirror/docker/library/ubuntu:24.04 as linux
+FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/base/core:3.0@sha256:bd88359666e3f20296e7fe639a480dfd3c3c8eba299b21f26e4560353e21a656 as linux
 ARG ARTIFACT_DIR
 
-RUN apt-get update && apt-get install -y iptables ipset ca-certificates && apt-get autoremove -y && apt-get clean
-#RUN apt-get update && \
-#    apt-get install -y \
-#      linux-libc-dev \
-#      libc6-dev \
-#      libtasn1-6 \
-#      gnutls30 iptables ipset ca-certificates
-#RUN apt-get autoremove -y && apt-get clean
+RUN tdnf install -y \
+    SymCrypt \
+    SymCrypt-OpenSSL \
+    bash \
+    ca-certificates \
+    grep \
+    ipset \
+    iptables \
+    openssl-libs \
+    && tdnf clean all && rm -rf /var/cache/tdnf
 
 COPY ${ARTIFACT_DIR}/bin/azure-npm /usr/bin/azure-npm
 ENTRYPOINT ["/usr/bin/azure-npm", "start"]
