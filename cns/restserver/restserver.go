@@ -335,6 +335,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.RequestClaimResourceInfo, service.requestClaimResourceInfo)
 	// This API is only needed for Direct channel mode.
 	if config.ChannelMode == cns.Direct {
+		listener.AddHandler(cns.GetRNCSupport, service.getRNCSupport)
 		listener.AddHandler(cns.GetVMUniqueID, service.getVMUniqueID)
 		listener.AddHandler(cns.GetNCList, service.nmAgentNCListHandler)
 	}
@@ -362,6 +363,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.V2Prefix+cns.EndpointPath, service.EndpointHandlerAPI)
 	// This API is only needed for Direct channel mode.
 	if config.ChannelMode == cns.Direct {
+		listener.AddHandler(cns.V2Prefix+cns.GetRNCSupport, service.getRNCSupport)
 		listener.AddHandler(cns.V2Prefix+cns.GetVMUniqueID, service.getVMUniqueID)
 		listener.AddHandler(cns.V2Prefix+cns.GetNCList, service.nmAgentNCListHandler)
 	}

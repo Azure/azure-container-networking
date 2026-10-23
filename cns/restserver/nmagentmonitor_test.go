@@ -177,8 +177,8 @@ func TestNMAgentMonitorRNCSupport(t *testing.T) {
 				},
 			}, time.Second)
 
-			if supported, known := monitor.IsRNCSupported(); supported || known {
-				t.Fatalf("RNC support before population = (%t, %t), want (false, false)", supported, known)
+			if got := monitor.GetRNCSupport(t.Context()); got.Response.ReturnCode != types.NotFound || got.RNCSupportResponse.IsSupported {
+				t.Fatalf("unexpected initial RNC support response: %+v", got)
 			}
 			wantInitial := cns.GetHomeAzResponse{Response: cns.Response{
 				ReturnCode: types.NotFound,
@@ -190,8 +190,8 @@ func TestNMAgentMonitorRNCSupport(t *testing.T) {
 
 			monitor.Populate(t.Context())
 			for range 2 {
-				if supported, known := monitor.IsRNCSupported(); supported != test.wantSupported || !known {
-					t.Fatalf("RNC support = (%t, %t), want (%t, true)", supported, known, test.wantSupported)
+				if got := monitor.GetRNCSupport(t.Context()); got.Response.ReturnCode != types.Success || got.RNCSupportResponse.IsSupported != test.wantSupported {
+					t.Fatalf("RNC support response = %+v, want success with supported=%t", got, test.wantSupported)
 				}
 			}
 			if apiCalls != 1 {
@@ -214,14 +214,18 @@ func TestNMAgentMonitorRNCSupportRefresh(t *testing.T) {
 		apis          []string
 		err           error
 		wantSupported bool
-		wantKnown     bool
+		wantCode      types.ResponseCode
 	}{
-		{name: "initial query failure", err: errors.New("query failed")},
-		{name: "support detected", apis: []string{RNCSupportAPIName}, wantSupported: true, wantKnown: true},
-		{name: "failure retains support", err: errors.New("query failed"), wantSupported: true, wantKnown: true},
-		{name: "support removed", wantKnown: true},
-		{name: "failure retains lack of support", err: errors.New("query failed"), wantKnown: true},
-		{name: "support restored", apis: []string{RNCSupportAPIName}, wantSupported: true, wantKnown: true},
+		{name: "initial query failure", err: errors.New("query failed"), wantCode: types.NmAgentSupportedApisError},
+		{name: "repeated failure", err: errors.New("query failed"), wantCode: types.NmAgentSupportedApisError},
+		{name: "support detected", apis: []string{RNCSupportAPIName}, wantSupported: true},
+		{name: "support unchanged", apis: []string{RNCSupportAPIName}, wantSupported: true},
+		{name: "failure replaces support", err: errors.New("query failed"), wantCode: types.NmAgentSupportedApisError},
+		{name: "support restored", apis: []string{RNCSupportAPIName}, wantSupported: true},
+		{name: "support removed"},
+		{name: "lack of support unchanged"},
+		{name: "failure replaces lack of support", err: errors.New("query failed"), wantCode: types.NmAgentSupportedApisError},
+		{name: "recovery without support"},
 	}
 	var apis []string
 	var queryErr error
@@ -238,10 +242,14 @@ func TestNMAgentMonitorRNCSupportRefresh(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			apis, queryErr = test.apis, test.err
 			monitor.Populate(t.Context())
-			if supported, known := monitor.IsRNCSupported(); supported != test.wantSupported || known != test.wantKnown {
-				t.Fatalf("RNC support = (%t, %t), want (%t, %t)", supported, known, test.wantSupported, test.wantKnown)
+			got := monitor.GetRNCSupport(t.Context())
+			if got.Response.ReturnCode != test.wantCode || got.RNCSupportResponse.IsSupported != test.wantSupported {
+				t.Fatalf("RNC support response = %+v, want code=%v and supported=%t", got, test.wantCode, test.wantSupported)
 			}
 			if queryErr != nil {
+				if want := fmt.Sprintf("failed to query nmagent supported apis: %v", queryErr); got.Response.Message != want {
+					t.Fatalf("RNC support message = %q, want %q", got.Response.Message, want)
+				}
 				want := cns.GetHomeAzResponse{Response: cns.Response{
 					ReturnCode: types.NmAgentSupportedApisError,
 					Message:    fmt.Sprintf("[HomeAzMonitor] failed to query nmagent's supported apis, %v", queryErr),
@@ -322,8 +330,8 @@ func TestNMAgentMonitorHomeAzErrors(t *testing.T) {
 			if got := monitor.GetHomeAz(t.Context()); got != want {
 				t.Fatalf("HomeAZ response = %+v, want %+v", got, want)
 			}
-			if supported, known := monitor.IsRNCSupported(); !supported || !known {
-				t.Fatalf("RNC support = (%t, %t), want (true, true)", supported, known)
+			if got := monitor.GetRNCSupport(t.Context()); got.Response.ReturnCode != types.Success || !got.RNCSupportResponse.IsSupported {
+				t.Fatalf("RNC support response = %+v, want success with support", got)
 			}
 		})
 	}

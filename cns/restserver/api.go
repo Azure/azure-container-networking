@@ -501,6 +501,21 @@ func (service *HTTPRestService) getHomeAz(w http.ResponseWriter, r *http.Request
 	}
 }
 
+func (service *HTTPRestService) getRNCSupport(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		resp := service.nmagentMonitor.GetRNCSupport(r.Context())
+		service.setResponse(w, resp.Response.ReturnCode, resp)
+	default:
+		service.setResponse(w, types.UnsupportedVerb, cns.GetRNCSupportResponse{
+			Response: cns.Response{
+				ReturnCode: types.UnsupportedVerb,
+				Message:    "RNC support requires GET",
+			},
+		})
+	}
+}
+
 func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWriter, r *http.Request) {
 	var req cns.CreateNetworkContainerRequest
 	if err := common.Decode(w, r, &req); err != nil {

@@ -19,7 +19,7 @@ const (
 	RNCSupportAPIName  = "NetworkManagementRNCSupport"
 	ContextTimeOut     = 5 * time.Second
 	homeAzCacheKey     = "HomeAz"
-	rncSupportCacheKey = "RNCSupported"
+	rncSupportCacheKey = "RNCSupport"
 )
 
 // NMAgentMonitor caches HomeAZ and RNC capability observations from NMAgent.
@@ -46,14 +46,24 @@ func (h *NMAgentMonitor) GetHomeAz(_ context.Context) cns.GetHomeAzResponse {
 	return h.readCacheValue()
 }
 
-// IsRNCSupported returns the last successfully observed RNC support value.
-// known is false until SupportedAPIs succeeds; refresh errors retain the last value.
-func (h *NMAgentMonitor) IsRNCSupported() (supported, known bool) {
-	cachedSupport, found := h.values.Get(rncSupportCacheKey)
+// GetRNCSupport returns the cached result of the latest capability discovery.
+func (h *NMAgentMonitor) GetRNCSupport(_ context.Context) cns.GetRNCSupportResponse {
+	cachedResponse, found := h.values.Get(rncSupportCacheKey)
 	if !found {
-		return false, false
+		return cns.GetRNCSupportResponse{Response: cns.Response{
+			ReturnCode: types.NotFound,
+			Message:    "RNC support cache is unavailable",
+		}}
 	}
-	return cachedSupport.(bool), true
+	return cachedResponse.(cns.GetRNCSupportResponse)
+}
+
+func (h *NMAgentMonitor) updateRNCSupport(resp cns.GetRNCSupportResponse) {
+	if cached, found := h.values.Get(rncSupportCacheKey); found && cached.(cns.GetRNCSupportResponse) == resp {
+		return
+	}
+	h.values.Set(rncSupportCacheKey, resp, cache.NoExpiration)
+	logger.Printf("[NMAgentMonitor] RNC support cache updated: %+v", resp)
 }
 
 // updateCacheValue updates home az cache value
@@ -109,17 +119,25 @@ func (h *NMAgentMonitor) refresh() {
 func (h *NMAgentMonitor) Populate(ctx context.Context) {
 	supportedApis, err := h.SupportedAPIs(ctx)
 	if err != nil {
+		h.updateRNCSupport(cns.GetRNCSupportResponse{Response: cns.Response{
+			ReturnCode: types.NmAgentSupportedApisError,
+			Message:    fmt.Sprintf("failed to query nmagent supported apis: %v", err),
+		}})
 		returnMessage := fmt.Sprintf("[HomeAzMonitor] failed to query nmagent's supported apis, %v", err)
 		returnCode := types.NmAgentSupportedApisError
 		h.update(returnCode, returnMessage, cns.HomeAzResponse{IsSupported: false})
 		return
 	}
 
-	rncSupported := isAPISupportedByNMAgent(supportedApis, RNCSupportAPIName)
-	if previous, known := h.IsRNCSupported(); !known || previous != rncSupported {
-		h.values.Set(rncSupportCacheKey, rncSupported, cache.NoExpiration)
-		logger.Printf("[NMAgentMonitor] RNC support updated: %t", rncSupported)
-	}
+	h.updateRNCSupport(cns.GetRNCSupportResponse{
+		Response: cns.Response{
+			ReturnCode: types.Success,
+			Message:    "RNC support query succeeded",
+		},
+		RNCSupportResponse: cns.RNCSupportResponse{
+			IsSupported: isAPISupportedByNMAgent(supportedApis, RNCSupportAPIName),
+		},
+	})
 
 	// check if getHomeAz api is supported by nmagent
 	if !isAPISupportedByNMAgent(supportedApis, GetHomeAzAPIName) {
