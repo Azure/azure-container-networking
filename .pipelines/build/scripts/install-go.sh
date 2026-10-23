@@ -11,8 +11,8 @@ set -euxo pipefail
 #   3. Hardcoded fallback digest below
 #
 # To update the fallback, run:
-#   skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.24-cbl-mariner2.0 --format "{{.Name}}@{{.Digest}}"
-DEFAULT_IMAGE="mcr.microsoft.com/oss/go/microsoft/golang@sha256:b05a9bbf50a8ccfdd0ebe9f673ef29dca7c1d5e209434b35a560a4e8ae5f72b2"
+#   skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0 --format "{{.Name}}@{{.Digest}}"
+DEFAULT_IMAGE="mcr.microsoft.com/oss/go/microsoft/golang@sha256:d104fef62900c2ca101f52568f43e0e6b6499b60be324fdd4d2ad5bae4bc3203"
 
 # Resolves the golang image from the source Dockerfile for the given $name.
 # Echoes the image reference, or empty string if it cannot be determined.
@@ -50,7 +50,7 @@ if [[ -z "${MSFT_GO_IMAGE:-}" ]]; then
   if [[ -z "${MSFT_GO_IMAGE}" ]]; then
     # Fail closed for npm: npm/<os>.Dockerfile is the source of truth for the
     # signed npm Go version and must match the unsigned image. Silently falling
-    # back to DEFAULT_IMAGE (Go 1.24) is the exact regression this pipeline had,
+    # back to DEFAULT_IMAGE is the exact regression this pipeline had,
     # so error out instead of shipping signed npm on a different Go than unsigned.
     if [[ "${name:-}" == "npm" ]]; then
       echo "##[error]install-go.sh: could not resolve the golang image from ${REPO_ROOT}/npm/${OS:-linux}.Dockerfile; refusing to fall back to DEFAULT_IMAGE so signed npm never diverges from the unsigned Go version." >&2

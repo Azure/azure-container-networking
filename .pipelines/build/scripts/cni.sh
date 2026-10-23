@@ -7,6 +7,7 @@ mkdir -p "$OUT_DIR"/files
 mkdir -p "$OUT_DIR"/bin
 
 export CGO_ENABLED=0 
+export MS_GO_NOSYSTEMCRYPTO=1
 
 
 CNI_NET_DIR="$REPO_ROOT"/cni/network/plugin

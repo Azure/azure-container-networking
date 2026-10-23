@@ -16,7 +16,6 @@ import (
 
 func TestCertRefresher(t *testing.T) {
 	ctx, cancel := testContext(t)
-	defer cancel()
 
 	// returns a different cert on every invocation, until context is done
 	tlsFn := tlsFunc(func() (tls.Certificate, error) {
@@ -34,14 +33,24 @@ func TestCertRefresher(t *testing.T) {
 	cf, err := NewCertRefresher(ctx, tlsFn, testLogger{t}, "dummy")
 	require.NoError(t, err)
 
+	var wg sync.WaitGroup
+
 	// a new cert should be loaded roughly every second
-	go func() { _ = cf.Refresh(ctx, time.Second) }()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_ = cf.Refresh(ctx, time.Second)
+	}()
 
 	thumbprintSet := stringSet{ts: make(map[string]struct{})}
 
 	// spin multiple concurrent readers, collecting unique thumbprints for eventual assertion
 	for i := 0; i < 10; i++ {
-		go readAndCollect(ctx, cf, &thumbprintSet, time.Millisecond*300)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			readAndCollect(ctx, cf, &thumbprintSet, time.Millisecond*300)
+		}()
 	}
 
 	waitFor := time.Second * 10
@@ -50,6 +59,11 @@ func TestCertRefresher(t *testing.T) {
 	checkEvery := time.Second
 
 	assert.Eventually(t, condFn, waitFor, checkEvery)
+
+	// cancel context and wait for all goroutines to finish before test exits,
+	// preventing data races on testing.T
+	cancel()
+	wg.Wait()
 }
 
 func TestCertRefresher_RetryUntilExpiration(t *testing.T) {
