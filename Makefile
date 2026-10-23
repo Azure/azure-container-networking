@@ -740,8 +740,10 @@ clean: ## Clean build artifacts.
 
 LINT_PKG ?= .
 
-lint: $(GOLANGCI_LINT) ## Fast lint vs default branch showing only new issues.
-	GOGC=20 $(GOLANGCI_LINT) run --timeout 25m -v $(LINT_PKG)/...
+LINT_BASE ?= origin/release/v1.6
+
+lint: $(GOLANGCI_LINT) ## Fast lint vs $(LINT_BASE) showing only new issues.
+	GOGC=20 $(GOLANGCI_LINT) run --new-from-rev=$(LINT_BASE) --timeout 25m -v $(LINT_PKG)/...
 
 lint-all: $(GOLANGCI_LINT) ## Lint the current branch in entirety.
 	GOGC=20 $(GOLANGCI_LINT) run -v $(LINT_PKG)/...
@@ -869,7 +871,7 @@ $(GOFUMPT): $(TOOLS_DIR)/go.mod
 gofumpt: $(GOFUMPT) ## Build gofumpt
 
 $(GOLANGCI_LINT): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -o bin/golangci-lint github.com/golangci/golangci-lint/cmd/golangci-lint
+	cd $(TOOLS_DIR); go mod download; go build -o bin/golangci-lint github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 
 golangci-lint: $(GOLANGCI_LINT) ## Build golangci-lint
 
