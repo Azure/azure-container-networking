@@ -231,7 +231,7 @@ Go builder tag: golang:1.XX-azurelinux3.0 (pinned in the component Dockerfile FR
     │   ├── → .devcontainer/Dockerfile (VARIANT="1.XX") ← dev container version
     │   ├── → .pipelines/build/scripts/install-go.sh (DEFAULT_IMAGE SHA)
     │   ├── → bpf-prog/ipv6-hp-bpf/linux.Dockerfile (Go image SHA)
-    │   ├── → npm/linux.Dockerfile (tag 1.XX.Y)
+    │   ├── → npm/linux.Dockerfile (patch tag with -azurelinux3.0 suffix)
     │   ├── → npm/windows.Dockerfile (tag 1.XX.Y)
     │   └── → All component + .pipelines/build/dockerfiles/ Dockerfile FROM pins
     │
@@ -282,18 +282,20 @@ Go builder tag: golang:1.XX-azurelinux3.0 (pinned in the component Dockerfile FR
      skopeo inspect "docker://mcr.microsoft.com/oss/go/microsoft/golang:1.XX.Y" --format "{{.Digest}}"
      ```
      (using the plain patch tag, e.g., `1.26.6`, without `-azurelinux3.0`)
-9. **`npm/linux.Dockerfile`** and **`npm/windows.Dockerfile`** — Update Go tag
-   - ⚠️ npm Dockerfiles use **plain patch tag** (e.g., `golang:1.26.4`), NOT the `-azurelinux3.0` suffixed tag
-   - The npm builder uses Ubuntu as runtime base, not Azure Linux
+9. **`npm/linux.Dockerfile`** and **`npm/windows.Dockerfile`**: update Go tags
+   - The Linux builder uses a patch tag with the `-azurelinux3.0` suffix. Both Linux runtime image paths use Azure Linux 3 with the OpenSSL runtime dependencies.
+   - Keep `CGO_ENABLED=0`. For Go 1.26, Linux needs `GOEXPERIMENT=ms_nocgo_opensslcrypto`; for Go 1.27+, follow the documented default system-crypto configuration without obsolete experiments.
+   - Keep the unsigned Dockerfile and the Linux branch of `.pipelines/build/scripts/npm.sh` aligned. Neither Linux image path should opt out with `MS_GO_NOSYSTEMCRYPTO=1`.
    - `npm/windows.Dockerfile` builds on a **Linux builder** (`--platform=linux/amd64`) cross-compiling with `GOOS=windows`
-   - ⚠️ **KEEP `MS_GO_NOSYSTEMCRYPTO=1`** in BOTH files. Do NOT remove it or replace it with a `GOEXPERIMENT`. npm runs on Ubuntu, which does not ship Microsoft's FIPS OpenSSL. Building it with systemcrypto makes it crash-loop on FIPS-enabled clusters. `MS_GO_NOSYSTEMCRYPTO=1` is still the supported opt-out in Go 1.27+.
+   - Preserve the Windows builder's plain patch tag and its existing `MS_GO_NOSYSTEMCRYPTO=1` setting, including the Windows branch of `npm.sh`. Select crypto settings for the target OS, not the builder host.
+   - Preserve the standalone host archive opt-out. See `docs/npm.md` for the image runtime contract and validation commands.
 10. **Update the `FROM ...golang:...@sha` pins directly** in every component Dockerfile and `.pipelines/build/dockerfiles/*.Dockerfile` (the Dockerfiles are the source of truth). Resolve each digest with `skopeo inspect docker://<image> --format "{{.Digest}}"` or read the pre-cached `.github/image-digests/*.txt`; never hand-write a digest
 
 ### Step 1b: Apply GOEXPERIMENT to ALL Build Paths (CRITICAL)
 
 > **Go 1.27+: do NOT follow the GOEXPERIMENT instructions in this step.** In Go 1.27, `systemcrypto` is the default for `CGO_ENABLED=0` and `CGO_ENABLED=1`, and `GOEXPERIMENT=systemcrypto` / `nosystemcrypto` are rejected by the toolchain. Instead:
 > - **Remove** every `GOEXPERIMENT=systemcrypto`, `GOEXPERIMENT=nosystemcrypto` and `GOEXPERIMENT=ms_nocgo_opensslcrypto` assignment (scripts, Dockerfiles, Makefiles).
-> - **Keep** `MS_GO_NOSYSTEMCRYPTO=1` where it already exists (npm Dockerfiles, `npm.sh`, root Makefile `all-binaries`).
+> - **Keep** `MS_GO_NOSYSTEMCRYPTO=1` for `npm/windows.Dockerfile`, the Windows branch of `npm.sh`, and root Makefile `all-binaries`. NPM Linux images use Azure Linux system crypto.
 > - Validate with the Go 1.27+ check in Step 2.
 >
 > The rest of this step applies to **Go 1.26 only**.
@@ -321,7 +323,7 @@ export CGO_ENABLED=1
 Scripts to update:
 - `.pipelines/build/scripts/cni.sh`
 - `.pipelines/build/scripts/cns.sh`
-- `.pipelines/build/scripts/npm.sh` ← **exception:** keeps `export MS_GO_NOSYSTEMCRYPTO=1`, so add no GOEXPERIMENT
+- `.pipelines/build/scripts/npm.sh`: set the Linux no-CGO backend only in its Linux branch; preserve the Windows crypto opt-out.
 - `.pipelines/build/scripts/dropgz.sh`
 - `.pipelines/build/scripts/azure-ipam.sh`
 - `.pipelines/build/scripts/azure-ip-masq-merger.sh`
@@ -354,7 +356,8 @@ Dockerfiles to update (component dir + matching `.pipelines/build/dockerfiles/*.
 #### Standalone Dockerfiles
 
 - `bpf-prog/ipv6-hp-bpf/linux.Dockerfile`
-- `npm/linux.Dockerfile` and `npm/windows.Dockerfile` ← **exception:** keep `MS_GO_NOSYSTEMCRYPTO=1` on the `go build` line, so add no GOEXPERIMENT
+- `npm/linux.Dockerfile`: use the Linux no-CGO backend with its Azure Linux runtime.
+- `npm/windows.Dockerfile`: preserve `MS_GO_NOSYSTEMCRYPTO=1`; its Linux builder host does not make the Windows payload a Linux crypto target.
 
 #### Root Makefile
 
@@ -431,9 +434,9 @@ grep -R -nE '^[^#]*GOEXPERIMENT=(systemcrypto|nosystemcrypto|ms_nocgo_opensslcry
 
 ```bash
 # Verify ALL CGO_ENABLED=0 scripts have the correct GOEXPERIMENT
-# (scripts that opt out with MS_GO_NOSYSTEMCRYPTO=1, e.g. npm.sh, are exempt)
+# A Windows-only opt-out does not exempt npm.sh's Linux build.
 for script in .pipelines/build/scripts/*.sh; do
-  if grep -q "CGO_ENABLED=0" "$script" && ! grep -q "MS_GO_NOSYSTEMCRYPTO=1" "$script"; then
+  if grep -q "CGO_ENABLED=0" "$script" && { ! grep -q "MS_GO_NOSYSTEMCRYPTO=1" "$script" || [[ "$script" == */npm.sh ]]; }; then
     if ! grep -q "GOEXPERIMENT=<value_for_cgo0>" "$script"; then
       echo "MISSING GOEXPERIMENT in: $script"
     fi
@@ -540,10 +543,10 @@ When upgrading Go, verify compatibility with AKS supported Kubernetes versions:
 
 - **ALWAYS use `1.XX.1` in go.mod** — NOT the latest patch. The container image provides the actual binary version.
 - The `npm/` component is released as **npm-lite** — ensure Dockerfiles build correctly
-- npm Dockerfiles use **plain Go tags** (e.g., `golang:1.26.4`) without `-azurelinux3.0` suffix
-- npm Dockerfiles and `npm.sh` keep `MS_GO_NOSYSTEMCRYPTO=1` (Ubuntu runtime, no Microsoft FIPS OpenSSL). Never remove it.
+- NPM Linux uses patch-pinned `-azurelinux3.0` Go builders and Azure Linux 3 runtime dependencies. Keep both Linux image paths aligned.
+- NPM Linux uses the version-appropriate no-CGO system-crypto backend. Windows and standalone host archives retain their existing crypto opt-outs.
 - Base image tags/SHAs in the Dockerfiles are kept current by Dependabot
-- ALWAYS use 2-part floating tags for the azurelinux Go builder in the component + pipeline Dockerfiles
+- Use two-part floating tags for the other component and pipeline Go builders; NPM retains patch tags.
 - **Windows builds**: CNG backend typically works without CGO or GOEXPERIMENT — verify per version
 - **Do NOT assume "no GOEXPERIMENT" is safe** — always verify the default backend's CGO requirements
 
