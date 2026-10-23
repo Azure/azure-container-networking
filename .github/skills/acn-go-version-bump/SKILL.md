@@ -231,7 +231,7 @@ build/images.mk (GO_IMG=golang:1.XX-azurelinux3.0)     ← primary image tag
     │   ├── → .devcontainer/Dockerfile (VARIANT="1.XX") ← dev container version
     │   ├── → .pipelines/build/scripts/install-go.sh (DEFAULT_IMAGE SHA)
     │   ├── → bpf-prog/ipv6-hp-bpf/linux.Dockerfile (Go image SHA)
-    │   ├── → npm/linux.Dockerfile (tag 1.XX.Y)
+    │   ├── → npm/linux.Dockerfile (patch tag with -azurelinux3.0 suffix)
     │   ├── → npm/windows.Dockerfile (tag 1.XX.Y)
     │   └── → All .tmpl Dockerfiles (via `make dockerfiles`)
     │
@@ -283,11 +283,12 @@ build/images.mk (GO_IMG=golang:1.XX-azurelinux3.0)     ← primary image tag
      skopeo inspect "docker://mcr.microsoft.com/oss/go/microsoft/golang:1.XX.Y" --format "{{.Digest}}"
      ```
      (using the plain patch tag, e.g., `1.26.6`, without `-azurelinux3.0`)
-9. **`npm/linux.Dockerfile`** and **`npm/windows.Dockerfile`** — Update Go tag
-   - ⚠️ npm Dockerfiles use **plain patch tag** (e.g., `golang:1.26.4`), NOT the `-azurelinux3.0` suffixed tag
-   - The npm builder uses Ubuntu as runtime base, not Azure Linux
-   - `npm/windows.Dockerfile` builds on a **Linux builder** (`--platform=linux/amd64`) cross-compiling with `GOOS=windows` — it still needs `GOEXPERIMENT` for CGO_ENABLED=0 on the Linux build stage
-   - Replace `MS_GO_NOSYSTEMCRYPTO=1` with appropriate `GOEXPERIMENT=<value>` in BOTH files
+9. **`npm/linux.Dockerfile`** and **`npm/windows.Dockerfile`**: update Go tags
+   - The Linux builder uses a patch tag with the `-azurelinux3.0` suffix. Both Linux runtime image paths use Azure Linux 3 with the OpenSSL runtime dependencies.
+   - Keep `CGO_ENABLED=0` and select the Linux no-CGO backend documented for the target version. Go 1.26 needs `GOEXPERIMENT=ms_nocgo_opensslcrypto`.
+   - Keep the unsigned Dockerfile and the Linux branch of `.pipelines/build/scripts/npm.sh` aligned. Neither Linux image path should opt out with `MS_GO_NOSYSTEMCRYPTO=1`.
+   - `npm/windows.Dockerfile` cross-compiles with `GOOS=windows` on a Linux builder. Preserve its plain patch tag and existing `MS_GO_NOSYSTEMCRYPTO=1` setting, including the Windows branch of `npm.sh`. Select crypto settings for the target OS, not the builder host.
+   - Preserve the standalone host archive opt-out. See `docs/npm.md` for the image runtime contract and validation commands.
 10. **Run `make dockerfiles`** — Regenerate all template-based Dockerfiles
 
 ### Step 1b: Apply GOEXPERIMENT to ALL Build Paths (CRITICAL)
@@ -315,7 +316,7 @@ export CGO_ENABLED=1
 Scripts to update:
 - `.pipelines/build/scripts/cni.sh`
 - `.pipelines/build/scripts/cns.sh`
-- `.pipelines/build/scripts/npm.sh`
+- `.pipelines/build/scripts/npm.sh`: select the Linux no-CGO backend when `OS=linux`; preserve the Windows crypto opt-out.
 - `.pipelines/build/scripts/dropgz.sh`
 - `.pipelines/build/scripts/azure-ipam.sh`
 - `.pipelines/build/scripts/azure-ip-masq-merger.sh`
@@ -348,8 +349,8 @@ Templates to update:
 #### Standalone Dockerfiles (not generated from templates)
 
 - `bpf-prog/ipv6-hp-bpf/linux.Dockerfile`
-- `npm/linux.Dockerfile`
-- `npm/windows.Dockerfile` ← **builds on Linux** (`--platform=linux/amd64`), needs GOEXPERIMENT for CGO=0
+- `npm/linux.Dockerfile`: use the Linux no-CGO backend with its Azure Linux runtime.
+- `npm/windows.Dockerfile`: preserve `MS_GO_NOSYSTEMCRYPTO=1`; its Linux builder host does not make the Windows payload a Linux crypto target.
 
 #### Root Makefile
 
@@ -581,8 +582,8 @@ When upgrading Go, verify compatibility with AKS supported Kubernetes versions:
 
 - **ALWAYS use `1.XX.1` in go.mod** — NOT the latest patch. The container image provides the actual binary version.
 - The `npm/` component is released as **npm-lite** — ensure Dockerfiles build correctly
-- npm Dockerfiles use **plain Go tags** (e.g., `golang:1.26.4`) without `-azurelinux3.0` suffix
-- `npm/windows.Dockerfile` builds on a Linux builder (`--platform=linux/amd64`) — still needs GOEXPERIMENT for CGO=0
+- NPM Linux uses patch-pinned `-azurelinux3.0` Go builders and Azure Linux 3 runtime dependencies. Keep both Linux image paths aligned.
+- NPM Linux uses the version-appropriate no-CGO system-crypto backend. Windows and standalone host archives retain their existing crypto opt-outs.
 - The `baseimages.yaml` CI workflow fails if `make dockerfiles` output doesn't match committed files
 - ALWAYS use 2-part floating tags in `build/images.mk`
 - **Windows builds**: CNG backend typically works without CGO or GOEXPERIMENT — verify per version
