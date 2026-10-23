@@ -102,7 +102,7 @@ RUN sed -i 's|archive.ubuntu.com|azure.archive.ubuntu.com|g' /etc/apt/sources.li
         libattr1=1:2.5.2-1ubuntu0.1 \
         libbz2-1.0=1.0.8-5.1ubuntu0.1 \
         libp11-kit0=0.25.3-4ubuntu2.2 \
-        zlib1g=1:1.3.dfsg-3.1ubuntu2.2 \
+        zlib1g=1:1.3.dfsg-3.1ubuntu2.3 \
     && apt-get autoremove -y \
     && apt-get clean
 RUN chmod +x /usr/bin/azure-npm
