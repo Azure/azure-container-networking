@@ -490,13 +490,28 @@ func (service *HTTPRestService) getHomeAz(w http.ResponseWriter, r *http.Request
 
 	switch r.Method {
 	case http.MethodGet:
-		getHomeAzResponse := service.homeAzMonitor.GetHomeAz(ctx)
+		getHomeAzResponse := service.nmagentMonitor.GetHomeAz(ctx)
 		service.setResponse(w, getHomeAzResponse.Response.ReturnCode, getHomeAzResponse)
 	default:
 		returnMessage := "[Azure CNS] Error. getHomeAz did not receive a GET."
 		returnCode := types.UnsupportedVerb
 		service.setResponse(w, returnCode, cns.GetHomeAzResponse{
 			Response: cns.Response{ReturnCode: returnCode, Message: returnMessage},
+		})
+	}
+}
+
+func (service *HTTPRestService) getRNCSupport(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		resp := service.nmagentMonitor.GetRNCSupport(r.Context())
+		service.setResponse(w, resp.Response.ReturnCode, resp)
+	default:
+		service.setResponse(w, types.UnsupportedVerb, cns.GetRNCSupportResponse{
+			Response: cns.Response{
+				ReturnCode: types.UnsupportedVerb,
+				Message:    "RNC support requires GET",
+			},
 		})
 	}
 }

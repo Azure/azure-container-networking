@@ -45,6 +45,7 @@ var clientPaths = []string{
 	cns.DeleteNetworkContainer,
 	cns.NetworkContainersURLPath,
 	cns.GetHomeAz,
+	cns.GetRNCSupport,
 	cns.EndpointAPI,
 }
 
@@ -1064,6 +1065,46 @@ func (c *Client) GetHomeAz(ctx context.Context) (*cns.GetHomeAzResponse, error) 
 	}
 
 	return &getHomeAzResponse, nil
+}
+
+// GetRNCSupport gets the latest cached NMAgent RNC capability discovery result.
+func (c *Client) GetRNCSupport(ctx context.Context) (*cns.GetRNCSupportResponse, error) {
+	u := c.routes[cns.GetRNCSupport]
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody)
+	if err != nil {
+		return nil, errors.Wrap(err, "building http request")
+	}
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "sending HTTP request")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, &CNSClientError{
+			Code: types.UnsupportedAPI,
+			Err:  errors.New("rnc support API is unavailable"),
+		}
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, &CNSClientError{
+			Code: types.UnexpectedError,
+			Err:  &FailedHTTPRequest{Code: resp.StatusCode},
+		}
+	}
+
+	var response cns.GetRNCSupportResponse
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, errors.Wrap(err, "decoding response as JSON")
+	}
+	if response.Response.ReturnCode != types.Success {
+		return nil, &CNSClientError{
+			Code: response.Response.ReturnCode,
+			Err:  errors.New(response.Response.Message),
+		}
+	}
+	return &response, nil
 }
 
 // GetEndpoint calls the EndpointHandlerAPI in CNS to retrieve the state of a given EndpointID
