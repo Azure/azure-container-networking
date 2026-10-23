@@ -19,6 +19,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
+	nma "github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/pkg/errors"
@@ -494,13 +495,70 @@ func (service *HTTPRestService) removeToBeDeletedIPStateUntransacted(
 	return 0, ""
 }
 
+// On code 31, re-check NMAgent every vfpPendingRetryInterval until the timeout instead
+// of waiting for CNI-invoked retry. Waiters share one NMAgent call per interval.
 func (service *HTTPRestService) getAllNetworkContainerResponses(
 	req cns.GetNetworkContainerRequest,
 ) []cns.GetNetworkContainerResponse {
+	// First check is unchanged: if the NMAgent call returns an error, CNS skips the VFP check and returns the NC config anyways.
+	resps, _ := service.getAllNetworkContainerResponsesOnce(req, 0)
+	timeoutMs, _ := service.GetOption(acn.OptVFPPendingRetryTimeoutMs).(int)
+	timeout := time.Duration(timeoutMs) * time.Millisecond
+	if timeout <= 0 || !vfpPending(resps) {
+		return resps
+	}
+
+	// Bounded by time so a slow wireserver can't push the CNI request past its CNS client timeout.
+	start := time.Now()
+	retries := 0
+	for vfpPending(resps) && time.Since(start) < timeout {
+		time.Sleep(vfpPendingRetryInterval)
+		retries++
+		next, err := service.getAllNetworkContainerResponsesOnce(req, vfpPendingRetryInterval)
+		if err != nil {
+			break
+		}
+		resps = next
+	}
+	logger.Printf("[Azure-CNS] VFP programming pending retry ended: pod=%s retries=%d waitMs=%d stillPending=%t", //nolint:staticcheck // will migrate to logger/v2
+		req.OrchestratorContext, retries, time.Since(start).Milliseconds(), vfpPending(resps))
+	return resps
+}
+
+func vfpPending(resps []cns.GetNetworkContainerResponse) bool {
+	for i := range resps {
+		if resps[i].Response.ReturnCode == types.NetworkContainerVfpProgramPending {
+			return true
+		}
+	}
+	return false
+}
+
+// getNCVersionList returns the cached NMAgent NC version list if it is younger than maxAge, otherwise
+// fetches it. Caller must hold the service lock.
+func (service *HTTPRestService) getNCVersionList(ctx context.Context, maxAge time.Duration) (nma.NCVersionList, error) {
+	if maxAge > 0 && time.Since(service.ncVersionListAt) < maxAge {
+		return service.ncVersionList, nil
+	}
+	fetchedAt := time.Now() // before the call, so the age bounds how old the data can be
+	list, err := service.nma.GetNCVersionList(ctx)
+	if err != nil {
+		return list, err //nolint:wrapcheck // callers only log it
+	}
+	service.ncVersionList, service.ncVersionListAt = list, fetchedAt
+	return list, nil
+}
+
+// getAllNetworkContainerResponsesOnce also returns the NMAgent NC version list error, if any. On that error the
+// version check is skipped (fail open).
+func (service *HTTPRestService) getAllNetworkContainerResponsesOnce(
+	req cns.GetNetworkContainerRequest, maxNCVersionListAge time.Duration,
+) ([]cns.GetNetworkContainerResponse, error) {
 	var (
 		getNetworkContainerResponse cns.GetNetworkContainerResponse
 		ncs                         []string
 		skipNCVersionCheck          = false
+		ncVersionListErr            error
 	)
 
 	service.Lock()
@@ -519,7 +577,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 
 			getNetworkContainerResponse.Response = response
 			getNetworkContainersResponse = append(getNetworkContainersResponse, getNetworkContainerResponse)
-			return getNetworkContainersResponse
+			return getNetworkContainersResponse, nil
 		}
 
 		// get networkContainerIDs as string, "nc1, nc2"
@@ -537,15 +595,16 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 
 			getNetworkContainerResponse.Response = response
 			getNetworkContainersResponse = append(getNetworkContainersResponse, getNetworkContainerResponse)
-			return getNetworkContainersResponse
+			return getNetworkContainersResponse, nil
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), nmaAPICallTimeout)
 		defer cancel()
-		ncVersionListResp, err := service.nma.GetNCVersionList(ctx)
+		ncVersionListResp, err := service.getNCVersionList(ctx, maxNCVersionListAge)
 		if err != nil {
 			skipNCVersionCheck = true
-			logger.Errorf("failed to get nc version list from nmagent")
+			ncVersionListErr = err
+			logger.Errorf("failed to get nc version list from nmagent: %v", err) //nolint:staticcheck // will migrate to logger/v2
 			// TODO: Add telemetry as this has potential to have containers in the running state w/o datapath working
 		}
 		nmaNCs := map[string]string{}
@@ -595,7 +654,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 			service.Lock()
 			if getNetworkContainerResponse.Response.ReturnCode == types.NotFound {
 				getNetworkContainersResponse = append(getNetworkContainersResponse, getNetworkContainerResponse)
-				return getNetworkContainersResponse
+				return getNetworkContainersResponse, nil
 			}
 		}
 	default:
@@ -607,7 +666,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 
 		getNetworkContainerResponse.Response = response
 		getNetworkContainersResponse = append(getNetworkContainersResponse, getNetworkContainerResponse)
-		return getNetworkContainersResponse
+		return getNetworkContainersResponse, nil
 	}
 
 	getNetworkContainersResponse := []cns.GetNetworkContainerResponse{}
@@ -656,7 +715,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 
 	logger.Printf("getNetworkContainersResponses are %+v", getNetworkContainersResponse)
 
-	return getNetworkContainersResponse
+	return getNetworkContainersResponse, ncVersionListErr
 }
 
 // restoreNetworkState restores Network state that existed before reboot.
