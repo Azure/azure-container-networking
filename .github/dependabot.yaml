@@ -51,6 +51,8 @@ updates:
       prefix: "deps"
     labels: ["dependencies"]
     open-pull-requests-limit: 2
+    allow:
+      - dependency-type: "all"
     groups:
       kubernetes-minor-and-patch:
         applies-to: version-updates
@@ -91,6 +93,8 @@ updates:
       prefix: "deps"
     labels: ["dependencies", "azure-ipam"]
     open-pull-requests-limit: 2
+    allow:
+      - dependency-type: "all"
     groups:
       kubernetes-minor-and-patch:
         applies-to: version-updates
@@ -127,6 +131,8 @@ updates:
       prefix: "deps"
     labels: ["dependencies", "dropgz"]
     open-pull-requests-limit: 2
+    allow:
+      - dependency-type: "all"
     groups:
       all-go-minor-and-patch:
         applies-to: version-updates
@@ -146,6 +152,8 @@ updates:
       prefix: "deps"
     labels: ["dependencies"]
     open-pull-requests-limit: 2
+    allow:
+      - dependency-type: "all"
     groups:
       all-go-minor-and-patch:
         applies-to: version-updates
@@ -174,6 +182,8 @@ updates:
       prefix: "deps"
     labels: ["dependencies"]
     open-pull-requests-limit: 2
+    allow:
+      - dependency-type: "all"
     groups:
       all-go-minor-and-patch:
         applies-to: version-updates
@@ -216,6 +226,8 @@ updates:
     labels: ["dependencies", "release/1.8"]
     open-pull-requests-limit: 1
     target-branch: "release/v1.8"
+    allow:
+      - dependency-type: "all"
     groups:
       kubernetes-minor-and-patch:
         applies-to: version-updates
@@ -254,6 +266,8 @@ updates:
     labels: ["dependencies", "azure-ipam", "release/1.8"]
     open-pull-requests-limit: 1
     target-branch: "release/v1.8"
+    allow:
+      - dependency-type: "all"
     groups:
       kubernetes-minor-and-patch:
         applies-to: version-updates
@@ -311,6 +325,8 @@ updates:
     labels: ["dependencies", "release/1.7"]
     open-pull-requests-limit: 1
     target-branch: "release/v1.7"
+    allow:
+      - dependency-type: "all"
     groups:
       kubernetes-minor-and-patch:
         applies-to: version-updates
@@ -349,6 +365,8 @@ updates:
     labels: ["dependencies", "azure-ipam", "release/1.7"]
     open-pull-requests-limit: 1
     target-branch: "release/v1.7"
+    allow:
+      - dependency-type: "all"
     groups:
       kubernetes-minor-and-patch:
         applies-to: version-updates
@@ -406,6 +424,8 @@ updates:
     labels: ["dependencies", "release/1.6"]
     open-pull-requests-limit: 1
     target-branch: "release/v1.6"
+    allow:
+      - dependency-type: "all"
     groups:
       kubernetes-minor-and-patch:
         applies-to: version-updates
@@ -446,6 +466,8 @@ updates:
     labels: ["dependencies", "azure-ipam", "release/1.6"]
     open-pull-requests-limit: 1
     target-branch: "release/v1.6"
+    allow:
+      - dependency-type: "all"
     groups:
       kubernetes-minor-and-patch:
         applies-to: version-updates
