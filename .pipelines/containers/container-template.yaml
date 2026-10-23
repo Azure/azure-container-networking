@@ -34,7 +34,7 @@ steps:
     image=$(make --no-print-directory npm-image-name-and-tag OS=${{ parameters.os }} ARCH=${{ parameters.arch }})
     bash hack/scripts/test_npm_image.sh "$image"
   displayName: Validate NPM Linux image runtime
-  condition: and(succeeded(), eq('${{ parameters.name }}', 'npm'), eq('${{ parameters.os }}', 'linux'))
+  condition: and(succeeded(), eq(variables['name'], 'npm'), eq(variables['os'], 'linux'))
 
 - task: AzureCLI@2
   displayName: "Logout"
