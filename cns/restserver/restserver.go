@@ -121,6 +121,7 @@ type HTTPRestService struct {
 	PnpIDByMacAddress          map[string]string
 	imdsClient                 imdsClient
 	nodesubnetIPFetcher        *nodesubnet.IPFetcher
+	ipamServer                 *ipamServer
 	nicncClient                nicncClient
 	mtpncClient                mtpncClient
 	nodeinfoClient             nodeinfoClient
@@ -320,10 +321,10 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.DeleteHostNCApipaEndpointPath, service.DeleteHostNCApipaEndpoint)
 	listener.AddHandler(cns.PublishNetworkContainer, service.publishNetworkContainer)
 	listener.AddHandler(cns.UnpublishNetworkContainer, service.unpublishNetworkContainer)
-	listener.AddHandler(cns.RequestIPConfig, NewHandlerFuncWithHistogram(service.RequestIPConfigHandler, HTTPRequestLatency))
-	listener.AddHandler(cns.RequestIPConfigs, NewHandlerFuncWithHistogram(service.RequestIPConfigsHandler, HTTPRequestLatency))
-	listener.AddHandler(cns.ReleaseIPConfig, NewHandlerFuncWithHistogram(service.ReleaseIPConfigHandler, HTTPRequestLatency))
-	listener.AddHandler(cns.ReleaseIPConfigs, NewHandlerFuncWithHistogram(service.ReleaseIPConfigsHandler, HTTPRequestLatency))
+	listener.AddHandler(cns.RequestIPConfig, NewIPAMHandler(service.RequestIPConfigHandler, "tcp"))
+	listener.AddHandler(cns.RequestIPConfigs, NewIPAMHandler(service.RequestIPConfigsHandler, "tcp"))
+	listener.AddHandler(cns.ReleaseIPConfig, NewIPAMHandler(service.ReleaseIPConfigHandler, "tcp"))
+	listener.AddHandler(cns.ReleaseIPConfigs, NewIPAMHandler(service.ReleaseIPConfigsHandler, "tcp"))
 	listener.AddHandler(cns.NmAgentSupportedApisPath, service.nmAgentSupportedApisHandler)
 	listener.AddHandler(cns.PathDebugIPAddresses, service.HandleDebugIPAddresses)
 	listener.AddHandler(cns.PathDebugPodContext, service.HandleDebugPodContext)
@@ -403,11 +404,23 @@ func (service *HTTPRestService) Start(config *common.ServiceConfig) error {
 		return err
 	}
 
+	if config.IPAMSocket {
+		ipamServer, err := startIPAMServer(IPAMUnixSocketPath, service, config.ErrChan)
+		if err != nil {
+			return err
+		}
+		service.ipamServer = ipamServer
+	}
+
 	return nil
 }
 
 // Stop stops the CNS.
 func (service *HTTPRestService) Stop() {
+	if service.ipamServer != nil {
+		service.ipamServer.stop()
+		service.ipamServer = nil
+	}
 	service.Uninitialize()
 	logger.Printf("[Azure CNS]  Service stopped.")
 }

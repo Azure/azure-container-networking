@@ -68,6 +68,7 @@ type CNSConfig struct {
 	GRPCSettings                    GRPCSettings
 	MinTLSVersion                   string
 	MtlsClientCertSubjectName       string
+	EnableIPAMUnixSocket            bool
 }
 
 type TelemetrySettings struct {
