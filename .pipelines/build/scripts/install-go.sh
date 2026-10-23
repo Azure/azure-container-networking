@@ -36,6 +36,10 @@ resolve_go_image() {
     local buildfile
     if [[ "${name:-}" == "ipv6-hp-bpf" ]]; then
       buildfile="${REPO_ROOT}/bpf-prog/ipv6-hp-bpf/linux.Dockerfile"
+      # ob-prepare.steps.yaml renames linux.Dockerfile -> Dockerfile for OneBranch.
+      if [[ ! -f "${buildfile}" ]]; then
+        buildfile="${REPO_ROOT}/bpf-prog/ipv6-hp-bpf/Dockerfile"
+      fi
     elif [[ -n "${name:-}" ]]; then
       buildfile="${REPO_ROOT}/${name}/Dockerfile"
     fi
