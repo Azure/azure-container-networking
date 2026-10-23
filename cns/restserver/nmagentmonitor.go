@@ -27,17 +27,17 @@ type NMAgentMonitor struct {
 	nmagentClient
 	values *cache.Cache
 	// channel used as signal to end the cache refresh goroutine
-	closing                  chan struct{}
-	cacheRefreshIntervalSecs time.Duration
+	closing              chan struct{}
+	cacheRefreshInterval time.Duration
 }
 
 // NewNMAgentMonitor creates a monitor with an empty, non-expiring cache.
-func NewNMAgentMonitor(client nmagentClient, cacheRefreshIntervalSecs time.Duration) *NMAgentMonitor {
+func NewNMAgentMonitor(client nmagentClient, cacheRefreshInterval time.Duration) *NMAgentMonitor {
 	return &NMAgentMonitor{
-		nmagentClient:            client,
-		cacheRefreshIntervalSecs: cacheRefreshIntervalSecs,
-		values:                   cache.New(cache.NoExpiration, cache.NoExpiration),
-		closing:                  make(chan struct{}),
+		nmagentClient:        client,
+		cacheRefreshInterval: cacheRefreshInterval,
+		values:               cache.New(cache.NoExpiration, cache.NoExpiration),
+		closing:              make(chan struct{}),
 	}
 }
 
@@ -63,7 +63,7 @@ func (h *NMAgentMonitor) updateRNCSupport(resp cns.GetRNCSupportResponse) {
 		return
 	}
 	h.values.Set(rncSupportCacheKey, resp, cache.NoExpiration)
-	logger.Printf("[NMAgentMonitor] RNC support cache updated: %+v", resp)
+	logger.Printf("[NMAgentMonitor] RNC support cache updated: %+v", resp) //nolint:staticcheck // will migrate to logger/v2
 }
 
 // updateCacheValue updates home az cache value
@@ -85,7 +85,7 @@ func (h *NMAgentMonitor) readCacheValue() cns.GetHomeAzResponse {
 
 // Start starts a new thread to refresh the NMAgent cache.
 func (h *NMAgentMonitor) Start() {
-	logger.Printf("[NMAgentMonitor] starting cache refresh")
+	logger.Printf("[NMAgentMonitor] starting cache refresh") //nolint:staticcheck // will migrate to logger/v2
 	go h.refresh()
 }
 
@@ -101,7 +101,7 @@ func (h *NMAgentMonitor) refresh() {
 	h.Populate(ctx)
 	cancel()
 
-	ticker := time.NewTicker(h.cacheRefreshIntervalSecs)
+	ticker := time.NewTicker(h.cacheRefreshInterval)
 	defer ticker.Stop()
 	for {
 		select {

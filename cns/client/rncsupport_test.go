@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var errRNCSupportTransport = errors.New("transport unavailable")
+
 func TestGetRNCSupport(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -130,7 +132,7 @@ func TestGetRNCSupportRequestErrors(t *testing.T) {
 	})
 
 	t.Run("transport failure", func(t *testing.T) {
-		cause := errors.New("transport unavailable")
+		cause := errRNCSupportTransport
 		routes, err := buildRoutes(defaultBaseURL, clientPaths)
 		require.NoError(t, err)
 		client := &Client{

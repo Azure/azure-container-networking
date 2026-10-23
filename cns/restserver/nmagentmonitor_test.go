@@ -88,7 +88,6 @@ func TestNMAgentMonitorHomeAz(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			monitor := NewNMAgentMonitor(test.client, time.Second)
@@ -124,7 +123,7 @@ func TestNMAgentMonitorRNCSupport(t *testing.T) {
 	}{
 		{
 			name:          "both APIs supported",
-			apis:          []string{GetHomeAzAPIName, "NetworkManagementRNCSupport"},
+			apis:          []string{GetHomeAzAPIName, RNCSupportAPIName},
 			wantSupported: true,
 			wantHomeAz:    true,
 		},
@@ -135,12 +134,12 @@ func TestNMAgentMonitorRNCSupport(t *testing.T) {
 		},
 		{
 			name:          "only RNC supported",
-			apis:          []string{"NetworkManagementRNCSupport"},
+			apis:          []string{RNCSupportAPIName},
 			wantSupported: true,
 		},
 		{
 			name: "neither API supported",
-			apis: []string{"OtherAPI"},
+			apis: []string{"UnrelatedNMAgentAPI"},
 		},
 		{
 			name: "empty API list",
@@ -155,7 +154,7 @@ func TestNMAgentMonitorRNCSupport(t *testing.T) {
 		},
 		{
 			name:          "HomeAZ failure does not affect RNC support",
-			apis:          []string{GetHomeAzAPIName, "NetworkManagementRNCSupport"},
+			apis:          []string{GetHomeAzAPIName, RNCSupportAPIName},
 			homeAzErr:     errors.New("home az unavailable"),
 			wantSupported: true,
 			wantHomeAz:    true,
