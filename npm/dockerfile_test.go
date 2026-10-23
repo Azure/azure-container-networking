@@ -3,15 +3,13 @@ package npm
 import (
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 )
 
-// These tests guard the NPM image CVE-hardening pins so the signed (release) and
-// unsigned Dockerfiles cannot silently drift apart. Drift between the two paths
-// is how CVE fixes get lost: a bump in one file that is not mirrored in the
-// other ships an unpatched image.
+// Keep the signed and unsigned NPM image contracts in sync.
 
 const (
 	unsignedLinuxDockerfile   = "linux.Dockerfile"
@@ -25,53 +23,22 @@ const (
 	minGoBuilderVersion = "1.26.9"
 )
 
-// requiredLinuxPins is the authoritative set of Ubuntu packages that must be
-// pinned — at exactly these patched versions — in BOTH the signed and unsigned
-// Linux images. Asserting the full set with exact versions (rather than only
-// that the two Dockerfiles agree) makes the test fail on a *synchronized*
-// regression: dropping the same pin from both files, or rolling the same
-// version back in both, no longer slips through. Update this map together with
-// npm/linux.Dockerfile and .pipelines/build/dockerfiles/npm.Dockerfile whenever
-// pins are refreshed for a new Ubuntu security release.
-var requiredLinuxPins = map[string]string{
-	"gpgv":           "2.4.4-2ubuntu17.6",
-	"libc-bin":       "2.39-0ubuntu8.9",
-	"libc6":          "2.39-0ubuntu8.9",
-	"libtasn1-6":     "4.19.0-3ubuntu0.24.04.2",
-	"dpkg":           "1.22.6ubuntu6.6",
-	"libcap2":        "1:2.66-5ubuntu2.4",
-	"libgcrypt20":    "1.10.3-2ubuntu0.2",
-	"libgnutls30t64": "3.8.3-1.1ubuntu3.6",
-	"libsystemd0":    "255.4-1ubuntu8.18",
-	"libudev1":       "255.4-1ubuntu8.18",
-	"liblzma5":       "5.6.1+really5.4.5-1ubuntu0.4",
-	"sed":            "4.9-2ubuntu0.24.04.1",
-	"gzip":           "1.12-1ubuntu3.2",
-	"libncursesw6":   "6.4+20240113-1ubuntu2.2",
-	"libtinfo6":      "6.4+20240113-1ubuntu2.2",
-	"libpam-modules": "1.5.3-5ubuntu5.7",
-	"perl-base":      "5.38.2-3.2ubuntu0.6",
-	"tar":            "1.35+dfsg-3ubuntu0.4",
-	"util-linux":     "2.39.3-9ubuntu6.6",
-	"mount":          "2.39.3-9ubuntu6.6",
-	"bsdutils":       "1:2.39.3-9ubuntu6.6",
-	"libblkid1":      "2.39.3-9ubuntu6.6",
-	"libmount1":      "2.39.3-9ubuntu6.6",
-	"libsmartcols1":  "2.39.3-9ubuntu6.6",
-	"libuuid1":       "2.39.3-9ubuntu6.6",
-	"coreutils":      "9.4-3ubuntu6.3",
-	"diffutils":      "1:3.10-1ubuntu0.1",
-	"libattr1":       "1:2.5.2-1ubuntu0.1",
-	"libbz2-1.0":     "1.0.8-5.1ubuntu0.1",
-	"libp11-kit0":    "0.25.3-4ubuntu2.2",
-	"zlib1g":         "1:1.3.dfsg-3.1ubuntu2.3",
+var requiredLinuxPackages = []string{
+	"SymCrypt",
+	"SymCrypt-OpenSSL",
+	"bash",
+	"ca-certificates",
+	"grep",
+	"ipset",
+	"iptables",
+	"openssl-libs",
 }
 
 var (
 	goBuilderRe  = regexp.MustCompile(`mcr\.microsoft\.com/oss/go/microsoft/golang:(\S+?)\s+AS builder`)
 	servercoreRe = regexp.MustCompile(`mcr\.microsoft\.com/windows/servercore:ltsc2022@(sha256:[0-9a-f]{64})`)
-	aptBlockRe   = regexp.MustCompile(`(?s)apt-get install -y(.*?)apt-get autoremove`)
-	aptPinRe     = regexp.MustCompile(`([A-Za-z0-9][A-Za-z0-9.+-]*)=([0-9][A-Za-z0-9.:+~-]*)`)
+	linuxBaseRe  = regexp.MustCompile(`(?im)^FROM (?:--platform=\S+ )?(mcr\.microsoft\.com/azurelinux/base/core:3\.0@sha256:[0-9a-f]{64}) AS linux\s*$`)
+	tdnfBlockRe  = regexp.MustCompile(`(?s)tdnf install -y(.*?)&& tdnf clean all`)
 )
 
 func readDockerfile(t *testing.T, path string) string {
@@ -95,7 +62,10 @@ func TestNPMDockerfileGoBuilderPinned(t *testing.T) {
 	if windows == nil {
 		t.Fatalf("%s: no MS Go builder image found", unsignedWindowsDockerfile)
 	}
-	if linux[1] != windows[1] {
+	if !strings.HasSuffix(linux[1], "-azurelinux3.0") {
+		t.Errorf("%s: expected an Azure Linux 3 builder, got %s", unsignedLinuxDockerfile, linux[1])
+	}
+	if strings.TrimSuffix(linux[1], "-azurelinux3.0") != windows[1] {
 		t.Errorf("Go builder drift: %s uses %s but %s uses %s",
 			unsignedLinuxDockerfile, linux[1], unsignedWindowsDockerfile, windows[1])
 	}
@@ -160,46 +130,47 @@ func TestNPMDockerfileWindowsBasePinned(t *testing.T) {
 	}
 }
 
-// TestNPMDockerfileLinuxPackagePinsInSync verifies that both the signed and
-// unsigned Linux images pin the complete set of required Ubuntu CVE packages at
-// exactly their patched versions. Because it checks against requiredLinuxPins
-// (not just that the two files agree), it fails on a synchronized regression —
-// the same pin removed from, or rolled back in, both Dockerfiles.
-func TestNPMDockerfileLinuxPackagePinsInSync(t *testing.T) {
+func TestNPMDockerfileLinuxRuntime(t *testing.T) {
+	var base string
 	for _, df := range []string{unsignedLinuxDockerfile, signedDockerfile} {
-		got := aptPins(readDockerfile(t, df))
-		if len(got) == 0 {
-			t.Errorf("%s: expected pinned apt packages, found none", df)
+		content := readDockerfile(t, df)
+		image := linuxBaseRe.FindStringSubmatch(content)
+		if image == nil {
+			t.Errorf("%s: missing digest-pinned Azure Linux 3 runtime", df)
+		} else if base == "" {
+			base = image[1]
+		} else if image[1] != base {
+			t.Errorf("%s: Linux base drift: got %s, want %s", df, image[1], base)
+		}
+		for _, obsolete := range []string{"ubuntu", "apt-get"} {
+			if strings.Contains(strings.ToLower(content), obsolete) {
+				t.Errorf("%s: obsolete Ubuntu configuration %q", df, obsolete)
+			}
+		}
+		if !strings.Contains(content, `ENTRYPOINT ["/usr/bin/azure-npm", "start"]`) {
+			t.Errorf("%s: missing NPM entrypoint", df)
+		}
+		block := tdnfBlockRe.FindStringSubmatch(content)
+		if block == nil {
+			t.Errorf("%s: missing tdnf install and cache cleanup", df)
 			continue
 		}
-		// Every required package must be pinned at exactly the patched version.
-		for pkg, want := range requiredLinuxPins {
-			switch v, ok := got[pkg]; {
-			case !ok:
-				t.Errorf("%s: required CVE pin for %q is missing (want %s)", df, pkg, want)
-			case v != want:
-				t.Errorf("%s: %q pinned at %s, want patched version %s", df, pkg, v, want)
-			}
-		}
-		// Reject unexpected pins so requiredLinuxPins is kept in lockstep with the
-		// Dockerfiles when a new package is pinned.
-		for pkg, v := range got {
-			if _, ok := requiredLinuxPins[pkg]; !ok {
-				t.Errorf("%s: pin %q=%s not in requiredLinuxPins; add it to the test when adding a pin", df, pkg, v)
-			}
+		packages := strings.Fields(strings.ReplaceAll(block[1], `\`, ""))
+		slices.Sort(packages)
+		if !slices.Equal(packages, requiredLinuxPackages) {
+			t.Errorf("%s: got runtime packages %v, want %v without version pins", df, packages, requiredLinuxPackages)
 		}
 	}
-	t.Logf("verified %d required Ubuntu CVE pins present at patched versions in both images", len(requiredLinuxPins))
 }
 
-func aptPins(dockerfile string) map[string]string {
-	pins := map[string]string{}
-	block := aptBlockRe.FindStringSubmatch(dockerfile)
-	if block == nil {
-		return pins
+func TestNPMDockerfileLinuxCrypto(t *testing.T) {
+	content := readDockerfile(t, unsignedLinuxDockerfile)
+	for _, setting := range []string{"GOEXPERIMENT=ms_nocgo_opensslcrypto", "CGO_ENABLED=0"} {
+		if !strings.Contains(content, setting) {
+			t.Errorf("%s: missing %s", unsignedLinuxDockerfile, setting)
+		}
 	}
-	for _, m := range aptPinRe.FindAllStringSubmatch(block[1], -1) {
-		pins[m[1]] = m[2]
+	if strings.Contains(content, "MS_GO_NOSYSTEMCRYPTO") {
+		t.Errorf("%s: Linux container build must use system crypto", unsignedLinuxDockerfile)
 	}
-	return pins
 }
