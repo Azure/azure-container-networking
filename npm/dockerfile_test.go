@@ -50,11 +50,12 @@ func TestNPMDockerfileLinuxRuntime(t *testing.T) {
 	for _, df := range []string{unsignedLinuxDockerfile, signedDockerfile} {
 		content := readDockerfile(t, df)
 		image := linuxBaseRe.FindStringSubmatch(content)
-		if image == nil {
+		switch {
+		case image == nil:
 			t.Errorf("%s: missing digest-pinned Azure Linux 3 runtime", df)
-		} else if base == "" {
+		case base == "":
 			base = image[1]
-		} else if image[1] != base {
+		case image[1] != base:
 			t.Errorf("%s: Linux base drift: got %s, want %s", df, image[1], base)
 		}
 		for _, obsolete := range []string{"ubuntu", "apt-get"} {
