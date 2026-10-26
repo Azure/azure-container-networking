@@ -150,6 +150,10 @@ endif
 
 # Shorthand target names for convenience.
 azure-cni-plugin: azure-vnet-binary azure-vnet-stateless-binary azure-vnet-ipam-binary azure-vnet-ipamv6-binary azure-vnet-telemetry-binary cni-archive
+ifeq ($(GOOS),linux)
+azure-cni-plugin cni-archive: azure-vnet-ipam-bridge-binary
+CNI_POOL_BRIDGE_BINARY = azure-vnet-ipam-bridge
+endif
 azure-cns: azure-cns-binary cns-archive
 acncli: acncli-binary acncli-archive
 azure-npm: azure-npm-binary npm-archive
@@ -242,6 +246,10 @@ azure-vnet-stateless-binary:
 # Build the Azure CNI IPAM binary.
 azure-vnet-ipam-binary:
 	cd $(CNI_IPAM_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
+
+# Build the Linux Cilium Operator pool bridge.
+azure-vnet-ipam-bridge-binary:
+	cd $(REPO_ROOT) && CGO_ENABLED=0 go build -o $(CNI_BUILD_DIR)/azure-vnet-ipam-bridge -trimpath ./cni/ipam/bridge
 
 # Build the Azure CNI IPAMV6 binary.
 azure-vnet-ipamv6-binary:
@@ -783,7 +791,7 @@ cni-archive: azure-vnet-binary azure-vnet-stateless-binary azure-vnet-ipam-binar
 	cp cni/azure-$(GOOS).conflist $(CNI_BUILD_DIR)/10-azure.conflist
 	cp telemetry/azure-vnet-telemetry.config $(CNI_BUILD_DIR)/azure-vnet-telemetry.config
 	cp $(STATELESS_CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-stateless$(EXE_EXT)
-	cd $(CNI_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-stateless$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-ipamv6$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) azure-cni-telemetry-sidecar$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
+	cd $(CNI_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-stateless$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-ipamv6$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) azure-cni-telemetry-sidecar$(EXE_EXT) $(CNI_POOL_BRIDGE_BINARY) 10-azure.conflist azure-vnet-telemetry.config
 
 ifeq ($(GOOS),windows)
 	$(MKDIR) $(CNI_MULTITENANCY_BUILD_DIR)

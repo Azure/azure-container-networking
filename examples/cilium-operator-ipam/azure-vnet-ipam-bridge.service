@@ -1,0 +1,21 @@
+[Unit]
+Description=Azure CNI Cilium Operator pool bridge
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+Environment=KUBECONFIG=/etc/azure-vnet/bridge.kubeconfig
+ExecStart=/opt/cni/bin/azure-vnet-ipam-bridge
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/azure-vnet-cilium /var/log
+
+[Install]
+WantedBy=multi-user.target

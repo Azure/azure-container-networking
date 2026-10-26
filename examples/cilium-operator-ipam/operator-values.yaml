@@ -1,0 +1,27 @@
+# Cilium chart v1.20.1; see docs/cilium-operator-ipam.md for artifact pins.
+agent: false
+cni:
+  install: false
+envoy:
+  enabled: false
+hubble:
+  enabled: false
+ipam:
+  mode: azure
+enableLBIPAM: false
+azure:
+  enabled: true
+  usePrimaryAddress: "false"
+operator:
+  enabled: true
+  replicas: 2
+  image:
+    tag: v1.20.1
+    azureDigest: sha256:13746a479ca60395df8d83580b49464c6c975cca6fdb21ba4791a076ab01b031
+    useDigest: true
+  skipCRDCreation: false
+  removeNodeTaints: false
+  setNodeTaints: false
+  setNodeNetworkStatus: false
+  unmanagedPodWatcher:
+    restart: false
