@@ -16,7 +16,7 @@ import (
 )
 
 // SendHeartBeat emits node metrics periodically
-func SendHeartBeat(ctx context.Context, heartbeatInterval time.Duration, homeAzMonitor *restserver.HomeAzMonitor, channelMode string) {
+func SendHeartBeat(ctx context.Context, heartbeatInterval time.Duration, nmagentMonitor *restserver.NMAgentMonitor, channelMode string) {
 	ticker := time.NewTicker(heartbeatInterval)
 	defer ticker.Stop()
 	for {
@@ -32,7 +32,7 @@ func SendHeartBeat(ctx context.Context, heartbeatInterval time.Duration, homeAzM
 			}
 			// add azr metrics when channel mode is direct
 			if channelMode == cns.Direct {
-				getHomeAzResp := homeAzMonitor.GetHomeAz(ctx)
+				getHomeAzResp := nmagentMonitor.GetHomeAz(ctx)
 				switch getHomeAzResp.Response.ReturnCode { //nolint:exhaustive // ignore exhaustive types check
 				case types.Success:
 					metric.CustomDimensions[logger.IsAZRSupportedStr] = strconv.FormatBool(getHomeAzResp.HomeAzResponse.IsSupported)

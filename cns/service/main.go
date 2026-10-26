@@ -717,12 +717,12 @@ func main() {
 		config.ChannelMode = cns.Managed
 	}
 
-	homeAzMonitor := restserver.NewHomeAzMonitor(nmaClient, time.Duration(cnsconfig.AZRSettings.PopulateHomeAzCacheRetryIntervalSecs)*time.Second)
-	// homeAz monitor is only required when there is a direct channel between DNC and CNS.
+	nmagentMonitor := restserver.NewNMAgentMonitor(nmaClient, time.Duration(cnsconfig.AZRSettings.PopulateHomeAzCacheRetryIntervalSecs)*time.Second)
+	// The NMAgent monitor is only required when there is a direct channel between DNC and CNS.
 	// This will prevent the monitor from unnecessarily calling NMA APIs for other scenarios such as AKS-swift, swiftv2
 	if cnsconfig.ChannelMode == cns.Direct {
-		homeAzMonitor.Start()
-		defer homeAzMonitor.Stop()
+		nmagentMonitor.Start()
+		defer nmagentMonitor.Stop()
 	}
 
 	if telemetryDaemonEnabled {
@@ -791,7 +791,7 @@ func main() {
 
 	imdsClient := imds.NewClient()
 	httpRemoteRestService, err := restserver.NewHTTPRestService(&config, wsclient, &wsProxy, &restserver.IPtablesProvider{}, nmaClient,
-		endpointStateStore, conflistGenerator, homeAzMonitor, imdsClient)
+		endpointStateStore, conflistGenerator, nmagentMonitor, imdsClient)
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)
 		return
@@ -1104,7 +1104,7 @@ func main() {
 	}
 
 	if !disableTelemetry {
-		go metric.SendHeartBeat(rootCtx, time.Minute*time.Duration(cnsconfig.TelemetrySettings.HeartBeatIntervalInMins), homeAzMonitor, cnsconfig.ChannelMode)
+		go metric.SendHeartBeat(rootCtx, time.Minute*time.Duration(cnsconfig.TelemetrySettings.HeartBeatIntervalInMins), nmagentMonitor, cnsconfig.ChannelMode)
 		go httpRemoteRestService.SendNCSnapShotPeriodically(rootCtx, cnsconfig.TelemetrySettings.SnapshotIntervalInMins)
 	}
 

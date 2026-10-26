@@ -102,7 +102,7 @@ type HTTPRestService struct {
 	iptables                 iptablesGetter
 	nma                      nmagentClient
 	wsproxy                  wireserverProxy
-	homeAzMonitor            *HomeAzMonitor
+	nmagentMonitor           *NMAgentMonitor
 	networkContainer         *networkcontainers.NetworkContainers
 	PodIPIDByPodInterfaceKey map[string][]string                  // PodInterfaceId is key and value is slice of Pod IP (SecondaryIP) uuids.
 	PodIPConfigState         map[string]cns.IPConfigurationStatus // Secondary IP ID(uuid) is key
@@ -219,7 +219,7 @@ type networkInfo struct {
 
 // NewHTTPRestService creates a new HTTP Service object.
 func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsproxy wireserverProxy, iptg iptablesGetter, nmagentClient nmagentClient,
-	endpointStateStore store.KeyValueStore, gen CNIConflistGenerator, homeAzMonitor *HomeAzMonitor,
+	endpointStateStore store.KeyValueStore, gen CNIConflistGenerator, nmagentMonitor *NMAgentMonitor,
 	imdsClient imdsClient,
 ) (*HTTPRestService, error) {
 	service, err := cns.NewService(config.Name, config.Version, config.ChannelMode, config.Store)
@@ -276,7 +276,7 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 		EndpointStateStore:       endpointStateStore,
 		EndpointState:            make(map[string]*EndpointInfo),
 		EndpointDeleteIntents:    make(map[string]EndpointDeleteIntent),
-		homeAzMonitor:            homeAzMonitor,
+		nmagentMonitor:           nmagentMonitor,
 		cniConflistGenerator:     gen,
 		imdsClient:               imdsClient,
 	}, nil
@@ -336,6 +336,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.RequestClaimResourceInfo, service.requestClaimResourceInfo)
 	// This API is only needed for Direct channel mode.
 	if config.ChannelMode == cns.Direct {
+		listener.AddHandler(cns.GetRNCSupport, service.getRNCSupport)
 		listener.AddHandler(cns.GetVMUniqueID, service.getVMUniqueID)
 		listener.AddHandler(cns.GetNCList, service.nmAgentNCListHandler)
 	}
@@ -363,6 +364,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.V2Prefix+cns.EndpointPath, service.EndpointHandlerAPI)
 	// This API is only needed for Direct channel mode.
 	if config.ChannelMode == cns.Direct {
+		listener.AddHandler(cns.V2Prefix+cns.GetRNCSupport, service.getRNCSupport)
 		listener.AddHandler(cns.V2Prefix+cns.GetVMUniqueID, service.getVMUniqueID)
 		listener.AddHandler(cns.V2Prefix+cns.GetNCList, service.nmAgentNCListHandler)
 	}
