@@ -102,7 +102,7 @@ type HTTPRestService struct {
 	iptables                 iptablesGetter
 	nma                      nmagentClient
 	wsproxy                  wireserverProxy
-	homeAzMonitor            *HomeAzMonitor
+	nmagentMonitor           *NMAgentMonitor
 	networkContainer         *networkcontainers.NetworkContainers
 	PodIPIDByPodInterfaceKey map[string][]string                  // PodInterfaceId is key and value is slice of Pod IP (SecondaryIP) uuids.
 	PodIPConfigState         map[string]cns.IPConfigurationStatus // Secondary IP ID(uuid) is key
@@ -121,6 +121,7 @@ type HTTPRestService struct {
 	PnpIDByMacAddress          map[string]string
 	imdsClient                 imdsClient
 	nodesubnetIPFetcher        *nodesubnet.IPFetcher
+	ipamServer                 *ipamServer
 	nicncClient                nicncClient
 	mtpncClient                mtpncClient
 	nodeinfoClient             nodeinfoClient
@@ -218,7 +219,7 @@ type networkInfo struct {
 
 // NewHTTPRestService creates a new HTTP Service object.
 func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsproxy wireserverProxy, iptg iptablesGetter, nmagentClient nmagentClient,
-	endpointStateStore store.KeyValueStore, gen CNIConflistGenerator, homeAzMonitor *HomeAzMonitor,
+	endpointStateStore store.KeyValueStore, gen CNIConflistGenerator, nmagentMonitor *NMAgentMonitor,
 	imdsClient imdsClient,
 ) (*HTTPRestService, error) {
 	service, err := cns.NewService(config.Name, config.Version, config.ChannelMode, config.Store)
@@ -275,7 +276,7 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 		EndpointStateStore:       endpointStateStore,
 		EndpointState:            make(map[string]*EndpointInfo),
 		EndpointDeleteIntents:    make(map[string]EndpointDeleteIntent),
-		homeAzMonitor:            homeAzMonitor,
+		nmagentMonitor:           nmagentMonitor,
 		cniConflistGenerator:     gen,
 		imdsClient:               imdsClient,
 	}, nil
@@ -320,10 +321,10 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.DeleteHostNCApipaEndpointPath, service.DeleteHostNCApipaEndpoint)
 	listener.AddHandler(cns.PublishNetworkContainer, service.publishNetworkContainer)
 	listener.AddHandler(cns.UnpublishNetworkContainer, service.unpublishNetworkContainer)
-	listener.AddHandler(cns.RequestIPConfig, NewHandlerFuncWithHistogram(service.RequestIPConfigHandler, HTTPRequestLatency))
-	listener.AddHandler(cns.RequestIPConfigs, NewHandlerFuncWithHistogram(service.RequestIPConfigsHandler, HTTPRequestLatency))
-	listener.AddHandler(cns.ReleaseIPConfig, NewHandlerFuncWithHistogram(service.ReleaseIPConfigHandler, HTTPRequestLatency))
-	listener.AddHandler(cns.ReleaseIPConfigs, NewHandlerFuncWithHistogram(service.ReleaseIPConfigsHandler, HTTPRequestLatency))
+	listener.AddHandler(cns.RequestIPConfig, NewIPAMHandler(service.RequestIPConfigHandler, "tcp"))
+	listener.AddHandler(cns.RequestIPConfigs, NewIPAMHandler(service.RequestIPConfigsHandler, "tcp"))
+	listener.AddHandler(cns.ReleaseIPConfig, NewIPAMHandler(service.ReleaseIPConfigHandler, "tcp"))
+	listener.AddHandler(cns.ReleaseIPConfigs, NewIPAMHandler(service.ReleaseIPConfigsHandler, "tcp"))
 	listener.AddHandler(cns.NmAgentSupportedApisPath, service.nmAgentSupportedApisHandler)
 	listener.AddHandler(cns.PathDebugIPAddresses, service.HandleDebugIPAddresses)
 	listener.AddHandler(cns.PathDebugPodContext, service.HandleDebugPodContext)
@@ -335,6 +336,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.RequestClaimResourceInfo, service.requestClaimResourceInfo)
 	// This API is only needed for Direct channel mode.
 	if config.ChannelMode == cns.Direct {
+		listener.AddHandler(cns.GetRNCSupport, service.getRNCSupport)
 		listener.AddHandler(cns.GetVMUniqueID, service.getVMUniqueID)
 		listener.AddHandler(cns.GetNCList, service.nmAgentNCListHandler)
 	}
@@ -362,6 +364,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.V2Prefix+cns.EndpointPath, service.EndpointHandlerAPI)
 	// This API is only needed for Direct channel mode.
 	if config.ChannelMode == cns.Direct {
+		listener.AddHandler(cns.V2Prefix+cns.GetRNCSupport, service.getRNCSupport)
 		listener.AddHandler(cns.V2Prefix+cns.GetVMUniqueID, service.getVMUniqueID)
 		listener.AddHandler(cns.V2Prefix+cns.GetNCList, service.nmAgentNCListHandler)
 	}
@@ -403,11 +406,23 @@ func (service *HTTPRestService) Start(config *common.ServiceConfig) error {
 		return err
 	}
 
+	if config.IPAMSocket {
+		ipamServer, err := startIPAMServer(IPAMUnixSocketPath, service, config.ErrChan)
+		if err != nil {
+			return err
+		}
+		service.ipamServer = ipamServer
+	}
+
 	return nil
 }
 
 // Stop stops the CNS.
 func (service *HTTPRestService) Stop() {
+	if service.ipamServer != nil {
+		service.ipamServer.stop()
+		service.ipamServer = nil
+	}
 	service.Uninitialize()
 	logger.Printf("[Azure CNS]  Service stopped.")
 }

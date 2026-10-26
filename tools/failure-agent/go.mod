@@ -8,9 +8,9 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/openai/openai-go/v3 v3.76.0
 	go.uber.org/zap v1.28.0
-	golang.org/x/net v0.60.0
-	golang.org/x/sys v0.48.0
-	golang.org/x/text v0.42.0
+	golang.org/x/net v0.61.0
+	golang.org/x/sys v0.49.0
+	golang.org/x/text v0.43.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.60.1
 )

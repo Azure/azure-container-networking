@@ -42,6 +42,7 @@ type ServiceConfig struct {
 	Store       store.KeyValueStore
 	Server      server
 	ChannelMode string
+	IPAMSocket  bool
 	TLSSettings tls.TlsSettings
 	Logger      *zap.Logger
 }

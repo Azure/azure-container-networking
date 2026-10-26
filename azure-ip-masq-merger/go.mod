@@ -6,9 +6,9 @@ toolchain go1.26.9
 
 require (
 	github.com/stretchr/testify v1.12.1
-	golang.org/x/net v0.57.0
-	golang.org/x/sys v0.47.0
-	golang.org/x/text v0.40.0
+	golang.org/x/net v0.61.0
+	golang.org/x/sys v0.49.0
+	golang.org/x/text v0.43.0
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/apimachinery v0.37.1
 	k8s.io/component-base v0.37.1

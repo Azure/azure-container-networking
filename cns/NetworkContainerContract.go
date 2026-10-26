@@ -20,6 +20,7 @@ import (
 const (
 	SetOrchestratorType                      = "/network/setorchestratortype"
 	GetHomeAz                                = "/homeaz"
+	GetRNCSupport                            = "/rncsupport"
 	GetNCList                                = "/nclist"
 	GetVMUniqueID                            = "/metadata/vmuniqueid"
 	GetNICResources                          = "/network/nicresources"
