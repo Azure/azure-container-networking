@@ -53,6 +53,9 @@ func NewPlugin(name, version string) (*Plugin, error) {
 
 // Initialize initializes the plugin.
 func (plugin *Plugin) Initialize(config *common.PluginConfig) error {
+	if config.CiliumPool != nil && plugin.Name == "azure-vnet-ipam" {
+		plugin.SetOption(common.OptEnvironment, common.OptEnvironmentCiliumPool)
+	}
 	// Initialize the base plugin.
 	plugin.Plugin.Initialize(config)
 
@@ -183,15 +186,30 @@ func (plugin *Plugin) RetriableError(err error) *cniTypes.Error {
 
 // Initialize key-value store
 func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error {
+	poolConfig, err := common.LoadCiliumPoolConfig()
+	if err != nil {
+		return fmt.Errorf("loading cilium pool configuration: %w", err)
+	}
+	config.CiliumPool = poolConfig
 	// Create the key value store.
 	if plugin.Store == nil {
-		lockclient, err := processlock.NewFileLock(platform.CNILockPath + plugin.Name + store.LockExtension)
+		lockPath := platform.CNILockPath + plugin.Name + store.LockExtension
+		statePath := platform.CNIRuntimePath + plugin.Name + ".json"
+		if poolConfig != nil {
+			lockPath = poolConfig.LockPath(plugin.Name)
+			statePath = poolConfig.StatePath(plugin.Name)
+		}
+		lockclient, err := processlock.NewFileLock(lockPath)
 		if err != nil {
 			logger.Error("Error initializing file lock", zap.Error(err))
 			return errors.Wrap(err, "error creating new filelock")
 		}
 
-		plugin.Store, err = store.NewJsonFileStore(platform.CNIRuntimePath+plugin.Name+".json", lockclient, storeLogger)
+		if poolConfig != nil {
+			plugin.Store, err = store.NewDurableJSONFileStore(statePath, lockclient, storeLogger)
+		} else {
+			plugin.Store, err = store.NewJsonFileStore(statePath, lockclient, storeLogger)
+		}
 		if err != nil {
 			logger.Error("Failed to create store", zap.Error(err))
 			return err

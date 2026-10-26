@@ -108,7 +108,15 @@ func (plugin *ipamPlugin) Configure(stdinData []byte) (*cni.NetworkConfig, error
 	// Apply IPAM configuration.
 
 	// Set deployment environment.
-	if nwCfg.IPAM.Environment == "" {
+	switch {
+	case plugin.GetOption(common.OptEnvironment) == common.OptEnvironmentCiliumPool:
+		if nwCfg.IPAM.Environment != "" && nwCfg.IPAM.Environment != common.OptEnvironmentCiliumPool {
+			return nil, plugin.Errorf("host cilium pool configuration conflicts with IPAM environment")
+		}
+		nwCfg.IPAM.Environment = common.OptEnvironmentCiliumPool
+	case nwCfg.IPAM.Environment == common.OptEnvironmentCiliumPool:
+		return nil, plugin.Errorf("cilium pool requires host configuration")
+	case nwCfg.IPAM.Environment == "":
 		nwCfg.IPAM.Environment = common.OptEnvironmentAzure
 	}
 	plugin.SetOption(common.OptEnvironment, nwCfg.IPAM.Environment)
@@ -307,7 +315,6 @@ func (plugin *ipamPlugin) Delete(args *cniSkel.CmdArgs) error {
 	options[ipam.OptAddressID] = args.ContainerID
 
 	err = plugin.am.ReleaseAddress(nwCfg.IPAM.AddrSpace, nwCfg.IPAM.Subnet, nwCfg.IPAM.Address, options)
-
 	if err != nil {
 		err = plugin.Errorf("Failed to release address: %v", err)
 		return err

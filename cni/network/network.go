@@ -172,6 +172,9 @@ func NewPlugin(name string,
 
 // Starts the plugin.
 func (plugin *NetPlugin) Start(config *common.PluginConfig) error {
+	if err := validateCiliumPoolNetworkState(config); err != nil {
+		return err
+	}
 	// Initialize base plugin.
 	err := plugin.Initialize(config)
 	if err != nil {
