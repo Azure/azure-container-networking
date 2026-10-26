@@ -34,6 +34,7 @@ type jsonFileStore struct {
 	fileName    string
 	data        map[string]*json.RawMessage
 	inSync      bool
+	durable     bool
 	processLock processlock.Interface
 	sync.Mutex
 	logger *zap.Logger
@@ -46,6 +47,7 @@ func NewJsonFileStore(fileName string, lockclient processlock.Interface, logger 
 	if fileName == "" {
 		return &jsonFileStore{}, errors.New("need to pass in a json file path")
 	}
+
 	kvs := &jsonFileStore{
 		fileName:    fileName,
 		processLock: lockclient,
@@ -53,6 +55,16 @@ func NewJsonFileStore(fileName string, lockclient processlock.Interface, logger 
 		logger:      logger,
 	}
 
+	return kvs, nil
+}
+
+// NewDurableJSONFileStore also commits file contents and the rename to storage.
+func NewDurableJSONFileStore(fileName string, lockclient processlock.Interface, logger *zap.Logger) (KeyValueStore, error) {
+	kvs, err := NewJsonFileStore(fileName, lockclient, logger)
+	if err != nil {
+		return nil, err
+	}
+	kvs.(*jsonFileStore).durable = true
 	return kvs, nil
 }
 
@@ -182,6 +194,11 @@ func (kvs *jsonFileStore) flush() error {
 	if _, err = f.Write(buf); err != nil {
 		return fmt.Errorf("Temp file write failed with: %v", err)
 	}
+	if kvs.durable {
+		if err = f.Sync(); err != nil {
+			return fmt.Errorf("syncing state file: %w", err)
+		}
+	}
 
 	if err = f.Close(); err != nil {
 		return fmt.Errorf("temp file close failed with: %v", err)
@@ -190,6 +207,20 @@ func (kvs *jsonFileStore) flush() error {
 	// atomic replace
 	if err = platform.ReplaceFile(tmpFileName, kvs.fileName); err != nil {
 		return fmt.Errorf("rename temp file to state file failed:%v", err)
+	}
+	if kvs.durable {
+		d, openErr := os.Open(dir)
+		if openErr != nil {
+			return fmt.Errorf("opening state directory: %w", openErr)
+		}
+		err = d.Sync()
+		closeErr := d.Close()
+		if err != nil {
+			return fmt.Errorf("syncing state directory: %w", err)
+		}
+		if closeErr != nil {
+			return fmt.Errorf("closing state directory: %w", closeErr)
+		}
 	}
 
 	kvs.inSync = true
