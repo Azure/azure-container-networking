@@ -149,7 +149,7 @@ func (service *HTTPRestService) createNetwork(w http.ResponseWriter, r *http.Req
 					}
 				} else {
 					returnMessage = fmt.Sprintf("[Azure CNS] Received a request to create an already existing network %v", req.NetworkName)
-					logger.Printf(returnMessage)
+					logger.Printf("%s", returnMessage) //nolint:staticcheck // will migrate to logger/v2
 				}
 
 			default:

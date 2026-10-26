@@ -15,19 +15,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go-version: ['1.24.x']
         os: [ubuntu-latest, windows-latest]
     name: Lint
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/setup-go@v5
-      with:
-        go-version: ${{ matrix.go-version }}
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         fetch-depth: 0
-    - name: golangci-lint
-      uses: golangci/golangci-lint-action@v6
+    - uses: actions/setup-go@v6
       with:
-        version: v1.61
-        args: --new-from-rev=origin/master --config=.golangci.yml --timeout=25m 
+        go-version-file: go.mod
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v9
+      with:
+        version: latest
+        args: ${{ github.event_name == 'pull_request' && format('--new-from-rev=origin/{0}', github.base_ref) || github.event_name == 'merge_group' && format('--new-from-rev={0}', github.event.merge_group.base_sha) || '' }} --config=.golangci.yml --timeout=25m

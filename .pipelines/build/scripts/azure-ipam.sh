@@ -4,6 +4,7 @@ set -eux
 [[ $OS =~ windows ]] && FILE_EXT='.exe' || FILE_EXT=''
 
 export CGO_ENABLED=0 
+export MS_GO_NOSYSTEMCRYPTO=1
 
 mkdir -p "$OUT_DIR"/bin
 mkdir -p "$OUT_DIR"/files
