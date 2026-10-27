@@ -5,7 +5,7 @@ go 1.26.1
 require (
 	github.com/Azure/azure-container-networking v1.7.3
 	github.com/containernetworking/cni v1.3.0
-	github.com/containernetworking/plugins v1.9.0
+	github.com/containernetworking/plugins v1.7.1
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/zap v1.27.0
