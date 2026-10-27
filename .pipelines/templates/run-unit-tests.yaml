@@ -117,15 +117,13 @@ stages:
             - bash: |
                 set -eo pipefail
                 make tools
-                sudo ln -s $(pwd)/build/tools/bin/gocov /usr/local/bin/gocov
-                sudo ln -s $(pwd)/build/tools/bin/gocov-xml /usr/local/bin/gocov-xml
 
-                GOOS=linux gocov convert linux-coverage.out > linux-coverage.json
-                GOOS=linux gocov-xml < linux-coverage.json > linux-coverage.xml
+                GOOS=linux build/tools/bin/gocov convert linux-coverage.out > linux-coverage.json
+                GOOS=linux build/tools/bin/gocov-xml < linux-coverage.json > linux-coverage.xml
 
                 # TODO: Add windows coverage back in once PublishCodeCoverageResults v2 works with BuildQualityChecks
 
-                mkdir coverage
+                mkdir -p coverage
 
                 mv linux-coverage.xml coverage/
               name: "Coverage"
