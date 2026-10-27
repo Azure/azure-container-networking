@@ -22,25 +22,23 @@ stages:
               version: '$(GO_TOOLCHAIN_VERSION)'
             displayName: "Install Go"
           - script: |
-              set -e
+              set -eo pipefail
               make tools
 
-              # run test, echo exit status code to fd 3, pipe output from test to tee, which splits output to stdout and go-junit-report (which converts test output to report.xml),
-              # stdout from tee is redirected to fd 4. Take output written to fd 3 (which is the exit code of test), redirect to stdout, pipe to read from stdout then exit with that status code.
-              # Read all output from fd 4 (output from tee) and write to top stdout
-              { { { {
-                    sudo -E env "PATH=$PATH" make test-all;
-                    echo $? >&3;
-                    } | tee >(build/tools/bin/go-junit-report > report.xml) >&4;
-                  } 3>&1;
-                } | { read xs; exit $xs; }
-              } 4>&1
+              test_exit=0
+              sudo -E env "PATH=$PATH" make test-all 2>&1 | tee test-output.log || test_exit=$?
+              report_exit=0
+              build/tools/bin/go-junit-report < test-output.log > report.xml || report_exit=$?
 
               mv coverage-all.out linux-coverage.out
+
+              if [ "$test_exit" -ne 0 ]; then exit "$test_exit"; fi
+              exit "$report_exit"
             retryCountOnTaskFailure: 3
             name: "Test"
             displayName: "Run Tests"
           - task: PublishPipelineArtifact@1
+            condition: succeededOrFailed()
             inputs:
               targetPath: 'linux-coverage.out'
               artifactName: 'linux-coverage'
@@ -75,13 +73,18 @@ stages:
             displayName: "Install Go"
           # Only run one go test per script
           - script: |
-              cd azure-container-networking/
               go test -timeout 30m -covermode atomic -coverprofile=windows-coverage.out ./npm/... ./cni/... ./platform/...
+              set "test_exit=%ERRORLEVEL%"
               go tool cover -func=windows-coverage.out
+              set "coverage_exit=%ERRORLEVEL%"
+              if not "%test_exit%"=="0" exit /b %test_exit%
+              exit /b %coverage_exit%
+            workingDirectory: '$(System.DefaultWorkingDirectory)'
             retryCountOnTaskFailure: 3
             name: "TestWindows"
             displayName: "Run Windows Tests"
           - task: PublishPipelineArtifact@1
+            condition: succeededOrFailed()
             inputs:
               targetPath: 'windows-coverage.out'
               artifactName: 'windows-coverage'
@@ -112,6 +115,7 @@ stages:
                 artifact: 'linux-coverage'
                 path: './'
             - bash: |
+                set -eo pipefail
                 make tools
                 sudo ln -s $(pwd)/build/tools/bin/gocov /usr/local/bin/gocov
                 sudo ln -s $(pwd)/build/tools/bin/gocov-xml /usr/local/bin/gocov-xml
