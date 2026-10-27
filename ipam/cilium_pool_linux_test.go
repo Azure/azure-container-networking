@@ -1,16 +1,18 @@
 package ipam
 
 import (
+	"bytes"
 	"errors"
 	"net/netip"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/store"
-	"github.com/stretchr/testify/require"
+	"github.com/google/go-cmp/cmp"
 	"go.uber.org/zap"
 )
 
@@ -23,7 +25,38 @@ const (
 	testCiliumInterface     = "eth0"
 	testCiliumSubnet        = "10.20.16.0/20"
 	testCiliumVMID          = "uuid"
+	testCiliumSecondOwner   = "pod-b"
 )
+
+func ciliumPoolTestStore(t *testing.T, path string) store.KeyValueStore {
+	t.Helper()
+	kvs, err := store.NewDurableJSONFileStore(path, nil, zap.NewNop())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return kvs
+}
+
+func loadCiliumPoolTestManager(t *testing.T, path string) *addressManager {
+	t.Helper()
+	am := &addressManager{AddrSpaces: make(map[string]*addressSpace)}
+	if err := am.Initialize(&common.PluginConfig{Store: ciliumPoolTestStore(t, path)}, false,
+		map[string]interface{}{common.OptEnvironment: common.OptEnvironmentCiliumPool}); err != nil {
+		t.Fatal(err)
+	}
+	return am
+}
+
+func syncCiliumPoolTest(t *testing.T, path string, identity CiliumPoolIdentity, supply []CiliumPoolAddress,
+	initialize, admit bool,
+) (used map[string]CiliumPoolUsage, quarantined int) {
+	t.Helper()
+	used, quarantined, err := CiliumPoolTransaction(ciliumPoolTestStore(t, path), identity, supply, initialize, admit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return used, quarantined
+}
 
 func TestCiliumPoolReservations(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "ipam.json")
@@ -35,124 +68,214 @@ func TestCiliumPoolReservations(t *testing.T) {
 		{netip.MustParseAddr(testCiliumAddress), testCiliumNIC},
 		{netip.MustParseAddr(testCiliumSecondAddress), testCiliumNIC},
 	}
-	freshStore := func() store.KeyValueStore {
-		kvs, err := store.NewDurableJSONFileStore(path, nil, zap.NewNop())
-		require.NoError(t, err)
-		return kvs
-	}
-	load := func() *addressManager {
-		am := &addressManager{AddrSpaces: make(map[string]*addressSpace)}
-		require.NoError(t, am.Initialize(&common.PluginConfig{Store: freshStore()}, false,
-			map[string]interface{}{common.OptEnvironment: common.OptEnvironmentCiliumPool}))
-		return am
-	}
-	syncPool := func(supply []CiliumPoolAddress, initialize, admit bool) (map[string]CiliumPoolUsage, int) {
-		used, quarantined, err := CiliumPoolTransaction(freshStore(), identity, supply, initialize, admit)
-		require.NoError(t, err)
-		return used, quarantined
-	}
-	_, _, err := CiliumPoolTransaction(freshStore(), identity, supply, false, false)
-	require.ErrorContains(t, err, "missing cilium pool identity")
-	syncPool(supply, true, false)
-	_, err = load().RequestAddress(LocalDefaultAddressSpaceId, identity.Subnet, "", map[string]string{OptAddressID: "pod-a"})
-	require.ErrorContains(t, err, testCiliumPaused)
-	syncPool(supply, false, true)
-
-	am := load()
 	first := map[string]string{OptAddressID: "pod-a"}
-	address, err := am.RequestAddress(LocalDefaultAddressSpaceId, identity.Subnet, testCiliumAddress, first)
-	require.NoError(t, err)
-	require.Equal(t, "10.20.16.10/20", address)
-	duplicate, err := load().RequestAddress(LocalDefaultAddressSpaceId, identity.Subnet, "", first)
-	require.NoError(t, err)
-	require.Equal(t, address, duplicate)
-	_, err = load().RequestAddress(LocalDefaultAddressSpaceId, identity.Subnet, testCiliumSecondAddress, first)
-	require.ErrorIs(t, err, errAddressInUse)
-	_, err = load().RequestAddress(LocalDefaultAddressSpaceId, identity.Subnet, testCiliumAddress, map[string]string{OptAddressID: "pod-b"})
-	require.ErrorIs(t, err, errAddressInUse)
-	_, err = load().RequestAddress(LocalDefaultAddressSpaceId, identity.Subnet, "", map[string]string{OptAddressType: OptAddressTypeGateway})
-	require.Error(t, err)
-
-	used, quarantined := syncPool(supply[1:], false, true)
-	require.Equal(t, map[string]CiliumPoolUsage{testCiliumAddress: {Owner: "azure-vnet/pod-a", Resource: testCiliumNIC}}, used)
-	require.Equal(t, 1, quarantined)
-	for _, explicit := range []string{"", testCiliumAddress} {
-		_, requestErr := load().RequestAddress(LocalDefaultAddressSpaceId, identity.Subnet, explicit, first)
-		require.ErrorContains(t, requestErr, "not eligible")
+	_, _, err := CiliumPoolTransaction(ciliumPoolTestStore(t, path), identity, supply, false, false)
+	if err == nil || !strings.Contains(err.Error(), "missing cilium pool identity") {
+		t.Errorf("uninitialized pool: got %v, want missing identity error", err)
 	}
-	info, err := load().GetPoolInfo(LocalDefaultAddressSpaceId, identity.Subnet)
-	require.NoError(t, err)
-	require.Equal(t, 1, info.Available)
-	_, err = load().RequestAddress(LocalDefaultAddressSpaceId, identity.Subnet, "", map[string]string{OptAddressID: "pod-b"})
-	require.NoError(t, err)
-	used, _ = syncPool(supply[1:], false, true)
-	require.Len(t, used, 2, "fresh bridge state must preserve intervening CNI allocations")
+	syncCiliumPoolTest(t, path, identity, supply, true, false)
+	_, err = loadCiliumPoolTestManager(t, path).RequestAddress(LocalDefaultAddressSpaceId, identity.Subnet, "", first)
+	if err == nil || !strings.Contains(err.Error(), testCiliumPaused) {
+		t.Errorf("pool before admission: got %v, want paused error", err)
+	}
+	syncCiliumPoolTest(t, path, identity, supply, false, true)
 
+	am := loadCiliumPoolTestManager(t, path)
+	address, err := am.RequestAddress(LocalDefaultAddressSpaceId, identity.Subnet, testCiliumAddress, first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if address != "10.20.16.10/20" {
+		t.Errorf("allocated address = %q, want 10.20.16.10/20", address)
+	}
+	duplicate, err := loadCiliumPoolTestManager(t, path).RequestAddress(LocalDefaultAddressSpaceId, identity.Subnet, "", first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if duplicate != address {
+		t.Errorf("duplicate allocation = %q, want original address %q", duplicate, address)
+	}
+	_, err = loadCiliumPoolTestManager(t, path).RequestAddress(LocalDefaultAddressSpaceId, identity.Subnet, testCiliumSecondAddress, first)
+	if !errors.Is(err, errAddressInUse) {
+		t.Errorf("same owner requesting another address: got %v, want %v", err, errAddressInUse)
+	}
+	_, err = loadCiliumPoolTestManager(t, path).RequestAddress(LocalDefaultAddressSpaceId, identity.Subnet, testCiliumAddress, map[string]string{OptAddressID: testCiliumSecondOwner})
+	if !errors.Is(err, errAddressInUse) {
+		t.Errorf("another owner requesting allocated address: got %v, want %v", err, errAddressInUse)
+	}
+	_, err = loadCiliumPoolTestManager(t, path).RequestAddress(LocalDefaultAddressSpaceId, identity.Subnet, "", map[string]string{OptAddressType: OptAddressTypeGateway})
+	if err == nil {
+		t.Error("gateway allocation from managed pool succeeded")
+	}
+
+	used, quarantined := syncCiliumPoolTest(t, path, identity, supply[1:], false, true)
+	wantUsed := map[string]CiliumPoolUsage{testCiliumAddress: {Owner: "azure-vnet/pod-a", Resource: testCiliumNIC}}
+	if diff := cmp.Diff(wantUsed, used); diff != "" {
+		t.Errorf("usage after withdrawal (-want +got):\n%s", diff)
+	}
+	if quarantined != 1 {
+		t.Errorf("quarantined addresses = %d, want 1", quarantined)
+	}
+	for _, explicit := range []string{"", testCiliumAddress} {
+		_, requestErr := loadCiliumPoolTestManager(t, path).RequestAddress(LocalDefaultAddressSpaceId, identity.Subnet, explicit, first)
+		if requestErr == nil || !strings.Contains(requestErr.Error(), "not eligible") {
+			t.Errorf("withdrawn address request %q: got %v, want ineligible error", explicit, requestErr)
+		}
+	}
+	info, err := loadCiliumPoolTestManager(t, path).GetPoolInfo(LocalDefaultAddressSpaceId, identity.Subnet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Available != 1 {
+		t.Errorf("available addresses = %d, want 1", info.Available)
+	}
+	_, err = loadCiliumPoolTestManager(t, path).RequestAddress(LocalDefaultAddressSpaceId, identity.Subnet, "", map[string]string{OptAddressID: testCiliumSecondOwner})
+	if err != nil {
+		t.Fatal(err)
+	}
+	used, _ = syncCiliumPoolTest(t, path, identity, supply[1:], false, true)
+	if len(used) != 2 {
+		t.Errorf("fresh bridge state retained %d reservations, want 2 including intervening CNI allocations", len(used))
+	}
+}
+
+func TestCiliumPoolFencedReleaseAndStateRecovery(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ipam.json")
+	identity := CiliumPoolIdentity{
+		NodeUID: "node", CiliumNodeUID: "cn", InstanceID: "vm",
+		VMID: "incarnation", NICID: testCiliumNIC, Interface: testCiliumInterface, Subnet: testCiliumSubnet,
+	}
+	supply := []CiliumPoolAddress{
+		{netip.MustParseAddr(testCiliumAddress), testCiliumNIC},
+		{netip.MustParseAddr(testCiliumSecondAddress), testCiliumNIC},
+	}
+	first := map[string]string{OptAddressID: "pod-a"}
+	syncCiliumPoolTest(t, path, identity, supply, true, true)
+	if _, requestErr := loadCiliumPoolTestManager(t, path).RequestAddress(LocalDefaultAddressSpaceId, identity.Subnet, testCiliumAddress, first); requestErr != nil {
+		t.Fatal(requestErr)
+	}
+	if _, requestErr := loadCiliumPoolTestManager(t, path).RequestAddress(LocalDefaultAddressSpaceId, identity.Subnet, testCiliumSecondAddress,
+		map[string]string{OptAddressID: testCiliumSecondOwner}); requestErr != nil {
+		t.Fatal(requestErr)
+	}
+	syncCiliumPoolTest(t, path, identity, supply[1:], false, true)
 	// DEL remains possible when admissions are paused or permanently fenced.
-	require.NoError(t, FenceCiliumPool(freshStore(), "unexpected release"))
-	require.NoError(t, load().ReleaseAddress(LocalDefaultAddressSpaceId, identity.Subnet, testCiliumAddress, first))
-	require.NoError(t, load().ReleaseAddress(LocalDefaultAddressSpaceId, identity.Subnet, testCiliumAddress, first))
-	used, _ = syncPool(supply[1:], false, false)
-	require.NotContains(t, used, testCiliumAddress)
-	_, _, err = CiliumPoolTransaction(freshStore(), identity, supply, false, true)
-	require.ErrorContains(t, err, "fenced")
-	_, err = load().RequestAddress(LocalDefaultAddressSpaceId, identity.Subnet, "", map[string]string{OptAddressID: "pod-c"})
-	require.ErrorContains(t, err, testCiliumPaused)
+	if err := FenceCiliumPool(ciliumPoolTestStore(t, path), "unexpected release"); err != nil {
+		t.Fatal(err)
+	}
+	if err := loadCiliumPoolTestManager(t, path).ReleaseAddress(LocalDefaultAddressSpaceId, identity.Subnet, testCiliumAddress, first); err != nil {
+		t.Fatalf("release while fenced: %v", err)
+	}
+	if err := loadCiliumPoolTestManager(t, path).ReleaseAddress(LocalDefaultAddressSpaceId, identity.Subnet, testCiliumAddress, first); err != nil {
+		t.Fatalf("duplicate release while fenced: %v", err)
+	}
+	used, _ := syncCiliumPoolTest(t, path, identity, supply[1:], false, false)
+	if _, exists := used[testCiliumAddress]; exists {
+		t.Errorf("released address %s is still reported as used", testCiliumAddress)
+	}
+	_, _, err := CiliumPoolTransaction(ciliumPoolTestStore(t, path), identity, supply, false, true)
+	if err == nil || !strings.Contains(err.Error(), "fenced") {
+		t.Errorf("admitting fenced pool: got %v, want fenced error", err)
+	}
+	_, err = loadCiliumPoolTestManager(t, path).RequestAddress(LocalDefaultAddressSpaceId, identity.Subnet, "", map[string]string{OptAddressID: "pod-c"})
+	if err == nil || !strings.Contains(err.Error(), testCiliumPaused) {
+		t.Errorf("allocation while fenced: got %v, want paused error", err)
+	}
 
 	changed := identity
 	changed.CiliumNodeUID = "replacement"
-	_, _, err = CiliumPoolTransaction(freshStore(), changed, supply, false, true)
-	require.ErrorContains(t, err, "identity changed")
-	require.NoError(t, os.Remove(path))
-	_, _, err = CiliumPoolTransaction(freshStore(), identity, supply, false, true)
-	require.ErrorContains(t, err, "missing cilium pool identity")
-	require.NoError(t, os.WriteFile(path, []byte(`{"IPAM":`), 0o600))
-	_, _, err = CiliumPoolTransaction(freshStore(), identity, supply, false, true)
-	require.Error(t, err)
+	_, _, err = CiliumPoolTransaction(ciliumPoolTestStore(t, path), changed, supply, false, true)
+	if err == nil || !strings.Contains(err.Error(), "identity changed") {
+		t.Errorf("replacement identity: got %v, want identity changed error", err)
+	}
+	if err = os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = CiliumPoolTransaction(ciliumPoolTestStore(t, path), identity, supply, false, true)
+	if err == nil || !strings.Contains(err.Error(), "missing cilium pool identity") {
+		t.Errorf("missing persisted state: got %v, want missing identity error", err)
+	}
+	if err = os.WriteFile(path, []byte(`{"IPAM":`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = CiliumPoolTransaction(ciliumPoolTestStore(t, path), identity, supply, false, true)
+	if err == nil {
+		t.Error("synchronization with corrupt JSON state succeeded")
+	}
 }
 
 func TestCiliumPoolLeaseAndOwnerOnlyReservation(t *testing.T) {
 	am := &addressManager{AddrSpaces: make(map[string]*addressSpace)}
 	as, err := am.newAddressSpace(LocalDefaultAddressSpaceId, LocalScope)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	am.AddrSpaces[LocalDefaultAddressSpaceId] = as
 	subnet := netip.MustParsePrefix(testCiliumSubnet)
 	path := filepath.Join(t.TempDir(), testCiliumStateFile)
 	kvs, err := store.NewDurableJSONFileStore(path, nil, zap.NewNop())
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	id := CiliumPoolIdentity{
 		NodeUID: "n", CiliumNodeUID: "cn", InstanceID: "vm", VMID: testCiliumVMID,
 		NICID: testCiliumNIC, Interface: testCiliumInterface, Subnet: subnet.String(),
 	}
 	supply := []CiliumPoolAddress{{netip.MustParseAddr(testCiliumAddress), testCiliumNIC}}
 	_, _, err = CiliumPoolTransaction(kvs, id, supply, true, true)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	am.store = kvs
-	require.NoError(t, am.restore(false))
+	if err = am.restore(false); err != nil {
+		t.Fatal(err)
+	}
 	ap := am.AddrSpaces[LocalDefaultAddressSpaceId].Pools[id.Subnet]
 	ar := ap.Addresses[testCiliumAddress]
 	ar.ID = "incomplete-add"
 	ar.InUse = false
-	require.NoError(t, am.save())
+	if err = am.save(); err != nil {
+		t.Fatal(err)
+	}
 	used, quarantined, err := CiliumPoolTransaction(kvs, id, nil, false, false)
-	require.NoError(t, err)
-	require.Contains(t, used, testCiliumAddress)
-	require.Equal(t, 1, quarantined)
-	require.NoError(t, am.restore(false))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := used[testCiliumAddress]; !exists {
+		t.Error("owner-only reservation was omitted from usage")
+	}
+	if quarantined != 1 {
+		t.Errorf("owner-only quarantined addresses = %d, want 1", quarantined)
+	}
+	if err = am.restore(false); err != nil {
+		t.Fatal(err)
+	}
 	am.CiliumPool.ReadyUntil = time.Now().Add(time.Minute)
 	am.CiliumPool.BootID = "previous-boot"
-	require.ErrorContains(t, am.checkCiliumPoolAdmission(), "post-reboot")
+	if err = am.checkCiliumPoolAdmission(); err == nil || !strings.Contains(err.Error(), "post-reboot") {
+		t.Errorf("previous boot admission: got %v, want post-reboot error", err)
+	}
 	am.CiliumPool.ReadyUntil = time.Now().Add(-time.Minute)
-	require.ErrorContains(t, am.checkCiliumPoolAdmission(), testCiliumPaused)
-	require.NoError(t, am.ReleaseAddress(LocalDefaultAddressSpaceId, id.Subnet, "", map[string]string{OptAddressID: "incomplete-add"}))
+	if err = am.checkCiliumPoolAdmission(); err == nil || !strings.Contains(err.Error(), testCiliumPaused) {
+		t.Errorf("expired lease admission: got %v, want paused error", err)
+	}
+	if err = am.ReleaseAddress(LocalDefaultAddressSpaceId, id.Subnet, "", map[string]string{OptAddressID: "incomplete-add"}); err != nil {
+		t.Fatal(err)
+	}
 	reserved, err := CiliumPoolHasReservations(kvs)
-	require.NoError(t, err)
-	require.False(t, reserved, "authoritative DEL clears an owner-only incomplete reservation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reserved {
+		t.Error("authoritative DEL did not clear the owner-only incomplete reservation")
+	}
 }
 
 func TestCiliumPoolRejectsForeignSupplyAndStaticSource(t *testing.T) {
 	kvs, err := store.NewDurableJSONFileStore(filepath.Join(t.TempDir(), testCiliumStateFile), nil, zap.NewNop())
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	id := CiliumPoolIdentity{
 		NodeUID: "n", CiliumNodeUID: "cn", InstanceID: "vm", VMID: testCiliumVMID,
 		NICID: testCiliumNIC, Interface: testCiliumInterface, Subnet: testCiliumSubnet,
@@ -163,13 +286,19 @@ func TestCiliumPoolRejectsForeignSupplyAndStaticSource(t *testing.T) {
 		{netip.MustParseAddr("2001:db8::1"), testCiliumNIC},
 	} {
 		_, _, transactionErr := CiliumPoolTransaction(kvs, id, []CiliumPoolAddress{entry}, true, true)
-		require.Error(t, transactionErr)
+		if transactionErr == nil {
+			t.Errorf("foreign supply %+v was accepted", entry)
+		}
 	}
 	_, _, err = CiliumPoolTransaction(kvs, id, nil, true, true)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	am := &addressManager{AddrSpaces: make(map[string]*addressSpace)}
-	require.Error(t, am.Initialize(&common.PluginConfig{Store: kvs}, false,
-		map[string]interface{}{common.OptEnvironment: common.OptEnvironmentAzure}))
+	if err = am.Initialize(&common.PluginConfig{Store: kvs}, false,
+		map[string]interface{}{common.OptEnvironment: common.OptEnvironmentAzure}); err == nil {
+		t.Error("managed pool accepted an independent Azure source")
+	}
 }
 
 type failedCiliumPoolStore struct{ store.KeyValueStore }
@@ -182,31 +311,50 @@ func (failedCiliumPoolStore) Write(string, interface{}) error {
 
 func TestCiliumPoolCIDRRollbackAndFailedReplay(t *testing.T) {
 	kvs, err := store.NewDurableJSONFileStore(filepath.Join(t.TempDir(), testCiliumStateFile), nil, zap.NewNop())
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	id := CiliumPoolIdentity{
 		NodeUID: "n", CiliumNodeUID: "cn", InstanceID: "vm", VMID: testCiliumVMID,
 		NICID: testCiliumNIC, Interface: testCiliumInterface, Subnet: testCiliumSubnet,
 	}
 	_, _, err = CiliumPoolTransaction(kvs, id,
 		[]CiliumPoolAddress{{netip.MustParseAddr(testCiliumAddress), testCiliumNIC}}, true, true)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	am := &addressManager{AddrSpaces: make(map[string]*addressSpace)}
-	require.NoError(t, am.Initialize(&common.PluginConfig{Store: kvs}, false,
-		map[string]interface{}{common.OptEnvironment: common.OptEnvironmentCiliumPool}))
+	if err = am.Initialize(&common.PluginConfig{Store: kvs}, false,
+		map[string]interface{}{common.OptEnvironment: common.OptEnvironmentCiliumPool}); err != nil {
+		t.Fatal(err)
+	}
 	options := map[string]string{OptAddressID: "pod"}
 	cidr, err := am.RequestAddress(LocalDefaultAddressSpaceId, id.Subnet, "", options)
-	require.NoError(t, err)
-	require.NoError(t, am.ReleaseAddress(LocalDefaultAddressSpaceId, id.Subnet, cidr, options))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = am.ReleaseAddress(LocalDefaultAddressSpaceId, id.Subnet, cidr, options); err != nil {
+		t.Fatal(err)
+	}
 	info, err := am.GetPoolInfo(LocalDefaultAddressSpaceId, id.Subnet)
-	require.NoError(t, err)
-	require.Equal(t, 1, info.Available, "failed endpoint creation must release the CIDR returned by ADD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Available != 1 {
+		t.Errorf("available addresses after CIDR rollback = %d, want 1", info.Available)
+	}
 	_, err = am.RequestAddress(LocalDefaultAddressSpaceId, id.Subnet, "", options)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	am.store = failedCiliumPoolStore{kvs}
 	_, err = am.RequestAddress(LocalDefaultAddressSpaceId, id.Subnet, "", options)
-	require.ErrorContains(t, err, "storage failure")
-	require.True(t, am.AddrSpaces[LocalDefaultAddressSpaceId].Pools[id.Subnet].Addresses[testCiliumAddress].InUse,
-		"failed duplicate ADD must not forget an existing reservation")
+	if !errors.Is(err, errStorageFailure) {
+		t.Errorf("failed replay: got %v, want %v", err, errStorageFailure)
+	}
+	if !am.AddrSpaces[LocalDefaultAddressSpaceId].Pools[id.Subnet].Addresses[testCiliumAddress].InUse {
+		t.Error("failed duplicate ADD forgot an existing reservation")
+	}
 }
 
 func TestCiliumPoolCorruptionCannotBecomeEmptyUsage(t *testing.T) {
@@ -236,31 +384,53 @@ func TestCiliumPoolCorruptionCannotBecomeEmptyUsage(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), testCiliumStateFile)
 			kvs, err := store.NewDurableJSONFileStore(path, nil, zap.NewNop())
-			require.NoError(t, err)
+			if err != nil {
+				t.Fatal(err)
+			}
 			id := CiliumPoolIdentity{
 				NodeUID: "n", CiliumNodeUID: "cn", InstanceID: "vm", VMID: testCiliumVMID,
 				NICID: testCiliumNIC, Interface: testCiliumInterface, Subnet: testCiliumSubnet,
 			}
 			supply := []CiliumPoolAddress{{netip.MustParseAddr(testCiliumAddress), testCiliumNIC}, {netip.MustParseAddr(testCiliumSecondAddress), testCiliumNIC}}
 			_, _, err = CiliumPoolTransaction(kvs, id, supply, true, true)
-			require.NoError(t, err)
+			if err != nil {
+				t.Fatal(err)
+			}
 			am := &addressManager{store: kvs, AddrSpaces: make(map[string]*addressSpace)}
-			require.NoError(t, am.restore(false))
+			if err = am.restore(false); err != nil {
+				t.Fatal(err)
+			}
 			_, err = am.RequestAddress(LocalDefaultAddressSpaceId, id.Subnet, testCiliumAddress, map[string]string{OptAddressID: "pod"})
-			require.NoError(t, err)
+			if err != nil {
+				t.Fatal(err)
+			}
 			test.corrupt(am)
-			require.NoError(t, kvs.Write(storeKey, am))
+			if err = kvs.Write(storeKey, am); err != nil {
+				t.Fatal(err)
+			}
 			before, err := os.ReadFile(path)
-			require.NoError(t, err)
+			if err != nil {
+				t.Fatal(err)
+			}
 			kvs, err = store.NewDurableJSONFileStore(path, nil, zap.NewNop())
-			require.NoError(t, err)
+			if err != nil {
+				t.Fatal(err)
+			}
 			_, _, err = CiliumPoolTransaction(kvs, id, supply, false, true)
-			require.ErrorContains(t, err, "persisted cilium pool")
+			if err == nil || !strings.Contains(err.Error(), "persisted cilium pool") {
+				t.Errorf("synchronizing corrupt state: got %v, want persisted pool error", err)
+			}
 			_, err = CiliumPoolHasReservations(kvs)
-			require.ErrorContains(t, err, "persisted cilium pool")
+			if err == nil || !strings.Contains(err.Error(), "persisted cilium pool") {
+				t.Errorf("reading reservations from corrupt state: got %v, want persisted pool error", err)
+			}
 			after, err := os.ReadFile(path)
-			require.NoError(t, err)
-			require.Equal(t, before, after, "corrupt state must never be rewritten as an empty pool")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(before, after) {
+				t.Error("corrupt state was rewritten instead of being preserved")
+			}
 		})
 	}
 }

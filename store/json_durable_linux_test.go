@@ -4,23 +4,40 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
 func TestDurableJSONStoreRoundTripAndFailure(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")
 	store, err := NewDurableJSONFileStore(path, nil, zap.NewNop())
-	require.NoError(t, err)
-	require.True(t, store.(*jsonFileStore).durable)
-	require.NoError(t, store.Write("reservation", "container"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !store.(*jsonFileStore).durable {
+		t.Error("new durable store has durability disabled")
+	}
+	if err = store.Write("reservation", "container"); err != nil {
+		t.Fatal(err)
+	}
 	fresh, err := NewDurableJSONFileStore(path, nil, zap.NewNop())
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var owner string
-	require.NoError(t, fresh.Read("reservation", &owner))
-	require.Equal(t, "container", owner)
+	if err = fresh.Read("reservation", &owner); err != nil {
+		t.Fatal(err)
+	}
+	if owner != "container" {
+		t.Errorf("restored owner = %q, want container", owner)
+	}
 	failed, err := NewDurableJSONFileStore(filepath.Join(t.TempDir(), "missing", "state.json"), nil, zap.NewNop())
-	require.NoError(t, err)
-	require.Error(t, failed.Write("reservation", "container"))
-	require.Empty(t, failed.(*jsonFileStore).data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := failed.Write("reservation", "container"); err == nil {
+		t.Error("write to missing parent directory succeeded")
+	}
+	if got := len(failed.(*jsonFileStore).data); got != 0 {
+		t.Errorf("failed write retained %d store entries, want 0", got)
+	}
 }
