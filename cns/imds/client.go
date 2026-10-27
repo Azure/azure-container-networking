@@ -27,7 +27,6 @@ type Client struct {
 type clientConfig struct {
 	endpoint      string
 	retryAttempts uint
-	httpClient    *http.Client
 }
 
 type ClientOption func(*clientConfig)
@@ -43,13 +42,6 @@ func Endpoint(endpoint string) ClientOption {
 func RetryAttempts(attempts uint) ClientOption {
 	return func(c *clientConfig) {
 		c.retryAttempts = attempts
-	}
-}
-
-// HTTPClient supplies the HTTP transport and redirect policy for metadata requests.
-func HTTPClient(client *http.Client) ClientOption {
-	return func(c *clientConfig) {
-		c.httpClient = client
 	}
 }
 
@@ -84,7 +76,6 @@ func NewClient(opts ...ClientOption) *Client {
 	config := clientConfig{
 		endpoint:      defaultIMDSEndpoint,
 		retryAttempts: defaultRetryAttempts,
-		httpClient:    &http.Client{},
 	}
 
 	for _, o := range opts {
@@ -92,7 +83,7 @@ func NewClient(opts ...ClientOption) *Client {
 	}
 
 	return &Client{
-		cli:    config.httpClient,
+		cli:    &http.Client{},
 		config: config,
 	}
 }

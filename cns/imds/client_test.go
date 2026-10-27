@@ -39,7 +39,7 @@ func TestGetComputeMetadata(t *testing.T) {
 				}
 			}))
 			defer server.Close()
-			client := imds.NewClient(imds.Endpoint(server.URL), imds.RetryAttempts(1), imds.HTTPClient(server.Client()))
+			client := imds.NewClient(imds.Endpoint(server.URL), imds.RetryAttempts(1))
 			got, err := client.GetComputeMetadata(t.Context())
 			if test.wantErr {
 				if !errors.Is(err, imds.ErrComputeIdentityNotFound) {

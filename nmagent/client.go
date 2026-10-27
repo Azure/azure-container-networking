@@ -21,19 +21,15 @@ func NewClient(c Config) (*Client, error) {
 		return nil, errors.Wrap(err, "validating config")
 	}
 
-	httpClient := http.Client{Transport: http.DefaultTransport}
-	if c.HTTPClient != nil {
-		httpClient = *c.HTTPClient
-		if httpClient.Transport == nil {
-			httpClient.Transport = http.DefaultTransport
-		}
-	}
-	httpClient.Transport = &internal.WireserverTransport{Transport: httpClient.Transport}
 	client := &Client{
-		httpClient: &httpClient,
-		host:       c.Host,
-		port:       c.Port,
-		enableTLS:  c.UseTLS,
+		httpClient: &http.Client{
+			Transport: &internal.WireserverTransport{
+				Transport: http.DefaultTransport,
+			},
+		},
+		host:      c.Host,
+		port:      c.Port,
+		enableTLS: c.UseTLS,
 		retrier: internal.Retrier{
 			// nolint:gomnd // the base parameter is explained in the function
 			Cooldown: internal.Exponential(1*time.Second, 2),

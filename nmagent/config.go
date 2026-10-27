@@ -2,7 +2,6 @@ package nmagent
 
 import (
 	"net"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -22,8 +21,7 @@ type Config struct {
 	/////////////////////
 	// Optional Config //
 	/////////////////////
-	UseTLS     bool         // forces all connections to use TLS
-	HTTPClient *http.Client // optional transport, timeout and redirect policy
+	UseTLS bool // forces all connections to use TLS
 }
 
 // Validate reports whether this configuration is a valid configuration for a

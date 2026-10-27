@@ -6,9 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/http"
 	"net/netip"
-	"time"
 
 	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/common"
@@ -26,14 +24,8 @@ type Guest struct {
 	Secondaries map[netip.Addr]bool
 }
 
-// DiscoverGuest bypasses HTTP proxies for the link-local Azure services.
+// DiscoverGuest reads VM identity and the selected NIC's NMAgent metadata.
 func DiscoverGuest(ctx context.Context, cfg *common.CiliumPoolConfig) (Guest, error) {
-	client := &http.Client{
-		Timeout:       10 * time.Second,
-		Transport:     &http.Transport{Proxy: nil},
-		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
-	}
-	defer client.CloseIdleConnections()
 	local, err := net.InterfaceByName(cfg.Interface)
 	if err != nil {
 		return Guest{}, fmt.Errorf("finding selected NIC: %w", err)
@@ -42,15 +34,23 @@ func DiscoverGuest(ctx context.Context, cfg *common.CiliumPoolConfig) (Guest, er
 	if err != nil {
 		return Guest{}, fmt.Errorf("configuring NMAgent: %w", err)
 	}
-	config.HTTPClient = client
 	agent, err := nmagent.NewClient(config)
 	if err != nil {
 		return Guest{}, fmt.Errorf("creating NMAgent client: %w", err)
 	}
-	g, err := observeGuest(ctx, imds.NewClient(imds.HTTPClient(client)), agent, local.HardwareAddr, cfg.Subnet)
+	compute, err := imds.NewClient().GetComputeMetadata(ctx)
+	if err != nil {
+		return Guest{}, fmt.Errorf("reading IMDS: %w", err)
+	}
+	interfaces, err := agent.GetInterfaceIPInfo(ctx)
+	if err != nil {
+		return Guest{}, fmt.Errorf("reading NMAgent: %w", err)
+	}
+	g, err := parseGuest(interfaces, local.HardwareAddr, cfg.Subnet)
 	if err != nil {
 		return Guest{}, err
 	}
+	g.InstanceID, g.VMID = compute.ResourceID, compute.VMID
 	addrs, err := local.Addrs()
 	if err != nil {
 		return Guest{}, fmt.Errorf("reading selected NIC addresses: %w", err)
@@ -62,23 +62,6 @@ func DiscoverGuest(ctx context.Context, cfg *common.CiliumPoolConfig) (Guest, er
 		}
 	}
 	return Guest{}, fmt.Errorf("%w: NMAgent primary IP is absent from selected guest NIC", errGuestObservation)
-}
-
-func observeGuest(ctx context.Context, metadata *imds.Client, agent *nmagent.Client, mac net.HardwareAddr, subnet string) (Guest, error) {
-	compute, err := metadata.GetComputeMetadata(ctx)
-	if err != nil {
-		return Guest{}, fmt.Errorf("reading IMDS: %w", err)
-	}
-	interfaces, err := agent.GetInterfaceIPInfo(ctx)
-	if err != nil {
-		return Guest{}, fmt.Errorf("reading NMAgent: %w", err)
-	}
-	g, err := parseGuest(interfaces, mac, subnet)
-	if err != nil {
-		return Guest{}, err
-	}
-	g.InstanceID, g.VMID = compute.ResourceID, compute.VMID
-	return g, nil
 }
 
 func parseGuest(doc nmagent.Interfaces, mac net.HardwareAddr, subnet string) (Guest, error) {
