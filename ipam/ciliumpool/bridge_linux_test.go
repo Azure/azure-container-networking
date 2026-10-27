@@ -18,7 +18,6 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/ipam"
 	"github.com/Azure/azure-container-networking/nmagent"
-	"github.com/Azure/azure-container-networking/processlock"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/google/go-cmp/cmp"
 	"go.uber.org/zap"
@@ -34,6 +33,8 @@ import (
 )
 
 var errOperatorConflict = errors.New("operator wrote status")
+
+const testPoolParentOwner = "pod-a"
 
 func fixture(t *testing.T) (*Bridge, *unstructured.Unstructured, *corev1.Node, Guest) {
 	t.Helper()
@@ -80,30 +81,20 @@ func fixture(t *testing.T) (*Bridge, *unstructured.Unstructured, *corev1.Node, G
 		Config: cfg, Client: client, Logger: zap.NewNop(),
 		Discover: func(context.Context, *common.CiliumPoolConfig) (Guest, error) { return g, nil },
 	}
-	if err = os.MkdirAll(filepath.Join(cfg.StateDir, "locks"), 0o700); err != nil {
-		t.Fatal(err)
-	}
 	return b, cn, node, g
 }
 
 func reserve(t *testing.T, b *Bridge, owner, address string) {
 	t.Helper()
-	lock, err := processlock.NewFileLock(b.Config.LockPath("azure-vnet-ipam"))
+	kvs, err := lockStore(t.Context(), b.Config.StatePath("azure-vnet-ipam"), time.Second, zap.NewNop())
 	if err != nil {
-		t.Fatal(err)
-	}
-	if err = lock.Lock(); err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
-		if unlockErr := lock.Unlock(); unlockErr != nil {
+		if unlockErr := kvs.Unlock(); unlockErr != nil {
 			t.Errorf("unlocking IPAM state: %v", unlockErr)
 		}
 	}()
-	kvs, err := store.NewDurableJSONFileStore(b.Config.StatePath("azure-vnet-ipam"), lock, zap.NewNop())
-	if err != nil {
-		t.Fatal(err)
-	}
 	am, err := ipam.NewAddressManager()
 	if err != nil {
 		t.Fatal(err)
@@ -171,10 +162,17 @@ func TestPoolBridgeUsageConflictWithdrawalAndRestart(t *testing.T) {
 	if err = b.Reconcile(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if err = os.WriteFile(b.Config.StatePath("azure-vnet"), []byte(`{"Network":{"Version":"test"}}`), 0o600); err != nil {
+	network, err := lockStore(t.Context(), b.Config.StatePath("azure-vnet"), time.Second, zap.NewNop())
+	if err != nil {
 		t.Fatal(err)
 	}
-	reserve(t, b, "pod-a", "10.20.16.10")
+	if err = network.Write("Network", map[string]string{"Version": "test"}); err != nil {
+		t.Fatal(err)
+	}
+	if err = network.Unlock(); err != nil {
+		t.Fatal(err)
+	}
+	reserve(t, b, testPoolParentOwner, "10.20.16.10")
 	client := b.Client.(*dynamicfake.FakeDynamicClient)
 	firstPatch := true
 	client.PrependReactor("patch", "ciliumnodes", func(_ ktesting.Action) (bool, runtime.Object, error) {
@@ -398,43 +396,64 @@ func TestPoolBridgeGuestAndAdmission(t *testing.T) {
 	}
 }
 
-func TestPoolBridgeProcessLock(t *testing.T) {
-	if dir := os.Getenv("ACN_POOL_LOCK_CHILD"); dir != "" {
-		root, err := os.OpenRoot(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer root.Close()
-		path := filepath.Join(dir, "ipam.lock")
-		lock, err := processlock.NewFileLock(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err = root.WriteFile("ipam.lock.started", nil, 0o600); err != nil {
-			t.Fatal(err)
-		}
-		if err = lock.Lock(); err != nil {
-			t.Fatal(err)
-		}
-		defer func() {
-			if unlockErr := lock.Unlock(); unlockErr != nil {
-				t.Errorf("unlocking child IPAM state: %v", unlockErr)
-			}
-		}()
-		if err = root.WriteFile("ipam.lock.acquired", nil, 0o600); err != nil {
-			t.Fatal(err)
-		}
-		return
-	}
-	path := filepath.Join(t.TempDir(), "ipam.lock")
-	lock, err := acquire(t.Context(), path, false)
+func updatePoolStateInChild(t *testing.T, dir string) {
+	t.Helper()
+	root, err := os.OpenRoot(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer lock.Close()
-	otherLock, err := acquire(t.Context(), path, false)
+	defer root.Close()
+	path := filepath.Join(dir, "ipam.db")
+	lock, err := store.NewBoltStore(path, zap.NewNop())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = root.WriteFile("ipam.db.started", nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err = lock.Lock(5 * time.Second); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if unlockErr := lock.Unlock(); unlockErr != nil {
+			t.Errorf("unlocking child IPAM state: %v", unlockErr)
+		}
+	}()
+	if err = root.WriteFile("ipam.db.acquired", nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var usage map[string]string
+	if err = lock.Read("IPAM", &usage); err != nil {
+		t.Fatal(err)
+	}
+	if usage["parent"] != testPoolParentOwner {
+		t.Fatalf("child did not restore parent's reservation: %v", usage)
+	}
+	usage["child"] = "pod-b"
+	if err = lock.Write("IPAM", usage); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPoolBridgeProcessLock(t *testing.T) {
+	if dir := os.Getenv("ACN_POOL_LOCK_CHILD"); dir != "" {
+		updatePoolStateInChild(t, dir)
+		return
+	}
+	path := filepath.Join(t.TempDir(), "ipam.db")
+	lock, err := lockStore(t.Context(), path, time.Millisecond, zap.NewNop())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unlockStore(lock, zap.NewNop())
+	if err = lock.Write("IPAM", map[string]string{"parent": testPoolParentOwner}); err != nil {
+		t.Fatal(err)
+	}
+	otherLock, err := lockStore(t.Context(), path, time.Millisecond, zap.NewNop())
 	if err == nil {
-		otherLock.Close()
+		if unlockErr := otherLock.Unlock(); unlockErr != nil {
+			t.Error(unlockErr)
+		}
 		t.Fatal("single-publisher lifetime lock was acquired twice")
 	}
 	executable, err := os.Executable()
@@ -477,15 +496,17 @@ func TestPoolBridgeProcessLock(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	canceledLock, err := acquire(ctx, path, true)
+	canceledLock, err := lockStore(ctx, path, time.Second, zap.NewNop())
 	if canceledLock != nil {
-		canceledLock.Close()
+		if unlockErr := canceledLock.Unlock(); unlockErr != nil {
+			t.Error(unlockErr)
+		}
 		t.Error("canceled lock attempt returned an open lock")
 	}
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("canceled lock attempt: got %v, want %v", err, context.Canceled)
 	}
-	if err = lock.Close(); err != nil {
+	if err = lock.Unlock(); err != nil {
 		t.Fatal(err)
 	}
 	if err = cmd.Wait(); err != nil {
@@ -495,6 +516,16 @@ func TestPoolBridgeProcessLock(t *testing.T) {
 		t.Fatal(statErr)
 	} else if !info.Mode().IsRegular() {
 		t.Error("child lock acquisition marker is not a regular file")
+	}
+	if err = lock.Lock(time.Second); err != nil {
+		t.Fatal(err)
+	}
+	var usage map[string]string
+	if err = lock.Read("IPAM", &usage); err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(map[string]string{"parent": testPoolParentOwner, "child": "pod-b"}, usage); diff != "" {
+		t.Errorf("reservations after process handoff (-want +got):\n%s", diff)
 	}
 }
 

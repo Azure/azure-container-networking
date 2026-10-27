@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"maps"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	"github.com/Azure/azure-container-networking/ipam"
 	"github.com/Azure/azure-container-networking/store"
 	"go.uber.org/zap"
-	"golang.org/x/sys/unix"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -46,14 +44,14 @@ func (b *Bridge) Run(ctx context.Context) error {
 	if b.Config == nil || b.Client == nil || b.Discover == nil || b.Logger == nil {
 		return errBridgeConfig
 	}
-	if err := os.MkdirAll(filepath.Join(b.Config.StateDir, "locks"), 0o700); err != nil {
-		return fmt.Errorf("creating bridge lock directory: %w", err)
+	if err := os.MkdirAll(b.Config.StateDir, 0o700); err != nil {
+		return fmt.Errorf("creating bridge state directory: %w", err)
 	}
-	lifetime, err := acquire(ctx, b.Config.LockPath(consumer), false)
+	lifetime, err := lockStore(ctx, b.Config.StatePath(consumer), time.Millisecond, b.Logger)
 	if err != nil {
 		return fmt.Errorf("acquiring bridge lifetime lock: %w", err)
 	}
-	defer closeLock(lifetime, b.Logger)
+	defer unlockStore(lifetime, b.Logger)
 	var w watch.Interface
 	defer func() {
 		if w != nil {
@@ -249,34 +247,23 @@ func (b *Bridge) transaction(ctx context.Context, id ipam.CiliumPoolIdentity,
 	supply []ipam.CiliumPoolAddress, initialize, admit bool,
 ) (used map[string]ipam.CiliumPoolUsage, quarantined int, err error) {
 	// Reading network-state existence is recovery work: respect CNI's lock order.
-	network, err := acquire(ctx, b.Config.LockPath("azure-vnet"), true)
+	network, err := lockStore(ctx, b.Config.StatePath("azure-vnet"), store.DefaultLockTimeoutLinux, b.Logger)
 	if err != nil {
 		return nil, 0, err
 	}
-	defer closeLock(network, b.Logger)
-	lock, err := acquire(ctx, b.Config.LockPath("azure-vnet-ipam"), true)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer closeLock(lock, b.Logger)
-	kvs, err := store.NewDurableJSONFileStore(b.Config.StatePath("azure-vnet-ipam"), nil, b.Logger)
+	defer unlockStore(network, b.Logger)
+	kvs, err := lockStore(ctx, b.Config.StatePath("azure-vnet-ipam"), store.DefaultLockTimeoutLinux, b.Logger)
 	if err != nil {
 		return nil, 0, fmt.Errorf("opening local IPAM state: %w", err)
 	}
+	defer unlockStore(kvs, b.Logger)
 	used, quarantined, err = ipam.CiliumPoolTransaction(kvs, id, supply, initialize, admit)
 	if err != nil {
 		return nil, 0, fmt.Errorf("synchronizing local pool: %w", err)
 	}
 	if len(used) > 0 {
-		networkData, err := os.ReadFile(b.Config.StatePath("azure-vnet"))
-		var networkState map[string]json.RawMessage
-		if err == nil {
-			err = json.Unmarshal(networkData, &networkState)
-			if err == nil && len(networkState["Network"]) == 0 {
-				err = fmt.Errorf("%w: missing Network store key", errLocalState)
-			}
-		}
-		if err != nil {
+		var networkState json.RawMessage
+		if err := network.Read("Network", &networkState); err != nil {
 			return nil, 0, errors.Join(fmt.Errorf("ciliumpool: network state missing with active reservations: %w", err),
 				ipam.FenceCiliumPool(kvs, "network state missing"))
 		}
@@ -285,49 +272,39 @@ func (b *Bridge) transaction(ctx context.Context, id ipam.CiliumPoolIdentity,
 }
 
 func (b *Bridge) fence(ctx context.Context, reason string) error {
-	lock, err := acquire(ctx, b.Config.LockPath("azure-vnet-ipam"), true)
-	if err != nil {
-		return err
-	}
-	defer closeLock(lock, b.Logger)
-	kvs, err := store.NewDurableJSONFileStore(b.Config.StatePath("azure-vnet-ipam"), nil, b.Logger)
+	kvs, err := lockStore(ctx, b.Config.StatePath("azure-vnet-ipam"), store.DefaultLockTimeoutLinux, b.Logger)
 	if err != nil {
 		return fmt.Errorf("opening local IPAM state for fencing: %w", err)
 	}
+	defer unlockStore(kvs, b.Logger)
 	if err := ipam.FenceCiliumPool(kvs, reason); err != nil {
 		return fmt.Errorf("fencing local pool: %w", err)
 	}
 	return nil
 }
 
-func acquire(ctx context.Context, path string, wait bool) (*os.File, error) {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|unix.O_NOFOLLOW, 0o600)
+func lockStore(ctx context.Context, path string, timeout time.Duration, logger *zap.Logger) (*store.BoltStore, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("waiting for state database: %w", err)
+	}
+	if deadline, ok := ctx.Deadline(); ok {
+		timeout = min(timeout, time.Until(deadline))
+	}
+	kvs, err := store.NewBoltStore(path, logger)
 	if err != nil {
-		return nil, fmt.Errorf("opening state lock: %w", err)
+		return nil, fmt.Errorf("creating state store: %w", err)
 	}
-	ticker := time.NewTicker(50 * time.Millisecond)
-	defer ticker.Stop()
-	for {
-		if err := ctx.Err(); err != nil {
-			return nil, fmt.Errorf("waiting for state lock: %w", errors.Join(err, f.Close()))
-		}
-		err := unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB)
-		if err == nil {
-			return f, nil
-		}
-		if !wait || (!errors.Is(err, unix.EWOULDBLOCK) && !errors.Is(err, unix.EINTR)) {
-			return nil, fmt.Errorf("acquiring state lock: %w", errors.Join(err, f.Close()))
-		}
-		select {
-		case <-ctx.Done():
-			return nil, fmt.Errorf("waiting for state lock: %w", errors.Join(ctx.Err(), f.Close()))
-		case <-ticker.C:
-		}
+	if err := kvs.Lock(timeout); err != nil {
+		return nil, fmt.Errorf("locking state database: %w", err)
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, errors.Join(err, kvs.Unlock())
+	}
+	return kvs, nil
 }
 
-func closeLock(f *os.File, logger *zap.Logger) {
-	if err := f.Close(); err != nil {
-		logger.Warn("closing state lock failed", zap.Error(err))
+func unlockStore(kvs *store.BoltStore, logger *zap.Logger) {
+	if err := kvs.Unlock(); err != nil {
+		logger.Warn("closing state store failed", zap.Error(err))
 	}
 }

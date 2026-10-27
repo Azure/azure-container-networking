@@ -42,8 +42,7 @@ type CiliumPoolAddress struct {
 	Resource string
 }
 
-// CiliumPoolTransaction must run under the same process lock as azure-vnet-ipam.
-// A fresh store is required on every call; the JSON store caches previous reads.
+// CiliumPoolTransaction must run under the IPAM store's exclusive lock.
 func CiliumPoolTransaction(kvs store.KeyValueStore, identity CiliumPoolIdentity, supply []CiliumPoolAddress,
 	initialize, admit bool,
 ) (used map[string]CiliumPoolUsage, quarantined int, err error) {
@@ -174,7 +173,7 @@ func ciliumPoolEnvironment(options map[string]interface{}) bool {
 }
 
 // FenceCiliumPool persists an admission stop without discarding reservations.
-// The caller holds the IPAM process lock and uses a fresh store.
+// The caller holds the IPAM store's exclusive lock.
 func FenceCiliumPool(kvs store.KeyValueStore, reason string) error {
 	am := &addressManager{store: kvs, AddrSpaces: make(map[string]*addressSpace)}
 	if err := am.restore(false); err != nil {
@@ -189,7 +188,7 @@ func FenceCiliumPool(kvs store.KeyValueStore, reason string) error {
 }
 
 // CiliumPoolHasReservations reads ownership without changing state.
-// The caller must hold the IPAM process lock and use a fresh store.
+// The caller must hold the IPAM store's exclusive lock.
 func CiliumPoolHasReservations(kvs store.KeyValueStore) (bool, error) {
 	am := &addressManager{store: kvs, AddrSpaces: make(map[string]*addressSpace)}
 	if err := am.restore(false); err != nil {

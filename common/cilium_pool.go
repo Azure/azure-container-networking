@@ -75,9 +75,5 @@ func ReadCiliumPoolConfig(path string) (*CiliumPoolConfig, error) {
 }
 
 func (c *CiliumPoolConfig) StatePath(plugin string) string {
-	return filepath.Join(c.StateDir, plugin+".json")
-}
-
-func (c *CiliumPoolConfig) LockPath(plugin string) string {
-	return filepath.Join(c.StateDir, "locks", plugin+".lock")
+	return filepath.Join(c.StateDir, plugin+".db")
 }

@@ -30,7 +30,7 @@ const (
 
 func ciliumPoolTestStore(t *testing.T, path string) store.KeyValueStore {
 	t.Helper()
-	kvs, err := store.NewDurableJSONFileStore(path, nil, zap.NewNop())
+	kvs, err := store.NewJsonFileStore(path, nil, zap.NewNop())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,7 +213,7 @@ func TestCiliumPoolLeaseAndOwnerOnlyReservation(t *testing.T) {
 	am.AddrSpaces[LocalDefaultAddressSpaceId] = as
 	subnet := netip.MustParsePrefix(testCiliumSubnet)
 	path := filepath.Join(t.TempDir(), testCiliumStateFile)
-	kvs, err := store.NewDurableJSONFileStore(path, nil, zap.NewNop())
+	kvs, err := store.NewJsonFileStore(path, nil, zap.NewNop())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -272,7 +272,7 @@ func TestCiliumPoolLeaseAndOwnerOnlyReservation(t *testing.T) {
 }
 
 func TestCiliumPoolRejectsForeignSupplyAndStaticSource(t *testing.T) {
-	kvs, err := store.NewDurableJSONFileStore(filepath.Join(t.TempDir(), testCiliumStateFile), nil, zap.NewNop())
+	kvs, err := store.NewJsonFileStore(filepath.Join(t.TempDir(), testCiliumStateFile), nil, zap.NewNop())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,7 +310,7 @@ func (failedCiliumPoolStore) Write(string, interface{}) error {
 }
 
 func TestCiliumPoolCIDRRollbackAndFailedReplay(t *testing.T) {
-	kvs, err := store.NewDurableJSONFileStore(filepath.Join(t.TempDir(), testCiliumStateFile), nil, zap.NewNop())
+	kvs, err := store.NewJsonFileStore(filepath.Join(t.TempDir(), testCiliumStateFile), nil, zap.NewNop())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -383,7 +383,7 @@ func TestCiliumPoolCorruptionCannotBecomeEmptyUsage(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), testCiliumStateFile)
-			kvs, err := store.NewDurableJSONFileStore(path, nil, zap.NewNop())
+			kvs, err := store.NewJsonFileStore(path, nil, zap.NewNop())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -412,7 +412,7 @@ func TestCiliumPoolCorruptionCannotBecomeEmptyUsage(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			kvs, err = store.NewDurableJSONFileStore(path, nil, zap.NewNop())
+			kvs, err = store.NewJsonFileStore(path, nil, zap.NewNop())
 			if err != nil {
 				t.Fatal(err)
 			}

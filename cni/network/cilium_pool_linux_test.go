@@ -1,8 +1,8 @@
 package network
 
 import (
+	"errors"
 	"net/netip"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -14,15 +14,31 @@ import (
 
 func TestCiliumPoolNetworkStateCannotBeResetWithReservations(t *testing.T) {
 	cfg := &common.CiliumPoolConfig{StateDir: t.TempDir()}
-	kvs, err := store.NewDurableJSONFileStore(cfg.StatePath("azure-vnet-ipam"), nil, zap.NewNop())
+	kvs, err := store.NewBoltStore(cfg.StatePath("azure-vnet-ipam"), zap.NewNop())
 	if err != nil {
 		t.Fatal(err)
 	}
-	network, err := store.NewDurableJSONFileStore(filepath.Join(cfg.StateDir, "azure-vnet.json"), nil, zap.NewNop())
+	network, err := store.NewBoltStore(cfg.StatePath("azure-vnet"), zap.NewNop())
 	if err != nil {
 		t.Fatal(err)
 	}
 	config := &common.PluginConfig{CiliumPool: cfg, Store: network}
+	if err = network.Lock(store.DefaultLockTimeoutLinux); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if unlockErr := network.Unlock(); unlockErr != nil {
+			t.Error(unlockErr)
+		}
+	})
+	if err = kvs.Lock(store.DefaultLockTimeoutLinux); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if unlockErr := kvs.Unlock(); unlockErr != nil && !errors.Is(unlockErr, store.ErrStoreNotLocked) {
+			t.Error(unlockErr)
+		}
+	})
 	id := ipam.CiliumPoolIdentity{
 		NodeUID: "n", CiliumNodeUID: "cn", VMID: "uuid", InstanceID: "vm",
 		NICID: "nic", Interface: eth0IfName, Subnet: "10.20.16.0/20",
@@ -32,11 +48,17 @@ func TestCiliumPoolNetworkStateCannotBeResetWithReservations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err = kvs.Unlock(); err != nil {
+		t.Fatal(err)
+	}
 	if err = validateCiliumPoolNetworkState(config); err != nil {
 		t.Fatalf("fresh network bootstrap with no ownership: %v", err)
 	}
 	am, err := ipam.NewAddressManager()
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err = kvs.Lock(store.DefaultLockTimeoutLinux); err != nil {
 		t.Fatal(err)
 	}
 	if err = am.Initialize(&common.PluginConfig{Store: kvs}, false,
@@ -45,6 +67,9 @@ func TestCiliumPoolNetworkStateCannotBeResetWithReservations(t *testing.T) {
 	}
 	_, err = am.RequestAddress("local", id.Subnet, "", map[string]string{ipam.OptAddressID: "pod"})
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err = kvs.Unlock(); err != nil {
 		t.Fatal(err)
 	}
 	if err := validateCiliumPoolNetworkState(config); err == nil || !strings.Contains(err.Error(), "network state unavailable") {

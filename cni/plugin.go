@@ -193,21 +193,15 @@ func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error
 	config.CiliumPool = poolConfig
 	// Create the key value store.
 	if plugin.Store == nil {
-		lockPath := platform.CNILockPath + plugin.Name + store.LockExtension
-		statePath := platform.CNIRuntimePath + plugin.Name + ".json"
 		if poolConfig != nil {
-			lockPath = poolConfig.LockPath(plugin.Name)
-			statePath = poolConfig.StatePath(plugin.Name)
-		}
-		lockclient, err := processlock.NewFileLock(lockPath)
-		if err != nil {
-			logger.Error("Error initializing file lock", zap.Error(err))
-			return errors.Wrap(err, "error creating new filelock")
-		}
-
-		if poolConfig != nil {
-			plugin.Store, err = store.NewDurableJSONFileStore(statePath, lockclient, storeLogger)
+			plugin.Store, err = store.NewBoltStore(poolConfig.StatePath(plugin.Name), storeLogger)
 		} else {
+			lockPath := platform.CNILockPath + plugin.Name + store.LockExtension
+			statePath := platform.CNIRuntimePath + plugin.Name + ".json"
+			lockclient, lockErr := processlock.NewFileLock(lockPath)
+			if lockErr != nil {
+				return errors.Wrap(lockErr, "creating file lock")
+			}
 			plugin.Store, err = store.NewJsonFileStore(statePath, lockclient, storeLogger)
 		}
 		if err != nil {

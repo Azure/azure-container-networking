@@ -38,10 +38,7 @@ func TestCiliumPoolConfigRejectsInvalidInput(t *testing.T) {
 		t.Errorf("missing configuration: got %+v, want nil", cfg)
 	}
 	cfg = &CiliumPoolConfig{StateDir: "/var/lib/azure-vnet-cilium"}
-	if got, want := cfg.StatePath("azure-vnet-ipam"), "/var/lib/azure-vnet-cilium/azure-vnet-ipam.json"; got != want {
+	if got, want := cfg.StatePath("azure-vnet-ipam"), "/var/lib/azure-vnet-cilium/azure-vnet-ipam.db"; got != want {
 		t.Errorf("StatePath = %q, want %q", got, want)
-	}
-	if got, want := cfg.LockPath("azure-vnet-ipam"), "/var/lib/azure-vnet-cilium/locks/azure-vnet-ipam.lock"; got != want {
-		t.Errorf("LockPath = %q, want %q", got, want)
 	}
 }

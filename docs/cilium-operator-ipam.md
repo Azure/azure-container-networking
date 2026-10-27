@@ -39,7 +39,7 @@ secondaries in this mode. A delayed metadata/programming observation withholds
 the address; an invalid or foreign pool entry rejects synchronization.
 
 Azure CNI ADD/DEL remains the only reservation authority. The bridge reads the
-same persisted records under the same file lock and publishes records with
+same persisted records under the database's exclusive file lock and publishes records with
 `InUse` or a remaining container ID into `status.ipam.used`, retaining the
 operator's interface resource and a stable container owner. It never overwrites
 the operator's other status fields. Resource-version and UID-tested JSON
@@ -69,10 +69,18 @@ The selected state directory must be on persistent host storage, not `/run`,
 Do not change or remove this configuration while endpoints exist.
 
 Both host CNI executables and the bridge read the same file. Their network and
-IPAM JSON files move together into `stateDir`, and locks into `stateDir/locks`.
-No symlink redirection of legacy atomic-replaced state files is used. Writes
-sync both file contents and the containing directory. Without the file, legacy
-paths and static Azure IPAM behavior are unchanged.
+IPAM state is stored in `azure-vnet.db` and `azure-vnet-ipam.db` under
+`stateDir`, using bbolt (the maintained BoltDB implementation). Each CNI
+operation holds the database file lock from restore through its final write;
+each write is a synchronous database transaction. The bridge uses the same
+databases and locks, with no separate reservation database or state lock files.
+Its `azure-vnet-ipam-bridge.db` lifetime lock prevents duplicate publishers.
+Without the host configuration file, legacy JSON storage, paths and static
+Azure IPAM behavior are unchanged.
+
+The pool mode requires clean or drained nodes; legacy JSON state is not
+automatically imported into the new databases. Do not switch storage formats
+while endpoints exist.
 
 Run the bridge binary on the host using the
 [example systemd service](../examples/cilium-operator-ipam/azure-vnet-ipam-bridge.service).
@@ -151,8 +159,8 @@ Healthy synchronization grants a 30-second admission lease tied to the kernel
 boot ID. During a bridge/API outage, existing confirmed supply can be allocated
 only until this lease expires; existing endpoints and DEL continue working.
 Reboot requires a new bridge observation. The bridge watches its CiliumNode,
-periodically re-GETs it and the Node, and reloads a fresh JSON store per
-transaction to avoid overwriting intervening CNI changes from a cached view.
+periodically re-GETs it and the Node, and reopens the databases under their
+exclusive file locks to avoid overwriting intervening CNI changes.
 No network call is made under the local state locks. Recovery checks acquire
 network then IPAM locks, in the same order as CNI.
 
@@ -162,7 +170,7 @@ address space and pool, address/NIC metadata and unique container ownership
 before rebuilding indexes; partial records are not treated as an empty pool.
 Identity changes and unexpected
 release requests persist a fence that normal reconciliation cannot clear.
-Do not delete JSON files or reset remote `used` to force recovery. Fence/drain
+Do not delete database files or reset remote `used` to force recovery. Fence/drain
 the VM, establish authoritative endpoint teardown and reconcile local/remote
 ownership before an administrator replaces state or reinstalls a consumer.
 The old empty-pool state-deletion fallback is disabled in pool mode.

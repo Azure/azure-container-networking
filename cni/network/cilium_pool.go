@@ -7,7 +7,6 @@ import (
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/ipam"
-	"github.com/Azure/azure-container-networking/processlock"
 	"github.com/Azure/azure-container-networking/store"
 )
 
@@ -19,11 +18,7 @@ func validateCiliumPoolNetworkState(config *common.PluginConfig) (resultErr erro
 	if config.CiliumPool == nil {
 		return nil
 	}
-	lock, err := processlock.NewFileLock(config.CiliumPool.LockPath("azure-vnet-ipam"))
-	if err != nil {
-		return fmt.Errorf("creating cilium pool IPAM lock: %w", err)
-	}
-	kvs, err := store.NewDurableJSONFileStore(config.CiliumPool.StatePath("azure-vnet-ipam"), lock, logger)
+	kvs, err := store.NewBoltStore(config.CiliumPool.StatePath("azure-vnet-ipam"), logger)
 	if err != nil {
 		return fmt.Errorf("opening cilium pool IPAM state: %w", err)
 	}
