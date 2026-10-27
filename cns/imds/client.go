@@ -27,6 +27,7 @@ type Client struct {
 type clientConfig struct {
 	endpoint      string
 	retryAttempts uint
+	httpClient    *http.Client
 }
 
 type ClientOption func(*clientConfig)
@@ -42,6 +43,13 @@ func Endpoint(endpoint string) ClientOption {
 func RetryAttempts(attempts uint) ClientOption {
 	return func(c *clientConfig) {
 		c.retryAttempts = attempts
+	}
+}
+
+// HTTPClient supplies the HTTP transport and redirect policy for metadata requests.
+func HTTPClient(client *http.Client) ClientOption {
+	return func(c *clientConfig) {
+		c.httpClient = client
 	}
 }
 
@@ -61,15 +69,22 @@ const (
 )
 
 var (
-	ErrVMUniqueIDNotFound   = errors.New("vm unique ID not found")
-	ErrUnexpectedStatusCode = errors.New("imds returned an unexpected status code")
+	ErrVMUniqueIDNotFound      = errors.New("vm unique ID not found")
+	ErrUnexpectedStatusCode    = errors.New("imds returned an unexpected status code")
+	ErrComputeIdentityNotFound = errors.New("imds: compute identity not found")
 )
+
+type ComputeMetadata struct {
+	ResourceID string
+	VMID       string
+}
 
 // NewClient creates a new imds client
 func NewClient(opts ...ClientOption) *Client {
 	config := clientConfig{
 		endpoint:      defaultIMDSEndpoint,
 		retryAttempts: defaultRetryAttempts,
+		httpClient:    &http.Client{},
 	}
 
 	for _, o := range opts {
@@ -77,9 +92,31 @@ func NewClient(opts ...ClientOption) *Client {
 	}
 
 	return &Client{
-		cli:    &http.Client{},
+		cli:    config.httpClient,
 		config: config,
 	}
+}
+
+// GetComputeMetadata reads both parts of the VM identity from one observation.
+func (c *Client) GetComputeMetadata(ctx context.Context) (ComputeMetadata, error) {
+	var metadata ComputeMetadata
+	err := retry.Do(func() error {
+		doc, err := c.getInstanceMetadata(ctx, imdsComputePath, imdsDefaultAPIVersion)
+		if err != nil {
+			return errors.Wrap(err, "getting IMDS compute metadata")
+		}
+		resource, resourceOK := doc["resourceId"].(string)
+		vmID, vmOK := doc[vmUniqueIDProperty].(string)
+		if !resourceOK || !vmOK || resource == "" || vmID == "" {
+			return ErrComputeIdentityNotFound
+		}
+		metadata = ComputeMetadata{ResourceID: resource, VMID: vmID}
+		return nil
+	}, retry.Context(ctx), retry.Attempts(c.config.retryAttempts), retry.DelayType(retry.BackOffDelay))
+	if err != nil {
+		return ComputeMetadata{}, errors.Wrap(err, "querying IMDS compute metadata")
+	}
+	return metadata, nil
 }
 
 func (c *Client) GetVMUniqueID(ctx context.Context) (string, error) {

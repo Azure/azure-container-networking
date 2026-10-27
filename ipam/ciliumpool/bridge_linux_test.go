@@ -3,6 +3,7 @@ package ciliumpool
 import (
 	"context"
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"net"
 	"net/netip"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/ipam"
+	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/processlock"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/google/go-cmp/cmp"
@@ -373,10 +375,14 @@ func TestPoolBridgeGuestAndAdmission(t *testing.T) {
 	if err == nil {
 		t.Error("invalid VM resource ID was accepted")
 	}
-	xml := `<Interfaces><Interface MacAddress="001122334455" IsPrimary="true"><IPSubnet Prefix="10.20.16.0/20">` +
+	document := `<Interfaces><Interface MacAddress="001122334455" IsPrimary="true"><IPSubnet Prefix="10.20.16.0/20">` +
 		`<IPAddress Address="10.20.16.4" IsPrimary="true"/><IPAddress Address="10.20.16.10" IsPrimary="false"/>` +
 		`</IPSubnet></Interface></Interfaces>`
-	guest, err := parseGuest([]byte(xml), g.MAC, b.Config.Subnet)
+	var interfaces nmagent.Interfaces
+	if err = xml.Unmarshal([]byte(document), &interfaces); err != nil {
+		t.Fatal(err)
+	}
+	guest, err := parseGuest(interfaces, g.MAC, b.Config.Subnet)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -386,7 +392,7 @@ func TestPoolBridgeGuestAndAdmission(t *testing.T) {
 	if len(guest.Secondaries) != 1 {
 		t.Errorf("guest secondaries = %d addresses, want 1", len(guest.Secondaries))
 	}
-	_, err = parseGuest([]byte(xml), net.HardwareAddr{1, 2, 3, 4, 5, 6}, b.Config.Subnet)
+	_, err = parseGuest(interfaces, net.HardwareAddr{1, 2, 3, 4, 5, 6}, b.Config.Subnet)
 	if err == nil {
 		t.Error("NMAgent response was accepted for a different guest MAC")
 	}

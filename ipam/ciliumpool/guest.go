@@ -3,18 +3,16 @@ package ciliumpool
 import (
 	"bytes"
 	"context"
-	"encoding/json"
-	"encoding/xml"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/netip"
-	"strings"
 	"time"
 
+	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/nmagent"
 )
 
 var errGuestObservation = errors.New("ciliumpool: invalid guest observation")
@@ -40,48 +38,19 @@ func DiscoverGuest(ctx context.Context, cfg *common.CiliumPoolConfig) (Guest, er
 	if err != nil {
 		return Guest{}, fmt.Errorf("finding selected NIC: %w", err)
 	}
-	get := func(url string, metadata bool) ([]byte, error) {
-		req, requestErr := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
-		if requestErr != nil {
-			return nil, fmt.Errorf("creating guest discovery request: %w", requestErr)
-		}
-		if metadata {
-			req.Header.Set("Metadata", "true")
-		}
-		resp, responseErr := client.Do(req)
-		if responseErr != nil {
-			return nil, fmt.Errorf("sending guest discovery request: %w", responseErr)
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("%w: guest discovery HTTP status %d", errGuestObservation, resp.StatusCode)
-		}
-		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-		if readErr != nil {
-			return nil, fmt.Errorf("reading guest discovery response: %w", readErr)
-		}
-		return body, nil
-	}
-	data, err := get("http://169.254.169.254/metadata/instance/compute?api-version=2021-02-01", true)
+	config, err := nmagent.NewConfig("")
 	if err != nil {
-		return Guest{}, fmt.Errorf("reading IMDS: %w", err)
+		return Guest{}, fmt.Errorf("configuring NMAgent: %w", err)
 	}
-	var compute struct {
-		ResourceID string `json:"resourceId"`
-		VMID       string `json:"vmId"`
-	}
-	if err = json.Unmarshal(data, &compute); err != nil {
-		return Guest{}, fmt.Errorf("decoding IMDS: %w", err)
-	}
-	data, err = get("http://168.63.129.16/machine/plugins?comp=nmagent&type=getinterfaceinfov1", false)
+	config.HTTPClient = client
+	agent, err := nmagent.NewClient(config)
 	if err != nil {
-		return Guest{}, fmt.Errorf("reading NMAgent: %w", err)
+		return Guest{}, fmt.Errorf("creating NMAgent client: %w", err)
 	}
-	g, err := parseGuest(data, local.HardwareAddr, cfg.Subnet)
+	g, err := observeGuest(ctx, imds.NewClient(imds.HTTPClient(client)), agent, local.HardwareAddr, cfg.Subnet)
 	if err != nil {
 		return Guest{}, err
 	}
-	g.InstanceID, g.VMID = compute.ResourceID, compute.VMID
 	addrs, err := local.Addrs()
 	if err != nil {
 		return Guest{}, fmt.Errorf("reading selected NIC addresses: %w", err)
@@ -95,33 +64,45 @@ func DiscoverGuest(ctx context.Context, cfg *common.CiliumPoolConfig) (Guest, er
 	return Guest{}, fmt.Errorf("%w: NMAgent primary IP is absent from selected guest NIC", errGuestObservation)
 }
 
-func parseGuest(data []byte, mac net.HardwareAddr, subnet string) (Guest, error) {
+func observeGuest(ctx context.Context, metadata *imds.Client, agent *nmagent.Client, mac net.HardwareAddr, subnet string) (Guest, error) {
+	compute, err := metadata.GetComputeMetadata(ctx)
+	if err != nil {
+		return Guest{}, fmt.Errorf("reading IMDS: %w", err)
+	}
+	interfaces, err := agent.GetInterfaceIPInfo(ctx)
+	if err != nil {
+		return Guest{}, fmt.Errorf("reading NMAgent: %w", err)
+	}
+	g, err := parseGuest(interfaces, mac, subnet)
+	if err != nil {
+		return Guest{}, err
+	}
+	g.InstanceID, g.VMID = compute.ResourceID, compute.VMID
+	return g, nil
+}
+
+func parseGuest(doc nmagent.Interfaces, mac net.HardwareAddr, subnet string) (Guest, error) {
 	prefix, err := netip.ParsePrefix(subnet)
 	if err != nil || !prefix.Addr().Is4() || prefix != prefix.Masked() {
 		return Guest{}, fmt.Errorf("%w: invalid guest subnet", errGuestObservation)
 	}
-	var doc common.XmlDocument
-	if err := xml.Unmarshal(data, &doc); err != nil {
-		return Guest{}, fmt.Errorf("decoding NMAgent interfaces: %w", err)
-	}
 	g := Guest{MAC: mac, Subnet: prefix, Secondaries: make(map[netip.Addr]bool)}
 	found := false
-	for _, iface := range doc.Interface {
-		raw := strings.ReplaceAll(strings.ReplaceAll(iface.MacAddress, ":", ""), "-", "")
-		if !strings.EqualFold(raw, strings.ReplaceAll(mac.String(), ":", "")) {
+	for _, iface := range doc.Entries {
+		if !bytes.Equal(net.HardwareAddr(iface.MacAddress), mac) {
 			continue
 		}
 		if found || !iface.IsPrimary {
 			return Guest{}, fmt.Errorf("%w: selected NIC is not the unique primary", errGuestObservation)
 		}
 		found = true
-		for _, sub := range iface.IPSubnet {
+		for _, sub := range iface.InterfaceSubnets {
 			if sub.Prefix != subnet {
 				continue
 			}
 			for _, raw := range sub.IPAddress {
-				addr, err := netip.ParseAddr(raw.Address)
-				if err != nil || !addr.Is4() || !prefix.Contains(addr) {
+				addr := netip.Addr(raw.Address)
+				if !addr.Is4() || !prefix.Contains(addr) {
 					return Guest{}, fmt.Errorf("%w: invalid NMAgent address", errGuestObservation)
 				}
 				if raw.IsPrimary {
