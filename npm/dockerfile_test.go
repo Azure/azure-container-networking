@@ -84,7 +84,7 @@ func TestNPMDockerfileLinuxCrypto(t *testing.T) {
 		content := readDockerfile(t, path)
 		for _, setting := range []string{"MS_GO_NOSYSTEMCRYPTO=1", "CGO_ENABLED=0"} {
 			if !strings.Contains(content, setting) {
-				t.Errorf("%s: missing Go 1.25 build setting %s", path, setting)
+				t.Errorf("%s: missing release build setting %s", path, setting)
 			}
 		}
 	}

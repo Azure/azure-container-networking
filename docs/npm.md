@@ -44,13 +44,13 @@ Their unversioned runtime package set matches the managed Dalec NPM environment:
 `iptables`, and `openssl-libs`. The Ubuntu-specific CVE package-install block is
 not used.
 
-This release retains its MS Go 1.25 compiler, `CGO_ENABLED=0`, and
-`MS_GO_NOSYSTEMCRYPTO=1` configuration. Go 1.25 predates the no-CGO OpenSSL
-backend, so the Go 1.26 crypto experiment must not be backported with the image
-migration. Matching the runtime OS and packages does not make the ACN and Dalec
-artifacts identical: Dalec uses a CGO-enabled build and its own compiler and
-dependency selection. Windows images and standalone host archive builds are
-unchanged.
+The Linux image paths use the release branch's MS Go 1.26 compiler with
+`CGO_ENABLED=0` and `MS_GO_NOSYSTEMCRYPTO=1`. The image migration preserves the
+branch's system-crypto opt-out rather than enabling a new crypto backend.
+Matching the runtime OS and packages does not make the ACN and Dalec artifacts
+identical: Dalec uses a CGO-enabled build and its own compiler and dependency
+selection. Windows images and standalone host archive builds are otherwise
+unchanged by this migration.
 
 After building a Linux image with Docker, run the runtime contract check:
 ```bash
