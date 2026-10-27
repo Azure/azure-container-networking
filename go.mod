@@ -103,11 +103,11 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.46.0
 	golang.org/x/net v0.48.0
-	golang.org/x/oauth2 v0.34.0 // indirect
-	golang.org/x/term v0.38.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
+	golang.org/x/oauth2 v0.34.0
+	golang.org/x/term v0.38.0
+	golang.org/x/text v0.32.0
 	golang.org/x/time v0.12.0
-	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
+	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	gopkg.in/fsnotify.v1 v1.4.7 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
