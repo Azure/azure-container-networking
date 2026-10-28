@@ -497,11 +497,11 @@ func (service *HTTPRestService) removeToBeDeletedIPStateUntransacted(
 
 // On code 31, re-check NMAgent every vfpPendingRetryInterval until the timeout instead
 // of waiting for CNI-invoked retry. Waiters share one NMAgent call per interval.
-func (service *HTTPRestService) getAllNetworkContainerResponses(
+func (service *HTTPRestService) getAllNetworkContainerResponsesWithRetry(
 	req cns.GetNetworkContainerRequest,
 ) []cns.GetNetworkContainerResponse {
 	// First check is unchanged: if the NMAgent call returns an error, CNS skips the VFP check and returns the NC config anyways.
-	resps, _ := service.getAllNetworkContainerResponsesOnce(req, 0)
+	resps, _ := service.getAllNetworkContainerResponses(req, 0)
 	timeoutMs, _ := service.GetOption(acn.OptVFPPendingRetryTimeoutMs).(int)
 	timeout := time.Duration(timeoutMs) * time.Millisecond
 	if timeout <= 0 || !vfpPending(resps) {
@@ -514,7 +514,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 	for vfpPending(resps) && time.Since(start) < timeout {
 		time.Sleep(vfpPendingRetryInterval)
 		retries++
-		next, err := service.getAllNetworkContainerResponsesOnce(req, vfpPendingRetryInterval)
+		next, err := service.getAllNetworkContainerResponses(req, vfpPendingRetryInterval)
 		if err != nil {
 			break
 		}
@@ -549,9 +549,9 @@ func (service *HTTPRestService) getNCVersionList(ctx context.Context, maxAge tim
 	return list, nil
 }
 
-// getAllNetworkContainerResponsesOnce also returns the NMAgent NC version list error, if any. On that error the
+// getAllNetworkContainerResponses also returns the NMAgent NC version list error, if any. On that error the
 // version check is skipped (fail open).
-func (service *HTTPRestService) getAllNetworkContainerResponsesOnce(
+func (service *HTTPRestService) getAllNetworkContainerResponses(
 	req cns.GetNetworkContainerRequest, maxNCVersionListAge time.Duration,
 ) ([]cns.GetNetworkContainerResponse, error) {
 	var (

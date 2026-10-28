@@ -621,7 +621,7 @@ func (service *HTTPRestService) GetAllNetworkContainers(w http.ResponseWriter, r
 		return
 	}
 
-	getAllNetworkContainerResponses := service.getAllNetworkContainerResponses(req) // nolint
+	getAllNetworkContainerResponses := service.getAllNetworkContainerResponsesWithRetry(req) // nolint
 
 	var resp cns.GetAllNetworkContainersResponse
 
@@ -662,7 +662,7 @@ func (service *HTTPRestService) GetNetworkContainerByOrchestratorContext(w http.
 		return
 	}
 
-	getNetworkContainerResponses := service.getAllNetworkContainerResponses(req) // nolint
+	getNetworkContainerResponses := service.getAllNetworkContainerResponsesWithRetry(req) // nolint
 	err = common.Encode(w, &getNetworkContainerResponses[0])
 	logger.Response(service.Name, getNetworkContainerResponses[0], getNetworkContainerResponses[0].Response.ReturnCode, err)
 }
