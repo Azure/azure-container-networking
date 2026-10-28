@@ -965,7 +965,13 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 	useRNCPublisher := req.UseRNCPublisher
 
 	if useRNCPublisher && req.SubnetName == "" {
-		http.Error(w, fmt.Sprintf("subnet name is required in network %s when useRNCPublisher is true", req.NetworkID), http.StatusBadRequest)
+		resp := cns.PublishNetworkContainerResponse{
+			Response: cns.Response{
+				ReturnCode: types.InvalidRequest,
+				Message:    fmt.Sprintf("subnet name is required in network %s when useRNCPublisher is true", req.NetworkID),
+			},
+		}
+		respondJSON(w, http.StatusBadRequest, resp)
 		return
 	}
 
@@ -1114,7 +1120,13 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 	}
 
 	if useRNCPublisher && req.SubnetName == "" {
-		http.Error(w, fmt.Sprintf("subnet name is required in network %s when useRNCPublisher is true", req.NetworkID), http.StatusBadRequest)
+		resp := cns.UnpublishNetworkContainerResponse{
+			Response: cns.Response{
+				ReturnCode: types.InvalidRequest,
+				Message:    fmt.Sprintf("subnet name is required in network %s when useRNCPublisher is true", req.NetworkID),
+			},
+		}
+		respondJSON(w, http.StatusBadRequest, resp)
 		return
 	}
 
