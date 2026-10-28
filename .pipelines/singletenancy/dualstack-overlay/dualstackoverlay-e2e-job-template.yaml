@@ -44,9 +44,18 @@ stages:
       - job: ${{ parameters.name }}
         displayName: Cluster - ${{ parameters.name }}
         cancelTimeoutInMinutes: 10
+        variables:
+          XDG_CONFIG_HOME: $(Agent.TempDirectory)/windows-repro-config
         steps:
-          - bash: mkdir -p "$(Build.ArtifactStagingDirectory)/windows-repro"
-            displayName: Prepare diagnostic artifact directory
+          - bash: |
+              set -e
+              mkdir -p "$XDG_CONFIG_HOME/Microsoft" "$(Build.ArtifactStagingDirectory)/windows-repro"
+              for dir in "$HOME/.config" "$XDG_CONFIG_HOME" "$XDG_CONFIG_HOME/Microsoft"; do
+                if [ -d "$dir" ]; then
+                  stat -c '%U:%G %a %n' "$dir"
+                fi
+              done
+            displayName: Prepare writable tool config and diagnostics
           - template: ../../templates/create-cluster-steps.yaml
             parameters:
               clusterType: ${{ parameters.clusterType }}
@@ -89,6 +98,8 @@ stages:
         displayName: DualStack Overlay Test Suite | ${{ parameters.os }} - (${{ parameters.name }})
         timeoutInMinutes: 120
         cancelTimeoutInMinutes: 10
+        variables:
+          XDG_CONFIG_HOME: $(Agent.TempDirectory)/windows-repro-config
         # error handled by warning-handler job below
         continueOnError: ${{ eq(parameters.os, 'windows') }}
         pool:
@@ -97,8 +108,15 @@ stages:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
         steps:
-          - bash: mkdir -p "$(Build.ArtifactStagingDirectory)/windows-repro"
-            displayName: Prepare diagnostic artifact directory
+          - bash: |
+              set -e
+              mkdir -p "$XDG_CONFIG_HOME/Microsoft" "$(Build.ArtifactStagingDirectory)/windows-repro"
+              for dir in "$HOME/.config" "$XDG_CONFIG_HOME" "$XDG_CONFIG_HOME/Microsoft"; do
+                if [ -d "$dir" ]; then
+                  stat -c '%U:%G %a %n' "$dir"
+                fi
+              done
+            displayName: Prepare writable tool config and diagnostics
           - ${{ if eq(parameters.os, 'linux') }}:
             - template: dualstackoverlay-e2e-step-template.yaml
               parameters:
