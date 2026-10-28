@@ -117,6 +117,8 @@ func TestHomeAzMonitor(t *testing.T) {
 }
 
 func TestHomeAzMonitorRefreshErrors(t *testing.T) {
+	const supportedAPIs = "SupportedAPIs"
+
 	tests := []struct {
 		name            string
 		err             error
@@ -165,7 +167,7 @@ func TestHomeAzMonitorRefreshErrors(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		for _, api := range []string{"SupportedAPIs", "GetHomeAz"} {
+		for _, api := range []string{supportedAPIs, GetHomeAzAPIName} {
 			for _, hasCache := range []bool{false, true} {
 				t.Run(fmt.Sprintf("%s/%s/cached=%t", test.name, api, hasCache), func(t *testing.T) {
 					t.Parallel()
@@ -174,14 +176,14 @@ func TestHomeAzMonitorRefreshErrors(t *testing.T) {
 					azResponse := nmagent.AzResponse{HomeAz: 1, AppliedFixes: []nmagent.HomeAZFix{nmagent.HomeAZFixIPv6}}
 					client := &fakes.NMAgentClientFake{
 						SupportedAPIsF: func(context.Context) ([]string, error) {
-							if api == "SupportedAPIs" && refreshErr != nil {
+							if api == supportedAPIs && refreshErr != nil {
 								return nil, refreshErr
 							}
 							return []string{GetHomeAzAPIName}, nil
 						},
 						GetHomeAzF: func(context.Context) (nmagent.AzResponse, error) {
 							if refreshErr != nil {
-								if api == "SupportedAPIs" {
+								if api == supportedAPIs {
 									t.Fatal("GetHomeAz called after SupportedAPIs failed")
 								}
 								return nmagent.AzResponse{}, refreshErr
@@ -207,7 +209,7 @@ func TestHomeAzMonitorRefreshErrors(t *testing.T) {
 						} else {
 							wantCode := test.homeAzCode
 							wantHomeAz := cns.HomeAzResponse{IsSupported: test.homeAzSupported}
-							if api == "SupportedAPIs" {
+							if api == supportedAPIs {
 								wantCode = types.NmAgentSupportedApisError
 								wantHomeAz = cns.HomeAzResponse{}
 							}

@@ -98,6 +98,7 @@ func (h *HomeAzMonitor) Populate(ctx context.Context) {
 	if err != nil {
 		apiError := nmagent.Error{}
 		if errors.As(err, &apiError) && apiError.StatusCode() == http.StatusTooManyRequests {
+			//nolint:staticcheck // SA1019: keep the monitor's existing logger for this release hotfix.
 			logger.Warnf("[HomeAzMonitor] nmagent supported APIs request throttled; preserving home az cache: %v", err)
 			return
 		}
@@ -121,6 +122,7 @@ func (h *HomeAzMonitor) Populate(ctx context.Context) {
 		if ok := errors.As(err, &apiError); ok {
 			switch apiError.StatusCode() {
 			case http.StatusTooManyRequests:
+				//nolint:staticcheck // SA1019: keep the monitor's existing logger for this release hotfix.
 				logger.Warnf("[HomeAzMonitor] nmagent GetHomeAz request throttled; preserving home az cache: %v", err)
 				return
 
