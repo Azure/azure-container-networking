@@ -53,6 +53,11 @@ steps:
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
         kubectl cluster-info
 
+        if [ "${WINDOWS_REPRO_DIAGNOSTICS:-false}" = "true" ] && [ "${{ parameters.os }}" = "windows" ]; then
+          source hack/scripts/windows-cns-diagnostics.sh
+          start_windows_cns_diagnostics install
+        fi
+
         CNI_TYPE=cniv2
         WAIT_FOR_CNS=true
         case "${{ parameters.networkType }}" in

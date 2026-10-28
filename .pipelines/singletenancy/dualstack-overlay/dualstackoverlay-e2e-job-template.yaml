@@ -43,7 +43,17 @@ stages:
     jobs:
       - job: ${{ parameters.name }}
         displayName: Cluster - ${{ parameters.name }}
+        cancelTimeoutInMinutes: 10
+        templateContext:
+          outputs:
+            - output: pipelineArtifact
+              targetPath: $(Build.ArtifactStagingDirectory)/windows-repro
+              artifactName: ${{ parameters.clusterName }}-$(commitID)-install-diagnostics-$(System.JobAttempt)
+              condition: always()
+              sbomEnabled: false
         steps:
+          - bash: mkdir -p "$(Build.ArtifactStagingDirectory)/windows-repro"
+            displayName: Prepare diagnostic artifact directory
           - template: ../../templates/create-cluster-steps.yaml
             parameters:
               clusterType: ${{ parameters.clusterType }}
@@ -78,6 +88,14 @@ stages:
       - job: ${{ parameters.name }}_${{ parameters.os }}
         displayName: DualStack Overlay Test Suite | ${{ parameters.os }} - (${{ parameters.name }})
         timeoutInMinutes: 120
+        cancelTimeoutInMinutes: 10
+        templateContext:
+          outputs:
+            - output: pipelineArtifact
+              targetPath: $(Build.ArtifactStagingDirectory)/windows-repro
+              artifactName: ${{ parameters.clusterName }}-$(commitID)-e2e-diagnostics-$(System.JobAttempt)
+              condition: always()
+              sbomEnabled: false
         # error handled by warning-handler job below
         continueOnError: ${{ eq(parameters.os, 'windows') }}
         pool:
@@ -86,6 +104,8 @@ stages:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
         steps:
+          - bash: mkdir -p "$(Build.ArtifactStagingDirectory)/windows-repro"
+            displayName: Prepare diagnostic artifact directory
           - ${{ if eq(parameters.os, 'linux') }}:
             - template: dualstackoverlay-e2e-step-template.yaml
               parameters:

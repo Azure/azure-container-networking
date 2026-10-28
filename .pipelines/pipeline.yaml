@@ -5,6 +5,7 @@ variables:
   BUILD_POOL_NAME_DEFAULT: $(BUILD_POOL_1ESPT_AMD)
   commitID: $(Build.BuildId)
   REPRO_RUN_ID: $(Build.BuildId)
+  WINDOWS_REPRO_DIAGNOSTICS: "true"
   AZURE_IPAM_VERSION: v0.5.0-1
   CNI_VERSION: v1.9.3-4
   CNS_VERSION: v1.9.3-4

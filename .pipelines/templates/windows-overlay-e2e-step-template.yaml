@@ -46,6 +46,11 @@ steps:
         set -e
         clusterName=${{ parameters.clusterName }}
 
+        if [ "${WINDOWS_REPRO_DIAGNOSTICS:-false}" = "true" ]; then
+          source hack/scripts/windows-cns-diagnostics.sh
+          start_windows_cns_diagnostics load
+        fi
+
         # set cni name to azure so windows cleanup script runs (though testing can still pass without this usually)
         cd hack/scripts
         bash patch-kubeclusterconfig.sh || true
@@ -92,6 +97,11 @@ steps:
       inlineScript: |
         set -e
         clusterName=${{ parameters.clusterName }}
+
+        if [ "${WINDOWS_REPRO_DIAGNOSTICS:-false}" = "true" ]; then
+          source hack/scripts/windows-cns-diagnostics.sh
+          start_windows_cns_diagnostics restart
+        fi
 
         # set cni name to azure so windows cleanup script runs (though testing can still pass without this usually)
         cd hack/scripts
