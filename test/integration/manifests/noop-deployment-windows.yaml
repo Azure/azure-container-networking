@@ -17,6 +17,7 @@ spec:
       containers:
       - name: noop
         image: mcr.microsoft.com/oss/kubernetes/pause:3.6
+        imagePullPolicy: IfNotPresent
         ports:
           - containerPort: 80
       nodeSelector:
