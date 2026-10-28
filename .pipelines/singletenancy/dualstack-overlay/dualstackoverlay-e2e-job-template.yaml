@@ -44,13 +44,6 @@ stages:
       - job: ${{ parameters.name }}
         displayName: Cluster - ${{ parameters.name }}
         cancelTimeoutInMinutes: 10
-        templateContext:
-          outputs:
-            - output: pipelineArtifact
-              targetPath: $(Build.ArtifactStagingDirectory)/windows-repro
-              artifactName: ${{ parameters.clusterName }}-$(commitID)-install-diagnostics-$(System.JobAttempt)
-              condition: always()
-              sbomEnabled: false
         steps:
           - bash: mkdir -p "$(Build.ArtifactStagingDirectory)/windows-repro"
             displayName: Prepare diagnostic artifact directory
@@ -73,6 +66,13 @@ stages:
               cniVersion: $(CNI_VERSION)
               installFlag: INSTALL_DUALSTACK_OVERLAY
               os: ${{ parameters.os }}
+          - task: 1ES.PublishPipelineArtifact@1
+            displayName: Publish Windows install diagnostics
+            condition: always()
+            inputs:
+              targetPath: $(Build.ArtifactStagingDirectory)/windows-repro
+              artifactName: ${{ parameters.clusterName }}-$(commitID)-install-diagnostics-$(System.JobAttempt)
+              sbomEnabled: false
   - stage: ${{ parameters.name }}
     displayName: E2E-${{ parameters.displayName }}
     dependsOn:
@@ -89,13 +89,6 @@ stages:
         displayName: DualStack Overlay Test Suite | ${{ parameters.os }} - (${{ parameters.name }})
         timeoutInMinutes: 120
         cancelTimeoutInMinutes: 10
-        templateContext:
-          outputs:
-            - output: pipelineArtifact
-              targetPath: $(Build.ArtifactStagingDirectory)/windows-repro
-              artifactName: ${{ parameters.clusterName }}-$(commitID)-e2e-diagnostics-$(System.JobAttempt)
-              condition: always()
-              sbomEnabled: false
         # error handled by warning-handler job below
         continueOnError: ${{ eq(parameters.os, 'windows') }}
         pool:
@@ -139,6 +132,13 @@ stages:
           - bash: echo "##vso[task.setvariable variable=completed;isOutput=true]true"
             name: markE2ECompleted
             displayName: Mark E2E completed
+          - task: 1ES.PublishPipelineArtifact@1
+            displayName: Publish Windows E2E diagnostics
+            condition: always()
+            inputs:
+              targetPath: $(Build.ArtifactStagingDirectory)/windows-repro
+              artifactName: ${{ parameters.clusterName }}-$(commitID)-e2e-diagnostics-$(System.JobAttempt)
+              sbomEnabled: false
 
       # can only succeed with issues in windows
       - ${{ if eq(parameters.os, 'windows') }}:
