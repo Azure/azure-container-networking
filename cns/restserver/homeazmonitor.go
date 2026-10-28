@@ -96,6 +96,12 @@ func (h *HomeAzMonitor) refresh() {
 func (h *HomeAzMonitor) Populate(ctx context.Context) {
 	supportedApis, err := h.SupportedAPIs(ctx)
 	if err != nil {
+		apiError := nmagent.Error{}
+		if errors.As(err, &apiError) && apiError.StatusCode() == http.StatusTooManyRequests {
+			//nolint:staticcheck // SA1019: keep the monitor's existing logger for this release hotfix.
+			logger.Warnf("[HomeAzMonitor] nmagent supported APIs request throttled; preserving home az cache: %v", err)
+			return
+		}
 		returnMessage := fmt.Sprintf("[HomeAzMonitor] failed to query nmagent's supported apis, %v", err)
 		returnCode := types.NmAgentSupportedApisError
 		h.update(returnCode, returnMessage, cns.HomeAzResponse{IsSupported: false})
@@ -115,6 +121,11 @@ func (h *HomeAzMonitor) Populate(ctx context.Context) {
 		apiError := nmagent.Error{}
 		if ok := errors.As(err, &apiError); ok {
 			switch apiError.StatusCode() {
+			case http.StatusTooManyRequests:
+				//nolint:staticcheck // SA1019: keep the monitor's existing logger for this release hotfix.
+				logger.Warnf("[HomeAzMonitor] nmagent GetHomeAz request throttled; preserving home az cache: %v", err)
+				return
+
 			case http.StatusInternalServerError:
 				returnMessage := fmt.Sprintf("[HomeAzMonitor] nmagent internal server error, %v", err)
 				returnCode := types.NmAgentInternalServerError

@@ -2,6 +2,8 @@ package restserver
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -111,5 +113,127 @@ func TestHomeAzMonitor(t *testing.T) {
 				homeAzMonitor.Stop()
 			})
 		})
+	}
+}
+
+func TestHomeAzMonitorRefreshErrors(t *testing.T) {
+	const supportedAPIs = "SupportedAPIs"
+
+	tests := []struct {
+		name            string
+		err             error
+		preserveCache   bool
+		homeAzCode      types.ResponseCode
+		homeAzSupported bool
+	}{
+		{
+			name:          "wireserver throttling",
+			err:           nmagent.Error{Code: http.StatusTooManyRequests, Source: "wireserver"},
+			preserveCache: true,
+		},
+		{
+			name:          "wrapped nmagent throttling",
+			err:           errors.Wrap(nmagent.Error{Code: http.StatusTooManyRequests, Source: "nmagent"}, "submitting request"),
+			preserveCache: true,
+		},
+		{
+			name:            "internal server error",
+			err:             nmagent.Error{Code: http.StatusInternalServerError},
+			homeAzCode:      types.NmAgentInternalServerError,
+			homeAzSupported: true,
+		},
+		{
+			name:            "unauthorized",
+			err:             nmagent.Error{Code: http.StatusUnauthorized},
+			homeAzCode:      types.StatusUnauthorized,
+			homeAzSupported: true,
+		},
+		{
+			name:       "not found",
+			err:        nmagent.Error{Code: http.StatusNotFound},
+			homeAzCode: types.Success,
+		},
+		{
+			name:            "other http error",
+			err:             nmagent.Error{Code: http.StatusBadGateway},
+			homeAzCode:      types.UnexpectedError,
+			homeAzSupported: true,
+		},
+		{
+			name:            "other error",
+			err:             errors.New("request failed"),
+			homeAzCode:      types.UnexpectedError,
+			homeAzSupported: true,
+		},
+	}
+	for _, test := range tests {
+		for _, api := range []string{supportedAPIs, GetHomeAzAPIName} {
+			for _, hasCache := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/%s/cached=%t", test.name, api, hasCache), func(t *testing.T) {
+					t.Parallel()
+					ctx := t.Context()
+					var refreshErr error
+					azResponse := nmagent.AzResponse{HomeAz: 1, AppliedFixes: []nmagent.HomeAZFix{nmagent.HomeAZFixIPv6}}
+					client := &fakes.NMAgentClientFake{
+						SupportedAPIsF: func(context.Context) ([]string, error) {
+							if api == supportedAPIs && refreshErr != nil {
+								return nil, refreshErr
+							}
+							return []string{GetHomeAzAPIName}, nil
+						},
+						GetHomeAzF: func(context.Context) (nmagent.AzResponse, error) {
+							if refreshErr != nil {
+								if api == supportedAPIs {
+									t.Fatal("GetHomeAz called after SupportedAPIs failed")
+								}
+								return nmagent.AzResponse{}, refreshErr
+							}
+							return azResponse, nil
+						},
+					}
+					monitor := NewHomeAzMonitor(client, time.Second)
+					t.Cleanup(monitor.Stop)
+					if hasCache {
+						monitor.Populate(ctx)
+					}
+					before := monitor.GetHomeAz(ctx)
+
+					refreshErr = test.err
+					for attempt := 0; attempt < 2; attempt++ {
+						monitor.Populate(ctx)
+						got := monitor.GetHomeAz(ctx)
+						if test.preserveCache {
+							if diff := cmp.Diff(before, got); diff != "" {
+								t.Fatalf("throttling changed the cached response (-want +got):\n%s", diff)
+							}
+						} else {
+							wantCode := test.homeAzCode
+							wantHomeAz := cns.HomeAzResponse{IsSupported: test.homeAzSupported}
+							if api == supportedAPIs {
+								wantCode = types.NmAgentSupportedApisError
+								wantHomeAz = cns.HomeAzResponse{}
+							}
+							if got.Response.ReturnCode != wantCode {
+								t.Fatalf("unexpected return code: got %v, want %v", got.Response.ReturnCode, wantCode)
+							}
+							if diff := cmp.Diff(wantHomeAz, got.HomeAzResponse); diff != "" {
+								t.Fatalf("unexpected home az response (-want +got):\n%s", diff)
+							}
+						}
+					}
+
+					refreshErr = nil
+					azResponse = nmagent.AzResponse{HomeAz: 2}
+					monitor.Populate(ctx)
+					want := cns.GetHomeAzResponse{
+						Response:       cns.Response{ReturnCode: types.Success, Message: "Get Home Az succeeded"},
+						HomeAzResponse: cns.HomeAzResponse{IsSupported: true, HomeAz: 2},
+					}
+					if diff := cmp.Diff(want, monitor.GetHomeAz(ctx)); diff != "" {
+						t.Fatalf("successful refresh did not replace the cache (-want +got):\n%s", diff)
+					}
+				})
+			}
+		}
 	}
 }
