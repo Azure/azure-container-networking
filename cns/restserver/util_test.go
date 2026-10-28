@@ -1,6 +1,8 @@
 package restserver
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -8,14 +10,197 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
+	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/types"
 	acn "github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 const expiredEndpointID = "expired"
+
+const (
+	ncResponsePrimaryID   = "nc1"
+	ncResponseSecondaryID = "nc2"
+	ncResponsePodName     = "pod"
+	ncResponseNamespace   = "namespace"
+	ncResponseGatewayIP   = "10.0.0.1"
+)
+
+func TestGetAllNetworkContainerResponsesNMAgentVersionList(t *testing.T) {
+	const ncID = cns.SwiftPrefix + ncResponsePrimaryID
+	tests := []struct {
+		name              string
+		nmaErr            error
+		nmaVersion        string
+		vfpUpdateComplete bool
+		wantResponse      cns.Response
+	}{
+		{
+			name:              "nmagent error returns cached pending container",
+			nmaErr:            errors.New("nmagent unavailable"), //nolint:err113 // Injected test failure.
+			nmaVersion:        "1",
+			vfpUpdateComplete: false,
+		},
+		{
+			name:              "nmagent error returns cached complete container",
+			nmaErr:            errors.New("nmagent unavailable"), //nolint:err113 // Injected test failure.
+			nmaVersion:        "0",
+			vfpUpdateComplete: true,
+		},
+		{
+			name:              "successful version check returns pending status",
+			nmaVersion:        "0",
+			vfpUpdateComplete: false,
+			wantResponse: cns.Response{
+				ReturnCode: types.NetworkContainerVfpProgramPending,
+				Message:    "NetworkContainer VFP programming is pending",
+			},
+		},
+		{
+			name:              "successful version check returns complete container",
+			nmaVersion:        "1",
+			vfpUpdateComplete: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			podInfo := cns.KubernetesPodInfo{PodName: ncResponsePodName, PodNamespace: ncResponseNamespace}
+			orchestratorContext, err := json.Marshal(podInfo)
+			require.NoError(t, err)
+			ncs := ncList(ncID)
+			service := &HTTPRestService{
+				state: &httpRestServiceState{
+					OrchestratorType: cns.Kubernetes,
+					ContainerIDByOrchestratorContext: map[string]*ncList{
+						podInfo.PodName + podInfo.PodNamespace: &ncs,
+					},
+					ContainerStatus: map[string]containerstatus{
+						ncID: {
+							CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
+								NetworkContainerid: ncID,
+								Version:            "1",
+								IPConfiguration: cns.IPConfiguration{
+									GatewayIPAddress: ncResponseGatewayIP,
+								},
+							},
+							VfpUpdateComplete: tt.vfpUpdateComplete,
+						},
+					},
+				},
+				nma: &fakes.NMAgentClientFake{
+					GetNCVersionListF: func(context.Context) (nmagent.NCVersionList, error) {
+						return nmagent.NCVersionList{
+							Containers: []nmagent.NCVersion{{
+								NetworkContainerID: ncResponsePrimaryID,
+								Version:            tt.nmaVersion,
+							}},
+						}, tt.nmaErr
+					},
+				},
+			}
+
+			responses := service.getAllNetworkContainerResponses(cns.GetNetworkContainerRequest{
+				OrchestratorContext: orchestratorContext,
+			})
+
+			require.Equal(t, []cns.GetNetworkContainerResponse{{
+				NetworkContainerID: ncID,
+				IPConfiguration: cns.IPConfiguration{
+					GatewayIPAddress: ncResponseGatewayIP,
+				},
+				Response: tt.wantResponse,
+			}}, responses)
+			assert.Equal(t, tt.vfpUpdateComplete, service.state.ContainerStatus[ncID].VfpUpdateComplete)
+		})
+	}
+}
+
+func TestUpdateNCVFPStatusUntransactedMatchesMaster(t *testing.T) {
+	const ncID = cns.SwiftPrefix + ncResponsePrimaryID
+	for _, completed := range []bool{false, true} {
+		for _, goalVersion := range []string{"0", "1", "invalid", ""} {
+			for _, programmedVersion := range []string{"missing", "0", "1", "2", "invalid"} {
+				t.Run(fmt.Sprintf("completed=%t/goal=%s/programmed=%s", completed, goalVersion, programmedVersion), func(t *testing.T) {
+					service := &HTTPRestService{
+						store: store.NewMockStore(""),
+						state: &httpRestServiceState{
+							ContainerStatus: map[string]containerstatus{
+								ncID: {
+									CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
+										NetworkContainerid:  ncID,
+										Version:             goalVersion,
+										OrchestratorContext: json.RawMessage("{}"),
+									},
+									VfpUpdateComplete: completed,
+								},
+							},
+						},
+					}
+					programmedVersions := map[string]string{}
+					if programmedVersion != "missing" {
+						programmedVersions[ncResponsePrimaryID] = programmedVersion
+					}
+					service.Lock()
+					defer service.Unlock()
+
+					waiting, code, _ := service.isNCWaitingForUpdate(goalVersion, ncID, programmedVersions)
+					complete := !waiting
+					// Keep master's predicate as the equivalence oracle for the guard clauses.
+					shouldUpdate := (code == types.NetworkContainerVfpProgramComplete &&
+						complete && completed != complete) ||
+						(!complete && completed != complete)
+					wantComplete := completed
+					if shouldUpdate {
+						wantComplete = complete
+					}
+
+					service.updateNCVFPStatusUntransacted([]string{ncID}, programmedVersions)
+
+					assert.Equal(t, wantComplete, service.state.ContainerStatus[ncID].VfpUpdateComplete)
+					assert.Equal(t, shouldUpdate, !service.state.TimeStamp.IsZero(), "persist only when master would")
+					if shouldUpdate {
+						var persisted httpRestServiceState
+						require.NoError(t, service.store.Read(storeKey, &persisted))
+						assert.Equal(t, service.state.ContainerStatus, persisted.ContainerStatus)
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestUpdateNCVFPStatusUntransactedContinuesAfterSaveFailure(t *testing.T) {
+	ncIDs := []string{cns.SwiftPrefix + ncResponsePrimaryID, cns.SwiftPrefix + ncResponseSecondaryID}
+	service := &HTTPRestService{
+		store: keyWriteFailStore{
+			KeyValueStore: store.NewMockStore(""),
+			failKey:       storeKey,
+			err:           errors.New("state write failed"), //nolint:err113 // Injected test failure.
+		},
+		state: &httpRestServiceState{
+			ContainerStatus: map[string]containerstatus{},
+		},
+	}
+	for _, ncID := range ncIDs {
+		service.state.ContainerStatus[ncID] = containerstatus{
+			CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
+				NetworkContainerid: ncID,
+				Version:            "1",
+			},
+		}
+	}
+	service.Lock()
+	defer service.Unlock()
+
+	service.updateNCVFPStatusUntransacted(ncIDs, map[string]string{ncResponsePrimaryID: "1", ncResponseSecondaryID: "1"})
+
+	for _, ncID := range ncIDs {
+		assert.True(t, service.state.ContainerStatus[ncID].VfpUpdateComplete, ncID)
+	}
+}
 
 func TestAreNCsPresent(t *testing.T) {
 	present := ncList("present")
