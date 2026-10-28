@@ -38,6 +38,7 @@ parameters:
   # Runtime opt-out gate. Pass a pipeline variable (e.g. $(DELETE_RESOURCES))
   # to skip the delete when the variable is empty.
   deleteResources: "true"
+  requiredRunTag: ""
 
 steps:
   - task: AzureCLI@2
@@ -57,6 +58,13 @@ steps:
         fi
 
         SUB="${{ parameters.sub }}"
+        if [[ -n "${{ parameters.requiredRunTag }}" ]]; then
+          ACTIVE_SUB=$(az account show --query id -o tsv) || exit 1
+          if [[ "$ACTIVE_SUB" != "$SUB" ]]; then
+            echo "##vso[task.logissue type=error]Refusing cleanup in an unexpected subscription."
+            exit 1
+          fi
+        fi
         SUFFIX="${{ parameters.suffix }}"
         IS_MERGE_QUEUE_BRANCH=false
         if [[ "${BUILD_SOURCEBRANCH:-}" == *"gh-readonly-queue"* ]]; then
@@ -84,7 +92,21 @@ steps:
         echo ""
 
         # ---- Phase 1: async delete submit ----
+        OWNERSHIP_FAILURE=false
         for RG in "${CLUSTERS[@]}"; do
+          if [[ -n "${{ parameters.requiredRunTag }}" ]]; then
+            EXISTS=$(az group exists -n "$RG" --subscription "$SUB") || exit 1
+            if [[ "$EXISTS" == "false" ]]; then
+              echo "==> [$RG] not created or already deleted."
+              continue
+            fi
+            OWNER=$(az group show -n "$RG" --subscription "$SUB" --query tags.acnReproRun -o tsv) || exit 1
+            if [[ "$OWNER" != "${{ parameters.requiredRunTag }}" ]]; then
+              echo "##vso[task.logissue type=error]Refusing to delete $RG: ownership does not match this run."
+              OWNERSHIP_FAILURE=true
+              continue
+            fi
+          fi
           echo "==> [$RG] submit deletes"
 
           # If the cluster is already gone (e.g. never created), az returns non-zero —
@@ -92,6 +114,9 @@ steps:
           az aks delete -g "$RG" -n "$RG" --yes --no-wait 2>&1 || echo "  aks delete submit returned non-zero (may already be gone)"
           az group delete -n "$RG" --yes --no-wait 2>&1 || echo "  group delete submit returned non-zero (may already be gone)"
         done
+        if [[ "$OWNERSHIP_FAILURE" == "true" ]]; then
+          exit 1
+        fi
 
         # ---- Phase 2: single 2-min sleep for all clusters ----
         # ARM sets provisioningState=Deleting within 1-2s of accepting an async delete

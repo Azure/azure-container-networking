@@ -154,7 +154,7 @@ vars: ## Show the input vars configured for the cluster commands
 ##@ SWIFT Infra
 
 rg-up: ## Create resource group
-	@$(AZCLI) group create --location $(REGION) --name $(GROUP)
+	@$(AZCLI) group create --location $(REGION) --name $(GROUP) $(if $(REPRO_RUN_ID),--tags acnReproRun=$(REPRO_RUN_ID))
 
 rg-down: ## Delete resource group
 	$(AZCLI) group delete -g $(GROUP) --yes

@@ -8,6 +8,7 @@ parameters:
   osSKU: "Ubuntu"
   region: ""
   os: linux
+  reproRunId: ""
 
 steps:
   - task: AzureCLI@2
@@ -20,6 +21,15 @@ steps:
         set -e
         echo "Check az version"
         az version
+
+        if [ -n "${{ parameters.reproRunId }}" ]; then
+          test "$(az account show --query id -o tsv)" = "$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)"
+          exists=$(az group exists --name "${{ parameters.clusterName }}" --subscription "$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)")
+          if [ "$exists" != "false" ]; then
+            echo "##vso[task.logissue type=error]Refusing to reuse existing or unverifiable resource group ${{ parameters.clusterName }}"
+            exit 1
+          fi
+        fi
 
         if ${{ lower(contains(parameters.clusterType, 'dualstack')) }}
         then
@@ -42,6 +52,10 @@ steps:
         CLUSTER_EXISTS=$(az aks show --resource-group ${{ parameters.clusterName }} --name ${{ parameters.clusterName }} --query "name" -o tsv 2>/dev/null || echo "")
 
         if [ ! -z "$CLUSTER_EXISTS" ]; then
+          if [ -n "${{ parameters.reproRunId }}" ]; then
+            echo "##vso[task.logissue type=error]Refusing to delete existing cluster ${{ parameters.clusterName }}"
+            exit 1
+          fi
           echo "Cluster ${{ parameters.clusterName }} already exists. Tearing it down first..."
           make -C ./hack/aks down \
           AZCLI=az REGION=${{ parameters.region }} SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \
@@ -59,4 +73,4 @@ steps:
 
         echo "Cluster successfully created"
     displayName: Cluster - ${{ parameters.clusterType }}
-    continueOnError: ${{ contains(parameters.clusterType, 'dualstack') }}
+    continueOnError: ${{ and(eq(parameters.reproRunId, ''), contains(parameters.clusterType, 'dualstack')) }}
