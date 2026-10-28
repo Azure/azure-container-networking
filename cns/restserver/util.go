@@ -535,7 +535,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(req cns.GetNetwo
 	defer cancel()
 	ncVersionListResp, err := service.nma.GetNCVersionList(ctx)
 	if err != nil {
-		logger.Errorf("failed to get nc version list from nmagent") //nolint:staticcheck // Preserve existing logger usage.
+		logger.Errorf("failed to get nc version list from nmagent: %+v", err) //nolint:staticcheck // Preserve existing logger usage.
 		// Preserve cached NC availability when NMAgent cannot confirm VFP status.
 		return buildNetworkContainerResponses(ncIDs, service.state.ContainerStatus, false)
 	}
