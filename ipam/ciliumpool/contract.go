@@ -161,7 +161,7 @@ func eligible(cn *unstructured.Unstructured, id ipam.CiliumPoolIdentity, g Guest
 			continue
 		}
 		mac, err := net.ParseMAC(iface.MAC)
-		if err != nil || !bytes.Equal(mac, g.MAC) || iface.State != "succeeded" ||
+		if err != nil || !bytes.Equal(mac, g.MAC) || (iface.State != "" && iface.State != "succeeded") ||
 			iface.IP != g.Primary.String() || iface.Subnet.CIDR != id.Subnet ||
 			iface.Subnet.ID == "" || iface.Name != n.Spec.Azure.InterfaceName ||
 			iface.Gateway != prefix.Addr().Next().String() {

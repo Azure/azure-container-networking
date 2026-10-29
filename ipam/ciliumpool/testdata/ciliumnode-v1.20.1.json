@@ -28,7 +28,6 @@
         "name": "worker-nic",
         "mac": "00:11:22:33:44:55",
         "ip": "10.20.16.4",
-        "state": "succeeded",
         "gateway": "10.20.16.1",
         "subnet": {"id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/poc/providers/Microsoft.Network/virtualNetworks/poc/subnets/workers", "cidr": "10.20.16.0/20"},
         "addresses": [{"ip": "10.20.16.10", "state": "succeeded"}, {"ip": "10.20.16.11", "state": "succeeded"}]

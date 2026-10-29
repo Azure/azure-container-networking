@@ -36,6 +36,37 @@ var errOperatorConflict = errors.New("operator wrote status")
 
 const testPoolParentOwner = "pod-a"
 
+func TestPoolBridgeInterfaceState(t *testing.T) {
+	for _, state := range []string{"", "succeeded", "updating", "failed"} {
+		t.Run(state, func(t *testing.T) {
+			b, cn, node, g := fixture(t)
+			id, err := identity(b.Config, node, cn, g)
+			if err != nil {
+				t.Fatal(err)
+			}
+			interfaces, _, err := unstructured.NestedSlice(cn.Object, "status", "azure", "interfaces")
+			if err != nil {
+				t.Fatal(err)
+			}
+			interfaces[0].(map[string]interface{})["state"] = state
+			if err = unstructured.SetNestedSlice(cn.Object, interfaces, "status", "azure", "interfaces"); err != nil {
+				t.Fatal(err)
+			}
+			supply, _, err := eligible(cn, id, g)
+			if state == "" || state == "succeeded" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(supply) != 2 {
+					t.Errorf("eligible supply = %d, want 2", len(supply))
+				}
+			} else if !errors.Is(err, errInvalidContract) {
+				t.Errorf("interface state %q: got %v, want invalid contract", state, err)
+			}
+		})
+	}
+}
+
 func fixture(t *testing.T) (*Bridge, *unstructured.Unstructured, *corev1.Node, Guest) {
 	t.Helper()
 	data, err := os.ReadFile("testdata/ciliumnode-v1.20.1.json")
