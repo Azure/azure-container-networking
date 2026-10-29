@@ -13,7 +13,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"k8s.io/utils/exec"
-
 	fakeexec "k8s.io/utils/exec/testing"
 )
 
@@ -51,6 +50,7 @@ func GetFakeExecWithScripts(calls []TestCmd) *fakeexec.FakeExec {
 		fexec.CommandScript = append(fexec.CommandScript, func(cmd string, args ...string) exec.Cmd { return fakeexec.InitFakeCmd(fcmd, ccmd[0], ccmd[1:]...) })
 	}
 
+	fcmd.RunScript = fcmd.CombinedOutputScript
 	return fexec
 }
 
