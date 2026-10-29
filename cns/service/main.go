@@ -1440,7 +1440,6 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		}
 	}
 
-
 	// perform state migration from CNI in case CNS is set to manage the endpoint state and has emty state
 	if cnsconfig.EnableStateMigration && !httpRestServiceImplementation.EndpointStateStore.Exists() {
 		if err = PopulateCNSEndpointState(httpRestServiceImplementation.EndpointStateStore); err != nil {
