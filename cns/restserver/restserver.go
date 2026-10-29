@@ -47,7 +47,8 @@ type nmagentClient interface {
 }
 
 type wireserverProxy interface {
-	JoinNetwork(ctx context.Context, vnetID string) (*http.Response, error)
+	JoinNetwork(ctx context.Context, vnetID string, useRNCPublisher bool) (*http.Response, error)
+	JoinSubnet(ctx context.Context, vnetID, subnetName string, ncParams cns.NetworkContainerParameters) (*http.Response, error)
 	PublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte) (*http.Response, error)
 	UnpublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte) (*http.Response, error)
 }
@@ -100,7 +101,7 @@ type HTTPRestService struct {
 	iptables                 iptablesGetter
 	nma                      nmagentClient
 	wsproxy                  wireserverProxy
-	homeAzMonitor            *HomeAzMonitor
+	nmagentMonitor           *NMAgentMonitor
 	networkContainer         *networkcontainers.NetworkContainers
 	PodIPIDByPodInterfaceKey map[string][]string                  // PodInterfaceId is key and value is slice of Pod IP (SecondaryIP) uuids.
 	PodIPConfigState         map[string]cns.IPConfigurationStatus // Secondary IP ID(uuid) is key
@@ -199,7 +200,6 @@ type httpRestServiceState struct {
 	ContainerStatus                  map[string]containerstatus // NetworkContainerID is key.
 	Networks                         map[string]*networkInfo
 	TimeStamp                        time.Time
-	joinedNetworks                   map[string]struct{}
 	primaryInterface                 *wireserver.InterfaceInfo
 	PnpIDByMacAddress                map[string]string
 }
@@ -212,7 +212,7 @@ type networkInfo struct {
 
 // NewHTTPRestService creates a new HTTP Service object.
 func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsproxy wireserverProxy, iptg iptablesGetter, nmagentClient nmagentClient,
-	endpointStateStore store.KeyValueStore, gen CNIConflistGenerator, homeAzMonitor *HomeAzMonitor,
+	endpointStateStore store.KeyValueStore, gen CNIConflistGenerator, nmagentMonitor *NMAgentMonitor,
 	imdsClient imdsClient,
 ) (*HTTPRestService, error) {
 	service, err := cns.NewService(config.Name, config.Version, config.ChannelMode, config.Store)
@@ -241,7 +241,6 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 
 	serviceState := &httpRestServiceState{
 		Networks:          make(map[string]*networkInfo),
-		joinedNetworks:    make(map[string]struct{}),
 		primaryInterface:  primaryInterface,
 		PnpIDByMacAddress: make(map[string]string),
 	}
@@ -269,7 +268,7 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 		podsPendingIPAssignment:  bounded.NewTimedSet(250), // nolint:gomnd // maxpods
 		EndpointStateStore:       endpointStateStore,
 		EndpointState:            make(map[string]*EndpointInfo),
-		homeAzMonitor:            homeAzMonitor,
+		nmagentMonitor:           nmagentMonitor,
 		cniConflistGenerator:     gen,
 		imdsClient:               imdsClient,
 	}, nil
@@ -327,6 +326,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.RequestClaimResourceInfo, service.requestClaimResourceInfo)
 	// This API is only needed for Direct channel mode.
 	if config.ChannelMode == cns.Direct {
+		listener.AddHandler(cns.GetRNCSupport, service.getRNCSupport)
 		listener.AddHandler(cns.GetVMUniqueID, service.getVMUniqueID)
 		listener.AddHandler(cns.GetNCList, service.nmAgentNCListHandler)
 	}
@@ -354,6 +354,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.V2Prefix+cns.EndpointPath, service.EndpointHandlerAPI)
 	// This API is only needed for Direct channel mode.
 	if config.ChannelMode == cns.Direct {
+		listener.AddHandler(cns.V2Prefix+cns.GetRNCSupport, service.getRNCSupport)
 		listener.AddHandler(cns.V2Prefix+cns.GetVMUniqueID, service.getVMUniqueID)
 		listener.AddHandler(cns.V2Prefix+cns.GetNCList, service.nmAgentNCListHandler)
 	}
