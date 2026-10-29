@@ -10,7 +10,7 @@ last_host_capture=0
 capture() {
     local file=$1
     shift
-    if ! kubectl --request-timeout=15s "$@" > "$file" 2>&1; then
+    if ! timeout --signal=TERM --kill-after=5s 45s kubectl --request-timeout=15s "$@" > "$file" 2>&1; then
         echo "$(date -u +%FT%TZ) capture failed: $* (see $file)"
         return 1
     fi
@@ -47,6 +47,13 @@ while (( SECONDS < deadline )); do
         while read -r container; do
             capture "$pod_dir/$container-current-$stamp.log" logs "$pod" -n kube-system -c "$container" --timestamps --tail=1000 --limit-bytes=1048576
         done < <(jq -r '.spec.initContainers[]?.name, .spec.containers[]?.name' "$pod_dir/latest.json")
+        if grep -F 'Azure CNI returned endpoint state with diagnostics' "$pod_dir/"*-"$stamp.log" > "$pod_dir/endpoint-diagnostics-$stamp.txt"; then
+            echo "$stamp endpoint-state diagnostics: pod=$pod uid=$uid"
+            cat "$pod_dir/endpoint-diagnostics-$stamp.txt"
+            capture "$pod_dir/endpoint-diagnostics-$stamp.json" get pod "$pod" -n kube-system -o json
+        else
+            rm "$pod_dir/endpoint-diagnostics-$stamp.txt"
+        fi
     done < <(jq -r '.items[] | [.metadata.name, .metadata.uid] | @tsv' "$snapshot/cns-pods.json")
 
     if (( SECONDS - last_host_capture >= 60 )) && jq -e 'any(.items[]; any(.status.initContainerStatuses[]?; .state.terminated.exitCode != 0))' "$snapshot/cns-pods.json" > /dev/null; then

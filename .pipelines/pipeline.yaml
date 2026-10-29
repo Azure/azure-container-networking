@@ -3,18 +3,16 @@ trigger: none
 
 variables:
   BUILD_POOL_NAME_DEFAULT: $(BUILD_POOL_1ESPT_AMD)
+  BUILD_POOL_NAME_LINUX_ARM64: $(BUILD_POOL_1ESPT_ARM)
   commitID: $(Build.BuildId)
   REPRO_RUN_ID: $(Build.BuildId)
   WINDOWS_REPRO_DIAGNOSTICS: "true"
-  AZURE_IPAM_VERSION: v0.5.0-1
-  CNI_VERSION: v1.9.3-4
-  CNS_VERSION: v1.9.3-4
-  CNS_IMAGE_REPO: MCR
-  IPAM_IMAGE_REPO: MCR
-  CNI_IMAGE_REPO: MCR
-  CNS_IMAGE_NAME_OVERRIDE: v2/azure-cns
-  IPAM_IMAGE_NAME_OVERRIDE: v2/azure-ipam
-  CNI_IMAGE_NAME_OVERRIDE: v2/azure-cni
+  CNS_IMAGE_REPO: ACN
+  IPAM_IMAGE_REPO: ACN
+  CNI_IMAGE_REPO: ACN
+  CNS_IMAGE_NAME_OVERRIDE: azure-cns
+  IPAM_IMAGE_NAME_OVERRIDE: azure-ipam
+  CNI_IMAGE_NAME_OVERRIDE: azure-cni
 
 resources:
   repositories:
@@ -34,7 +32,100 @@ extends:
         name: $(BUILD_POOL_NAME_DEFAULT_WINDOWS_ALT)
         os: windows
     stages:
-      - ${{ each replica in split('1,2,3,4,5', ',') }}:
+      - stage: setup
+        displayName: Record image versions
+        jobs:
+          - job: env
+            steps:
+              - bash: |
+                  set -euo pipefail
+                  echo "Source: $(Build.SourceVersion)"
+                  echo "##vso[task.setvariable variable=cniVersion;isOutput=true]$(make cni-version)"
+                  echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]$(make cns-version)"
+                  echo "##vso[task.setvariable variable=ipamVersion;isOutput=true]$(make azure-ipam-version)"
+                name: EnvironmentalVariables
+
+      - stage: containerize
+        displayName: Build CNI CNS and IPAM images
+        dependsOn: setup
+        variables:
+          CONTAINER_BUILDER: docker
+        jobs:
+          - job: containerize_amd64
+            strategy:
+              matrix:
+                cni_linux:
+                  name: cni
+                  os: linux
+                cni_windows:
+                  name: cni
+                  os: windows
+                cns_linux:
+                  name: cns
+                  os: linux
+                cns_windows:
+                  name: cns
+                  os: windows
+                ipam_linux:
+                  name: azure-ipam
+                  os: linux
+                ipam_windows:
+                  name: azure-ipam
+                  os: windows
+            steps:
+              - template: /.pipelines/containers/container-template.yaml@self
+                parameters:
+                  arch: amd64
+                  name: $(name)
+                  os: $(os)
+          - job: containerize_arm64
+            pool:
+              name: $(BUILD_POOL_NAME_LINUX_ARM64)
+              os: linux
+            strategy:
+              maxParallel: 2
+              matrix:
+                cni:
+                  name: cni
+                cns:
+                  name: cns
+                ipam:
+                  name: azure-ipam
+            steps:
+              - template: /.pipelines/containers/container-template.yaml@self
+                parameters:
+                  arch: arm64
+                  name: $(name)
+                  os: linux
+
+      - stage: publish
+        displayName: Publish fresh image manifests
+        dependsOn: containerize
+        jobs:
+          - job: manifest
+            templateContext:
+              outputs:
+                - output: buildArtifacts
+                  PathtoPublish: "$(Build.ArtifactStagingDirectory)"
+                  ArtifactName: output_staging
+                  sbomEnabled: false
+                  condition: succeeded()
+            strategy:
+              matrix:
+                cni:
+                  name: cni
+                cns:
+                  name: cns
+                ipam:
+                  name: azure-ipam
+            steps:
+              - template: /.pipelines/containers/manifest-template.yaml@self
+                parameters:
+                  name: $(name)
+                  platforms: linux/amd64 linux/arm64 windows/amd64
+                  publishArtifact: false
+
+      - ${{ each replica in split('1,2,3,4,5,6,7,8', ',') }}:
         - template: /.pipelines/singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml@self
           parameters:
             use1ESPublishTask: true
@@ -44,11 +135,13 @@ extends:
             clusterType: dualstack-overlay-byocni-up
             clusterName: wdsrepro${{ replica }}
             vmSize: Standard_B2ms
-            dependsOn: []
+            dependsOn:
+              - setup
+              - publish
             scaleup: 50
 
       - stage: delete_clusters
-        displayName: Delete five reproduction clusters
+        displayName: Delete eight reproduction clusters
         condition: always()
         dependsOn:
           - wdsrepro1
@@ -56,11 +149,17 @@ extends:
           - wdsrepro3
           - wdsrepro4
           - wdsrepro5
+          - wdsrepro6
+          - wdsrepro7
+          - wdsrepro8
           - win_dualstackoverlay_e2e_1
           - win_dualstackoverlay_e2e_2
           - win_dualstackoverlay_e2e_3
           - win_dualstackoverlay_e2e_4
           - win_dualstackoverlay_e2e_5
+          - win_dualstackoverlay_e2e_6
+          - win_dualstackoverlay_e2e_7
+          - win_dualstackoverlay_e2e_8
         jobs:
           - job: delete
             timeoutInMinutes: 45
@@ -80,3 +179,6 @@ extends:
                     - wdsrepro3
                     - wdsrepro4
                     - wdsrepro5
+                    - wdsrepro6
+                    - wdsrepro7
+                    - wdsrepro8

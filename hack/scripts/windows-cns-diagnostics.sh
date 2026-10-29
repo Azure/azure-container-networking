@@ -19,6 +19,15 @@ finish_windows_cns_diagnostics() {
         echo "##vso[task.logissue type=warning]Windows CNS diagnostic watcher exited early."
     fi
     wait "$windows_diagnostic_pid" || true
+    echo "Endpoint-state diagnostic warnings captured from CNS (natural stderr only):"
+    local warning_status=0
+    grep -r -F --include='endpoint-diagnostics-*.txt' \
+        'Azure CNI returned endpoint state with diagnostics' "$windows_diagnostic_dir" || warning_status=$?
+    if [ "$warning_status" -eq 1 ]; then
+        echo "No warning observed in this task; passing tests alone do not verify the stderr path."
+    elif [ "$warning_status" -ne 0 ]; then
+        echo "##vso[task.logissue type=warning]Could not search CNS diagnostic evidence."
+    fi
     if [ "$result" -ne 0 ]; then
         echo "Collecting node logs before this failed task can retry."
         if ! (cd "$windows_diagnostic_root/hack/scripts" &&

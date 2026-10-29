@@ -37,6 +37,10 @@ stages:
   - stage: ${{ parameters.clusterName }}
     displayName: ${{ parameters.displayName }} - Create Cluster
     dependsOn: ${{ parameters.dependsOn }}
+    variables:
+      CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
+      CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
+      AZURE_IPAM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipamVersion'] ]
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
       os: linux
@@ -85,8 +89,13 @@ stages:
   - stage: ${{ parameters.name }}
     displayName: E2E-${{ parameters.displayName }}
     dependsOn:
+    - setup
+    - publish
     - ${{ parameters.clusterName }}
     variables:
+      CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
+      CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
+      AZURE_IPAM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipamVersion'] ]
       GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
