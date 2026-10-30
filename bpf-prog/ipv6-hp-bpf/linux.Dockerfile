@@ -1,7 +1,7 @@
 ARG ARCH
 # IMG=mcr.microsoft.com/oss/go/microsoft/golang:1.26.10-1
 # echo "${IMG}@$(skopeo inspect docker://${IMG} --format '{{.Digest}}')"
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.26.10-1@sha256:3638c0d1ad4b55d09cfa4e4583733303dffd6bcb7f97f2b5ba350d0d833dbabb AS go
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.26.10-1@sha256:182caf8af5e48e958d0ffbde7bf3b203be1f7e8be26af82d35e0f6ec2ce300b1 AS go
 ARG VERSION
 ARG DEBUG
 ARG OS
@@ -42,7 +42,7 @@ RUN GOOS=$OS CGO_ENABLED=0 go generate ./...
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/ipv6-hp-bpf -trimpath -ldflags "-s -w -X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" .
 
 # mcr.microsoft.com/azurelinux/distroless/base:3.0
-FROM mcr.microsoft.com/azurelinux/distroless/base:3.0@sha256:6b85a86416a29cdcfd404e9fbd9c5ef49cc0612882cecc702535dcac39c9446c AS linux
+FROM mcr.microsoft.com/azurelinux/distroless/base:3.0@sha256:e952865122598043cfb54f0257f016e28e02c21904e172b47dcb2148e095693a AS linux
 COPY --from=go /go/bin/ipv6-hp-bpf /ipv6-hp-bpf
 COPY --from=go /usr/sbin/nft /usr/sbin/nft
 COPY --from=go /sbin/ip /sbin/ip
