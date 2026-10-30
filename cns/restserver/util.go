@@ -498,13 +498,16 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(req cns.GetNetwo
 	service.Lock()
 	defer service.Unlock()
 
-	switch service.state.OrchestratorType {
-	case cns.Kubernetes, cns.ServiceFabric, cns.Batch, cns.DBforPostgreSQL, cns.AzureFirstParty:
-	default:
+	orchestrator := service.state.OrchestratorType
+	if orchestrator != cns.Kubernetes &&
+		orchestrator != cns.ServiceFabric &&
+		orchestrator != cns.Batch &&
+		orchestrator != cns.DBforPostgreSQL &&
+		orchestrator != cns.AzureFirstParty {
 		return []cns.GetNetworkContainerResponse{{
 			Response: cns.Response{
 				ReturnCode: types.UnsupportedOrchestratorType,
-				Message:    fmt.Sprintf("Invalid orchestrator type %v", service.state.OrchestratorType),
+				Message:    fmt.Sprintf("Invalid orchestrator type %v", orchestrator),
 			},
 		}}
 	}
