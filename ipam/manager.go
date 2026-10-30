@@ -4,6 +4,8 @@
 package ipam
 
 import (
+	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,6 +29,9 @@ type addressManager struct {
 	source     addressConfigSource
 	netApi     common.NetApi
 	sync.Mutex
+
+	CiliumPool     *CiliumPoolState `json:",omitempty"`
+	ciliumPoolMode bool
 }
 
 // AddressManager API.
@@ -80,6 +85,13 @@ func (am *addressManager) Initialize(config *common.PluginConfig, rehydrateIpamI
 	if err != nil {
 		return err
 	}
+	if config.CiliumPool != nil && am.CiliumPool != nil {
+		id := am.CiliumPool.Identity
+		if id.Interface != config.CiliumPool.Interface || id.Subnet != config.CiliumPool.Subnet ||
+			!strings.EqualFold(id.NICID, config.CiliumPool.NICID) {
+			return fmt.Errorf("%w: host configuration does not match stored cilium pool", errCiliumPoolState)
+		}
+	}
 
 	// Start source.
 	err = am.StartSource(options)
@@ -111,6 +123,12 @@ func (am *addressManager) restore(rehydrateIpamInfoOnReboot bool) error {
 			return nil
 		} else {
 			logger.Error("Failed to restore state", zap.Error(err))
+			return err
+		}
+	}
+
+	if am.CiliumPool != nil {
+		if err := am.validateCiliumPoolRecords(); err != nil {
 			return err
 		}
 	}
@@ -185,6 +203,10 @@ func (am *addressManager) StartSource(options map[string]interface{}) error {
 	var err error
 	var isLoaded bool
 	environment, _ := options[common.OptEnvironment].(string)
+	am.ciliumPoolMode = ciliumPoolEnvironment(options)
+	if am.CiliumPool != nil && !am.ciliumPoolMode {
+		return errInvalidConfiguration
+	}
 
 	if am.AddrSpaces != nil && len(am.AddrSpaces) > 0 &&
 		am.AddrSpaces[LocalDefaultAddressSpaceId] != nil &&
@@ -193,6 +215,8 @@ func (am *addressManager) StartSource(options map[string]interface{}) error {
 	}
 
 	switch environment {
+	case common.OptEnvironmentCiliumPool:
+		am.source = nil
 	case common.OptEnvironmentAzure:
 		am.source, err = newAzureSource(options)
 
@@ -278,6 +302,9 @@ func (am *addressManager) GetDefaultAddressSpaces() (string, string) {
 func (am *addressManager) RequestPool(asId, poolId, subPoolId string, options map[string]string, v6 bool) (string, string, error) {
 	am.Lock()
 	defer am.Unlock()
+	if err := am.checkCiliumPoolAdmission(); err != nil {
+		return "", "", err
+	}
 
 	am.refreshSource()
 
@@ -346,6 +373,9 @@ func (am *addressManager) GetPoolInfo(asId string, poolId string) (*AddressPoolI
 func (am *addressManager) RequestAddress(asId, poolId, address string, options map[string]string) (string, error) {
 	am.Lock()
 	defer am.Unlock()
+	if err := am.checkCiliumPoolAdmission(); err != nil {
+		return "", err
+	}
 
 	am.refreshSource()
 
@@ -366,7 +396,13 @@ func (am *addressManager) RequestAddress(asId, poolId, address string, options m
 
 	err = am.save()
 	if err != nil {
-		ap.releaseAddress(addr, options)
+		// A failed replay must not release a reservation from an earlier ADD.
+		// In managed mode, ambiguous persistence is resolved by retry or DEL.
+		if am.CiliumPool == nil {
+			if releaseErr := ap.releaseAddress(addr, options); releaseErr != nil {
+				return "", fmt.Errorf("persisting address: %w; rollback failed: %w", err, releaseErr)
+			}
+		}
 		return "", err
 	}
 

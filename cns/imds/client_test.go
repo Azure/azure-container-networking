@@ -5,6 +5,7 @@ package imds_test
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,47 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestGetComputeMetadata(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		body    string
+		wantErr bool
+	}{
+		{"identity", `{"resourceId":"/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/node","vmId":"incarnation"}`, false},
+		{"missing resource", `{"vmId":"incarnation"}`, true},
+		{"missing incarnation", `{"resourceId":"vm"}`, true},
+		{"wrong type", `{"resourceId":123,"vmId":"incarnation"}`, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/metadata/instance/compute" || r.Header.Get("Metadata") != "true" ||
+					r.URL.Query().Get("api-version") != "2021-01-01" || r.URL.Query().Get("format") != "json" {
+					t.Errorf("invalid metadata request: %s, headers %v", r.URL, r.Header)
+				}
+				if _, err := w.Write([]byte(test.body)); err != nil {
+					t.Error(err)
+				}
+			}))
+			defer server.Close()
+			client := imds.NewClient(imds.Endpoint(server.URL), imds.RetryAttempts(1))
+			got, err := client.GetComputeMetadata(t.Context())
+			if test.wantErr {
+				if !errors.Is(err, imds.ErrComputeIdentityNotFound) {
+					t.Errorf("invalid identity: got %v, want %v", err, imds.ErrComputeIdentityNotFound)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.ResourceID != "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/node" ||
+				got.VMID != "incarnation" {
+				t.Errorf("compute identity = %+v", got)
+			}
+		})
+	}
+}
 
 func TestGetVMUniqueID(t *testing.T) {
 	computeMetadata, err := os.ReadFile("testdata/computeMetadata.json")

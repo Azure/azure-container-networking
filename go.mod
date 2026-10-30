@@ -50,6 +50,7 @@ require (
 	github.com/stretchr/testify v1.12.1
 	github.com/vishvananda/netlink v1.3.2-0.20260624190457-bab08b3566fc
 	github.com/vishvananda/netns v0.0.5
+	go.etcd.io/bbolt v1.5.0
 	go.uber.org/zap v1.28.0
 	golang.org/x/crypto v0.58.0
 	golang.org/x/exp v0.0.0-20260611194520-c48552f49976

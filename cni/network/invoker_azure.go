@@ -56,6 +56,14 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 	if addConfig.nwCfg == nil {
 		return addResult, invoker.plugin.Errorf("nil nwCfg passed to CNI ADD: %v", errNilNetworkConfig)
 	}
+	poolConfig, configErr := common.LoadCiliumPoolConfig()
+	if configErr != nil {
+		return addResult, fmt.Errorf("loading cilium pool configuration: %w", configErr)
+	}
+	if poolConfig != nil && (addConfig.nwCfg.Mode != "transparent-tunnel" ||
+		addConfig.nwCfg.IPV6Mode != "" || addConfig.nwCfg.IPAM.Type != "azure-vnet-ipam") {
+		return addResult, invoker.plugin.Errorf("cilium pool requires IPv4 transparent-tunnel with azure-vnet-ipam")
+	}
 
 	if len(invoker.nwInfo.Subnets) > 0 {
 		addConfig.nwCfg.IPAM.Subnet = invoker.nwInfo.Subnets[0].Prefix.String()
@@ -63,7 +71,7 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 
 	// Call into IPAM plugin to allocate an address pool for the network.
 	result, err := invoker.plugin.DelegateAdd(addConfig.nwCfg.IPAM.Type, addConfig.nwCfg)
-	if err != nil && strings.Contains(err.Error(), ipam.ErrNoAvailableAddressPools.Error()) {
+	if err != nil && poolConfig == nil && strings.Contains(err.Error(), ipam.ErrNoAvailableAddressPools.Error()) {
 		invoker.deleteIpamState()
 		logger.Info("Retry pool allocation after deleting IPAM state")
 		result, err = invoker.plugin.DelegateAdd(addConfig.nwCfg.IPAM.Type, addConfig.nwCfg)

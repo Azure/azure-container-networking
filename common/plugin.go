@@ -35,13 +35,14 @@ type IpamApi interface{}
 
 // Plugin common configuration.
 type PluginConfig struct {
-	Version   string
-	NetApi    NetApi  // nolint
-	IpamApi   IpamApi // nolint
-	Listener  *Listener
-	ErrChan   chan error
-	Store     store.KeyValueStore
-	Stateless bool
+	CiliumPool *CiliumPoolConfig
+	Version    string
+	NetApi     NetApi  // nolint
+	IpamApi    IpamApi // nolint
+	Listener   *Listener
+	ErrChan    chan error
+	Store      store.KeyValueStore
+	Stateless  bool
 }
 
 // NewPlugin creates a new Plugin object.

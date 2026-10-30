@@ -12,6 +12,11 @@ CNS is not in the path: addresses come from `azure-vnet-ipam` rather than
 `azure-cns`, and endpoint state is persisted by CNI itself rather than read
 back from CNS.
 
+The [Cilium Operator pool bridge](cilium-operator-ipam.md) can
+supply `azure-vnet-ipam` without a Cilium agent or dataplane. It changes pool
+discovery and usage reporting, not transparent-tunnel rules. Only active Azure
+CNI endpoints enter the local-pod ipset; unused operator pool addresses do not.
+
 This matters for deletion. Because the host veth name and pod IP are restored
 from CNI's own state store, DEL can always remove the ipset entry and the
 mangle MARK rule, and it does not depend on CNS being reachable. The stateless

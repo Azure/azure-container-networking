@@ -1,0 +1,42 @@
+{
+  "apiVersion": "cilium.io/v2",
+  "kind": "CiliumNode",
+  "metadata": {
+    "name": "worker-1",
+    "uid": "cilium-uid",
+    "resourceVersion": "12",
+    "annotations": {"azure-container-networking.io/ipam-consumer": "azure-vnet-ipam-bridge"},
+    "ownerReferences": [{"apiVersion": "v1", "kind": "Node", "name": "worker-1", "uid": "node-uid"}]
+  },
+  "spec": {
+    "instance-id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourcegroups/poc/providers/microsoft.compute/virtualmachines/worker-1",
+    "addresses": [{"type": "InternalIP", "ip": "10.20.16.4"}],
+    "azure": {"interface-name": "worker-nic"},
+    "ipam": {
+      "min-allocate": 10,
+      "pre-allocate": 8,
+      "pool": {
+        "10.20.16.10": {"resource": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/poc/providers/Microsoft.Network/networkInterfaces/worker-nic"},
+        "10.20.16.11": {"resource": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/poc/providers/Microsoft.Network/networkInterfaces/worker-nic"}
+      }
+    }
+  },
+  "status": {
+    "azure": {
+      "interfaces": [{
+        "id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/poc/providers/Microsoft.Network/networkInterfaces/worker-nic",
+        "name": "worker-nic",
+        "mac": "00:11:22:33:44:55",
+        "ip": "10.20.16.4",
+        "gateway": "10.20.16.1",
+        "subnet": {"id": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/poc/providers/Microsoft.Network/virtualNetworks/poc/subnets/workers", "cidr": "10.20.16.0/20"},
+        "addresses": [{"ip": "10.20.16.10", "state": "succeeded"}, {"ip": "10.20.16.11", "state": "succeeded"}]
+      }]
+    },
+    "ipam": {
+      "operator-status": {"error": "retained operator diagnostic"},
+      "release-ips": {},
+      "used": {}
+    }
+  }
+}

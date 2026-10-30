@@ -37,6 +37,13 @@ pushd "$CNI_IPAM_DIR"
     ./main.go
 popd
 
+if [[ "$OS" == linux ]]; then
+  pushd "$REPO_ROOT"
+    GOOS="$OS" go build -trimpath -ldflags "-s -w" \
+      -o "$OUT_DIR"/bin/azure-vnet-ipam-bridge ./cni/ipam/bridge
+  popd
+fi
+
 CNI_IPAMV6_DIR="$REPO_ROOT"/cni/ipam/pluginv6
 pushd "$CNI_IPAMV6_DIR"
   GOOS="$OS" go build -v -a -trimpath \
