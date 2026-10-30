@@ -3,9 +3,11 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/fakes"
@@ -15,6 +17,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -166,6 +170,12 @@ func TestBuildNodeInfoSpec_WithHomeAZ(t *testing.T) {
 			expectedNodeErr: true,
 		},
 		{
+			name:            "NMAgent unauthorized",
+			vmUniqueID:      "test-vm-id",
+			homeAzErr:       errors.Wrap(nmagent.Error{Code: http.StatusUnauthorized}, "request failed"),
+			expectedNodeErr: true,
+		},
+		{
 			name:            "IMDS error", // should fail
 			vmUniqueID:      "",
 			vmUniqueIDErr:   errors.New("imds error"),
@@ -215,6 +225,7 @@ func TestBuildNodeInfoSpec_WithHomeAZ(t *testing.T) {
 			}
 
 			if err != nil {
+				assert.Nil(t, nodeInfoCli.createdNodeInfo, "must not publish incomplete NodeInfo")
 				// we should make no further assertions
 				return
 			}
@@ -285,6 +296,128 @@ func TestBuildAndCreateNodeInfo_MultiTenantCRD(t *testing.T) {
 			assert.Equal(t, tt.vmUniqueID, nodeInfoCli.createdNodeInfo.Spec.VMUniqueID)
 			assert.Equal(t, tt.expectedAZ, nodeInfoCli.createdNodeInfo.Spec.HomeAZ)
 			assert.Equal(t, "mt-test-node", nodeInfoCli.createdNodeInfo.Name)
+		})
+	}
+}
+
+func TestReconcileNodeInfo(t *testing.T) {
+	logger.InitLogger("testlogs", 0, 0, t.TempDir()+"/")
+	t.Cleanup(logger.Close)
+	tests := []struct {
+		name string
+		fail func(*mockIMDSClient, *mockNMAgentClient, *mockNodeInfoClient)
+	}{
+		{
+			name: "NMAgent unauthorized",
+			fail: func(_ *mockIMDSClient, nma *mockNMAgentClient, _ *mockNodeInfoClient) {
+				nma.err = errors.Wrap(nmagent.Error{Code: http.StatusUnauthorized}, "request failed")
+			},
+		},
+		{
+			name: "IMDS unavailable",
+			fail: func(imds *mockIMDSClient, _ *mockNMAgentClient, _ *mockNodeInfoClient) {
+				imds.err = errors.New("imds unavailable")
+			},
+		},
+		{
+			name: "NodeInfo API unavailable",
+			fail: func(_ *mockIMDSClient, _ *mockNMAgentClient, nodeInfo *mockNodeInfoClient) {
+				nodeInfo.err = errors.New("api unavailable")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			imds := &mockIMDSClient{vmUniqueID: "test-vm-id"}
+			nma := &mockNMAgentClient{homeAzResponse: nmagent.AzResponse{HomeAz: 2}}
+			nodeInfo := &mockNodeInfoClient{}
+			node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "test-node", UID: "test-uid"}}
+			attempts := 0
+			err := reconcileNodeInfo(ctx, zap.NewNop(), time.Millisecond, func(attemptCtx context.Context) error {
+				attempts++
+				require.NotEqual(t, ctx, attemptCtx)
+				deadline, ok := attemptCtx.Deadline()
+				require.True(t, ok, "each attempt must be bounded")
+				require.LessOrEqual(t, time.Until(deadline), cnsReqTimeout)
+				if attempts == 1 {
+					tt.fail(imds, nma, nodeInfo)
+				} else {
+					imds.err, nma.err, nodeInfo.err = nil, nil, nil
+				}
+				return buildAndCreateNodeInfo(attemptCtx, imds, nma, nodeInfo, node)
+			})
+			require.NoError(t, err)
+			require.Equal(t, 2, attempts)
+			require.NotNil(t, nodeInfo.createdNodeInfo)
+			assert.Equal(t, "AZ02", nodeInfo.createdNodeInfo.Spec.HomeAZ)
+			assert.Equal(t, "test-vm-id", nodeInfo.createdNodeInfo.Spec.VMUniqueID)
+			require.Len(t, nodeInfo.createdNodeInfo.OwnerReferences, 1)
+			assert.Equal(t, node.UID, nodeInfo.createdNodeInfo.OwnerReferences[0].UID)
+		})
+	}
+}
+
+func TestReconcileNodeInfoPersistentUnauthorized(t *testing.T) {
+	logger.InitLogger("testlogs", 0, 0, t.TempDir()+"/")
+	t.Cleanup(logger.Close)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	imds := &mockIMDSClient{vmUniqueID: "test-vm-id"}
+	nma := &mockNMAgentClient{err: nmagent.Error{Code: http.StatusUnauthorized}}
+	nodeInfo := &mockNodeInfoClient{}
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "test-node", UID: "test-uid"}}
+	attempts := 0
+	core, logs := observer.New(zap.WarnLevel)
+	err := reconcileNodeInfo(ctx, zap.New(core), time.Millisecond, func(attemptCtx context.Context) error {
+		attempts++
+		if attempts == 3 {
+			cancel()
+		}
+		return buildAndCreateNodeInfo(attemptCtx, imds, nma, nodeInfo, node)
+	})
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Equal(t, 3, attempts)
+	assert.Equal(t, 2, logs.FilterMessage("NodeInfo registration pending, will retry").Len(), "canceled attempt must not log a pending retry")
+	assert.Nil(t, nodeInfo.createdNodeInfo)
+}
+
+func TestReconcileNodeInfoCancellation(t *testing.T) {
+	logger.InitLogger("testlogs", 0, 0, t.TempDir()+"/")
+	t.Cleanup(logger.Close)
+	for _, duringRequest := range []bool{false, true} {
+		t.Run(fmt.Sprintf("duringRequest=%t", duringRequest), func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			attempted := make(chan struct{})
+			done := make(chan error, 1)
+			core, logs := observer.New(zap.WarnLevel)
+			go func() {
+				done <- reconcileNodeInfo(ctx, zap.New(core), time.Hour, func(attemptCtx context.Context) error {
+					close(attempted)
+					if duringRequest {
+						<-attemptCtx.Done()
+						return attemptCtx.Err()
+					}
+					return nmagent.Error{Code: http.StatusUnauthorized}
+				})
+			}()
+			select {
+			case <-attempted:
+			case <-time.After(time.Second):
+				t.Fatal("registration did not start")
+			}
+			cancel()
+			select {
+			case err := <-done:
+				require.ErrorIs(t, err, context.Canceled)
+				if duringRequest {
+					assert.Zero(t, logs.Len(), "shutdown during an attempt must not log a pending retry")
+				}
+			case <-time.After(time.Second):
+				t.Fatal("registration did not stop on cancellation")
+			}
 		})
 	}
 }
