@@ -122,8 +122,8 @@ func TestGetAllNetworkContainerResponsesNMAgentVersionList(t *testing.T) {
 func TestUpdateNCVFPStatusUntransactedMatchesMaster(t *testing.T) {
 	const ncID = cns.SwiftPrefix + ncResponsePrimaryID
 	for _, completed := range []bool{false, true} {
-		for _, goalVersion := range []string{"0", "1", "invalid", ""} {
-			for _, programmedVersion := range []string{"missing", "0", "1", "2", "invalid"} {
+		for _, goalVersion := range []string{"0", "1", "bad-goal-version", ""} {
+			for _, programmedVersion := range []string{"missing", "0", "1", "2", "bad-programmed-version"} {
 				t.Run(fmt.Sprintf("completed=%t/goal=%s/programmed=%s", completed, goalVersion, programmedVersion), func(t *testing.T) {
 					service := &HTTPRestService{
 						store: store.NewMockStore(""),
@@ -162,7 +162,7 @@ func TestUpdateNCVFPStatusUntransactedMatchesMaster(t *testing.T) {
 						evaluatedCode, evalErr := evaluateNCVFPStatus(ncID, goalVersion, programmedVersions)
 						assert.Equal(t, code, evaluatedCode)
 						assert.Equal(t, shouldUpdate, evaluatedCode == types.NetworkContainerVfpProgramComplete)
-						wantParseError := goalVersion == "invalid" || goalVersion == "" || programmedVersion == "invalid"
+						wantParseError := goalVersion == "bad-goal-version" || goalVersion == "" || programmedVersion == "bad-programmed-version"
 						if wantParseError {
 							var parseErr *strconv.NumError
 							require.ErrorAs(t, evalErr, &parseErr)
@@ -187,9 +187,9 @@ func TestUpdateNCVFPStatusUntransactedMatchesMaster(t *testing.T) {
 }
 
 func TestEvaluateNCVFPStatusNormalizesNCID(t *testing.T) {
-	for _, ncID := range []string{"ABC", "Swift_ABC"} {
+	for _, ncID := range []string{"NC-VFP-TEST", "Swift_NC-VFP-TEST"} {
 		t.Run(ncID, func(t *testing.T) {
-			code, err := evaluateNCVFPStatus(ncID, "1", map[string]string{"abc": "1"})
+			code, err := evaluateNCVFPStatus(ncID, "1", map[string]string{"nc-vfp-test": "1"})
 
 			require.NoError(t, err)
 			assert.Equal(t, types.NetworkContainerVfpProgramComplete, code)
