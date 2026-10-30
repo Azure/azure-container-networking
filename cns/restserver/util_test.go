@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -148,13 +149,26 @@ func TestUpdateNCVFPStatusUntransactedMatchesMaster(t *testing.T) {
 
 					waiting, code, _ := service.isNCWaitingForUpdate(goalVersion, ncID, programmedVersions)
 					complete := !waiting
-					// Keep master's predicate as the equivalence oracle for the guard clauses.
+					// Keep master's predicate as the equivalence oracle for the update path.
 					shouldUpdate := (code == types.NetworkContainerVfpProgramComplete &&
 						complete && completed != complete) ||
 						(!complete && completed != complete)
 					wantComplete := completed
 					if shouldUpdate {
 						wantComplete = complete
+					}
+
+					if !completed {
+						evaluatedCode, evalErr := evaluateNCVFPStatus(ncID, goalVersion, programmedVersions)
+						assert.Equal(t, code, evaluatedCode)
+						assert.Equal(t, shouldUpdate, evaluatedCode == types.NetworkContainerVfpProgramComplete)
+						wantParseError := goalVersion == "invalid" || goalVersion == "" || programmedVersion == "invalid"
+						if wantParseError {
+							var parseErr *strconv.NumError
+							require.ErrorAs(t, evalErr, &parseErr)
+						} else {
+							require.NoError(t, evalErr)
+						}
 					}
 
 					service.updateNCVFPStatusUntransacted([]string{ncID}, programmedVersions)
@@ -169,6 +183,17 @@ func TestUpdateNCVFPStatusUntransactedMatchesMaster(t *testing.T) {
 				})
 			}
 		}
+	}
+}
+
+func TestEvaluateNCVFPStatusNormalizesNCID(t *testing.T) {
+	for _, ncID := range []string{"ABC", "Swift_ABC"} {
+		t.Run(ncID, func(t *testing.T) {
+			code, err := evaluateNCVFPStatus(ncID, "1", map[string]string{"abc": "1"})
+
+			require.NoError(t, err)
+			assert.Equal(t, types.NetworkContainerVfpProgramComplete, code)
+		})
 	}
 }
 

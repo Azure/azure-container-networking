@@ -553,26 +553,50 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(req cns.GetNetwo
 func (service *HTTPRestService) updateNCVFPStatusUntransacted(ncIDs []string, programmedVersions map[string]string) {
 	for _, ncID := range ncIDs {
 		status := service.state.ContainerStatus[ncID]
-		waiting, code, _ := service.isNCWaitingForUpdate(status.CreateNetworkContainerRequest.Version, ncID, programmedVersions)
-		if code == types.NetworkContainerVfpProgramPending {
-			logger.Errorf("[Azure-CNS] isNCWaitingForUpdate failed for NCID: %s", ncID) //nolint:staticcheck // Preserve existing logger usage.
-		}
-
-		complete := !waiting
-		if status.VfpUpdateComplete == complete {
-			continue
-		}
-		if complete && code != types.NetworkContainerVfpProgramComplete {
+		if status.VfpUpdateComplete {
 			continue
 		}
 
-		logger.Printf("[Azure-CNS] Setting VfpUpdateComplete to %t for NCID: %s", complete, ncID) //nolint:staticcheck // Preserve existing logger usage.
-		status.VfpUpdateComplete = complete
+		code, err := evaluateNCVFPStatus(ncID, status.CreateNetworkContainerRequest.Version, programmedVersions)
+		if err != nil {
+			logger.Errorf("failed to evaluate VFP status for nc %s: %v", ncID, err) //nolint:staticcheck // Preserve existing logger usage.
+		} else if code == types.NetworkContainerVfpProgramPending {
+			logger.Errorf("[Azure-CNS] VFP programming pending for NCID: %s", ncID) //nolint:staticcheck // Preserve existing logger usage.
+		}
+
+		if code != types.NetworkContainerVfpProgramComplete {
+			continue
+		}
+
+		logger.Printf("[Azure-CNS] Setting VfpUpdateComplete to %t for NCID: %s", true, ncID) //nolint:staticcheck // Preserve existing logger usage.
+		status.VfpUpdateComplete = true
 		service.state.ContainerStatus[ncID] = status
 		if err := service.saveState(); err != nil {
 			logger.Errorf("Failed to save goal states for nc %s due to %s", ncID, err) //nolint:staticcheck // Preserve existing logger usage.
 		}
 	}
+}
+
+// evaluateNCVFPStatus compares the target NC version with NMAgent's programmed version.
+func evaluateNCVFPStatus(ncID, targetVersion string, programmedVersions map[string]string) (types.ResponseCode, error) {
+	target, err := strconv.Atoi(targetVersion)
+	if err != nil {
+		return types.NetworkContainerVfpProgramPending, fmt.Errorf("parsing target nc version %q: %w", targetVersion, err)
+	}
+
+	programmedVersion, exists := programmedVersions[strings.TrimPrefix(lowerCaseNCGuid(ncID), cns.SwiftPrefix)]
+	if !exists {
+		return types.NetworkContainerVfpProgramPending, nil
+	}
+	programmed, err := strconv.Atoi(programmedVersion)
+	if err != nil {
+		return types.NetworkContainerVfpProgramCheckSkipped, fmt.Errorf("parsing programmed nc version %q: %w", programmedVersion, err)
+	}
+
+	if target > programmed {
+		return types.NetworkContainerVfpProgramPending, nil
+	}
+	return types.NetworkContainerVfpProgramComplete, nil
 }
 
 func buildNetworkContainerResponses(ncIDs []string, containerStatus map[string]containerstatus, checkVFPStatus bool) []cns.GetNetworkContainerResponse {
@@ -922,6 +946,8 @@ func lowerCaseNCGuid(ncid string) string {
 // the VFP programming is pending
 // This returns success / waitingForUpdate as false in all other cases.
 // V2 is using the nmagent get nc version list api v2 which doesn't need authentication token
+//
+// Deprecated: use evaluateNCVFPStatus for completion-state updates.
 func (service *HTTPRestService) isNCWaitingForUpdate(ncVersion, ncid string, ncVersionList map[string]string) (waitingForUpdate bool, returnCode types.ResponseCode, message string) {
 	ncStatus, ok := service.state.ContainerStatus[ncid]
 	if ok {
