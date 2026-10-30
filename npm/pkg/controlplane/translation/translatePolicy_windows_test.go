@@ -38,7 +38,7 @@ func TestNPMLiteWindowsIngressExceptEmitsHigherPriorityDrop(t *testing.T) {
 
 	translated, err := TranslatePolicy(networkPolicy, true)
 	require.NoError(t, err)
-	require.Len(t, translated.ACLs, 2)
+	require.Len(t, translated.ACLs, 3)
 
 	allow := translated.ACLs[0]
 	require.Equal(t, policies.Allowed, allow.Target)
@@ -51,6 +51,11 @@ func TestNPMLiteWindowsIngressExceptEmitsHigherPriorityDrop(t *testing.T) {
 	require.Equal(t, policies.ExceptBlockPriority, drop.Priority)
 	// the excepted-drop must out-prioritize the enclosing-CIDR allow (lower number wins on HNS)
 	require.Less(t, drop.Priority, uint16(222))
+
+	require.Equal(t, &policies.ACLPolicy{
+		Target:    policies.Dropped,
+		Direction: policies.Ingress,
+	}, translated.ACLs[2])
 }
 
 func TestNPMLiteWindowsEgressExceptEmitsHigherPriorityDrop(t *testing.T) {
@@ -72,7 +77,7 @@ func TestNPMLiteWindowsEgressExceptEmitsHigherPriorityDrop(t *testing.T) {
 
 	translated, err := TranslatePolicy(networkPolicy, true)
 	require.NoError(t, err)
-	require.Len(t, translated.ACLs, 2)
+	require.Len(t, translated.ACLs, 3)
 
 	allow := translated.ACLs[0]
 	require.Equal(t, policies.Allowed, allow.Target)
@@ -82,6 +87,11 @@ func TestNPMLiteWindowsEgressExceptEmitsHigherPriorityDrop(t *testing.T) {
 	require.Equal(t, policies.Dropped, drop.Target)
 	require.Equal(t, []string{"192.0.2.5/32"}, drop.DstDirectIPs)
 	require.Equal(t, policies.ExceptBlockPriority, drop.Priority)
+
+	require.Equal(t, &policies.ACLPolicy{
+		Target:    policies.Dropped,
+		Direction: policies.Egress,
+	}, translated.ACLs[2])
 }
 
 func TestNPMLiteWindowsExceptWithPortMirrorsPortScope(t *testing.T) {
@@ -109,7 +119,7 @@ func TestNPMLiteWindowsExceptWithPortMirrorsPortScope(t *testing.T) {
 
 	translated, err := TranslatePolicy(networkPolicy, true)
 	require.NoError(t, err)
-	require.Len(t, translated.ACLs, 2)
+	require.Len(t, translated.ACLs, 3)
 
 	allow := translated.ACLs[0]
 	require.Equal(t, policies.Allowed, allow.Target)
@@ -122,6 +132,11 @@ func TestNPMLiteWindowsExceptWithPortMirrorsPortScope(t *testing.T) {
 	require.Equal(t, int32(8080), drop.DstPorts.Port)
 	require.Equal(t, policies.Protocol("TCP"), drop.Protocol)
 	require.Equal(t, policies.ExceptBlockPriority, drop.Priority)
+
+	require.Equal(t, &policies.ACLPolicy{
+		Target:    policies.Dropped,
+		Direction: policies.Ingress,
+	}, translated.ACLs[2])
 }
 
 func TestNPMLiteWindowsMultipleExceptsDeduplicated(t *testing.T) {
@@ -143,13 +158,18 @@ func TestNPMLiteWindowsMultipleExceptsDeduplicated(t *testing.T) {
 
 	translated, err := TranslatePolicy(networkPolicy, true)
 	require.NoError(t, err)
-	// 1 allow + 2 unique drops
-	require.Len(t, translated.ACLs, 3)
+	// 1 allow + 2 unique drops + default deny
+	require.Len(t, translated.ACLs, 4)
 	require.Equal(t, policies.Allowed, translated.ACLs[0].Target)
 	require.Equal(t, policies.Dropped, translated.ACLs[1].Target)
 	require.Equal(t, []string{exceptedHostBits}, translated.ACLs[1].SrcDirectIPs)
 	require.Equal(t, policies.Dropped, translated.ACLs[2].Target)
 	require.Equal(t, []string{"10.244.1.200/32"}, translated.ACLs[2].SrcDirectIPs)
+
+	require.Equal(t, &policies.ACLPolicy{
+		Target:    policies.Dropped,
+		Direction: policies.Ingress,
+	}, translated.ACLs[3])
 }
 
 func TestNPMLiteWindowsNonIPv4ExceptFailsClosed(t *testing.T) {
