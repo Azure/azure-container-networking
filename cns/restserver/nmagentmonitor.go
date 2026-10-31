@@ -123,6 +123,11 @@ func (h *NMAgentMonitor) Populate(ctx context.Context) {
 			ReturnCode: types.NmAgentSupportedApisError,
 			Message:    fmt.Sprintf("failed to query nmagent supported apis: %v", err),
 		}})
+		apiError := nmagent.Error{}
+		if errors.As(err, &apiError) && apiError.StatusCode() == http.StatusTooManyRequests {
+			logger.Warnf("[NMAgentMonitor] nmagent supported APIs request throttled; preserving home az cache: %v", err) //nolint:staticcheck // will migrate to logger/v2
+			return
+		}
 		returnMessage := fmt.Sprintf("[HomeAzMonitor] failed to query nmagent's supported apis, %v", err)
 		returnCode := types.NmAgentSupportedApisError
 		h.update(returnCode, returnMessage, cns.HomeAzResponse{IsSupported: false})
@@ -153,6 +158,10 @@ func (h *NMAgentMonitor) Populate(ctx context.Context) {
 		apiError := nmagent.Error{}
 		if ok := errors.As(err, &apiError); ok {
 			switch apiError.StatusCode() {
+			case http.StatusTooManyRequests:
+				logger.Warnf("[NMAgentMonitor] nmagent GetHomeAz request throttled; preserving home az cache: %v", err) //nolint:staticcheck // will migrate to logger/v2
+				return
+
 			case http.StatusInternalServerError:
 				returnMessage := fmt.Sprintf("[HomeAzMonitor] nmagent internal server error, %v", err)
 				returnCode := types.NmAgentInternalServerError
