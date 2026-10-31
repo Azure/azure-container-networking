@@ -18,4 +18,6 @@ const (
 	// Rest service state identifier for named lock
 	dncAPIVersion     = "?api-version=2018-03-01"
 	nmaAPICallTimeout = 2 * time.Second
+	// how often CNS re-checks NMAgent while an NC is VFP programming pending
+	vfpPendingRetryInterval = 500 * time.Millisecond
 )

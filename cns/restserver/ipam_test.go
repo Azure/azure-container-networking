@@ -3379,6 +3379,34 @@ func TestIPAMGetStandaloneSWIFTv2(t *testing.T) {
 	}
 }
 
+// SwiftV2 IPAM must not use the VFP pending retry, even with it turned on. NMAgent never lists SwiftV2 NCs,
+// so retrying would only delay every SwiftV2 IP request by the full timeout.
+func TestIPAMGetStandaloneSWIFTv2SkipsVFPPendingRetry(t *testing.T) {
+	svc := getTestService(cns.ServiceFabric)
+	svc.AttachIPConfigsHandlerMiddleware(&middlewares.StandaloneSWIFTv2Middleware{})
+	svc.SetOption(acn.OptVFPPendingRetryTimeoutMs, 3000)
+
+	orchestratorContext, _ := testPod1Info.OrchestratorContext()
+	createAndSaveMockNCRequest(t, svc, testNCID, orchestratorContext, testIP1, "10.0.0.1", "00:00:00:00:00:00")
+	// NMAgent never lists SwiftV2 NCs, so the VFP check always reports pending.
+	setupMockNMAgent(t, svc, &fakes.NMAgentClientFake{
+		GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) { return nma.NCVersionList{}, nil },
+	})
+
+	handler := svc.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(svc.requestIPConfigHandlerHelperStandalone, nil)
+	start := time.Now()
+	resp, err := handler(context.TODO(), cns.IPConfigsRequest{
+		DesiredIPAddresses:  []string{testIP1},
+		OrchestratorContext: orchestratorContext,
+		PodInterfaceID:      testPod1Info.InterfaceID(),
+		InfraContainerID:    testPod1Info.InfraContainerID(),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, types.Success, resp.Response.ReturnCode)
+	require.Less(t, time.Since(start), vfpPendingRetryInterval, "SwiftV2 IPAM waited on the VFP pending retry")
+}
+
 func setupMockNMAgent(t *testing.T, svc *HTTPRestService, mockNMAgent *fakes.NMAgentClientFake) {
 	t.Helper()
 	t.Log("Started mock NMAgent")

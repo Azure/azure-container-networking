@@ -519,7 +519,7 @@ type podIPs struct {
 func (service *HTTPRestService) GetNetworkContainerInternal(
 	req cns.GetNetworkContainerRequest,
 ) (cns.GetNetworkContainerResponse, types.ResponseCode) {
-	getNetworkContainerResponses := service.getAllNetworkContainerResponses(req)
+	getNetworkContainerResponses := service.getAllNetworkContainerResponsesWithRetry(req)
 	return getNetworkContainerResponses[0], getNetworkContainerResponses[0].Response.ReturnCode
 }
 

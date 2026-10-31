@@ -107,6 +107,9 @@ const (
 	// Enable CNS to clean up stale HNS resources when a NIC/MAC is reused by a new NC
 	OptEnableStaleHNSCleanupOnNCCreate = "enable-stale-hns-cleanup-on-nc-create"
 
+	// How long CNS re-checks NMAgent before returning VFP programming pending. 0 value disables this.
+	OptVFPPendingRetryTimeoutMs = "vfp-pending-retry-timeout-ms"
+
 	// Store file location
 	OptStoreFileLocation      = "store-file-path"
 	OptStoreFileLocationAlias = "storefilepath"
