@@ -3,6 +3,7 @@ pr:
     include:
       - master
       - release/*
+      - dalaagenttestmaster
   paths:
     exclude:
       - ".devcontainer"
