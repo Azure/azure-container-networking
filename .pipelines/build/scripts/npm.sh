@@ -5,11 +5,9 @@ set -eux
 
 export CGO_ENABLED=0
 # npm ships on the Ubuntu base image (it needs iptables/ipset at runtime), which
-# does not provide Microsoft's FIPS-capable OpenSSL. GOEXPERIMENT=ms_nocgo_openssl
-# crypto would make the binary require that OpenSSL and crash-loop on FIPS-enabled
-# clusters, so use the standard Go crypto backend (matches npm/*.Dockerfile and
-# the shipped release/v1.6 image). Components on the AzureLinux distroless base
-# use ms_nocgo_opensslcrypto instead.
+# does not provide Microsoft's FIPS-capable OpenSSL, so use the standard Go crypto
+# backend (matches npm/*.Dockerfile and the shipped release/v1.6 image).
+# Components on the Azure Linux distroless base use systemcrypto by default.
 export MS_GO_NOSYSTEMCRYPTO=1
 
 mkdir -p "$OUT_DIR"/files

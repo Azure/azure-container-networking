@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.26.10-1 AS builder
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.27.3@sha256:eb89c44ae1b5bdf97e3159a82c636f13c230620371bce16fc8c787ba64df9665 AS builder
 ARG VERSION
 ARG NPM_AI_PATH
 ARG NPM_AI_ID

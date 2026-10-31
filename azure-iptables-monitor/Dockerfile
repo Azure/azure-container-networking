@@ -4,16 +4,15 @@ ARG ARCH
 FROM mcr.microsoft.com/azurelinux/base/core:3.0@sha256:bd88359666e3f20296e7fe639a480dfd3c3c8eba299b21f26e4560353e21a656 AS mariner-core
 
 # mcr.microsoft.com/azurelinux/distroless/base:3.0
-FROM mcr.microsoft.com/azurelinux/distroless/base:3.0@sha256:6b85a86416a29cdcfd404e9fbd9c5ef49cc0612882cecc702535dcac39c9446c AS mariner-distroless
+FROM mcr.microsoft.com/azurelinux/distroless/base:3.0@sha256:e952865122598043cfb54f0257f016e28e02c21904e172b47dcb2148e095693a AS mariner-distroless
 
-# mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0@sha256:d104fef62900c2ca101f52568f43e0e6b6499b60be324fdd4d2ad5bae4bc3203 AS go
+# mcr.microsoft.com/oss/go/microsoft/golang:1.27-azurelinux3.0
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.27-azurelinux3.0@sha256:f611aba17edb544de685c05b0418e341fb7ef0227ea6f6ec11b10dc6fbd982f1 AS go
 
 
 FROM go AS azure-iptables-monitor
 ARG OS
 ARG VERSION
-ENV GOEXPERIMENT=ms_nocgo_opensslcrypto
 WORKDIR /azure-iptables-monitor
 COPY ./azure-iptables-monitor .
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/iptables-monitor -trimpath -ldflags "-s -w -X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" .
@@ -29,7 +28,6 @@ COPY ./go.mod ./go.sum ./
 RUN tdnf install -y llvm clang libbpf-devel gcc binutils glibc
 # Set up C include path for BPF
 ENV C_INCLUDE_PATH=/usr/include/bpf
-ENV GOEXPERIMENT=ms_nocgo_opensslcrypto
 # Set up architecture-specific symlinks for cross-compilation support
 RUN if [ "$ARCH" = "amd64" ]; then \
         ARCH_DIR=x86_64-linux-gnu; \
