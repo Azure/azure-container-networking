@@ -44,6 +44,11 @@ spec:
           image: acnpublic.azurecr.io/azure-cns:latest
           imagePullPolicy: Always
           args: [ "-c", "tcp://$(CNSIpAddress):$(CNSPort)", "-t", "$(CNSLogTarget)"]
+          resources:
+            requests:
+              cpu: 100m
+            limits:
+              cpu: 100m
           securityContext:
             capabilities:
               drop:
