@@ -168,7 +168,14 @@ func (m *Multitenancy) SetupRoutingForMultitenancy(
 ) {
 	// Adding default gateway
 	// if snat enabled, add 169.254.128.1 as default gateway
-	if nwCfg.EnableSnatOnHost {
+	if cnsNetworkConfig.SkipDefaultRoutes {
+		// Another interface of the container carries the default route (dual NIC), so this one must not add one.
+		logger.Info("skipping default route for network container that skips default routes",
+			zap.String("networkContainerID", cnsNetworkConfig.NetworkContainerID))
+		if epInfo.EnableSnatForDns {
+			addSnatForDNS(cnsNetworkConfig.LocalIPConfiguration.GatewayIPAddress, epInfo, result)
+		}
+	} else if nwCfg.EnableSnatOnHost {
 		logger.Info("add default route for multitenancy.snat on host enabled")
 		addDefaultRoute(cnsNetworkConfig.LocalIPConfiguration.GatewayIPAddress, epInfo, result)
 	} else {
