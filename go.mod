@@ -20,7 +20,7 @@ require (
 	github.com/avast/retry-go/v3 v3.1.1
 	github.com/avast/retry-go/v4 v4.7.0
 	github.com/billgraziano/dpapi v0.5.0
-	github.com/cilium/cilium v1.20.3
+	github.com/cilium/cilium v1.20.4
 	github.com/cilium/ebpf v0.22.0
 	github.com/containernetworking/cni v1.3.1
 	github.com/coreos/go-iptables v0.8.0
