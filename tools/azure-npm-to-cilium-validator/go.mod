@@ -2,7 +2,7 @@ module azure-npm-to-cilium-validator
 
 go 1.26.1
 
-toolchain go1.26.9
+toolchain go1.27.3
 
 require (
 	github.com/Azure/azure-container-networking v1.9.3

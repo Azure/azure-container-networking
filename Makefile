@@ -130,11 +130,10 @@ all-binaries-platforms: ## Make all platform binaries
 # OS specific binaries/images
 ifeq ($(GOOS),linux)
 # These binaries run on arbitrary hosts, so we can't assume Microsoft's
-# FIPS OpenSSL backend is present. MS_GO_NOSYSTEMCRYPTO=1 opts out of the
-# build image's ambient GOEXPERIMENT=systemcrypto default, which was
-# silently failing every CGO_ENABLED=0 Linux binary here. Exported as a
-# target-specific variable so it applies to all-binaries regardless of
-# entry point (all-binaries-platforms or a direct `make all-binaries`).
+# FIPS OpenSSL backend is present. MS_GO_NOSYSTEMCRYPTO=1 opts out of systemcrypto
+# because these binaries run on arbitrary hosts. Exported as a target-specific
+# variable so it applies to all-binaries regardless of entry point
+# (all-binaries-platforms or a direct `make all-binaries`).
 all-binaries: export MS_GO_NOSYSTEMCRYPTO := 1
 # ipv6-hp-bpf, azure-block-iptables, and cilium-log-collector are excluded:
 # they're never published as standalone release archives, only built into
