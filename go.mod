@@ -20,7 +20,7 @@ require (
 	github.com/avast/retry-go/v3 v3.1.1
 	github.com/avast/retry-go/v4 v4.7.0
 	github.com/billgraziano/dpapi v0.5.0
-	github.com/cilium/cilium v1.20.3
+	github.com/cilium/cilium v1.20.4
 	github.com/cilium/ebpf v0.22.0
 	github.com/containernetworking/cni v1.3.1
 	github.com/coreos/go-iptables v0.8.0
@@ -33,7 +33,7 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/hashicorp/go-version v1.9.0
 	github.com/jsternberg/zap-logfmt v1.3.0
-	github.com/labstack/echo/v4 v4.16.1
+	github.com/labstack/echo/v4 v4.16.2
 	github.com/microsoft/ApplicationInsights-Go v0.4.4
 	github.com/nxadm/tail v1.4.11
 	github.com/onsi/ginkgo v1.16.5
