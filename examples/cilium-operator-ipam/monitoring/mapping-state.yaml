@@ -1,0 +1,34 @@
+# Supply to kube-state-metrics --custom-resource-state-config-file.
+# Its service account needs get/list/watch on networking.azure.com/podasgmappings.
+kind: CustomResourceStateMetrics
+spec:
+  resources:
+    - groupVersionKind:
+        group: networking.azure.com
+        version: v1alpha1
+        kind: PodASGMapping
+      metricNamePrefix: pod_nsg_mapping
+      labelsFromPath:
+        namespace: [metadata, namespace]
+        mapping: [metadata, name]
+      metrics:
+        - name: generation
+          help: Desired mapping generation.
+          each:
+            type: Gauge
+            gauge:
+              path: [metadata, generation]
+        - name: observed_generation
+          help: Generation observed by the reconciliation condition.
+          each:
+            type: Gauge
+            gauge:
+              path: [status, conditions, "[type=Reconciled]", observedGeneration]
+        - name: reconciled
+          help: Controller reconciliation condition, not fabric enforcement.
+          each:
+            type: StateSet
+            stateSet:
+              path: [status, conditions, "[type=Reconciled]", status]
+              labelName: status
+              list: ["True", "False", "Unknown"]

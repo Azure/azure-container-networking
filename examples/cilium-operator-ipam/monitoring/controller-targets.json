@@ -1,0 +1,6 @@
+[
+  {
+    "targets": ["controller-metrics.invalid:8080"],
+    "labels": {"cluster": "REPLACE_CLUSTER"}
+  }
+]

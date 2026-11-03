@@ -1,0 +1,6 @@
+[
+  {
+    "targets": ["operator-metrics.invalid:9963"],
+    "labels": {"cluster": "REPLACE_CLUSTER"}
+  }
+]

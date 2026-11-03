@@ -184,6 +184,15 @@ Watch/API/discovery/identity failures are logged explicitly. An absence of
 recent success logs indicates stale health; operator ARM-operation metrics
 remain the operator's responsibility.
 
+The bridge also serves process liveness at `/healthz`, allocation admission
+readiness at `/readyz`, timestamped diagnostics at `/status`, and Prometheus
+metrics at `/metrics`, by default on `127.0.0.1:10093`. Set
+`AZURE_VNET_POOL_HEALTH_ADDRESS` to change the listener. Allocation readiness
+does not establish ASG convergence or usable pod traffic. The
+[monitoring examples](../examples/cilium-operator-ipam/monitoring/README.md)
+provide scrape configuration, a Grafana dashboard, alerts, pod-originated
+probes and failure-injection procedures with those signals kept separate.
+
 The pinned Azure operator does not implement NIC IP release. Pod DEL returns
 IPs to the local warm pool, not the Azure subnet. Any `release-ips` handshake
 permanently fences new admissions; the bridge never sends `ready-for-release`.

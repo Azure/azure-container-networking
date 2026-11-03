@@ -16,13 +16,13 @@ var errCiliumPoolState = errors.New("ipam: invalid cilium pool state")
 
 // CiliumPoolIdentity fences reservations to a single node/VM incarnation.
 type CiliumPoolIdentity struct {
-	NodeUID       string
-	CiliumNodeUID string
-	InstanceID    string
-	VMID          string
-	NICID         string
-	Interface     string
-	Subnet        string
+	NodeUID       string `json:"NodeUID"`
+	CiliumNodeUID string `json:"CiliumNodeUID"`
+	InstanceID    string `json:"InstanceID"`
+	VMID          string `json:"VMID"`
+	NICID         string `json:"NICID"`
+	Interface     string `json:"Interface"`
+	Subnet        string `json:"Subnet"`
 }
 
 func (id CiliumPoolIdentity) validateHostConfig(config *common.CiliumPoolConfig) error {
@@ -34,10 +34,10 @@ func (id CiliumPoolIdentity) validateHostConfig(config *common.CiliumPoolConfig)
 }
 
 type CiliumPoolState struct {
-	Identity    CiliumPoolIdentity
-	ReadyUntil  time.Time
-	BootID      string
-	FenceReason string `json:",omitempty"`
+	Identity    CiliumPoolIdentity `json:"Identity"`
+	ReadyUntil  time.Time          `json:"ReadyUntil"`
+	BootID      string             `json:"BootID"`
+	FenceReason string             `json:",omitempty"`
 }
 
 type CiliumPoolUsage struct {
@@ -48,6 +48,52 @@ type CiliumPoolUsage struct {
 type CiliumPoolAddress struct {
 	Address  netip.Addr
 	Resource string
+}
+
+// CiliumPoolStatus is an observation of committed state, not an admission grant.
+type CiliumPoolStatus struct {
+	State       CiliumPoolState `json:"state"`
+	Addresses   []netip.Addr    `json:"addresses"`
+	Eligible    int             `json:"eligible"`
+	Free        int             `json:"free"`
+	Used        int             `json:"used"`
+	Quarantined int             `json:"quarantined"`
+}
+
+// ReadCiliumPoolStatus requires the caller to hold the store lock.
+func ReadCiliumPoolStatus(kvs store.KeyValueStore) (CiliumPoolStatus, error) {
+	am := &addressManager{store: kvs, AddrSpaces: make(map[string]*addressSpace)}
+	if err := am.restore(false); err != nil {
+		return CiliumPoolStatus{}, err
+	}
+	if am.CiliumPool == nil {
+		return CiliumPoolStatus{}, fmt.Errorf("%w: pool has not been initialized", errCiliumPoolState)
+	}
+	status := CiliumPoolStatus{State: *am.CiliumPool}
+	for _, as := range am.AddrSpaces {
+		for _, pool := range as.Pools {
+			for _, addr := range pool.Addresses {
+				if ip, ok := netip.AddrFromSlice(addr.Addr); ok {
+					status.Addresses = append(status.Addresses, ip.Unmap())
+				}
+				used := addr.InUse || addr.ID != ""
+				if used {
+					status.Used++
+				}
+				if addr.Blocked {
+					if used {
+						status.Quarantined++
+					}
+				} else {
+					status.Eligible++
+					if !used {
+						status.Free++
+					}
+				}
+			}
+		}
+	}
+	return status, nil
 }
 
 // CiliumPoolTransaction must run under the IPAM store's exclusive lock.

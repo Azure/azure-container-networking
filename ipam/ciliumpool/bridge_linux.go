@@ -41,6 +41,7 @@ type Bridge struct {
 	Discover             func(context.Context, *common.CiliumPoolConfig) (Guest, error)
 	Logger               *zap.Logger
 	State                poolState
+	Monitor              *Monitor
 	resourceVersion      string
 	lastUsagePublication time.Time
 }
@@ -103,14 +104,20 @@ func (b *Bridge) Run(ctx context.Context) error {
 	}
 }
 
-func (b *Bridge) Reconcile(ctx context.Context) error {
+func (b *Bridge) Reconcile(ctx context.Context) (resultErr error) {
+	started := time.Now()
+	defer func() { b.Monitor.Observe("reconcile", time.Since(started), resultErr) }()
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
+	stageStarted := time.Now()
 	g, err := b.Discover(ctx, b.Config)
+	b.Monitor.Observe("guest", time.Since(stageStarted), err)
 	if err != nil {
 		return err
 	}
+	stageStarted = time.Now()
 	rawNode, err := b.Client.Resource(Nodes).Get(ctx, b.Config.NodeName, metav1.GetOptions{})
+	b.Monitor.Observe("node_api", time.Since(stageStarted), err)
 	if err != nil {
 		return fmt.Errorf("reading node: %w", err)
 	}
@@ -118,6 +125,7 @@ func (b *Bridge) Reconcile(ctx context.Context) error {
 	if err = runtime.DefaultUnstructuredConverter.FromUnstructured(rawNode.Object, &node); err != nil {
 		return fmt.Errorf("decoding node: %w", err)
 	}
+	stageStarted = time.Now()
 	cn, err := b.Client.Resource(CiliumNodes).Get(ctx, node.Name, metav1.GetOptions{})
 	initialize := false
 	if apierrors.IsNotFound(err) {
@@ -131,6 +139,7 @@ func (b *Bridge) Reconcile(ctx context.Context) error {
 		cn, err = b.Client.Resource(CiliumNodes).Create(ctx, cn, metav1.CreateOptions{})
 		initialize = err == nil
 	}
+	b.Monitor.Observe("pool_api", time.Since(stageStarted), err)
 	if err != nil {
 		return fmt.Errorf("registering or reading cilium node: %w", err)
 	}
@@ -151,10 +160,13 @@ func (b *Bridge) Reconcile(ctx context.Context) error {
 		return errors.Join(errUnsupportedRelease,
 			b.State.Fence(ctx, "unexpected cloud release handshake"))
 	}
+	stageStarted = time.Now()
 	supply, total, err := eligible(cn, id, g)
+	b.Monitor.Observe("qualified_pool", time.Since(stageStarted), err)
 	if err != nil {
 		return err
 	}
+	b.Monitor.setPool(total)
 	observedAt := time.Now()
 	used, quarantined, err := b.State.Synchronize(ctx, id, supply, false, false)
 	if err != nil {
@@ -174,8 +186,10 @@ func (b *Bridge) Reconcile(ctx context.Context) error {
 	}
 	updated := cn
 	if current.Status.IPAM.Used == nil || !maps.Equal(current.Status.IPAM.Used, used) {
+		stageStarted = time.Now()
 		updated, err = b.Client.Resource(CiliumNodes).Patch(ctx, node.Name, types.JSONPatchType,
 			patch, metav1.PatchOptions{}, "status")
+		b.Monitor.Observe("publication", time.Since(stageStarted), err)
 		if err != nil {
 			// The next attempt re-reads BOTH local usage and the API object.
 			return fmt.Errorf("publishing usage: %w", err)
@@ -187,6 +201,7 @@ func (b *Bridge) Reconcile(ctx context.Context) error {
 		return errors.Join(fmt.Errorf("%w: cilium node replaced during usage publication", errInvalidContract),
 			b.State.Fence(ctx, "cilium node UID changed"))
 	}
+	b.Monitor.Observe("usage", time.Since(observedAt), nil)
 	if _, _, err = b.State.Synchronize(ctx, id, supply, false, true); err != nil {
 		return fmt.Errorf("enabling pool admissions: %w", err)
 	}

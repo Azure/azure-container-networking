@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/ipam/ciliumpool"
 	"github.com/Azure/azure-container-networking/ipam/ciliumpool/persistence"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -62,9 +64,29 @@ func run(ctx context.Context, logger *zap.Logger) error {
 	if err != nil {
 		return fmt.Errorf("initializing pool state: %w", err)
 	}
-	bridge := ciliumpool.Bridge{Config: cfg, Client: client, Discover: ciliumpool.DiscoverGuest, Logger: logger, State: state}
-	if err := bridge.Run(ctx); err != nil {
-		return fmt.Errorf("running bridge: %w", err)
+	address := os.Getenv("AZURE_VNET_POOL_HEALTH_ADDRESS")
+	if address == "" {
+		address = "127.0.0.1:10093"
+	}
+	listenConfig := net.ListenConfig{}
+	listener, err := listenConfig.Listen(ctx, "tcp", address)
+	if err != nil {
+		return fmt.Errorf("binding pool health listener: %w", err)
+	}
+	defer listener.Close()
+	monitor := ciliumpool.NewMonitor(cfg.PreAllocate)
+	state.Observe = func(operation string, duration time.Duration, err error) {
+		monitor.Observe("database_"+operation, duration, err)
+	}
+	bridge := ciliumpool.Bridge{Config: cfg, Client: client, Discover: ciliumpool.DiscoverGuest, Logger: logger, State: state, Monitor: monitor}
+	group, ctx := errgroup.WithContext(ctx)
+	group.Go(func() error { return monitor.Serve(ctx, listener) })
+	group.Go(func() error {
+		return monitor.RunDiagnostics(ctx, cfg, func() (time.Time, error) { return ciliumpool.CredentialExpiry(api) }, logger)
+	})
+	group.Go(func() error { return bridge.Run(ctx) })
+	if err := group.Wait(); err != nil {
+		return fmt.Errorf("running pool bridge: %w", err)
 	}
 	return nil
 }

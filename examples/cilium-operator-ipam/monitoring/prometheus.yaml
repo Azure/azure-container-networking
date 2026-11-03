@@ -1,0 +1,36 @@
+global:
+  scrape_interval: 10s
+  evaluation_interval: 10s
+rule_files:
+  - rules.yaml
+scrape_configs:
+  # Run this scrape on each node, or explicitly configure a protected remote
+  # bind address. Loopback on a central Prometheus is not the remote node.
+  - job_name: azure-vnet-pool
+    static_configs:
+      - targets: ["127.0.0.1:10093"]
+        labels:
+          cluster: REPLACE_CLUSTER
+          node: REPLACE_NODE
+  - job_name: cilium-operator
+    file_sd_configs:
+      - files: ["operator-targets.json"]
+  - job_name: pod-nsg-controller
+    file_sd_configs:
+      - files: ["controller-targets.json"]
+  - job_name: pod-nsg-mapping-state
+    file_sd_configs:
+      - files: ["mapping-state-targets.json"]
+  - job_name: pod-network-probe
+    metrics_path: /probe
+    params:
+      module: [tcp_connect]
+    file_sd_configs:
+      - files: ["probe-targets.json"]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - source_labels: [probe_exporter]
+        target_label: __address__
