@@ -68,6 +68,10 @@ func (plugin *ipamPlugin) Start(config *common.PluginConfig) error {
 		return err
 	}
 
+	if config.CiliumPool != nil {
+		plugin.SetOption(common.OptEnvironment, common.OptEnvironmentCiliumPool)
+	}
+
 	// Log platform information.
 	logger.Info("Plugin version.", zap.String("name", plugin.Name),
 		zap.String("version", plugin.Version))

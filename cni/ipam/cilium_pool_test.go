@@ -13,9 +13,10 @@ func TestCiliumPoolConfigurationCannotSelectIndependentSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = plugin.Initialize(config); err != nil {
+	if err = plugin.Start(config); err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(plugin.Stop)
 	nw, err := plugin.Configure([]byte(`{"cniVersion":"0.3.0","name":"azure","ipam":{"type":"azure-vnet-ipam"}}`))
 	if err != nil {
 		t.Fatal(err)

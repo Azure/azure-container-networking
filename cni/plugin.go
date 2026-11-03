@@ -53,9 +53,6 @@ func NewPlugin(name, version string) (*Plugin, error) {
 
 // Initialize initializes the plugin.
 func (plugin *Plugin) Initialize(config *common.PluginConfig) error {
-	if config.CiliumPool != nil && plugin.Name == "azure-vnet-ipam" {
-		plugin.SetOption(common.OptEnvironment, common.OptEnvironmentCiliumPool)
-	}
 	// Initialize the base plugin.
 	plugin.Plugin.Initialize(config)
 
