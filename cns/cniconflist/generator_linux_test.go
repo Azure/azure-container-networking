@@ -123,6 +123,9 @@ func TestGeneratorsEmitCNSSocketPath(t *testing.T) {
 		{name: "overlay", new: func(writer *bufferWriteCloser) interface{ Generate() error } {
 			return &cniconflist.OverlayGenerator{Writer: writer, CNSSocketPath: socketPath}
 		}},
+		{name: "cilium", new: func(writer *bufferWriteCloser) interface{ Generate() error } {
+			return &cniconflist.CiliumGenerator{Writer: writer, CNSSocketPath: socketPath}
+		}},
 		{name: "swift", new: func(writer *bufferWriteCloser) interface{ Generate() error } {
 			return &cniconflist.SWIFTGenerator{Writer: writer, CNSSocketPath: socketPath}
 		}},

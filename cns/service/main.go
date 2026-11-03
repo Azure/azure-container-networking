@@ -632,7 +632,7 @@ func main() {
 		case scenarioOverlay:
 			conflistGenerator = &cniconflist.OverlayGenerator{Writer: writer, CNSSocketPath: cnsSocketPath}
 		case scenarioCilium:
-			conflistGenerator = &cniconflist.CiliumGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.CiliumGenerator{Writer: writer, CNSSocketPath: cnsSocketPath}
 		case scenarioSWIFT:
 			conflistGenerator = &cniconflist.SWIFTGenerator{Writer: writer, CNSSocketPath: cnsSocketPath}
 		case scenarioAzurecniChainedCilium:

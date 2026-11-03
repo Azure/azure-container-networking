@@ -31,13 +31,14 @@ type cniConflist struct { //nolint:unused,deadcode // used in linux
 
 // NetConf describes a network. It represents the Cilium specific containernetworking/cni/pkg/types.NetConf
 type NetConf struct {
-	CNIVersion   string          `json:"cniVersion,omitempty"`
-	Name         string          `json:"name,omitempty"`
-	Type         string          `json:"type,omitempty"`
-	Capabilities map[string]bool `json:"capabilities,omitempty"`
-	IPAM         IPAM            `json:"ipam,omitempty"`
-	EnableDebug  bool            `json:"enable-debug"`
-	LogFile      string          `json:"log-file"`
+	CNIVersion    string          `json:"cniVersion,omitempty"`
+	Name          string          `json:"name,omitempty"`
+	Type          string          `json:"type,omitempty"`
+	Capabilities  map[string]bool `json:"capabilities,omitempty"`
+	IPAM          IPAM            `json:"ipam,omitempty"`
+	EnableDebug   bool            `json:"enable-debug"`
+	LogFile       string          `json:"log-file"`
+	CNSSocketPath string          `json:"cnsSocketPath,omitempty"`
 
 	RawPrevResult map[string]interface{} `json:"prevResult,omitempty"`
 }
@@ -66,7 +67,8 @@ type OverlayGenerator struct {
 
 // CiliumGenerator generates the Azure CNI conflist for the Cilium scenario
 type CiliumGenerator struct {
-	Writer io.WriteCloser
+	Writer        io.WriteCloser
+	CNSSocketPath string
 }
 
 // SWIFTGenerator generates the Azure CNI conflist for the SWIFT scenario

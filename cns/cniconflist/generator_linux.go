@@ -118,9 +118,10 @@ func (v *CiliumGenerator) Generate() error {
 		Name:       ciliumcniName,
 		Plugins: []any{
 			NetConf{
-				Type:        ciliumcniType,
-				LogFile:     ciliumLogFile,
-				EnableDebug: true,
+				Type:          ciliumcniType,
+				LogFile:       ciliumLogFile,
+				EnableDebug:   true,
+				CNSSocketPath: v.CNSSocketPath,
 				IPAM: IPAM{
 					Type: ciliumIPAM,
 				},
