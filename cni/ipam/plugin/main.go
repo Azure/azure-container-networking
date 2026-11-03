@@ -28,6 +28,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	config.CiliumPool, err = common.LoadCiliumPoolConfig()
+	if err != nil {
+		fmt.Printf("Failed to load cilium pool configuration, err:%v.\n", err)
+		os.Exit(1)
+	}
+
 	if err := ipamPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
 		fmt.Printf("Failed to initialize key-value store of ipam plugin, err:%v.\n", err)
 		os.Exit(1)

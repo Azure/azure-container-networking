@@ -186,15 +186,11 @@ func (plugin *Plugin) RetriableError(err error) *cniTypes.Error {
 
 // Initialize key-value store
 func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error {
-	poolConfig, err := common.LoadCiliumPoolConfig()
-	if err != nil {
-		return fmt.Errorf("loading cilium pool configuration: %w", err)
-	}
-	config.CiliumPool = poolConfig
 	// Create the key value store.
 	if plugin.Store == nil {
-		if poolConfig != nil {
-			plugin.Store, err = store.NewBoltStore(poolConfig.StatePath(plugin.Name), storeLogger)
+		var err error
+		if config.CiliumPool != nil {
+			plugin.Store, err = store.NewBoltStore(config.CiliumPool.StatePath(plugin.Name), storeLogger)
 		} else {
 			lockPath := platform.CNILockPath + plugin.Name + store.LockExtension
 			statePath := platform.CNIRuntimePath + plugin.Name + ".json"
