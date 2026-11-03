@@ -408,7 +408,7 @@ func TestPoolInvokerUsesStartupConfiguration(t *testing.T) {
 	invoker.plugin = delegate
 	_, err := invoker.Add(IPAMAddConfig{nwCfg: &cni.NetworkConfig{
 		Mode: "transparent-tunnel",
-		IPAM: cni.IPAM{Type: "azure-vnet-ipam"},
+		IPAM: cni.IPAM{Type: azureIPAMPlugin},
 	}})
 	if err == nil {
 		t.Fatal("empty pool must fail allocation")
