@@ -142,7 +142,7 @@ func (b *Bridge) Reconcile(ctx context.Context) error {
 	// between API creation and this write intentionally requires fenced recovery.
 	if initialize {
 		if _, _, err = b.State.Synchronize(ctx, id, nil, true, false); err != nil {
-			return err
+			return fmt.Errorf("initializing pool binding: %w", err)
 		}
 	}
 	if release, found, releaseErr := unstructured.NestedMap(cn.Object, "status", "ipam", "release-ips"); releaseErr != nil {
@@ -158,7 +158,7 @@ func (b *Bridge) Reconcile(ctx context.Context) error {
 	observedAt := time.Now()
 	used, quarantined, err := b.State.Synchronize(ctx, id, supply, false, false)
 	if err != nil {
-		return err
+		return fmt.Errorf("synchronizing pool ownership: %w", err)
 	}
 	patch, err := usagePatch(cn, used)
 	if err != nil {
@@ -188,7 +188,7 @@ func (b *Bridge) Reconcile(ctx context.Context) error {
 			b.State.Fence(ctx, "cilium node UID changed"))
 	}
 	if _, _, err = b.State.Synchronize(ctx, id, supply, false, true); err != nil {
-		return err
+		return fmt.Errorf("enabling pool admissions: %w", err)
 	}
 	free := 0
 	for _, entry := range supply {
