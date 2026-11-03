@@ -531,7 +531,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 	}
 
-	cnsClient, err := cnscli.New(nwCfg.CNSUrl, defaultRequestTimeout)
+	cnsClient, err := cnscli.NewWithUnixSocket(nwCfg.CNSUrl, nwCfg.CNSSocketPath, defaultRequestTimeout)
 	if err != nil {
 		return fmt.Errorf("failed to create cns client with error: %w", err)
 	}
@@ -1105,7 +1105,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	if plugin.ipamInvoker == nil {
 		switch nwCfg.IPAM.Type {
 		case network.AzureCNS:
-			cnsClient, cnsErr := cnscli.New("", defaultRequestTimeout)
+			cnsClient, cnsErr := cnscli.NewWithUnixSocket("", nwCfg.CNSSocketPath, defaultRequestTimeout)
 			if cnsErr != nil {
 				logger.Error("failed to create cns client", zap.Error(cnsErr))
 				return errors.Wrap(cnsErr, "failed to create cns client")
