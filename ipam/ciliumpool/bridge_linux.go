@@ -6,13 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/ipam"
-	"github.com/Azure/azure-container-networking/store"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -26,9 +24,15 @@ import (
 
 var (
 	errBridgeConfig       = errors.New("ciliumpool: incomplete bridge configuration")
-	errLocalState         = errors.New("ciliumpool: invalid local state")
 	errUnsupportedRelease = errors.New("ciliumpool: cloud release is unsupported")
 )
+
+type poolState interface {
+	Acquire(context.Context) (func(), error)
+	CanInitialize(context.Context) error
+	Synchronize(context.Context, ipam.CiliumPoolIdentity, []ipam.CiliumPoolAddress, bool, bool) (map[string]ipam.CiliumPoolUsage, int, error)
+	Fence(context.Context, string) error
+}
 
 // Bridge serializes usage publication. Reconcile must not be called concurrently.
 type Bridge struct {
@@ -36,22 +40,20 @@ type Bridge struct {
 	Client               dynamic.Interface
 	Discover             func(context.Context, *common.CiliumPoolConfig) (Guest, error)
 	Logger               *zap.Logger
+	State                poolState
 	resourceVersion      string
 	lastUsagePublication time.Time
 }
 
 func (b *Bridge) Run(ctx context.Context) error {
-	if b.Config == nil || b.Client == nil || b.Discover == nil || b.Logger == nil {
+	if b.Config == nil || b.Client == nil || b.Discover == nil || b.Logger == nil || b.State == nil {
 		return errBridgeConfig
 	}
-	if err := os.MkdirAll(b.Config.StateDir, 0o700); err != nil {
-		return fmt.Errorf("creating bridge state directory: %w", err)
-	}
-	lifetime, err := lockStore(ctx, b.Config.StatePath(consumer), time.Millisecond, b.Logger)
+	release, err := b.State.Acquire(ctx)
 	if err != nil {
-		return fmt.Errorf("acquiring bridge lifetime lock: %w", err)
+		return fmt.Errorf("acquiring bridge consumer: %w", err)
 	}
-	defer unlockStore(lifetime, b.Logger)
+	defer release()
 	var w watch.Interface
 	defer func() {
 		if w != nil {
@@ -119,11 +121,8 @@ func (b *Bridge) Reconcile(ctx context.Context) error {
 	cn, err := b.Client.Resource(CiliumNodes).Get(ctx, node.Name, metav1.GetOptions{})
 	initialize := false
 	if apierrors.IsNotFound(err) {
-		for _, name := range []string{"azure-vnet", "azure-vnet-ipam"} {
-			if _, statErr := os.Stat(b.Config.StatePath(name)); !os.IsNotExist(statErr) {
-				return errors.Join(fmt.Errorf("%w: missing cilium node with existing local state", errLocalState),
-					b.fence(ctx, "cilium node deleted"))
-			}
+		if stateErr := b.State.CanInitialize(ctx); stateErr != nil {
+			return errors.Join(stateErr, b.State.Fence(ctx, "cilium node deleted"))
 		}
 		cn, err = b.registration(&node, g)
 		if err != nil {
@@ -137,12 +136,12 @@ func (b *Bridge) Reconcile(ctx context.Context) error {
 	}
 	id, err := identity(b.Config, &node, cn, g)
 	if err != nil {
-		return errors.Join(err, b.fence(ctx, "node identity or consumer changed"))
+		return errors.Join(err, b.State.Fence(ctx, "node identity or consumer changed"))
 	}
 	// Persist the binding before the first operator pool publication. A crash
 	// between API creation and this write intentionally requires fenced recovery.
 	if initialize {
-		if _, _, err = b.transaction(ctx, id, nil, true, false); err != nil {
+		if _, _, err = b.State.Synchronize(ctx, id, nil, true, false); err != nil {
 			return err
 		}
 	}
@@ -150,14 +149,14 @@ func (b *Bridge) Reconcile(ctx context.Context) error {
 		return fmt.Errorf("reading release handshake: %w", releaseErr)
 	} else if found && len(release) != 0 {
 		return errors.Join(errUnsupportedRelease,
-			b.fence(ctx, "unexpected cloud release handshake"))
+			b.State.Fence(ctx, "unexpected cloud release handshake"))
 	}
 	supply, total, err := eligible(cn, id, g)
 	if err != nil {
 		return err
 	}
 	observedAt := time.Now()
-	used, quarantined, err := b.transaction(ctx, id, supply, false, false)
+	used, quarantined, err := b.State.Synchronize(ctx, id, supply, false, false)
 	if err != nil {
 		return err
 	}
@@ -186,9 +185,9 @@ func (b *Bridge) Reconcile(ctx context.Context) error {
 	b.resourceVersion = updated.GetResourceVersion()
 	if updated.GetUID() != cn.GetUID() {
 		return errors.Join(fmt.Errorf("%w: cilium node replaced during usage publication", errInvalidContract),
-			b.fence(ctx, "cilium node UID changed"))
+			b.State.Fence(ctx, "cilium node UID changed"))
 	}
-	if _, _, err = b.transaction(ctx, id, supply, false, true); err != nil {
+	if _, _, err = b.State.Synchronize(ctx, id, supply, false, true); err != nil {
 		return err
 	}
 	free := 0
@@ -241,70 +240,4 @@ func (b *Bridge) registration(node *corev1.Node, g Guest) (*unstructured.Unstruc
 	}
 	cn.SetUID("")
 	return cn, nil
-}
-
-func (b *Bridge) transaction(ctx context.Context, id ipam.CiliumPoolIdentity,
-	supply []ipam.CiliumPoolAddress, initialize, admit bool,
-) (used map[string]ipam.CiliumPoolUsage, quarantined int, err error) {
-	// Reading network-state existence is recovery work: respect CNI's lock order.
-	network, err := lockStore(ctx, b.Config.StatePath("azure-vnet"), store.DefaultLockTimeoutLinux, b.Logger)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer unlockStore(network, b.Logger)
-	kvs, err := lockStore(ctx, b.Config.StatePath("azure-vnet-ipam"), store.DefaultLockTimeoutLinux, b.Logger)
-	if err != nil {
-		return nil, 0, fmt.Errorf("opening local IPAM state: %w", err)
-	}
-	defer unlockStore(kvs, b.Logger)
-	used, quarantined, err = ipam.CiliumPoolTransaction(kvs, id, supply, initialize, admit)
-	if err != nil {
-		return nil, 0, fmt.Errorf("synchronizing local pool: %w", err)
-	}
-	if len(used) > 0 {
-		var networkState json.RawMessage
-		if err := network.Read("Network", &networkState); err != nil {
-			return nil, 0, errors.Join(fmt.Errorf("ciliumpool: network state missing with active reservations: %w", err),
-				ipam.FenceCiliumPool(kvs, "network state missing"))
-		}
-	}
-	return used, quarantined, nil
-}
-
-func (b *Bridge) fence(ctx context.Context, reason string) error {
-	kvs, err := lockStore(ctx, b.Config.StatePath("azure-vnet-ipam"), store.DefaultLockTimeoutLinux, b.Logger)
-	if err != nil {
-		return fmt.Errorf("opening local IPAM state for fencing: %w", err)
-	}
-	defer unlockStore(kvs, b.Logger)
-	if err := ipam.FenceCiliumPool(kvs, reason); err != nil {
-		return fmt.Errorf("fencing local pool: %w", err)
-	}
-	return nil
-}
-
-func lockStore(ctx context.Context, path string, timeout time.Duration, logger *zap.Logger) (*store.BoltStore, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, fmt.Errorf("waiting for state database: %w", err)
-	}
-	if deadline, ok := ctx.Deadline(); ok {
-		timeout = min(timeout, time.Until(deadline))
-	}
-	kvs, err := store.NewBoltStore(path, logger)
-	if err != nil {
-		return nil, fmt.Errorf("creating state store: %w", err)
-	}
-	if err := kvs.Lock(timeout); err != nil {
-		return nil, fmt.Errorf("locking state database: %w", err)
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, errors.Join(err, kvs.Unlock())
-	}
-	return kvs, nil
-}
-
-func unlockStore(kvs *store.BoltStore, logger *zap.Logger) {
-	if err := kvs.Unlock(); err != nil {
-		logger.Warn("closing state store failed", zap.Error(err))
-	}
 }

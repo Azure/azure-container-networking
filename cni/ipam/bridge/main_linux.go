@@ -10,6 +10,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/ipam/ciliumpool"
+	"github.com/Azure/azure-container-networking/ipam/ciliumpool/persistence"
 	"go.uber.org/zap"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
@@ -57,7 +58,11 @@ func run(ctx context.Context, logger *zap.Logger) error {
 	if err != nil {
 		return fmt.Errorf("creating Kubernetes client: %w", err)
 	}
-	bridge := ciliumpool.Bridge{Config: cfg, Client: client, Discover: ciliumpool.DiscoverGuest, Logger: logger}
+	state, err := persistence.NewLocalState(cfg, logger)
+	if err != nil {
+		return fmt.Errorf("initializing pool state: %w", err)
+	}
+	bridge := ciliumpool.Bridge{Config: cfg, Client: client, Discover: ciliumpool.DiscoverGuest, Logger: logger, State: state}
 	if err := bridge.Run(ctx); err != nil {
 		return fmt.Errorf("running bridge: %w", err)
 	}

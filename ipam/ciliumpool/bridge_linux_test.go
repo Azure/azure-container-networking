@@ -5,11 +5,10 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"net"
 	"net/netip"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/ipam"
+	"github.com/Azure/azure-container-networking/ipam/ciliumpool/persistence"
 	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/google/go-cmp/cmp"
@@ -108,16 +108,32 @@ func fixture(t *testing.T) (*Bridge, *unstructured.Unstructured, *corev1.Node, G
 		Subnet:      netip.MustParsePrefix(cfg.Subnet),
 		Secondaries: map[netip.Addr]bool{netip.MustParseAddr("10.20.16.10"): true, netip.MustParseAddr("10.20.16.11"): true},
 	}
+	state, err := persistence.NewLocalState(cfg, zap.NewNop())
+	if err != nil {
+		t.Fatal(err)
+	}
 	b := &Bridge{
 		Config: cfg, Client: client, Logger: zap.NewNop(),
+		State:    state,
 		Discover: func(context.Context, *common.CiliumPoolConfig) (Guest, error) { return g, nil },
 	}
 	return b, cn, node, g
 }
 
+func lockTestStore(path string) (*store.BoltStore, error) {
+	kvs, err := store.NewBoltStore(path, zap.NewNop())
+	if err != nil {
+		return nil, fmt.Errorf("creating test store: %w", err)
+	}
+	if err = kvs.Lock(time.Second); err != nil {
+		return nil, fmt.Errorf("locking test store: %w", err)
+	}
+	return kvs, nil
+}
+
 func reserve(t *testing.T, b *Bridge, owner, address string) {
 	t.Helper()
-	kvs, err := lockStore(t.Context(), b.Config.StatePath("azure-vnet-ipam"), time.Second, zap.NewNop())
+	kvs, err := lockTestStore(b.Config.StatePath("azure-vnet-ipam"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,14 +202,14 @@ func TestPoolBridgeUsageConflictWithdrawalAndRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, err = b.transaction(t.Context(), id, supply, true, false)
+	_, _, err = b.State.Synchronize(t.Context(), id, supply, true, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err = b.Reconcile(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	network, err := lockStore(t.Context(), b.Config.StatePath("azure-vnet"), time.Second, zap.NewNop())
+	network, err := lockTestStore(b.Config.StatePath("azure-vnet"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,7 +253,7 @@ func TestPoolBridgeUsageConflictWithdrawalAndRestart(t *testing.T) {
 	if err = restarted.Reconcile(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	usedLocal, quarantined, err := b.transaction(t.Context(), id, supply[1:], false, false)
+	usedLocal, quarantined, err := b.State.Synchronize(t.Context(), id, supply[1:], false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,7 +278,7 @@ func TestPoolBridgeUsageConflictWithdrawalAndRestart(t *testing.T) {
 	if err = b.Reconcile(t.Context()); !errors.Is(err, errUnsupportedRelease) {
 		t.Errorf("release handshake: got %v, want %v", err, errUnsupportedRelease)
 	}
-	_, _, err = b.transaction(t.Context(), id, supply, false, true)
+	_, _, err = b.State.Synchronize(t.Context(), id, supply, false, true)
 	if err == nil || !strings.Contains(err.Error(), "fenced") {
 		t.Errorf("admission after release handshake: got %v, want fenced error", err)
 	}
@@ -281,7 +297,7 @@ func TestPoolBridgeMissingStateAndReplacement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, err = b.transaction(t.Context(), id, supply, true, true)
+	_, _, err = b.State.Synchronize(t.Context(), id, supply, true, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -293,61 +309,142 @@ func TestPoolBridgeMissingStateAndReplacement(t *testing.T) {
 	if err = b.Reconcile(t.Context()); err == nil || !strings.Contains(err.Error(), "identity changed") {
 		t.Errorf("replacement identity: got %v, want identity changed error", err)
 	}
-	_, _, err = b.transaction(t.Context(), id, supply, false, true)
+	_, _, err = b.State.Synchronize(t.Context(), id, supply, false, true)
 	if err == nil || !strings.Contains(err.Error(), "fenced") {
 		t.Errorf("admission after identity replacement: got %v, want fenced error", err)
 	}
 }
 
 func TestPoolBridgeRegistration(t *testing.T) {
-	b, cn, node, g := fixture(t)
-	if err := b.Client.Resource(CiliumNodes).Delete(t.Context(), node.Name, metav1.DeleteOptions{}); err != nil {
-		t.Fatal(err)
+	for _, cniFirst := range []bool{false, true} {
+		t.Run(fmt.Sprintf("CNI-first=%t", cniFirst), func(t *testing.T) {
+			b, cn, node, g := fixture(t)
+			if err := b.Client.Resource(CiliumNodes).Delete(t.Context(), node.Name, metav1.DeleteOptions{}); err != nil {
+				t.Fatal(err)
+			}
+			if cniFirst {
+				for _, name := range []string{"azure-vnet", "azure-vnet-ipam"} {
+					kvs, err := lockTestStore(b.Config.StatePath(name))
+					if err != nil {
+						t.Fatal(err)
+					}
+					if name == "azure-vnet-ipam" {
+						am, initErr := ipam.NewAddressManager()
+						if initErr != nil {
+							t.Fatal(initErr)
+						}
+						if initErr = am.Initialize(&common.PluginConfig{Store: kvs}, false,
+							map[string]interface{}{common.OptEnvironment: common.OptEnvironmentCiliumPool}); initErr != nil {
+							t.Fatal(initErr)
+						}
+						if _, requestErr := am.RequestAddress("local", b.Config.Subnet, "", map[string]string{ipam.OptAddressID: "early-pod"}); requestErr == nil {
+							t.Error("CNI allocated before bridge initialization")
+						}
+					}
+					if err = kvs.Unlock(); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			client := b.Client.(*dynamicfake.FakeDynamicClient)
+			client.PrependReactor("create", "ciliumnodes", func(action ktesting.Action) (bool, runtime.Object, error) {
+				obj := action.(ktesting.CreateAction).GetObject().(*unstructured.Unstructured).DeepCopy()
+				if uid := obj.GetUID(); uid != "" {
+					t.Errorf("registration supplied UID %q, want server-assigned UID", uid)
+				}
+				obj.SetUID("new-cilium-uid")
+				obj.SetResourceVersion("1")
+				return true, obj, client.Tracker().Create(CiliumNodes, obj, "")
+			})
+			if err := b.Reconcile(t.Context()); !errors.Is(err, errMissingNICMetadata) {
+				t.Errorf("registration before pool publication: got %v, want %v", err, errMissingNICMetadata)
+			}
+			registered, err := client.Resource(CiliumNodes).Get(t.Context(), node.Name, metav1.GetOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			id, err := identity(b.Config, node, registered, g)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if id.CiliumNodeUID != "new-cilium-uid" {
+				t.Errorf("bound CiliumNode UID = %q, want new-cilium-uid", id.CiliumNodeUID)
+			}
+			registered.Object["status"] = cn.Object["status"]
+			pool, _, err := unstructured.NestedMap(cn.Object, "spec", "ipam", "pool")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = unstructured.SetNestedMap(registered.Object, pool, "spec", "ipam", "pool"); err != nil {
+				t.Fatal(err)
+			}
+			_, err = client.Resource(CiliumNodes).Update(t.Context(), registered, metav1.UpdateOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = b.Reconcile(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			reserve(t, b, testPoolParentOwner, "10.20.16.10")
+			if err = os.Remove(b.Config.StatePath("azure-vnet-ipam")); err != nil {
+				t.Fatal(err)
+			}
+			if err = b.Reconcile(t.Context()); err == nil || !strings.Contains(err.Error(), "missing cilium pool identity") {
+				t.Errorf("deleted IPAM state: got %v, want missing identity error", err)
+			}
+		})
 	}
-	client := b.Client.(*dynamicfake.FakeDynamicClient)
-	client.PrependReactor("create", "ciliumnodes", func(action ktesting.Action) (bool, runtime.Object, error) {
-		obj := action.(ktesting.CreateAction).GetObject().(*unstructured.Unstructured).DeepCopy()
-		if uid := obj.GetUID(); uid != "" {
-			t.Errorf("registration supplied UID %q, want server-assigned UID", uid)
-		}
-		obj.SetUID("new-cilium-uid")
-		obj.SetResourceVersion("1")
-		return true, obj, client.Tracker().Create(CiliumNodes, obj, "")
-	})
-	if err := b.Reconcile(t.Context()); !errors.Is(err, errMissingNICMetadata) {
-		t.Errorf("registration before pool publication: got %v, want %v", err, errMissingNICMetadata)
-	}
-	registered, err := client.Resource(CiliumNodes).Get(t.Context(), node.Name, metav1.GetOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	id, err := identity(b.Config, node, registered, g)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if id.CiliumNodeUID != "new-cilium-uid" {
-		t.Errorf("bound CiliumNode UID = %q, want new-cilium-uid", id.CiliumNodeUID)
-	}
-	registered.Object["status"] = cn.Object["status"]
-	pool, _, err := unstructured.NestedMap(cn.Object, "spec", "ipam", "pool")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = unstructured.SetNestedMap(registered.Object, pool, "spec", "ipam", "pool"); err != nil {
-		t.Fatal(err)
-	}
-	_, err = client.Resource(CiliumNodes).Update(t.Context(), registered, metav1.UpdateOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = b.Reconcile(t.Context()); err != nil {
-		t.Fatal(err)
-	}
-	if err = os.Remove(b.Config.StatePath("azure-vnet-ipam")); err != nil {
-		t.Fatal(err)
-	}
-	if err = b.Reconcile(t.Context()); err == nil || !strings.Contains(err.Error(), "missing cilium pool identity") {
-		t.Errorf("deleted IPAM state: got %v, want missing identity error", err)
+}
+
+func TestPoolBridgeRegistrationRejectsPriorOrCorruptState(t *testing.T) {
+	const corruptDatabase = "corrupt database"
+	for _, prior := range []string{"network", "pool binding", corruptDatabase} {
+		t.Run(prior, func(t *testing.T) {
+			b, cn, node, g := fixture(t)
+			if err := b.Client.Resource(CiliumNodes).Delete(t.Context(), node.Name, metav1.DeleteOptions{}); err != nil {
+				t.Fatal(err)
+			}
+			switch prior {
+			case "network":
+				kvs, err := lockTestStore(b.Config.StatePath("azure-vnet"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err = kvs.Write("Network", map[string]string{"Version": "prior-initialization"}); err != nil {
+					t.Fatal(err)
+				}
+				if err = kvs.Unlock(); err != nil {
+					t.Fatal(err)
+				}
+			case "pool binding":
+				id, err := identity(b.Config, node, cn, g)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, _, err = b.State.Synchronize(t.Context(), id, nil, true, false); err != nil {
+					t.Fatal(err)
+				}
+			case corruptDatabase:
+				if err := os.WriteFile(b.Config.StatePath("azure-vnet-ipam"), []byte("invalid database"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := b.Reconcile(t.Context()); err == nil {
+				t.Fatal("registered a replacement despite prior or corrupt state")
+			}
+			if _, err := b.Client.Resource(CiliumNodes).Get(t.Context(), node.Name, metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+				t.Fatalf("replacement CiliumNode exists or could not be checked: %v", err)
+			}
+			if prior == corruptDatabase {
+				raw, err := os.ReadFile(b.Config.StatePath("azure-vnet-ipam"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if string(raw) != "invalid database" {
+					t.Error("corrupt database was overwritten")
+				}
+			}
+		})
 	}
 }
 
@@ -427,139 +524,6 @@ func TestPoolBridgeGuestAndAdmission(t *testing.T) {
 	}
 }
 
-func updatePoolStateInChild(t *testing.T, dir string) {
-	t.Helper()
-	root, err := os.OpenRoot(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer root.Close()
-	path := filepath.Join(dir, "ipam.db")
-	lock, err := store.NewBoltStore(path, zap.NewNop())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = root.WriteFile("ipam.db.started", nil, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err = lock.Lock(5 * time.Second); err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if unlockErr := lock.Unlock(); unlockErr != nil {
-			t.Errorf("unlocking child IPAM state: %v", unlockErr)
-		}
-	}()
-	if err = root.WriteFile("ipam.db.acquired", nil, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	var usage map[string]string
-	if err = lock.Read("IPAM", &usage); err != nil {
-		t.Fatal(err)
-	}
-	if usage["parent"] != testPoolParentOwner {
-		t.Fatalf("child did not restore parent's reservation: %v", usage)
-	}
-	usage["child"] = "pod-b"
-	if err = lock.Write("IPAM", usage); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestPoolBridgeProcessLock(t *testing.T) {
-	if dir := os.Getenv("ACN_POOL_LOCK_CHILD"); dir != "" {
-		updatePoolStateInChild(t, dir)
-		return
-	}
-	path := filepath.Join(t.TempDir(), "ipam.db")
-	lock, err := lockStore(t.Context(), path, time.Millisecond, zap.NewNop())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer unlockStore(lock, zap.NewNop())
-	if err = lock.Write("IPAM", map[string]string{"parent": testPoolParentOwner}); err != nil {
-		t.Fatal(err)
-	}
-	otherLock, err := lockStore(t.Context(), path, time.Millisecond, zap.NewNop())
-	if err == nil {
-		if unlockErr := otherLock.Unlock(); unlockErr != nil {
-			t.Error(unlockErr)
-		}
-		t.Fatal("single-publisher lifetime lock was acquired twice")
-	}
-	executable, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
-	childCtx, stopChild := context.WithTimeout(t.Context(), 10*time.Second)
-	defer stopChild()
-	cmd := exec.CommandContext(childCtx, executable, "-test.run=^TestPoolBridgeProcessLock$")
-	cmd.Env = append(os.Environ(), "ACN_POOL_LOCK_CHILD="+filepath.Dir(path))
-	if err = cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if cmd.ProcessState == nil {
-			_ = cmd.Process.Kill()
-			_ = cmd.Wait()
-		}
-	})
-	timeout := time.NewTimer(5 * time.Second)
-	defer timeout.Stop()
-	poll := time.NewTicker(10 * time.Millisecond)
-	defer poll.Stop()
-	for {
-		_, statErr := os.Stat(path + ".started")
-		if statErr == nil {
-			break
-		}
-		if !os.IsNotExist(statErr) {
-			t.Fatal(statErr)
-		}
-		select {
-		case <-poll.C:
-		case <-timeout.C:
-			t.Fatal("child did not start its lock attempt")
-		}
-	}
-	if _, statErr := os.Stat(path + ".acquired"); !os.IsNotExist(statErr) {
-		t.Fatalf("child acquired a held lock or marker could not be inspected: %v", statErr)
-	}
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-	canceledLock, err := lockStore(ctx, path, time.Second, zap.NewNop())
-	if canceledLock != nil {
-		if unlockErr := canceledLock.Unlock(); unlockErr != nil {
-			t.Error(unlockErr)
-		}
-		t.Error("canceled lock attempt returned an open lock")
-	}
-	if !errors.Is(err, context.Canceled) {
-		t.Errorf("canceled lock attempt: got %v, want %v", err, context.Canceled)
-	}
-	if err = lock.Unlock(); err != nil {
-		t.Fatal(err)
-	}
-	if err = cmd.Wait(); err != nil {
-		t.Fatal(err)
-	}
-	if info, statErr := os.Stat(path + ".acquired"); statErr != nil {
-		t.Fatal(statErr)
-	} else if !info.Mode().IsRegular() {
-		t.Error("child lock acquisition marker is not a regular file")
-	}
-	if err = lock.Lock(time.Second); err != nil {
-		t.Fatal(err)
-	}
-	var usage map[string]string
-	if err = lock.Read("IPAM", &usage); err != nil {
-		t.Fatal(err)
-	}
-	if diff := cmp.Diff(map[string]string{"parent": testPoolParentOwner, "child": "pod-b"}, usage); diff != "" {
-		t.Errorf("reservations after process handoff (-want +got):\n%s", diff)
-	}
-}
-
 func TestPoolBridgePatchRetainsUnownedFields(t *testing.T) {
 	_, cn, _, _ := fixture(t)
 	used := map[string]ipam.CiliumPoolUsage{"10.20.16.10": {Owner: "pod", Resource: "nic"}}
@@ -588,7 +552,7 @@ func TestPoolBridgeWatchRecoveryAndSinglePublisher(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, err = b.transaction(t.Context(), id, nil, true, false)
+	_, _, err = b.State.Synchronize(t.Context(), id, nil, true, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -629,9 +593,9 @@ func TestPoolBridgeWatchRecoveryAndSinglePublisher(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("bridge did not start its first watch")
 	}
-	other := &Bridge{Config: b.Config, Client: b.Client, Discover: b.Discover, Logger: b.Logger}
-	if err = other.Run(t.Context()); err == nil || !strings.Contains(err.Error(), "lifetime lock") {
-		t.Errorf("second publisher: got %v, want lifetime lock error", err)
+	other := &Bridge{Config: b.Config, Client: b.Client, Discover: b.Discover, Logger: b.Logger, State: b.State}
+	if err = other.Run(t.Context()); err == nil || !strings.Contains(err.Error(), "acquiring bridge consumer") {
+		t.Errorf("second publisher: got %v, want consumer exclusion error", err)
 	}
 	first.Error(&metav1.Status{Code: 410, Reason: metav1.StatusReasonExpired})
 	select {
