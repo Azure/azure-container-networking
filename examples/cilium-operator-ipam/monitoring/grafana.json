@@ -1,0 +1,138 @@
+{
+  "uid": "azure-vnet-pool",
+  "title": "Azure CNI pool, policy and dataplane observations",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {"from": "now-1h", "to": "now"},
+  "tags": ["azure-cni", "cilium-operator"],
+  "templating": {"list": [
+    {"name": "datasource", "type": "datasource", "query": "prometheus", "label": "Prometheus"},
+    {"name": "cluster", "type": "query", "datasource": {"type": "prometheus", "uid": "${datasource}"}, "query": "label_values(up{job=\"azure-vnet-pool\"}, cluster)", "refresh": 1, "includeAll": true, "allValue": ".*"},
+    {"name": "node", "type": "query", "datasource": {"type": "prometheus", "uid": "${datasource}"}, "query": "label_values(up{job=\"azure-vnet-pool\",cluster=~\"$cluster\"}, node)", "refresh": 1, "includeAll": true, "allValue": ".*"}
+  ]},
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Bridge scrape/liveness (not admission)",
+      "gridPos": {"x": 0, "y": 0, "w": 8, "h": 5},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"noValue": "UNKNOWN"}},
+      "targets": [{"refId": "A", "expr": "up{job=\"azure-vnet-pool\",cluster=~\"$cluster\",node=~\"$node\"}", "legendFormat": "{{node}}"}]
+    },
+    {
+      "id": 2, "type": "stat", "title": "Allocation admission lease (not traffic)",
+      "gridPos": {"x": 8, "y": 0, "w": 8, "h": 5},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"noValue": "UNKNOWN"}},
+      "targets": [{"refId": "A", "expr": "azure_vnet_pool_admission_ready{cluster=~\"$cluster\",node=~\"$node\"}", "legendFormat": "{{node}}"}]
+    },
+    {
+      "id": 3, "type": "stat", "title": "Persistent fence / committed reason",
+      "gridPos": {"x": 16, "y": 0, "w": 8, "h": 5},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"noValue": "UNKNOWN"}},
+      "targets": [{"refId": "A", "expr": "azure_vnet_pool_fence_reason{cluster=~\"$cluster\",node=~\"$node\"}", "legendFormat": "{{node}} {{reason}}"}]
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Observed pool counts (check storage freshness)",
+      "gridPos": {"x": 0, "y": 5, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"noValue": "UNKNOWN"}},
+      "targets": [{"refId": "A", "expr": "azure_vnet_pool_addresses{cluster=~\"$cluster\",node=~\"$node\"}", "legendFormat": "{{node}} {{kind}}"}]
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "Age of last successful observation",
+      "gridPos": {"x": 12, "y": 5, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"unit": "s", "noValue": "UNKNOWN"}},
+      "targets": [{"refId": "A", "expr": "azure_vnet_pool:observation_age_seconds{cluster=~\"$cluster\",node=~\"$node\"}", "legendFormat": "{{node}} {{stage}}"}]
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Bridge operation p99 latency",
+      "gridPos": {"x": 0, "y": 13, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"unit": "s", "noValue": "NO OBSERVATIONS"}},
+      "targets": [{"refId": "A", "expr": "azure_vnet_pool:operation_p99_seconds{cluster=~\"$cluster\",node=~\"$node\"}", "legendFormat": "{{node}} {{operation}}"}]
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "Bridge dependency errors",
+      "gridPos": {"x": 12, "y": 13, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "targets": [{"refId": "A", "expr": "sum by (node, operation, reason) (rate(azure_vnet_pool_errors_total{cluster=~\"$cluster\",node=~\"$node\"}[5m]))", "legendFormat": "{{node}} {{operation}} {{reason}}"}]
+    },
+    {
+      "id": 8, "type": "timeseries", "title": "Known credential time remaining",
+      "description": "Absent means expiry unknown or unavailable, not a non-expiring credential. File observations do not prove the client used renewed credentials.",
+      "gridPos": {"x": 0, "y": 21, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"unit": "s", "noValue": "UNKNOWN"}},
+      "targets": [{"refId": "A", "expr": "(azure_vnet_pool_credential_expires_timestamp_seconds{cluster=~\"$cluster\",node=~\"$node\"} - time()) and (azure_vnet_pool_credential_expiry_known{cluster=~\"$cluster\",node=~\"$node\"} == 1)", "legendFormat": "{{node}}"}]
+    },
+    {
+      "id": 9, "type": "timeseries", "title": "Observation known / healthy",
+      "gridPos": {"x": 12, "y": 21, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"noValue": "UNKNOWN"}},
+      "targets": [
+        {"refId": "A", "expr": "azure_vnet_pool_observation_known{cluster=~\"$cluster\",node=~\"$node\"}", "legendFormat": "{{node}} {{stage}} known"},
+        {"refId": "B", "expr": "azure_vnet_pool_observation_healthy{cluster=~\"$cluster\",node=~\"$node\"}", "legendFormat": "{{node}} {{stage}} healthy"}
+      ]
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Operator demand by node",
+      "gridPos": {"x": 0, "y": 29, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"noValue": "UNKNOWN"}},
+      "targets": [
+        {"refId": "A", "expr": "cilium_operator_ipam_needed_ips{cluster=~\"$cluster\",target_node=~\"$node\"}", "legendFormat": "{{target_node}} needed"},
+        {"refId": "B", "expr": "cilium_operator_ipam_available_ips{cluster=~\"$cluster\",target_node=~\"$node\"}", "legendFormat": "{{target_node}} available"}
+      ]
+    },
+    {
+      "id": 11, "type": "timeseries", "title": "Cloud allocation p99 (subnet scope)",
+      "gridPos": {"x": 12, "y": 29, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"unit": "s", "noValue": "NO OBSERVATIONS"}},
+      "targets": [{"refId": "A", "expr": "azure_vnet_pool:operator_allocation_p99_seconds{cluster=~\"$cluster\"}", "legendFormat": "{{subnet_id}} {{type}}"}]
+    },
+    {
+      "id": 12, "type": "timeseries", "title": "Operator Azure API failures (operator scope)",
+      "gridPos": {"x": 0, "y": 37, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "targets": [{"refId": "A", "expr": "sum by (operation) (rate(cilium_operator_azure_api_duration_seconds_count{cluster=~\"$cluster\",response_code=\"Failed\"}[5m]))", "legendFormat": "{{operation}}"}]
+    },
+    {
+      "id": 13, "type": "timeseries", "title": "ASG ARM convergence p99 (not fabric)",
+      "gridPos": {"x": 12, "y": 37, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"unit": "s", "noValue": "NO OBSERVATIONS"}},
+      "targets": [{"refId": "A", "expr": "azure_vnet_pool:asg_arm_convergence_p99_seconds{cluster=~\"$cluster\"}", "legendFormat": "{{resource_group}} {{asg_name}}"}]
+    },
+    {
+      "id": 14, "type": "timeseries", "title": "Mapping reconciliation conditions",
+      "description": "Read with observed generation and controller availability. Conditions cannot certify fabric enforcement or account for an unobserved pod event.",
+      "gridPos": {"x": 0, "y": 45, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"noValue": "UNKNOWN"}},
+      "targets": [
+        {"refId": "A", "expr": "pod_nsg_mapping_reconciled{cluster=~\"$cluster\"} == 1", "legendFormat": "{{namespace}}/{{mapping}} {{status}}"},
+        {"refId": "B", "expr": "pod_nsg_mapping_generation{cluster=~\"$cluster\"} - on (cluster, namespace, mapping) pod_nsg_mapping_observed_generation{cluster=~\"$cluster\"}", "legendFormat": "{{namespace}}/{{mapping}} generation lag"}
+      ]
+    },
+    {
+      "id": 15, "type": "timeseries", "title": "Pod-originated TCP reachability",
+      "description": "Expected allow failures need diagnosis; unexpected deny successes violate the expectation. Failed deny probes alone do not prove NSG isolation.",
+      "gridPos": {"x": 12, "y": 45, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"noValue": "UNKNOWN"}},
+      "targets": [{"refId": "A", "expr": "probe_success{job=\"pod-network-probe\",cluster=~\"$cluster\"}", "legendFormat": "{{source_node}} -> {{destination_node}} {{placement}} expected {{expectation}}"}]
+    },
+    {
+      "id": 16, "type": "timeseries", "title": "External evidence scrape availability",
+      "gridPos": {"x": 0, "y": 53, "w": 24, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"noValue": "UNKNOWN"}},
+      "targets": [{"refId": "A", "expr": "up{job=~\"cilium-operator|pod-nsg-controller|pod-nsg-mapping-state|pod-network-probe\",cluster=~\"$cluster\"}", "legendFormat": "{{job}} {{instance}}"}]
+    }
+  ]
+}

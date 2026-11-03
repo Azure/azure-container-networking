@@ -1,0 +1,7 @@
+# Mount into blackbox-exporter pods using Azure CNI (hostNetwork: false).
+modules:
+  tcp_connect:
+    prober: tcp
+    timeout: 5s
+    tcp:
+      preferred_ip_protocol: ip4

@@ -1,0 +1,83 @@
+rule_files:
+  - rules.yaml
+evaluation_interval: 10s
+tests:
+  - name: Admission can expire while the process remains live
+    interval: 10s
+    input_series:
+      - series: 'up{job="azure-vnet-pool",instance="node:10093",node="worker"}'
+        values: "1 1 1 1 1"
+      - series: 'azure_vnet_pool_admission_ready{job="azure-vnet-pool",instance="node:10093",node="worker"}'
+        values: "1 1 1 0 0"
+    alert_rule_test:
+      - eval_time: 40s
+        alertname: PoolAdmissionUnavailable
+        exp_alerts:
+          - exp_labels: {job: azure-vnet-pool, instance: "node:10093", node: worker, severity: critical}
+            exp_annotations:
+              summary: Pool admission is unavailable or unknown
+              description: Inspect /status for lease_expired, boot_changed, storage_unavailable or fenced; restore the failed dependency without deleting allocation state.
+              runbook_url: https://github.com/Azure/azure-container-networking/blob/feat/40396612-pool-observability/examples/cilium-operator-ipam/monitoring/README.md#bridge-and-admission
+      - eval_time: 40s
+        alertname: PoolBridgeUnavailable
+        exp_alerts: []
+  - name: Healthy allocation does not hide a route conflict
+    interval: 10s
+    input_series:
+      - series: 'azure_vnet_pool_admission_ready{job="azure-vnet-pool",instance="node:10093"}'
+        values: "1 1 1 1"
+      - series: 'azure_vnet_pool_observation_healthy{job="azure-vnet-pool",instance="node:10093",stage="routes"}'
+        values: "0 0 0 0"
+    alert_rule_test:
+      - eval_time: 30s
+        alertname: PoolHostRouteConflict
+        exp_alerts:
+          - exp_labels: {job: azure-vnet-pool, instance: "node:10093", stage: routes, severity: critical}
+            exp_annotations:
+              summary: Host route diagnostics failed or are stale
+              description: Inspect /status, ip -4 rule and all routing tables; check for host-local pod addresses and the table-101 gateway. Confirm with pod probes.
+              runbook_url: https://github.com/Azure/azure-container-networking/blob/feat/40396612-pool-observability/examples/cilium-operator-ipam/monitoring/README.md#routes-and-traffic
+      - eval_time: 30s
+        alertname: PoolAdmissionUnavailable
+        exp_alerts: []
+  - name: Unknown credential expiry must not be interpreted as expired
+    interval: 10s
+    input_series:
+      - series: 'azure_vnet_pool_credential_expiry_known{instance="node:10093"}'
+        values: "0 0"
+      - series: 'azure_vnet_pool_credential_expires_timestamp_seconds{instance="node:10093"}'
+        values: "0 0"
+    alert_rule_test:
+      - eval_time: 10s
+        alertname: PoolCredentialExpiring
+        exp_alerts: []
+  - name: Lost scrape is unknown rather than healthy
+    interval: 10s
+    input_series:
+      - series: 'up{job="azure-vnet-pool",instance="node:10093"}'
+        values: "0 0 0 0"
+    alert_rule_test:
+      - eval_time: 30s
+        alertname: PoolBridgeUnavailable
+        exp_alerts:
+          - exp_labels: {job: azure-vnet-pool, instance: "node:10093", severity: critical}
+            exp_annotations:
+              summary: Pool bridge cannot be scraped
+              description: Check the host service, listener and scrape path; existing lease data is not current.
+              runbook_url: https://github.com/Azure/azure-container-networking/blob/feat/40396612-pool-observability/examples/cilium-operator-ipam/monitoring/README.md#bridge-and-admission
+  - name: Expiring credentials are actionable before expiry
+    interval: 10s
+    input_series:
+      - series: 'azure_vnet_pool_credential_expiry_known{instance="node:10093"}'
+        values: "1 1"
+      - series: 'azure_vnet_pool_credential_expires_timestamp_seconds{instance="node:10093"}'
+        values: "1000 1000"
+    alert_rule_test:
+      - eval_time: 10s
+        alertname: PoolCredentialExpiring
+        exp_alerts:
+          - exp_labels: {instance: "node:10093", severity: warning}
+            exp_annotations:
+              summary: Observed bridge credential expires within one hour
+              description: Renew the configured credential and verify actual API success; changing an inline kubeconfig token requires the existing restart procedure.
+              runbook_url: https://github.com/Azure/azure-container-networking/blob/feat/40396612-pool-observability/examples/cilium-operator-ipam/monitoring/README.md#credentials

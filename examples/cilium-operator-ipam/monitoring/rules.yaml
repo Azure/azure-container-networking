@@ -1,0 +1,161 @@
+groups:
+  - name: pool-health
+    rules:
+      - record: azure_vnet_pool:observation_age_seconds
+        expr: time() - azure_vnet_pool_last_success_timestamp_seconds
+      - record: azure_vnet_pool:operation_p99_seconds
+        expr: histogram_quantile(0.99, sum by (cluster, node, operation, le) (rate(azure_vnet_pool_operation_duration_seconds_bucket[5m])))
+      - record: azure_vnet_pool:operator_allocation_p99_seconds
+        expr: histogram_quantile(0.99, sum by (cluster, subnet_id, type, le) (rate(cilium_operator_ipam_allocation_duration_seconds_bucket[5m])))
+      - record: azure_vnet_pool:asg_arm_convergence_p99_seconds
+        expr: histogram_quantile(0.99, sum by (cluster, subscription_id, resource_group, asg_name, le) (rate(pod_nsg_controller_prefix_set_convergence_seconds_bucket[5m])))
+      - alert: PoolBridgeUnavailable
+        expr: up{job="azure-vnet-pool"} == 0 or absent(up{job="azure-vnet-pool"})
+        for: 30s
+        labels: {severity: critical}
+        annotations:
+          summary: Pool bridge cannot be scraped
+          description: Check the host service, listener and scrape path; existing lease data is not current.
+          runbook_url: https://github.com/Azure/azure-container-networking/blob/feat/40396612-pool-observability/examples/cilium-operator-ipam/monitoring/README.md#bridge-and-admission
+      - alert: PoolHealthMetricsMissing
+        expr: up{job="azure-vnet-pool"} == 1 unless on (job, instance) azure_vnet_pool_admission_ready
+        for: 30s
+        labels: {severity: critical}
+        annotations:
+          summary: Scrape succeeds but pool health is absent
+          description: Verify the running bridge version and /metrics response; do not treat an empty scrape as healthy.
+          runbook_url: https://github.com/Azure/azure-container-networking/blob/feat/40396612-pool-observability/examples/cilium-operator-ipam/monitoring/README.md#bridge-and-admission
+      - alert: PoolAdmissionUnavailable
+        expr: azure_vnet_pool_admission_ready == 0
+        for: 10s
+        labels: {severity: critical}
+        annotations:
+          summary: Pool admission is unavailable or unknown
+          description: Inspect /status for lease_expired, boot_changed, storage_unavailable or fenced; restore the failed dependency without deleting allocation state.
+          runbook_url: https://github.com/Azure/azure-container-networking/blob/feat/40396612-pool-observability/examples/cilium-operator-ipam/monitoring/README.md#bridge-and-admission
+      - alert: PoolPersistentlyFenced
+        expr: azure_vnet_pool_fenced == 1
+        labels: {severity: critical}
+        annotations:
+          summary: Pool has a persistent admission fence
+          description: Inspect fence_reason and /status; establish ownership and follow fenced recovery before resuming admission.
+          runbook_url: https://github.com/Azure/azure-container-networking/blob/feat/40396612-pool-observability/examples/cilium-operator-ipam/monitoring/README.md#bridge-and-admission
+      - alert: PoolDependencyObservationFailed
+        expr: azure_vnet_pool_observation_healthy{stage=~"guest|node_api|pool_api|storage|credentials"} == 0
+        for: 30s
+        labels: {severity: warning}
+        annotations:
+          summary: Pool dependency observation failed or became stale
+          description: Inspect the stage in /status and errors_total; check credentials, API access, guest metadata or storage as indicated.
+          runbook_url: https://github.com/Azure/azure-container-networking/blob/feat/40396612-pool-observability/examples/cilium-operator-ipam/monitoring/README.md#dependency-and-storage
+      - alert: PoolCredentialExpiring
+        expr: (azure_vnet_pool_credential_expires_timestamp_seconds - time() < 3600) and (azure_vnet_pool_credential_expiry_known == 1)
+        labels: {severity: warning}
+        annotations:
+          summary: Observed bridge credential expires within one hour
+          description: Renew the configured credential and verify actual API success; changing an inline kubeconfig token requires the existing restart procedure.
+          runbook_url: https://github.com/Azure/azure-container-networking/blob/feat/40396612-pool-observability/examples/cilium-operator-ipam/monitoring/README.md#credentials
+      - alert: PoolCredentialExpiryUnknown
+        expr: azure_vnet_pool_credential_expiry_known == 0
+        for: 15m
+        labels: {severity: info}
+        annotations:
+          summary: Credential expiry is not observable
+          description: Confirm the exec/provider/opaque-token renewal mechanism externally; this is not evidence of valid or non-expiring credentials.
+          runbook_url: https://github.com/Azure/azure-container-networking/blob/feat/40396612-pool-observability/examples/cilium-operator-ipam/monitoring/README.md#credentials
+      - alert: PoolReserveDeficit
+        expr: (azure_vnet_pool_addresses{kind="reserve_deficit"} > 0) and on (job, instance) (azure_vnet_pool_observation_healthy{stage="storage"} == 1)
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: Warm pool reserve has not recovered
+          description: Correlate operator availability, target_node demand, subnet capacity and ARM failures before increasing capacity.
+          runbook_url: https://github.com/Azure/azure-container-networking/blob/feat/40396612-pool-observability/examples/cilium-operator-ipam/monitoring/README.md#operator-and-capacity
+      - alert: PoolStorageSlow
+        expr: azure_vnet_pool:operation_p99_seconds{operation=~"database_lock|database_write"} > 1
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: Bridge database operations are slow
+          description: Inspect lock contention, disk latency, space and permissions; do not clear database files to recover.
+          runbook_url: https://github.com/Azure/azure-container-networking/blob/feat/40396612-pool-observability/examples/cilium-operator-ipam/monitoring/README.md#dependency-and-storage
+      - alert: PoolHostRouteConflict
+        expr: azure_vnet_pool_observation_healthy{stage="routes"} == 0
+        for: 30s
+        labels: {severity: critical}
+        annotations:
+          summary: Host route diagnostics failed or are stale
+          description: Inspect /status, ip -4 rule and all routing tables; check for host-local pod addresses and the table-101 gateway. Confirm with pod probes.
+          runbook_url: https://github.com/Azure/azure-container-networking/blob/feat/40396612-pool-observability/examples/cilium-operator-ipam/monitoring/README.md#routes-and-traffic
+  - name: pool-dependencies
+    rules:
+      - alert: PoolOperatorUnavailable
+        expr: max by (cluster) (up{job="cilium-operator"}) == 0 or absent(up{job="cilium-operator"})
+        for: 30s
+        labels: {severity: warning}
+        annotations:
+          summary: No operator metrics target is reachable
+          description: Check the operator deployment and scrape path; remaining free addresses can mask an allocation outage.
+          runbook_url: https://github.com/Azure/azure-container-networking/blob/feat/40396612-pool-observability/examples/cilium-operator-ipam/monitoring/README.md#operator-and-capacity
+      - alert: PoolOperatorARMFailure
+        expr: sum by (cluster, operation) (increase(cilium_operator_azure_api_duration_seconds_count{response_code="Failed"}[5m])) > 0
+        labels: {severity: warning}
+        annotations:
+          summary: Operator Azure API calls are failing
+          description: Inspect operator errors for the indicated operation and compare node deficit/capacity; the error metric is operator-wide, not a per-node diagnosis.
+          runbook_url: https://github.com/Azure/azure-container-networking/blob/feat/40396612-pool-observability/examples/cilium-operator-ipam/monitoring/README.md#operator-and-capacity
+      - alert: PoolPolicyTelemetryUnavailable
+        expr: max by (cluster) (up{job="pod-nsg-controller"}) == 0 or absent(up{job="pod-nsg-controller"})
+        for: 30s
+        labels: {severity: critical}
+        annotations:
+          summary: ASG controller observations are unavailable
+          description: Restore the controller or its scrape path; previous ARM success does not establish current policy membership.
+          runbook_url: https://github.com/Azure/azure-container-networking/blob/feat/40396612-pool-observability/examples/cilium-operator-ipam/monitoring/README.md#policy
+      - alert: PoolPolicyNotReconciled
+        expr: pod_nsg_mapping_reconciled{status=~"False|Unknown"} == 1 or (pod_nsg_mapping_observed_generation < on (cluster, namespace, mapping) pod_nsg_mapping_generation)
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: ASG mapping is not reconciled to its current generation
+          description: Inspect PodASGMapping conditions and controller ARM errors; verify actual traffic separately after recovery.
+          runbook_url: https://github.com/Azure/azure-container-networking/blob/feat/40396612-pool-observability/examples/cilium-operator-ipam/monitoring/README.md#policy
+      - alert: PoolPolicyStatusUnavailable
+        expr: up{job="pod-nsg-mapping-state"} == 0 or absent(up{job="pod-nsg-mapping-state"})
+        for: 30s
+        labels: {severity: warning}
+        annotations:
+          summary: Mapping status telemetry is unavailable
+          description: Restore the kube-state-metrics collector and its PodASGMapping access; controller histograms alone do not describe current reconciliation state.
+          runbook_url: https://github.com/Azure/azure-container-networking/blob/feat/40396612-pool-observability/examples/cilium-operator-ipam/monitoring/README.md#policy
+      - alert: PoolPolicyStatusMissing
+        expr: pod_nsg_mapping_generation unless on (cluster, namespace, mapping) pod_nsg_mapping_reconciled
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: ASG mapping has no reconciliation condition
+          description: Inspect controller startup and PodASGMapping status; missing conditions are unknown, not successful.
+          runbook_url: https://github.com/Azure/azure-container-networking/blob/feat/40396612-pool-observability/examples/cilium-operator-ipam/monitoring/README.md#policy
+      - alert: PoolPodTrafficFailed
+        expr: probe_success{job="pod-network-probe",expectation="allow"} == 0
+        for: 30s
+        labels: {severity: critical}
+        annotations:
+          summary: Expected pod connectivity failed
+          description: Check listener/control health and same-node versus cross-node placement, then correlate routes and ASG status. A failed connection alone is not an NSG-drop diagnosis.
+          runbook_url: https://github.com/Azure/azure-container-networking/blob/feat/40396612-pool-observability/examples/cilium-operator-ipam/monitoring/README.md#routes-and-traffic
+      - alert: PoolUnexpectedPodAccess
+        expr: probe_success{job="pod-network-probe",expectation="deny"} == 1
+        labels: {severity: critical}
+        annotations:
+          summary: A pod connection succeeded where access should be denied
+          description: Verify probe identity and target, then inspect policy membership and enforcement. Failed deny probes alone cannot certify isolation.
+          runbook_url: https://github.com/Azure/azure-container-networking/blob/feat/40396612-pool-observability/examples/cilium-operator-ipam/monitoring/README.md#routes-and-traffic
+      - alert: PoolPodProbeUnavailable
+        expr: up{job="pod-network-probe"} == 0 or absent(up{job="pod-network-probe"}) or (up{job="pod-network-probe"} == 1 unless on (job, instance, source_node, destination_node) probe_success{job="pod-network-probe"})
+        for: 30s
+        labels: {severity: warning}
+        annotations:
+          summary: Pod-originated probe evidence is unavailable
+          description: Restore the probe exporter and scrape path; do not infer reachability from bridge or controller success.
+          runbook_url: https://github.com/Azure/azure-container-networking/blob/feat/40396612-pool-observability/examples/cilium-operator-ipam/monitoring/README.md#routes-and-traffic

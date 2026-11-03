@@ -1,0 +1,24 @@
+[
+  {
+    "targets": ["REPLACE_SAME_NODE_POD_IP:8080"],
+    "labels": {
+      "cluster": "REPLACE_CLUSTER",
+      "source_node": "REPLACE_SOURCE_NODE",
+      "destination_node": "REPLACE_SOURCE_NODE",
+      "placement": "same-node",
+      "expectation": "allow",
+      "probe_exporter": "REPLACE_SOURCE_POD_IP:9115"
+    }
+  },
+  {
+    "targets": ["REPLACE_OTHER_NODE_POD_IP:8080"],
+    "labels": {
+      "cluster": "REPLACE_CLUSTER",
+      "source_node": "REPLACE_SOURCE_NODE",
+      "destination_node": "REPLACE_OTHER_NODE",
+      "placement": "cross-node",
+      "expectation": "allow",
+      "probe_exporter": "REPLACE_SOURCE_POD_IP:9115"
+    }
+  }
+]

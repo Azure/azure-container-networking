@@ -7,6 +7,7 @@ After=network-online.target
 Type=simple
 User=root
 Environment=KUBECONFIG=/etc/azure-vnet/bridge.kubeconfig
+Environment=AZURE_VNET_POOL_HEALTH_ADDRESS=127.0.0.1:10093
 ExecStart=/opt/cni/bin/azure-vnet-ipam-bridge
 Restart=on-failure
 RestartSec=5
