@@ -1434,6 +1434,11 @@ func TestPublishNCWithRNCPublisherEmptySubnetNameRejected(t *testing.T) {
 	mux.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Equal(t, "application/json; charset=UTF-8", w.Header().Get("Content-Type"))
+	var resp cns.PublishNetworkContainerResponse
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	require.Equal(t, types.InvalidRequest, resp.Response.ReturnCode)
+	require.Equal(t, "subnet name is required in network vnet-rnc-empty-subnet-publish when useRNCPublisher is true", resp.Response.Message)
 	require.Zero(t, joinSubnetCalls)
 	require.Zero(t, publishCalls)
 }
@@ -2003,6 +2008,11 @@ func TestUnpublishNCWithRNCPublisherEmptySubnetNameRejected(t *testing.T) {
 	mux.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Equal(t, "application/json; charset=UTF-8", w.Header().Get("Content-Type"))
+	var resp cns.UnpublishNetworkContainerResponse
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	require.Equal(t, types.InvalidRequest, resp.Response.ReturnCode)
+	require.Equal(t, "subnet name is required in network vnet-rnc-empty-subnet-unpublish when useRNCPublisher is true", resp.Response.Message)
 	require.Zero(t, joinSubnetCalls)
 	require.Zero(t, unpublishCalls)
 }
