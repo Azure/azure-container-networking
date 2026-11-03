@@ -103,9 +103,10 @@ func TestGetAllNetworkContainerResponsesNMAgentVersionList(t *testing.T) {
 				},
 			}
 
-			responses := service.getAllNetworkContainerResponses(cns.GetNetworkContainerRequest{
+			responses, err := service.getAllNetworkContainerResponses(cns.GetNetworkContainerRequest{
 				OrchestratorContext: orchestratorContext,
-			})
+			}, 0)
+			require.ErrorIs(t, err, tt.nmaErr)
 
 			require.Equal(t, []cns.GetNetworkContainerResponse{{
 				NetworkContainerID: ncID,
