@@ -25,6 +25,14 @@ type CiliumPoolIdentity struct {
 	Subnet        string
 }
 
+func (id CiliumPoolIdentity) validateHostConfig(config *common.CiliumPoolConfig) error {
+	if id.Interface != config.Interface || id.Subnet != config.Subnet ||
+		!strings.EqualFold(id.NICID, config.NICID) {
+		return fmt.Errorf("%w: host configuration does not match stored cilium pool", errCiliumPoolState)
+	}
+	return nil
+}
+
 type CiliumPoolState struct {
 	Identity    CiliumPoolIdentity
 	ReadyUntil  time.Time

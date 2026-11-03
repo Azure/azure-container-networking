@@ -5,7 +5,6 @@ package ipam
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -86,10 +85,8 @@ func (am *addressManager) Initialize(config *common.PluginConfig, rehydrateIpamI
 		return err
 	}
 	if config.CiliumPool != nil && am.CiliumPool != nil {
-		id := am.CiliumPool.Identity
-		if id.Interface != config.CiliumPool.Interface || id.Subnet != config.CiliumPool.Subnet ||
-			!strings.EqualFold(id.NICID, config.CiliumPool.NICID) {
-			return fmt.Errorf("%w: host configuration does not match stored cilium pool", errCiliumPoolState)
+		if configErr := am.CiliumPool.Identity.validateHostConfig(config.CiliumPool); configErr != nil {
+			return configErr
 		}
 	}
 
