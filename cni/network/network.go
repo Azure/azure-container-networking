@@ -106,6 +106,7 @@ type NetPlugin struct {
 	nnsClient          NnsClient
 	multitenancyClient MultitenancyClient
 	netClient          InterfaceGetter
+	ciliumPool         *common.CiliumPoolConfig
 }
 
 type PolicyArgs struct {
@@ -172,6 +173,7 @@ func NewPlugin(name string,
 
 // Starts the plugin.
 func (plugin *NetPlugin) Start(config *common.PluginConfig) error {
+	plugin.ciliumPool = config.CiliumPool
 	if err := validateCiliumPoolNetworkState(config); err != nil {
 		return err
 	}
