@@ -23,6 +23,19 @@ type BoltStore struct {
 	db       *bolt.DB
 	logger   *zap.Logger
 	mu       sync.Mutex
+	readOnly bool
+	// Observe is configured before use and must not block or access the store.
+	Observe func(operation string, duration time.Duration, err error)
+}
+
+// NewReadOnlyBoltStore opens existing state without creating or changing it.
+func NewReadOnlyBoltStore(fileName string, logger *zap.Logger) (*BoltStore, error) {
+	s, err := NewBoltStore(fileName, logger)
+	if err != nil {
+		return nil, err
+	}
+	s.readOnly = true
+	return s, nil
 }
 
 func NewBoltStore(fileName string, logger *zap.Logger) (*BoltStore, error) {
@@ -32,7 +45,13 @@ func NewBoltStore(fileName string, logger *zap.Logger) (*BoltStore, error) {
 	return &BoltStore{fileName: fileName, logger: logger}, nil
 }
 
-func (s *BoltStore) Lock(timeout time.Duration) error {
+func (s *BoltStore) Lock(timeout time.Duration) (resultErr error) {
+	start := time.Now()
+	defer func() {
+		if s.Observe != nil {
+			s.Observe("lock", time.Since(start), resultErr)
+		}
+	}()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.db != nil {
@@ -41,7 +60,7 @@ func (s *BoltStore) Lock(timeout time.Duration) error {
 	if timeout <= 0 {
 		return ErrTimeoutLockingStore
 	}
-	db, err := bolt.Open(s.fileName, 0o600, &bolt.Options{Timeout: timeout})
+	db, err := bolt.Open(s.fileName, 0o600, &bolt.Options{Timeout: timeout, ReadOnly: s.readOnly})
 	if err != nil {
 		return fmt.Errorf("opening Bolt store: %w", err)
 	}
@@ -88,7 +107,13 @@ func (s *BoltStore) Read(key string, value interface{}) error {
 	return nil
 }
 
-func (s *BoltStore) Write(key string, value interface{}) error {
+func (s *BoltStore) Write(key string, value interface{}) (resultErr error) {
+	start := time.Now()
+	defer func() {
+		if s.Observe != nil {
+			s.Observe("write", time.Since(start), resultErr)
+		}
+	}()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.db == nil {

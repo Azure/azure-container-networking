@@ -66,6 +66,7 @@ func TestBoltStorePreservesInvalidDatabase(t *testing.T) {
 	if err := os.WriteFile(path, invalid, 0o600); err != nil {
 		t.Fatal(err)
 	}
+
 	kvs, err := NewBoltStore(path, zap.NewNop())
 	if err != nil {
 		t.Fatal(err)
@@ -82,5 +83,64 @@ func TestBoltStorePreservesInvalidDatabase(t *testing.T) {
 	}
 	if !bytes.Equal(invalid, after) {
 		t.Error("invalid database was overwritten")
+	}
+}
+
+func TestBoltReadOnlyAndObservation(t *testing.T) {
+	const persisted = "persisted"
+	path := filepath.Join(t.TempDir(), "state.db")
+	read, err := NewReadOnlyBoltStore(path, zap.NewNop())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = read.Lock(time.Second); err == nil {
+		t.Fatal("read-only open created a database")
+	}
+	if _, err = os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("read-only observation created state: %v", err)
+	}
+	writer, err := NewBoltStore(path, zap.NewNop())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var operations []string
+	writer.Observe = func(operation string, duration time.Duration, err error) {
+		if duration < 0 {
+			t.Error("negative operation duration")
+		}
+		if err != nil {
+			operation += "_error"
+		}
+		operations = append(operations, operation)
+	}
+	if err = writer.Lock(time.Second); err != nil {
+		t.Fatal(err)
+	}
+	if err = writer.Write("value", persisted); err != nil {
+		t.Fatal(err)
+	}
+	if err = writer.Write("value", make(chan int)); err == nil {
+		t.Fatal("invalid write succeeded")
+	}
+	if err = writer.Unlock(); err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff([]string{"lock", "write", "write_error"}, operations); diff != "" {
+		t.Fatalf("operation observations (-want +got): %s", diff)
+	}
+	if err = read.Lock(time.Second); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if unlockErr := read.Unlock(); unlockErr != nil {
+			t.Error(unlockErr)
+		}
+	}()
+	var value string
+	if err = read.Read("value", &value); err != nil || value != persisted {
+		t.Fatalf("read-only snapshot = %q, %v", value, err)
+	}
+	if err = read.Write("value", "overwritten"); err == nil {
+		t.Fatal("read-only snapshot allowed a write")
 	}
 }
