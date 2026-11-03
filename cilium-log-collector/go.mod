@@ -5,7 +5,7 @@ go 1.26.1
 toolchain go1.26.9
 
 require (
-	github.com/Azure/azure-container-networking v1.9.3
+	github.com/Azure/azure-container-networking v1.9.4
 	github.com/fluent/fluent-bit-go v0.0.0-20230731091245-a7a013e2473c
 	github.com/microsoft/ApplicationInsights-Go v0.4.4
 	github.com/stretchr/testify v1.12.1
@@ -13,7 +13,7 @@ require (
 
 require (
 	code.cloudfoundry.org/clock v1.41.0 // indirect
-	github.com/Microsoft/go-winio v0.6.2 // indirect
+	github.com/Microsoft/go-winio v0.6.3 // indirect
 	github.com/Microsoft/hcsshim v0.13.0 // indirect
 	github.com/avast/retry-go/v4 v4.7.0 // indirect
 	github.com/containerd/cgroups/v3 v3.0.3 // indirect
