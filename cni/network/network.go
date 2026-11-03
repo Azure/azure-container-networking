@@ -425,6 +425,11 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
+	if err = validateCiliumPoolNetworkConfig(plugin.ciliumPool != nil, nwCfg); err != nil {
+		err = plugin.Errorf("Invalid network configuration: %v", err)
+		return err
+	}
+
 	if argErr := plugin.validateArgs(args, nwCfg); argErr != nil {
 		err = argErr
 		return err

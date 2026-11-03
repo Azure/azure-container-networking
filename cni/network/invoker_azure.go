@@ -58,11 +58,6 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 	if addConfig.nwCfg == nil {
 		return addResult, invoker.plugin.Errorf("nil nwCfg passed to CNI ADD: %v", errNilNetworkConfig)
 	}
-	if invoker.poolEnabled && (addConfig.nwCfg.Mode != "transparent-tunnel" ||
-		addConfig.nwCfg.IPV6Mode != "" || addConfig.nwCfg.IPAM.Type != "azure-vnet-ipam") {
-		return addResult, invoker.plugin.Errorf("cilium pool requires IPv4 transparent-tunnel with azure-vnet-ipam")
-	}
-
 	if len(invoker.nwInfo.Subnets) > 0 {
 		addConfig.nwCfg.IPAM.Subnet = invoker.nwInfo.Subnets[0].Prefix.String()
 	}
