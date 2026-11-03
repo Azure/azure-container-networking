@@ -14,6 +14,11 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	aksLocalDNSVNetPrefix    = "169.254.10.10/32"
+	aksLocalDNSClusterPrefix = "169.254.10.11/32"
+)
+
 // setRoutes sets the routes for podIPInfo used in SWIFT V2 scenario.
 func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 	logger.Printf("[SWIFTv2Middleware] set routes for pod with nic type : %s", podIPInfo.NICType)
@@ -32,7 +37,7 @@ func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 		routes = append(routes, virtualGWRoute, route)
 
 	case cns.InfraNIC:
-		// Linux CNS middleware sets the infra routes(pod, infravnet and service cidrs) to infraNIC interface for the podIPInfo used in SWIFT V2 Linux scenario
+		// Linux CNS middleware routes pod, infravnet, service CIDRs and AKS LocalDNS through the infraNIC.
 		infraRoutes, err := k.getInfraRoutes(podIPInfo)
 		if err != nil {
 			return errors.Wrap(err, "failed to get infra routes for infraNIC interface")
@@ -74,7 +79,7 @@ func (k *K8sSWIFTv2Middleware) GetPodCidrs() ([]string, []string, error) { //nol
 	return v4PodCidrs, v6PodCidrs, nil
 }
 
-// getInfraRoutes() returns the infra routes including infravnet/pod/service cidrs for the podIPInfo used in SWIFT V2 Linux scenario
+// getInfraRoutes returns infravnet/pod/service CIDRs and AKS LocalDNS listener routes for SWIFT V2 Linux pods.
 // Linux uses 169.254.1.1 as the default ipv4 gateway and fe80::1234:5678:9abc as the default ipv6 gateway
 func (k *K8sSWIFTv2Middleware) getInfraRoutes(podIPInfo *cns.PodIpInfo) ([]cns.Route, error) {
 	var routes []cns.Route
@@ -98,6 +103,8 @@ func (k *K8sSWIFTv2Middleware) getInfraRoutes(podIPInfo *cns.PodIpInfo) ([]cns.R
 	v6IPs = append(v6IPs, v6PodIPs...)
 
 	if ip.Is4() {
+		// AKS LocalDNS uses .10 for VNet DNS and .11 for cluster DNS; neither may follow delegated egress.
+		v4IPs = append(v4IPs, aksLocalDNSVNetPrefix, aksLocalDNSClusterPrefix)
 		routes = append(routes, k.AddRoutes(v4IPs, overlayGatewayv4)...)
 	} else {
 		routes = append(routes, k.AddRoutes(v6IPs, overlayGatewayV6)...)
