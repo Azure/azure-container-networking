@@ -24,6 +24,8 @@ var (
 
 // LocalState owns persistence and coordinated access for the pool consumer.
 type LocalState struct {
+	// Observe records lock/write timing. Configure before use; it must not block or access the store.
+	Observe      func(string, time.Duration, error)
 	networkPath  string
 	ipamPath     string
 	lifetimePath string
@@ -47,7 +49,7 @@ func NewLocalState(config *common.CiliumPoolConfig, logger *zap.Logger) (*LocalS
 
 // Acquire excludes another publisher until the returned release is called.
 func (s *LocalState) Acquire(ctx context.Context) (func(), error) {
-	kvs, err := lockStore(ctx, s.lifetimePath, time.Millisecond, s.logger)
+	kvs, err := s.lockStore(ctx, s.lifetimePath, time.Millisecond)
 	if err != nil {
 		return nil, err
 	}
@@ -56,12 +58,12 @@ func (s *LocalState) Acquire(ctx context.Context) (func(), error) {
 
 // CanInitialize requires no prior logical network or IPAM initialization.
 func (s *LocalState) CanInitialize(ctx context.Context) error {
-	network, err := lockStore(ctx, s.networkPath, store.DefaultLockTimeoutLinux, s.logger)
+	network, err := s.lockStore(ctx, s.networkPath, store.DefaultLockTimeoutLinux)
 	if err != nil {
 		return err
 	}
 	defer unlockStore(network, s.logger)
-	kvs, err := lockStore(ctx, s.ipamPath, store.DefaultLockTimeoutLinux, s.logger)
+	kvs, err := s.lockStore(ctx, s.ipamPath, store.DefaultLockTimeoutLinux)
 	if err != nil {
 		return err
 	}
@@ -87,12 +89,12 @@ func (s *LocalState) Synchronize(ctx context.Context, id ipam.CiliumPoolIdentity
 	supply []ipam.CiliumPoolAddress, initialize, admit bool,
 ) (used map[string]ipam.CiliumPoolUsage, quarantined int, err error) {
 	// Coordinate recovery using CNI's network-before-IPAM lock order.
-	network, err := lockStore(ctx, s.networkPath, store.DefaultLockTimeoutLinux, s.logger)
+	network, err := s.lockStore(ctx, s.networkPath, store.DefaultLockTimeoutLinux)
 	if err != nil {
 		return nil, 0, err
 	}
 	defer unlockStore(network, s.logger)
-	kvs, err := lockStore(ctx, s.ipamPath, store.DefaultLockTimeoutLinux, s.logger)
+	kvs, err := s.lockStore(ctx, s.ipamPath, store.DefaultLockTimeoutLinux)
 	if err != nil {
 		return nil, 0, fmt.Errorf("opening local IPAM state: %w", err)
 	}
@@ -112,7 +114,7 @@ func (s *LocalState) Synchronize(ctx context.Context, id ipam.CiliumPoolIdentity
 }
 
 func (s *LocalState) Fence(ctx context.Context, reason string) error {
-	kvs, err := lockStore(ctx, s.ipamPath, store.DefaultLockTimeoutLinux, s.logger)
+	kvs, err := s.lockStore(ctx, s.ipamPath, store.DefaultLockTimeoutLinux)
 	if err != nil {
 		return fmt.Errorf("opening local IPAM state for fencing: %w", err)
 	}
@@ -125,7 +127,7 @@ func (s *LocalState) Fence(ctx context.Context, reason string) error {
 
 // ValidateNetworkState is called while the CNI caller holds network ownership.
 func (s *LocalState) ValidateNetworkState(ctx context.Context, network store.KeyValueStore) (resultErr error) {
-	kvs, err := lockStore(ctx, s.ipamPath, store.DefaultLockTimeoutLinux, s.logger)
+	kvs, err := s.lockStore(ctx, s.ipamPath, store.DefaultLockTimeoutLinux)
 	if err != nil {
 		return fmt.Errorf("opening cilium pool IPAM state: %w", err)
 	}
@@ -154,6 +156,16 @@ func (s *LocalState) ValidateNetworkState(ctx context.Context, network store.Key
 }
 
 func lockStore(ctx context.Context, path string, timeout time.Duration, logger *zap.Logger) (*store.BoltStore, error) {
+	return lockObservedStore(ctx, path, timeout, logger, nil)
+}
+
+func (s *LocalState) lockStore(ctx context.Context, path string, timeout time.Duration) (*store.BoltStore, error) {
+	return lockObservedStore(ctx, path, timeout, s.logger, s.Observe)
+}
+
+func lockObservedStore(ctx context.Context, path string, timeout time.Duration, logger *zap.Logger,
+	observe func(string, time.Duration, error),
+) (*store.BoltStore, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("waiting for state database: %w", err)
 	}
@@ -164,6 +176,7 @@ func lockStore(ctx context.Context, path string, timeout time.Duration, logger *
 	if err != nil {
 		return nil, fmt.Errorf("creating state store: %w", err)
 	}
+	kvs.Observe = observe
 	if err := kvs.Lock(timeout); err != nil {
 		return nil, fmt.Errorf("locking state database: %w", err)
 	}
