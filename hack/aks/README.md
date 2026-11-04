@@ -35,6 +35,7 @@ AKS Clusters
   swift-up                                  Bring up a SWIFT AzCNI cluster
   vnetscale-swift-byocni-up                 Bring up a Vnet Scale SWIFT BYO CNI cluster
   vnetscale-swift-byocni-nokubeproxy-up     Bring up a Vnet Scale SWIFT BYO CNI cluster without kube-proxy
+  vnetscale-dualstack-swift-byocni-nokubeproxy-up  Bring up a dual-stack Vnet Scale SWIFT BYO CNI cluster without kube-proxy
   vnetscale-swift-cilium-up                 Bring up a Vnet Scale SWIFT Cilium cluster
   vnetscale-swift-up                        Bring up a Vnet Scale SWIFT AzCNI cluster
   nodesubnet-cilium-up                      Bring up a Nodesubnet Cilium cluster
