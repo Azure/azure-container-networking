@@ -500,7 +500,7 @@ func (service *HTTPRestService) removeToBeDeletedIPStateUntransacted(
 func (service *HTTPRestService) getAllNetworkContainerResponsesWithRetry(
 	req cns.GetNetworkContainerRequest,
 ) []cns.GetNetworkContainerResponse {
-	// First check is unchanged: if the NMAgent call returns an error, CNS skips the VFP check and returns the NC config anyways.
+	// Preserve the first check's existing behavior: on NMAgent error, return CNS's stored NC config without verifying VFP.
 	resps, _ := service.getAllNetworkContainerResponses(req, 0)
 	timeoutMs, _ := service.GetOption(acn.OptVFPPendingRetryTimeoutMs).(int)
 	timeout := time.Duration(timeoutMs) * time.Millisecond
@@ -516,6 +516,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponsesWithRetry(
 		retries++
 		next, err := service.getAllNetworkContainerResponses(req, vfpPendingRetryInterval)
 		if err != nil {
+			// Keep the previous code 31 response, not the unverified config returned with this error.
 			break
 		}
 		resps = next
@@ -543,14 +544,14 @@ func (service *HTTPRestService) getNCVersionList(ctx context.Context, maxAge tim
 	fetchedAt := time.Now() // before the call, so the age bounds how old the data can be
 	list, err := service.nma.GetNCVersionList(ctx)
 	if err != nil {
-		return list, err //nolint:wrapcheck // callers only log it
+		return nma.NCVersionList{}, err //nolint:wrapcheck // callers only log it
 	}
 	service.ncVersionList, service.ncVersionListAt = list, fetchedAt
 	return list, nil
 }
 
-// getAllNetworkContainerResponses also returns the NMAgent NC version list error, if any. On that error the
-// version check is skipped (fail open).
+// getAllNetworkContainerResponses returns CNS's stored NC config and checks its VFP status with NMAgent.
+// On NMAgent error, it returns the unverified config alongside the error so callers can choose whether to use it.
 func (service *HTTPRestService) getAllNetworkContainerResponses(
 	req cns.GetNetworkContainerRequest, maxNCVersionListAge time.Duration,
 ) ([]cns.GetNetworkContainerResponse, error) {
@@ -598,7 +599,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 	ncVersionListResp, err := service.getNCVersionList(ctx, maxNCVersionListAge)
 	if err != nil {
 		logger.Errorf("failed to get nc version list from nmagent: %+v", err) //nolint:staticcheck // Preserve existing logger usage.
-		// Preserve cached NC availability when NMAgent cannot confirm VFP status.
+		// Build from CNS's stored NC config, not the failed NMAgent version-list response.
 		return buildNetworkContainerResponses(ncIDs, service.state.ContainerStatus, false), err
 	}
 	programmedVersions := map[string]string{}
