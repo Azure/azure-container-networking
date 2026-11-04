@@ -1,9 +1,10 @@
 # CNS IPAM Unix socket
 
-On Linux, `EnableIPAMUnixSocket` enables an additional CNS listener.
+On Linux, `EnableIPAMUnixSocket` moves the CNS IPAM routes from TCP to a Unix socket listener.
 The setting defaults to `false`.
 The socket path is `/var/run/azure-cns/cns.sock`.
-TCP continues to serve all existing routes.
+TCP continues to serve all non-IPAM routes.
+When `EnableIPAMUnixSocket` is enabled, CNI configurations must set `cnsSocketPath` to `/var/run/azure-cns/cns.sock`.
 
 Before enabling the listener, provision `/var/run/azure-cns` as a root-owned directory with mode `0700`.
 CNS rejects a missing directory, a directory symlink, a different owner, or different permissions.
