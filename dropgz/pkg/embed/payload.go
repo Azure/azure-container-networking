@@ -2,8 +2,10 @@ package embed
 
 import (
 	"bufio"
+	"bytes"
 	"compress/gzip"
 	"embed"
+	stderrors "errors"
 	"io"
 	"io/fs"
 	"os"
@@ -19,7 +21,10 @@ const (
 	oldFileSuffix = ".old"
 )
 
-var ErrArgsMismatched = errors.New("mismatched argument count")
+var (
+	ErrArgsMismatched = errors.New("mismatched argument count")
+	errNotRegular     = errors.New("embed: destination is not a regular file")
+)
 
 type Compression string
 
@@ -94,28 +99,129 @@ func Extract(p string, compression Compression) (*compoundReadCloser, error) {
 	return &compoundReadCloser{closer: f, readcloser: rc}, nil
 }
 
-func deploy(src, dest string, compression Compression) error {
-	rc, err := Extract(src, compression)
+func deploy(dest string, openPayload func() (io.ReadCloser, error)) error {
+	rc, err := openPayload()
 	if err != nil {
 		return err
 	}
-	defer rc.Close()
-	// check if the file exists at dest already and rename it as an old one
-	if _, err := os.Stat(dest); err == nil {
-		oldDest := dest + oldFileSuffix
-		if err = os.Rename(dest, oldDest); err != nil {
-			return errors.Wrapf(err, "failed to rename the %s to %s", dest, oldDest)
-		}
-	}
-	target, err := os.OpenFile(dest, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o755) //nolint:gomnd // executable file bitmask
+	same, err := matchesDestination(rc, dest)
+	err = stderrors.Join(err, errors.Wrap(rc.Close(), "failed to close payload"))
 	if err != nil {
-		return errors.Wrapf(err, "failed to create file %s", dest)
+		return err
 	}
-	defer target.Close()
-	_, err = io.Copy(bufio.NewWriter(target), rc)
-	return errors.Wrapf(err, "failed to copy %s to %s", src, dest)
+	if same {
+		return nil
+	}
+	rc, err = openPayload()
+	if err != nil {
+		return err
+	}
+	return deployReader(dest, rc)
 }
 
+func matchesDestination(src io.Reader, dest string) (same bool, err error) {
+	info, err := destinationInfo(dest)
+	if err != nil || info == nil {
+		return false, err
+	}
+	current, err := os.Open(dest)
+	if err != nil {
+		return false, errors.Wrapf(err, "failed to open destination %s", dest)
+	}
+	defer func() {
+		err = stderrors.Join(err, errors.Wrap(current.Close(), "failed to close destination"))
+	}()
+	var payload, installed [32 * 1024]byte
+	for {
+		n, readErr := src.Read(payload[:])
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
+			return false, errors.Wrap(readErr, "failed to read payload")
+		}
+		m, currentErr := io.ReadFull(current, installed[:n])
+		if currentErr != nil && !errors.Is(currentErr, io.EOF) && !errors.Is(currentErr, io.ErrUnexpectedEOF) {
+			return false, errors.Wrap(currentErr, "failed to read destination")
+		}
+		if n != m || !bytes.Equal(payload[:n], installed[:m]) {
+			return false, nil
+		}
+		if readErr != nil {
+			m, currentErr = current.Read(installed[:1])
+			if currentErr != nil && !errors.Is(currentErr, io.EOF) {
+				return false, errors.Wrap(currentErr, "failed to read destination")
+			}
+			return m == 0, nil
+		}
+	}
+}
+
+func deployReader(dest string, rc io.ReadCloser) error {
+	info, err := destinationInfo(dest)
+	if err != nil {
+		return stderrors.Join(err, errors.Wrap(rc.Close(), "failed to close payload"))
+	}
+	mode := fs.FileMode(0o755)
+	if info != nil {
+		mode = info.Mode().Perm()
+	}
+	staged, err := stageFile(dest, rc, mode)
+	if err != nil {
+		return err
+	}
+	if err = publishFile(staged, dest); err != nil {
+		return stderrors.Join(err, removeTemp(staged))
+	}
+	return nil
+}
+
+func stageFile(dest string, rc io.ReadCloser, mode fs.FileMode) (string, error) {
+	target, err := os.CreateTemp(filepath.Dir(dest), "."+filepath.Base(dest)+"-*.tmp")
+	if err != nil {
+		return "", stderrors.Join(errors.Wrapf(err, "failed to stage file %s", dest),
+			errors.Wrap(rc.Close(), "failed to close payload"))
+	}
+	_, err = io.Copy(target, rc)
+	err = stderrors.Join(errors.Wrapf(err, "failed to copy payload to %s", dest),
+		errors.Wrap(rc.Close(), "failed to close payload"))
+	if err == nil {
+		err = errors.Wrap(target.Chmod(mode), "failed to set file permissions")
+	}
+	if err == nil {
+		err = errors.Wrap(target.Sync(), "failed to sync staged file")
+	}
+	err = stderrors.Join(err, errors.Wrap(target.Close(), "failed to close staged file"))
+	if err != nil {
+		return "", stderrors.Join(err, removeTemp(target.Name()))
+	}
+	return target.Name(), nil
+}
+
+func removeTemp(name string) error {
+	if err := os.Remove(name); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return errors.Wrapf(err, "failed to remove temporary file %s", name)
+	}
+	return nil
+}
+
+func destinationInfo(dest string) (fs.FileInfo, error) {
+	info, err := os.Lstat(dest)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to inspect destination %s", dest)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, errors.Wrapf(errNotRegular, "%s", dest)
+	}
+	return info, nil
+}
+
+// Deploy leaves files with matching contents untouched, including their permissions,
+// and stages changed files before replacing destinations in a trusted directory.
+// Replacements preserve existing rwx permission bits; first installations use 0755.
+// Unix replacement is atomic. Windows replacement can fail when the destination is in use;
+// the live file is never moved aside to work around a failed replacement.
+// Each replacement keeps a .old backup and is independent of other payloads.
 func Deploy(log *zap.Logger, srcs, dests []string, compression Compression) error {
 	if len(srcs) != len(dests) {
 		return errors.Wrapf(ErrArgsMismatched, "%d and %d", len(srcs), len(dests))
@@ -123,10 +229,12 @@ func Deploy(log *zap.Logger, srcs, dests []string, compression Compression) erro
 	for i := range srcs {
 		src := srcs[i]
 		dest := dests[i]
-		if err := deploy(src, dest, compression); err != nil {
+		if err := deploy(dest, func() (io.ReadCloser, error) {
+			return Extract(src, compression)
+		}); err != nil {
 			return err
 		}
-		log.Info("wrote file", zap.String("src", src), zap.String("dest", dest))
+		log.Info("deployed file", zap.String("src", src), zap.String("dest", dest))
 	}
 	return nil
 }
