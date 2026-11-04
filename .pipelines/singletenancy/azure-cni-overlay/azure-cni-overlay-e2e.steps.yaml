@@ -99,7 +99,7 @@ steps:
             fi
         done
         sudo -E env "PATH=$PATH" make test-load \
-          SCALE_UP=32 OS_TYPE=windows CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_AZURE_CNI_OVERLAY=true \
+          SCALE_UP=32 OS_TYPE=windows CNI_TYPE=stateless VALIDATE_STATEFILE=true INSTALL_AZURE_CNI_OVERLAY=true \
           VALIDATE_V4OVERLAY=true CLEANUP=true \
           CNS_VERSION=$(CNS_VERSION) CNI_VERSION=$(CNI_VERSION) \
           CNS_IMAGE_NAME_OVERRIDE=$(CNS_IMAGE_NAME_OVERRIDE) CNI_IMAGE_NAME_OVERRIDE=$(CNI_IMAGE_NAME_OVERRIDE)
@@ -147,7 +147,7 @@ steps:
 
           cd ../../..
           echo "Validating Node Restart"
-          make test-validate-state OS_TYPE=windows RESTART_CASE=true CNI_TYPE=cniv2
+          make test-validate-state OS_TYPE=windows RESTART_CASE=true CNI_TYPE=stateless
           kubectl delete ns load-test
       displayName: "Validate Node Restart"
       retryCountOnTaskFailure: 3
