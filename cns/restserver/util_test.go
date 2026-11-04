@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -118,6 +119,88 @@ func TestGetAllNetworkContainerResponsesNMAgentVersionList(t *testing.T) {
 			assert.Equal(t, tt.vfpUpdateComplete, service.state.ContainerStatus[ncID].VfpUpdateComplete)
 		})
 	}
+}
+
+func TestGetAllNetworkContainerResponsesSharesRefresh(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		service := &HTTPRestService{
+			store: store.NewMockStore(""),
+			state: &httpRestServiceState{
+				OrchestratorType:                 cns.Kubernetes,
+				ContainerIDByOrchestratorContext: map[string]*ncList{},
+				ContainerStatus:                  map[string]containerstatus{},
+			},
+		}
+		ncIDs := []string{ncResponsePrimaryID, ncResponseSecondaryID}
+		requests := make([]cns.GetNetworkContainerRequest, len(ncIDs))
+		for i, ncID := range ncIDs {
+			pod := cns.KubernetesPodInfo{PodName: ncID, PodNamespace: ncResponseNamespace}
+			contextJSON, err := json.Marshal(pod)
+			require.NoError(t, err)
+			requests[i].OrchestratorContext = contextJSON
+			ncs := ncList(ncID)
+			service.state.ContainerIDByOrchestratorContext[pod.PodName+pod.PodNamespace] = &ncs
+			service.state.ContainerStatus[ncID] = containerstatus{
+				CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
+					NetworkContainerid:  ncID,
+					Version:             "1",
+					OrchestratorContext: contextJSON,
+				},
+			}
+		}
+
+		calls := 0
+		service.nma = &fakes.NMAgentClientFake{
+			GetNCVersionListF: func(context.Context) (nmagent.NCVersionList, error) {
+				calls++
+				if calls <= len(requests) {
+					return nmagent.NCVersionList{}, nil
+				}
+				return nmagent.NCVersionList{Containers: []nmagent.NCVersion{
+					{NetworkContainerID: ncIDs[0], Version: "1"},
+					{NetworkContainerID: ncIDs[1], Version: "0"},
+				}}, nil
+			},
+		}
+		for _, req := range requests {
+			responses, err := service.getAllNetworkContainerResponses(req, 0)
+			require.NoError(t, err)
+			require.Len(t, responses, 1)
+			require.Equal(t, types.NetworkContainerVfpProgramPending, responses[0].Response.ReturnCode)
+		}
+		require.Equal(t, len(requests), calls, "first checks must bypass the cache")
+		service.ncVersionListAt = time.Now().Add(-vfpPendingRetryInterval)
+
+		type result struct {
+			responses []cns.GetNetworkContainerResponse
+			err       error
+		}
+		results := make([]result, len(requests))
+		start := make(chan struct{})
+		for i, req := range requests {
+			go func() {
+				<-start
+				responses, err := service.getAllNetworkContainerResponses(req, vfpPendingRetryInterval)
+				results[i] = result{responses: responses, err: err}
+			}()
+		}
+		// Release both pending callers together; virtual time keeps the cache from expiring during scheduling.
+		synctest.Wait()
+		close(start)
+		synctest.Wait()
+
+		wantCodes := []types.ResponseCode{types.Success, types.NetworkContainerVfpProgramPending}
+		for i, got := range results {
+			require.NoError(t, got.err)
+			require.Len(t, got.responses, 1)
+			response := got.responses[0]
+			assert.Equal(t, ncIDs[i], response.NetworkContainerID)
+			assert.Equal(t, wantCodes[i], response.Response.ReturnCode)
+		}
+		assert.Equal(t, len(requests)+1, calls, "pending callers must share one successful refresh")
+		assert.True(t, service.state.ContainerStatus[ncIDs[0]].VfpUpdateComplete)
+		assert.False(t, service.state.ContainerStatus[ncIDs[1]].VfpUpdateComplete)
+	})
 }
 
 func TestUpdateNCVFPStatusUntransactedMatchesMaster(t *testing.T) {
