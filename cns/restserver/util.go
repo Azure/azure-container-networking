@@ -22,6 +22,7 @@ import (
 	nma "github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
+	"github.com/avast/retry-go/v4"
 	"github.com/pkg/errors"
 )
 
@@ -508,21 +509,38 @@ func (service *HTTPRestService) getAllNetworkContainerResponsesWithRetry(
 		return resps
 	}
 
-	// Bounded by time so a slow wireserver can't push the CNI request past its CNS client timeout.
+	// Bound retry scheduling; each lookup retains its existing NMAgent timeout.
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	deadline, _ := ctx.Deadline()
 	start := time.Now()
 	retries := 0
-	for vfpPending(resps) && time.Since(start) < timeout {
-		time.Sleep(vfpPendingRetryInterval)
+	first := true
+	pendingResponse := ResponseCodeToError(types.NetworkContainerVfpProgramPending)
+	err := retry.Do(func() error {
+		// retry.Do starts immediately. Reuse the initial result so the first refresh waits 500 ms.
+		if first {
+			first = false
+			return pendingResponse
+		}
+		if !time.Now().Before(deadline) {
+			return retry.Unrecoverable(context.DeadlineExceeded)
+		}
 		retries++
 		next, err := service.getAllNetworkContainerResponses(req, vfpPendingRetryInterval)
 		if err != nil {
 			// Keep the previous code 31 response, not the unverified config returned with this error.
-			break
+			return retry.Unrecoverable(err)
 		}
 		resps = next
-	}
-	logger.Printf("[Azure-CNS] VFP programming pending retry ended: pod=%s retries=%d waitMs=%d stillPending=%t", //nolint:staticcheck // will migrate to logger/v2
-		req.OrchestratorContext, retries, time.Since(start).Milliseconds(), vfpPending(resps))
+		if vfpPending(resps) {
+			return pendingResponse
+		}
+		return nil
+	}, retry.Context(ctx), retry.Attempts(0), retry.Delay(vfpPendingRetryInterval), retry.DelayType(retry.FixedDelay))
+
+	logger.Printf("[Azure-CNS] VFP programming pending retry ended: pod=%s retries=%d waitMs=%d stillPending=%t err=%v", //nolint:staticcheck // will migrate to logger/v2
+		req.OrchestratorContext, retries, time.Since(start).Milliseconds(), vfpPending(resps), err)
 	return resps
 }
 

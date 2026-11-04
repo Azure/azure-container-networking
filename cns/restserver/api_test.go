@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -576,6 +577,7 @@ func TestGetNetworkContainerVFPPendingRetry(t *testing.T) {
 		callDelay     time.Duration      // delay on every NC version list call after the first, to model a slow wireserver
 		wantCode      types.ResponseCode // return code CNS gives CNI
 		wantCalls     int                // total NC version list calls CNS made
+		wantWait      time.Duration
 	}{
 		{
 			name:          "retry off (timeout 0): fails fast with code 31",
@@ -590,13 +592,15 @@ func TestGetNetworkContainerVFPPendingRetry(t *testing.T) {
 			ncListedAfter: 2,
 			wantCode:      types.Success,
 			wantCalls:     3,
+			wantWait:      time.Second,
 		},
 		{
 			name:          "retry on (timeout 1000ms): gives up at the timeout with code 31",
 			timeoutMs:     1000,
 			ncListedAfter: 100,
 			wantCode:      types.NetworkContainerVfpProgramPending,
-			wantCalls:     3,
+			wantCalls:     2,
+			wantWait:      time.Second,
 		},
 		{
 			name:          "retry on (timeout 3000ms): wireserver 429 on a retry stops it and keeps code 31",
@@ -605,6 +609,7 @@ func TestGetNetworkContainerVFPPendingRetry(t *testing.T) {
 			errAt:         2,
 			wantCode:      types.NetworkContainerVfpProgramPending,
 			wantCalls:     2,
+			wantWait:      vfpPendingRetryInterval,
 		},
 		{
 			name:          "retry on (timeout 3000ms): wireserver 429 on the first check fails open as before",
@@ -621,19 +626,46 @@ func TestGetNetworkContainerVFPPendingRetry(t *testing.T) {
 			callDelay:     time.Second,
 			wantCode:      types.NetworkContainerVfpProgramPending,
 			wantCalls:     2,
+			wantWait:      1500 * time.Millisecond,
+		},
+		{
+			name:      "retry on: ready on the first check returns immediately",
+			timeoutMs: 3000,
+			wantCode:  types.Success,
+			wantCalls: 1,
+		},
+		{
+			name:          "retry on: deadline before first retry makes no extra call",
+			timeoutMs:     100,
+			ncListedAfter: 100,
+			wantCode:      types.NetworkContainerVfpProgramPending,
+			wantCalls:     1,
+			wantWait:      100 * time.Millisecond,
+		},
+		{
+			name:          "retry on: configured budget is not capped by retry-go's default attempts",
+			timeoutMs:     6000,
+			ncListedAfter: 100,
+			wantCode:      types.NetworkContainerVfpProgramPending,
+			wantCalls:     12,
+			wantWait:      6 * time.Second,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.NoError(t, createNC(params))
-			defer func() { require.NoError(t, deleteNetworkContainerWithParams(params)) }()
-			svc.SetOption(acncommon.OptVFPPendingRetryTimeoutMs, tt.timeoutMs)
-			calls, ncListedAfter, errAt, callDelay = 0, tt.ncListedAfter, tt.errAt, tt.callDelay
+			synctest.Test(t, func(t *testing.T) {
+				require.NoError(t, createNC(params))
+				defer func() { require.NoError(t, deleteNetworkContainerWithParams(params)) }()
+				svc.SetOption(acncommon.OptVFPPendingRetryTimeoutMs, tt.timeoutMs)
+				calls, ncListedAfter, errAt, callDelay = 0, tt.ncListedAfter, tt.errAt, tt.callDelay
 
-			resp, err := getNetworkContainerByContext(params)
-			require.NoError(t, err)
-			require.Equal(t, tt.wantCode, resp.Response.ReturnCode)
-			require.Equal(t, tt.wantCalls, calls)
+				start := time.Now()
+				resp, err := getNetworkContainerByContext(params)
+				require.NoError(t, err)
+				require.Equal(t, tt.wantCode, resp.Response.ReturnCode)
+				require.Equal(t, tt.wantCalls, calls)
+				require.Equal(t, tt.wantWait, time.Since(start))
+			})
 		})
 	}
 }
