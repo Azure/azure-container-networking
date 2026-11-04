@@ -13,5 +13,5 @@ require (
 require (
 	github.com/vishvananda/netns v0.0.5 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
-	golang.org/x/sys v0.43.0 // indirect
+	golang.org/x/sys v0.44.0 // indirect
 )
