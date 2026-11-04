@@ -1,12 +1,12 @@
 # acnpublic: acnpublic.azurecr.io
 # general cilium variables
 DIR 									?= 1.18
-CILIUM_VERSION_TAG               		?= v1.18.14-260923
+CILIUM_VERSION_TAG               		?= v1.18.15-261022
 CILIUM_IMAGE_REGISTRY           		?= mcr.microsoft.com/containernetworking
 IPV6_IMAGE_REGISTRY						?= mcr.microsoft.com/containernetworking
-IPV6_HP_BPF_VERSION               		?= v0.0.1
+IPV6_HP_BPF_VERSION               		?= v0.0.3-0
 CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY 	?= mcr.microsoft.com/containernetworking
-CILIUM_LOG_COLLECTOR_VERSION_TAG 		?= v0.0.2-0
+CILIUM_LOG_COLLECTOR_VERSION_TAG 		?= v0.0.7-0
 CILIUM_LOG_COLLECTOR_IMAGE				?= $(CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY)/cilium-log-collector:$(CILIUM_LOG_COLLECTOR_VERSION_TAG)
 CILIUM_NIGHTLY_VERSION_TAG 				?= cilium-nightly-pipeline
 WAIT_FOR_CILIUM						?= true
@@ -15,14 +15,14 @@ WAIT_FOR_CILIUM						?= true
 EBPF_CILIUM_DIR				     		?= 1.18
 # we don't use CILIUM_VERSION_TAG or CILIUM_IMAGE_REGISTRY because we want to use the version supported by ebpf
 EBPF_CILIUM_IMAGE_REGISTRY           	?= mcr.microsoft.com/containernetworking
-IPV6_HP_BPF_VERSION               		?= v0.0.1
+IPV6_HP_BPF_VERSION               		?= v0.0.3-0
 IPV6_IMAGE_REGISTRY           			?= mcr.microsoft.com/containernetworking
-EBPF_CILIUM_VERSION_TAG               	?= v1.18.14-260923
+EBPF_CILIUM_VERSION_TAG               	?= v1.18.15-261022
 AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY	?= mcr.microsoft.com/containernetworking
-AZURE_IPTABLES_MONITOR_TAG          	?= v0.0.5-0
+AZURE_IPTABLES_MONITOR_TAG          	?= v0.0.8-0
 AZURE_IPTABLES_MONITOR_IMAGE			?= $(AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY)/azure-iptables-monitor:$(AZURE_IPTABLES_MONITOR_TAG)
 AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY		?= mcr.microsoft.com/containernetworking
-AZURE_IP_MASQ_MERGER_TAG            	?= v0.0.1-0
+AZURE_IP_MASQ_MERGER_TAG            	?= v0.0.5-0
 AZURE_IP_MASQ_MERGER_IMAGE				?= $(AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY)/azure-ip-masq-merger:$(AZURE_IP_MASQ_MERGER_TAG)
 
 # so we can use in envsubst
