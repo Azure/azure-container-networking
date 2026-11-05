@@ -593,12 +593,12 @@ func TestGetNetworkContainerVFPPendingRetry(t *testing.T) {
 			wantWait:      time.Second,
 		},
 		{
-			name:          "retry on (timeout 1000ms): gives up at the timeout with code 31",
-			timeoutMs:     1000,
+			name:          "retry on (timeout 1200ms): gives up at the timeout with code 31",
+			timeoutMs:     1200,
 			ncListedAfter: 100,
 			wantCode:      types.NetworkContainerVfpProgramPending,
-			wantCalls:     2,
-			wantWait:      time.Second,
+			wantCalls:     3,
+			wantWait:      1200 * time.Millisecond,
 		},
 		{
 			name:          "retry on (timeout 3000ms): wireserver 429 on a retry stops it and keeps code 31",
@@ -642,11 +642,11 @@ func TestGetNetworkContainerVFPPendingRetry(t *testing.T) {
 		},
 		{
 			name:          "retry on: configured budget is not capped by retry-go's default attempts",
-			timeoutMs:     6000,
+			timeoutMs:     6200,
 			ncListedAfter: 100,
 			wantCode:      types.NetworkContainerVfpProgramPending,
-			wantCalls:     12,
-			wantWait:      6 * time.Second,
+			wantCalls:     13,
+			wantWait:      6200 * time.Millisecond,
 		},
 	}
 	for _, tt := range tests {

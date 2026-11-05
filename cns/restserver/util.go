@@ -509,15 +509,12 @@ func (service *HTTPRestService) getAllNetworkContainerResponsesWithRetry(
 		return resps
 	}
 
-	// Bound retry scheduling; each lookup retains its existing NMAgent timeout.
+	// Stop retrying once timeout has passed. This context isn't passed to the lookups, so a lookup
+	// already running still finishes or hits its own 2 s NMAgent timeout.
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	deadline, _ := ctx.Deadline()
 	start := time.Now()
 	err := retry.Do(func() error {
-		if !time.Now().Before(deadline) {
-			return retry.Unrecoverable(context.DeadlineExceeded)
-		}
 		// retry.Do calls this right away. That call reuses the version list the initial check just
 		// cached, so the next NMAgent call is a full interval later.
 		next, err := service.getAllNetworkContainerResponses(req, vfpPendingRetryInterval)
