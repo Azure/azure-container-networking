@@ -142,7 +142,7 @@ stages:
               codeCoverageTool: 'Cobertura'
               summaryFileLocation: coverage/linux-coverage.xml
           # Looking for PRs merging into master only
-          - task: BuildQualityChecks@8
+          - task: BuildQualityChecks@10
             displayName: "Check Code Coverage Regression"
             condition: eq(variables['System.PullRequest.targetBranchName'], 'master')
             inputs:
