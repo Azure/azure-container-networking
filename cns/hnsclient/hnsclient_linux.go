@@ -39,6 +39,7 @@ func CreateHostNCApipaEndpoint(
 	localIPConfiguration cns.IPConfiguration,
 	allowNCToHostCommunication bool,
 	allowHostToNCCommunication bool,
+	_ bool, // skipDefaultRoutes
 	ncPolicies []cns.NetworkContainerRequestPolicies) (string, error) {
 	return "", nil
 }
