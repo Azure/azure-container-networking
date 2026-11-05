@@ -423,6 +423,23 @@ func TestRestoreState(t *testing.T) {
 	}
 }
 
+func TestRestoreStateWithoutDncPartitionKey(t *testing.T) {
+	mainStore := store.NewMockStore("")
+	require.NoError(t, mainStore.Write(storeKey, map[string]string{
+		"OrchestratorType": cns.ServiceFabric,
+		"NodeID":           "node1",
+	}))
+	s := &HTTPRestService{
+		Service: &cns.Service{Service: &common.Service{}},
+		store:   mainStore,
+		state:   &httpRestServiceState{},
+	}
+	require.NoError(t, s.restoreState())
+	assert.Empty(t, s.state.DncPartitionKey)
+	assert.Equal(t, cns.ServiceFabric, s.state.OrchestratorType)
+	assert.Equal(t, "node1", s.state.NodeID)
+}
+
 func TestRestoreStateFailsClosedWhenEndpointStateCannotBeRead(t *testing.T) {
 	mainStore := store.NewMockStore("")
 	endpointStore := store.NewMockStore("")

@@ -10,6 +10,7 @@ const (
 	// Dimensions
 	orchestratorTypeKey             = "OrchestratorType"
 	nodeIDKey                       = "NodeID"
+	dncPartitionKeyKey              = "DncPartitionKey"
 	HomeAZStr                       = "HomeAZ"
 	IsAZRSupportedStr               = "IsAZRSupported"
 	IsAZRDualStackFixPresentStr     = "IsAZRDualStackFixPresent"
