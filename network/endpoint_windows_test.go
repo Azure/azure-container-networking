@@ -712,7 +712,7 @@ func TestConfigureHcnEndpoint_SkipDefaultRoutes(t *testing.T) {
 			expectDummyRoute: true,
 		},
 		{
-			name:             "SkipDefaultRoutes true with existing routes - no dummy",
+			name:             "SkipDefaultRoutes true with existing routes - keeps routes and adds dummy",
 			skipDefaultRoute: true,
 			routes: []RouteInfo{
 				{
@@ -720,8 +720,8 @@ func TestConfigureHcnEndpoint_SkipDefaultRoutes(t *testing.T) {
 					Gw:  net.ParseIP("172.16.1.1"),
 				},
 			},
-			expectedRoutes:   1,
-			expectDummyRoute: false,
+			expectedRoutes:   2,
+			expectDummyRoute: true,
 		},
 		{
 			name:             "SkipDefaultRoutes false - no dummy",

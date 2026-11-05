@@ -168,6 +168,49 @@ func TestAddSnatForDns(t *testing.T) {
 	}
 }
 
+func TestSetupRoutingForMultitenancySkipDefaultRoutesWithSnatOnHost(t *testing.T) {
+	_, dnsIPNet, _ := net.ParseCIDR("168.63.129.16/32")
+	localGw := net.ParseIP("169.254.128.1")
+	tests := []struct {
+		name             string
+		enableSnatForDNS bool
+		wantEpRoutes     []network.RouteInfo
+		wantResultRoutes []network.RouteInfo
+	}{
+		{
+			name: "dns snat disabled adds no routes",
+		},
+		{
+			name:             "dns snat enabled keeps only the dns route",
+			enableSnatForDNS: true,
+			wantEpRoutes:     []network.RouteInfo{{Dst: *dnsIPNet, Gw: localGw, DevName: snatInterface}},
+			wantResultRoutes: []network.RouteInfo{{Dst: *dnsIPNet, Gw: localGw}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			epInfo := &network.EndpointInfo{EnableSnatForDns: tt.enableSnatForDNS}
+			result := &network.InterfaceInfo{}
+			(&Multitenancy{}).SetupRoutingForMultitenancy(
+				&cni.NetworkConfig{MultiTenancy: true, EnableSnatOnHost: true},
+				&cns.GetNetworkContainerResponse{
+					LocalIPConfiguration: cns.IPConfiguration{GatewayIPAddress: localGw.String()},
+					SkipDefaultRoutes:    true,
+				},
+				nil, epInfo, result)
+
+			for _, r := range epInfo.Routes {
+				require.NotEqual(t, "0.0.0.0/0", r.Dst.String(), "endpoint has a default route")
+			}
+			for _, r := range result.Routes {
+				require.NotEqual(t, "0.0.0.0/0", r.Dst.String(), "result has a default route")
+			}
+			require.Equal(t, tt.wantEpRoutes, epInfo.Routes)
+			require.Equal(t, tt.wantResultRoutes, result.Routes)
+		})
+	}
+}
+
 // linux swiftv2 example
 func GetTestCNSResponseSecondaryLinux(macAddress string) map[string]network.InterfaceInfo {
 	parsedMAC, _ := net.ParseMAC(macAddress)
