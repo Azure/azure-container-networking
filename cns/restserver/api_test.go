@@ -557,9 +557,7 @@ func TestGetNetworkContainerVFPPendingRetry(t *testing.T) {
 	var callDelay time.Duration
 	mnma.GetNCVersionListF = func(_ context.Context) (nmagent.NCVersionList, error) {
 		calls++
-		if calls > 1 {
-			time.Sleep(callDelay)
-		}
+		time.Sleep(callDelay)
 		if calls == errAt {
 			return nmagent.NCVersionList{}, nmagent.Error{Code: http.StatusTooManyRequests, Source: "wireserver"}
 		}
@@ -574,7 +572,7 @@ func TestGetNetworkContainerVFPPendingRetry(t *testing.T) {
 		timeoutMs     int                // CNS VFPPendingRetryTimeoutMs; 0 = retry off (one NMAgent check), >0 = re-check every 500 ms until it elapses
 		ncListedAfter int                // retry on which the NC first shows up in NMAgent's NC version list (0 = first check, 100 = never)
 		errAt         int                // NC version list call that returns a wireserver 429 (1 = first check, 2 = first retry, 0 = none)
-		callDelay     time.Duration      // delay on every NC version list call after the first, to model a slow wireserver
+		callDelay     time.Duration      // delay on every NC version list call, to model a slow wireserver
 		wantCode      types.ResponseCode // return code CNS gives CNI
 		wantCalls     int                // total NC version list calls CNS made
 		wantWait      time.Duration
@@ -620,13 +618,13 @@ func TestGetNetworkContainerVFPPendingRetry(t *testing.T) {
 			wantCalls:     1,
 		},
 		{
-			name:          "retry on (timeout 1500ms): slow wireserver is bounded by the timeout",
-			timeoutMs:     1500,
+			name:          "retry on (timeout 800ms): slow wireserver is bounded by a timeout that starts after the initial check",
+			timeoutMs:     800,
 			ncListedAfter: 100,
 			callDelay:     time.Second,
 			wantCode:      types.NetworkContainerVfpProgramPending,
 			wantCalls:     2,
-			wantWait:      1500 * time.Millisecond,
+			wantWait:      2 * time.Second,
 		},
 		{
 			name:      "retry on: ready on the first check returns immediately",

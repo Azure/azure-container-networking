@@ -501,7 +501,7 @@ func (service *HTTPRestService) removeToBeDeletedIPStateUntransacted(
 func (service *HTTPRestService) getAllNetworkContainerResponsesWithRetry(
 	req cns.GetNetworkContainerRequest,
 ) []cns.GetNetworkContainerResponse {
-	// Preserve the first check's existing behavior: on NMAgent error, return CNS's stored NC config without verifying VFP.
+	// Unchanged initial check. If NMAgent errors, this returns CNS's stored config without a VFP check.
 	resps, _ := service.getAllNetworkContainerResponses(req, 0)
 	timeoutMs, _ := service.GetOption(acn.OptVFPPendingRetryTimeoutMs).(int)
 	timeout := time.Duration(timeoutMs) * time.Millisecond
@@ -514,19 +514,12 @@ func (service *HTTPRestService) getAllNetworkContainerResponsesWithRetry(
 	defer cancel()
 	deadline, _ := ctx.Deadline()
 	start := time.Now()
-	retries := 0
-	first := true
-	pendingResponse := ResponseCodeToError(types.NetworkContainerVfpProgramPending)
 	err := retry.Do(func() error {
-		// retry.Do starts immediately. Reuse the initial result so the first refresh waits 500 ms.
-		if first {
-			first = false
-			return pendingResponse
-		}
 		if !time.Now().Before(deadline) {
 			return retry.Unrecoverable(context.DeadlineExceeded)
 		}
-		retries++
+		// retry.Do calls this right away. That call reuses the version list the initial check just
+		// cached, so the next NMAgent call is a full interval later.
 		next, err := service.getAllNetworkContainerResponses(req, vfpPendingRetryInterval)
 		if err != nil {
 			// Keep the previous code 31 response, not the unverified config returned with this error.
@@ -534,13 +527,13 @@ func (service *HTTPRestService) getAllNetworkContainerResponsesWithRetry(
 		}
 		resps = next
 		if vfpPending(resps) {
-			return pendingResponse
+			return ResponseCodeToError(types.NetworkContainerVfpProgramPending)
 		}
 		return nil
 	}, retry.Context(ctx), retry.Attempts(0), retry.Delay(vfpPendingRetryInterval), retry.DelayType(retry.FixedDelay))
 
-	logger.Printf("[Azure-CNS] VFP programming pending retry ended: pod=%s retries=%d waitMs=%d stillPending=%t err=%v", //nolint:staticcheck // will migrate to logger/v2
-		req.OrchestratorContext, retries, time.Since(start).Milliseconds(), vfpPending(resps), err)
+	logger.Printf("[Azure-CNS] VFP programming pending retry ended: pod=%s waitMs=%d stillPending=%t err=%v", //nolint:staticcheck // will migrate to logger/v2
+		req.OrchestratorContext, time.Since(start).Milliseconds(), vfpPending(resps), err)
 	return resps
 }
 
