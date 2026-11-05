@@ -374,7 +374,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	responseHeaderTimeout, _ := service.GetOption(acn.OptHttpResponseHeaderTimeout).(int)
 	acn.InitHttpClient(connectionTimeout, responseHeaderTimeout)
 
-	logger.SetContextDetails(service.state.OrchestratorType, service.state.NodeID, service.state.DncPartitionKey)
+	logger.SetContextDetails(service.state.OrchestratorType, service.state.NodeID, service.state.DncPartitionKey) //nolint:staticcheck // updating to logger v2 is outside scope of current refactor
 	logger.Printf("[Azure CNS]  Listening.")
 
 	return nil

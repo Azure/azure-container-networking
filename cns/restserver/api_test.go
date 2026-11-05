@@ -241,6 +241,13 @@ func TestSetOrchestratorType(t *testing.T) {
 }
 
 func TestSetOrchestratorTypePartitionPersistence(t *testing.T) {
+	const (
+		nodeID         = "node1"
+		otherNodeID    = "node2"
+		firstPartition = "partition1"
+		nextPartition  = "partition2"
+	)
+
 	for _, tt := range []struct {
 		name         string
 		orchestrator string
@@ -248,11 +255,11 @@ func TestSetOrchestratorTypePartitionPersistence(t *testing.T) {
 		partition    string
 		wantCode     types.ResponseCode
 	}{
-		{"set", cns.ServiceFabric, "node1", "partition1", types.Success},
-		{"replace", cns.ServiceFabric, "node1", "partition2", types.Success},
-		{"clear", cns.ServiceFabric, "node1", "", types.Success},
-		{"unsupported orchestrator", "unsupported", "node1", "partition2", types.UnsupportedOrchestratorType},
-		{"different node with NCs", cns.ServiceFabric, "node2", "partition2", types.InvalidRequest},
+		{"set", cns.ServiceFabric, nodeID, firstPartition, types.Success},
+		{"replace", cns.ServiceFabric, nodeID, nextPartition, types.Success},
+		{"clear", cns.ServiceFabric, nodeID, "", types.Success},
+		{"unsupported orchestrator", "unsupported", nodeID, nextPartition, types.UnsupportedOrchestratorType},
+		{"different node with NCs", cns.ServiceFabric, otherNodeID, nextPartition, types.InvalidRequest},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			statePath := filepath.Join(t.TempDir(), cnsJsonFileName)
@@ -263,19 +270,19 @@ func TestSetOrchestratorTypePartitionPersistence(t *testing.T) {
 				store:   mainStore,
 				state: &httpRestServiceState{
 					OrchestratorType: cns.ServiceFabric,
-					NodeID:           "node1",
+					NodeID:           nodeID,
 					DncPartitionKey:  "partition0",
-					ContainerStatus:  map[string]containerstatus{"nc1": {}},
+					ContainerStatus:  map[string]containerstatus{"nc123": {}},
 				},
 			}
 			require.NoError(t, s.saveState())
-			body, err := json.Marshal(cns.SetOrchestratorTypeRequest{
+			body, err := json.Marshal(cns.SetOrchestratorTypeRequest{ //nolint:musttag // modifying existing struct is beyond scope of this test
 				OrchestratorType: tt.orchestrator,
 				NodeID:           tt.nodeID,
 				DncPartitionKey:  tt.partition,
 			})
 			require.NoError(t, err)
-			request := httptest.NewRequest(http.MethodPost, cns.SetOrchestratorType, bytes.NewReader(body))
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, cns.SetOrchestratorType, bytes.NewReader(body))
 			writer := httptest.NewRecorder()
 			s.setOrchestratorType(writer, request)
 			var response cns.Response
@@ -305,7 +312,7 @@ func TestSetOrchestratorTypePartitionPersistence(t *testing.T) {
 			require.NoError(t, restarted.restoreState())
 			assert.Equal(t, wantPartition, restarted.state.DncPartitionKey)
 			assert.Equal(t, cns.ServiceFabric, restarted.state.OrchestratorType)
-			assert.Equal(t, "node1", restarted.state.NodeID)
+			assert.Equal(t, nodeID, restarted.state.NodeID)
 		})
 	}
 }

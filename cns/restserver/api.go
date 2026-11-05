@@ -460,7 +460,7 @@ func (service *HTTPRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 			service.state.OrchestratorType = req.OrchestratorType
 			service.state.NodeID = req.NodeID
 			service.state.DncPartitionKey = req.DncPartitionKey
-			logger.SetContextDetails(req.OrchestratorType, req.NodeID, req.DncPartitionKey)
+			logger.SetContextDetails(req.OrchestratorType, req.NodeID, req.DncPartitionKey) //nolint:staticcheck // updating to logger v2 is outside scope of current refactor
 			service.saveState()
 		default:
 			returnMessage = fmt.Sprintf("Invalid Orchestrator type %v", req.OrchestratorType)
