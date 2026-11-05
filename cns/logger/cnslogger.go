@@ -96,7 +96,11 @@ func (c *logger) SetContextDetails(orchestrator, nodeID, dncPartitionKey string)
 	c.m.Lock()
 	c.metadata[orchestratorTypeKey] = orchestrator
 	c.metadata[nodeIDKey] = nodeID
-	c.metadata[dncPartitionKeyKey] = dncPartitionKey
+	if dncPartitionKey == "" {
+		delete(c.metadata, dncPartitionKeyKey)
+	} else {
+		c.metadata[dncPartitionKeyKey] = dncPartitionKey
+	}
 	c.m.Unlock()
 }
 
