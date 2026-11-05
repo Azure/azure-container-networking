@@ -176,17 +176,13 @@ func TestGetAllNetworkContainerResponsesSharesRefresh(t *testing.T) {
 			err       error
 		}
 		results := make([]result, len(requests))
-		start := make(chan struct{})
 		for i, req := range requests {
 			go func() {
-				<-start
 				responses, err := service.getAllNetworkContainerResponses(req, vfpPendingRetryInterval)
 				results[i] = result{responses: responses, err: err}
 			}()
 		}
-		// Release both pending callers together; virtual time keeps the cache from expiring during scheduling.
-		synctest.Wait()
-		close(start)
+		// The clock stays frozen until both callers finish, so the cache can't expire between them.
 		synctest.Wait()
 
 		wantCodes := []types.ResponseCode{types.Success, types.NetworkContainerVfpProgramPending}
