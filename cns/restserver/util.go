@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -535,12 +536,9 @@ func (service *HTTPRestService) getAllNetworkContainerResponsesWithRetry(
 }
 
 func vfpPending(resps []cns.GetNetworkContainerResponse) bool {
-	for i := range resps {
-		if resps[i].Response.ReturnCode == types.NetworkContainerVfpProgramPending {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(resps, func(r cns.GetNetworkContainerResponse) bool {
+		return r.Response.ReturnCode == types.NetworkContainerVfpProgramPending
+	})
 }
 
 // getNCVersionList returns the cached NMAgent NC version list if it is younger than maxAge, otherwise
