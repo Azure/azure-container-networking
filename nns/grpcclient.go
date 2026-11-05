@@ -79,13 +79,13 @@ func configureContainerNetworking(
 	return err, res
 }
 
-// create a connection to the node network service listening at localhost:6678
+// create a connection to the node network service listening at 127.0.0.1:6668
 // and return nns client that encapsulates that connection
 func newGrpcClient(ctx context.Context) (contracts.NodeNetworkServiceClient, *grpc.ClientConn, error) {
 	localCtx, cancel := context.WithTimeout(ctx, connectionTimeout)
 	defer cancel()
 
-	nnsEndpoint := fmt.Sprintf(":%s", nnsPort)
+	nnsEndpoint := "127.0.0.1:" + nnsPort
 	log.Printf("[baremetal] Creating grpc connection to nns at endpoint :%s", nnsEndpoint)
 	conn, err := grpc.DialContext(
 		localCtx, nnsEndpoint, grpc.WithInsecure(), grpc.WithBlock())
