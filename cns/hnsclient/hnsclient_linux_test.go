@@ -17,7 +17,7 @@ func TestLinuxHnsNetwork(t *testing.T) {
 	require.Error(t, CreateHnsNetwork(cns.CreateHnsNetworkRequest{}))
 	require.Error(t, DeleteHnsNetwork(""))
 	// these no-op but return no error
-	_, err := CreateHostNCApipaEndpoint("", cns.IPConfiguration{}, false, false, []cns.NetworkContainerRequestPolicies{})
+	_, err := CreateHostNCApipaEndpoint("", cns.IPConfiguration{}, false, false, false, []cns.NetworkContainerRequestPolicies{})
 	require.NoError(t, err)
 	require.NoError(t, DeleteHostNCApipaEndpoint(""))
 }
