@@ -4,12 +4,17 @@
 package client
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni/api"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	ver "github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
+	utilexec "k8s.io/utils/exec"
+	fakeexec "k8s.io/utils/exec/testing"
 )
 
 func TestGetState(t *testing.T) {
@@ -31,6 +36,72 @@ func TestGetState(t *testing.T) {
 	}
 
 	require.Equal(t, res, state)
+}
+
+func TestGetStateOutputStreams(t *testing.T) {
+	const response = `{"ContainerInterfaces":{"endpoint":{"PodName":"pod"}}}`
+	const diagnostic = "can't rename log file: azure-vnet.log is being used by another process"
+	exitErr := &fakeexec.FakeExitError{Status: 1}
+	tests := []struct {
+		name    string
+		stdout  string
+		stderr  string
+		execErr error
+		wantErr bool
+	}{
+		{name: "valid state with diagnostics", stdout: response, stderr: diagnostic},
+		{name: "execution failure with valid state", stdout: response, stderr: diagnostic, execErr: exitErr, wantErr: true},
+		{name: "invalid state with diagnostics", stdout: "invalid state", stderr: diagnostic, wantErr: true},
+		{name: "state on stderr only", stderr: response, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			core, logs := observer.New(zap.WarnLevel)
+			oldLogger := logger
+			logger = zap.New(core)
+			t.Cleanup(func() { logger = oldLogger })
+
+			cmd := &fakeexec.FakeCmd{
+				RunScript: []fakeexec.FakeAction{
+					func() ([]byte, []byte, error) { return []byte(tt.stdout), []byte(tt.stderr), tt.execErr },
+				},
+				CombinedOutputScript: []fakeexec.FakeAction{
+					func() ([]byte, []byte, error) { return []byte(tt.stdout + tt.stderr), nil, tt.execErr },
+				},
+			}
+			exec := &fakeexec.FakeExec{
+				CommandScript: []fakeexec.FakeCommandAction{
+					func(command string, args ...string) utilexec.Cmd {
+						return fakeexec.InitFakeCmd(cmd, command, args...)
+					},
+				},
+			}
+
+			state, err := New(exec).GetEndpointState()
+			if tt.wantErr {
+				require.Error(t, err)
+				require.Nil(t, state)
+				require.ErrorContains(t, err, "stdout: ["+tt.stdout+"]")
+				require.ErrorContains(t, err, "stderr: ["+tt.stderr+"]")
+				if tt.execErr != nil {
+					require.ErrorIs(t, err, tt.execErr)
+				} else {
+					var syntaxErr *json.SyntaxError
+					require.ErrorAs(t, err, &syntaxErr)
+				}
+				require.Zero(t, logs.Len())
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, &api.AzureCNIState{
+				ContainerInterfaces: map[string]api.PodNetworkInterfaceInfo{
+					"endpoint": {PodName: "pod"},
+				},
+			}, state)
+			require.Equal(t, 1, logs.Len())
+			require.Equal(t, tt.stderr, logs.All()[0].ContextMap()["stderr"])
+		})
+	}
 }
 
 func TestGetVersion(t *testing.T) {
