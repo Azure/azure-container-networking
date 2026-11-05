@@ -69,6 +69,7 @@ COMMON_AKS_FIELDS = $(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 	--node-vm-size $(VM_SIZE) \
 	--no-ssh-key \
 	--os-sku $(OS_SKU) \
+	--kms-infrastructure-encryption Enabled \
 	$(LTS_ARGS) $(ACNS_ARGS)
 POD_CIDR = 192.168.0.0/16
 
@@ -300,6 +301,7 @@ swiftv2-multitenancy-cluster-up: rg-up ipv4
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--nodepool-tags fastpathenabled=true \
 		--no-ssh-key \
+		--kms-infrastructure-encryption Enabled \
 		$(LTS_ARGS) \
 		--yes
 	@$(MAKE) set-kubeconf
@@ -312,6 +314,7 @@ swiftv2-dummy-cluster-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT AzCNI clus
 		--tags stampcreatorserviceinfo=true \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--no-ssh-key \
+		--kms-infrastructure-encryption Enabled \
 		--yes
 	@$(MAKE) set-kubeconf
 
