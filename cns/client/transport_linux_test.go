@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync/atomic"
-	"syscall"
 	"testing"
 	"time"
 
@@ -64,7 +63,7 @@ func TestNewWithUnixSocketKeepsNonIPAMRoutesOnTCP(t *testing.T) {
 	require.Zero(t, unixRequests.Load())
 }
 
-func TestNewWithUnixSocketFallsBackBeforeConnecting(t *testing.T) {
+func TestNewWithUnixSocketDoesNotFallBackToTCP(t *testing.T) {
 	tests := []struct {
 		name        string
 		preparePath func(*testing.T, string)
@@ -97,8 +96,11 @@ func TestNewWithUnixSocketFallsBackBeforeConnecting(t *testing.T) {
 			require.NoError(t, err)
 
 			_, err = client.RequestIPs(t.Context(), cns.IPConfigsRequest{})
-			require.NoError(t, err)
-			require.EqualValues(t, 1, tcpRequests.Load())
+			require.Error(t, err)
+			err = client.ReleaseIPs(t.Context(), cns.IPConfigsRequest{})
+			var connErr *ConnectionFailureErr
+			require.ErrorAs(t, err, &connErr)
+			require.Zero(t, tcpRequests.Load())
 		})
 	}
 }
@@ -155,12 +157,6 @@ func TestNewWithUnixSocketDoesNotReplayAfterUnixConnect(t *testing.T) {
 	require.Zero(t, tcpRequests.Load())
 }
 
-func TestIsSafeUnixFallbackError(t *testing.T) {
-	require.True(t, isSafeUnixFallbackError(&net.OpError{Err: syscall.ENOENT}))
-	require.True(t, isSafeUnixFallbackError(&net.OpError{Err: syscall.ECONNREFUSED}))
-	require.False(t, isSafeUnixFallbackError(&net.OpError{Err: syscall.EACCES}))
-}
-
 func TestNewWithUnixSocketRejectsRelativePath(t *testing.T) {
 	_, err := NewWithUnixSocket("", "cns.sock", time.Second)
 	require.Error(t, err)
@@ -185,22 +181,6 @@ func TestNewWithUnixSocketRejectsCustomRoundTripper(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
-}
-
-func TestNewWithUnixSocketUsesDefaultDialer(t *testing.T) {
-	var tcpRequests atomic.Int32
-	server := httptest.NewServer(ipConfigsHandler(&tcpRequests))
-	t.Cleanup(server.Close)
-
-	original := http.DefaultTransport
-	t.Cleanup(func() { http.DefaultTransport = original })
-	http.DefaultTransport = &http.Transport{}
-
-	client, err := NewWithUnixSocket(server.URL, filepath.Join(t.TempDir(), "cns.sock"), time.Second)
-	require.NoError(t, err)
-	_, err = client.RequestIPs(t.Context(), cns.IPConfigsRequest{})
-	require.NoError(t, err)
-	require.EqualValues(t, 1, tcpRequests.Load())
 }
 
 func TestNewWithUnixSocketRoutesAllIPAMPaths(t *testing.T) {

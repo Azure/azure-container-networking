@@ -1081,7 +1081,11 @@ func main() {
 		// Start fs watcher here
 		z.Info("AsyncPodDelete is enabled")
 		logger.Printf("AsyncPodDelete is enabled")
-		cnsclient, err := cnsclient.New("", cnsReqTimeout) // nolint
+		asyncDeleteSocketPath := ""
+		if cnsconfig.EnableIPAMUnixSocket {
+			asyncDeleteSocketPath = restserver.IPAMUnixSocketPath
+		}
+		cnsclient, err := cnsclient.NewWithUnixSocket("", asyncDeleteSocketPath, cnsReqTimeout) // nolint
 		if err != nil {
 			z.Error("failed to create cnsclient", zap.Error(err))
 		}
