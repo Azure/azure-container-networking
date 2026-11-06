@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -37,14 +38,20 @@ func (c *client) GetEndpointState() (*api.AzureCNIState, error) {
 	envs = append(envs, cmdenv)
 	cmd.SetEnv(envs)
 
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("failed to call Azure CNI bin with err: [%w], output: [%s]", err, string(output))
+	var stdout, stderr bytes.Buffer
+	cmd.SetStdout(&stdout)
+	cmd.SetStderr(&stderr)
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("failed to call Azure CNI bin with err: [%w], stdout: [%s], stderr: [%s]", err, stdout.String(), stderr.String())
 	}
 
+	output := stdout.Bytes()
 	state := &api.AzureCNIState{}
 	if err := json.Unmarshal(output, state); err != nil {
-		return nil, fmt.Errorf("failed to decode response from Azure CNI when retrieving state: [%w], response from CNI: [%s]", err, string(output))
+		return nil, fmt.Errorf("failed to decode response from Azure CNI when retrieving state: [%w], stdout: [%s], stderr: [%s]", err, string(output), stderr.String())
+	}
+	if stderr.Len() > 0 {
+		logger.Warn("Azure CNI returned endpoint state with diagnostics", zap.String("stderr", stderr.String()))
 	}
 
 	return state, nil
