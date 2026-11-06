@@ -140,6 +140,64 @@ rejection evidence, stale logs, or unexpected traffic changes fail the case.
 Failed traffic alone never counts as proof of unsupported-policy rejection.
 Clean up only this run's policies and namespace, including on failure.
 
+#### Existing-cluster executor
+
+The [shared executor](../test/npm/windows-lite) implements these checks as a
+standard-library-only Go CLI running on Linux/amd64. It requires an existing
+`kubectl`, a private kubeconfig, at least two ready Windows2022 nodes, and an
+already deployed Lite NPM DaemonSet. It does not provision infrastructure,
+authenticate to registries, or redeploy NPM. Select the Windows DaemonSet
+explicitly; its selector and single container are discovered and verified, with
+no fallback to the Linux DaemonSet.
+
+Build and run from the exact executable-source checkout:
+
+```bash
+SOURCE=$(git rev-parse HEAD)
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=readonly -trimpath \
+  -ldflags "-X main.sourceVersion=$SOURCE" \
+  -o windows-npm-lite ./test/npm/windows-lite
+./windows-npm-lite \
+  --kubeconfig "$KUBECONFIG" \
+  --daemonset azure-npm-win --npm-namespace kube-system \
+  --npm-image "$WINDOWS_NPM_IMAGE" --windows-os-version "$WINDOWS_OS_VERSION" \
+  --image-manifest "$RAW_CHILD_MANIFEST" --image-config "$RAW_IMAGE_CONFIG" \
+  --source-version "$SOURCE" --run-id "$BUILD_ID" --output "$RESULT_FILE"
+```
+
+The caller supplies the raw child manifest and image-config bytes in regular
+files after its own authenticated retrieval. The executor verifies their digest/size chain and exact
+Windows/amd64 OS version, then requires running container image IDs to identify
+that child. An index digest or config digest cannot replace the observed child
+digest. Mirror/index descriptor continuity and actual pipeline source/run
+identity remain the caller's responsibility. The linked source SHA and command
+arguments alone are not independent build provenance.
+
+Corpus provenance remains pinned to
+`9d3089f42f7e06c30041eb0388f10a9c071cbd3d`, independently of the executable commit.
+The result's `runnerSha256` hashes the sorted non-test `.go` basenames in the
+executor directory: UTF-8 basename, NUL, exact file bytes, NUL, concatenated for
+each file. This is a source-content digest, not a binary or archive digest.
+
+The executor uses the immutable Windows2022 agnhost 2.39 child
+`registry.k8s.io/e2e-test-images/agnhost@sha256:66482b9d14a4e4d412c18533e738255dddabe6d05da19b2df0476f17bf2324ef`.
+Initial role readiness allows ten minutes for cold pulls. Each traffic phase
+requires three consecutive matching rounds, five seconds apart, within ninety
+seconds. Only the verified TCP client's exact `TIMEOUT` or `REFUSED` result
+counts as denial; exec/authentication/transport failures fail validation.
+
+Execution is bounded to thirty-five minutes, reserving the final ninety seconds
+for UID-bound namespace cleanup. SIGINT/SIGTERM terminate in-flight kubectl
+process groups, including credential-helper descendants, and allow independent
+cleanup within that original deadline. Failure,
+cancellation, changed runtime identity, or incomplete cleanup never produces a
+success result. The output path must not already exist. Successful JSON records
+`suite`, `schemaVersion`, `status`, `runId`, `sourceVersion`, `runnerSha256`,
+`image`, `imageDigest`, `imageConfigDigest`, `platform`, `osVersion`, `mode`,
+`liteModeVerified`, `observedConfig`, `corpus`, all ten `caseResults`, and
+`cleanupSucceeded`, plus per-pod, process, policy, probe, and rejection evidence.
+These checks do not claim full-NPM conformance or Windows servicing coverage.
+
 ## Usage
 [Microsoft Docs](https://learn.microsoft.com/en-us/azure/aks/use-network-policies#verify-network-policy-setup) has a detailed step by step example on how to use Kubernetes network policy.
 
