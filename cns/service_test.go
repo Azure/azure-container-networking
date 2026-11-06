@@ -4,6 +4,7 @@
 package cns
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -21,11 +22,13 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	loggerv2 "github.com/Azure/azure-container-networking/cns/logger/v2"
 	acn "github.com/Azure/azure-container-networking/common"
 	serverTLS "github.com/Azure/azure-container-networking/server/tls"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestNewService(t *testing.T) {
@@ -325,15 +328,19 @@ func TestMtlsRootCAsFromCertificate(t *testing.T) {
 }
 
 func TestGetTLSConfigFromFileCAPath(t *testing.T) {
-	logger.InitLogger("azure-cns.log", 0, 0, t.TempDir())
+	previousLogger := logger.Log
+	logger.Log = loggerv2.AsV1(zap.NewNop(), func() {})
+	t.Cleanup(func() {
+		logger.Log = previousLogger
+	})
 	certPath := createTestCertificate(t)
 	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
-	var caPEM []byte
+	var caPEM bytes.Buffer
 	expectedCAs := x509.NewCertPool()
 	for _, name := range []string{"root", "other root"} {
 		template := &x509.Certificate{
-			SerialNumber:          big.NewInt(int64(len(caPEM) + 1)),
+			SerialNumber:          big.NewInt(int64(caPEM.Len() + 1)),
 			Subject:               pkix.Name{CommonName: name},
 			NotBefore:             time.Now().Add(-time.Hour),
 			NotAfter:              time.Now().Add(time.Hour),
@@ -346,10 +353,10 @@ func TestGetTLSConfigFromFileCAPath(t *testing.T) {
 		certificate, err := x509.ParseCertificate(derBytes)
 		require.NoError(t, err)
 		expectedCAs.AddCert(certificate)
-		caPEM = append(caPEM, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes})...)
+		require.NoError(t, pem.Encode(&caPEM, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}))
 	}
 	caPath := filepath.Join(t.TempDir(), "ca.pem")
-	require.NoError(t, os.WriteFile(caPath, caPEM, 0o600))
+	require.NoError(t, os.WriteFile(caPath, caPEM.Bytes(), 0o600))
 	invalidPath := filepath.Join(t.TempDir(), "invalid.pem")
 	require.NoError(t, os.WriteFile(invalidPath, []byte("not a certificate"), 0o600))
 	emptyPath := filepath.Join(t.TempDir(), "empty.pem")
