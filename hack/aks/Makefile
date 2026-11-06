@@ -4,12 +4,12 @@
 KUBECFG = $(HOME)/.kube
 SSH     = $(HOME)/.ssh
 AZCFG   = $(HOME)/.azure
-AZIMG   = mcr.microsoft.com/azure-cli
+AZIMG   = mcr.microsoft.com/azure-cli:2.91.0
 AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v $(SSH):/root/.ssh -v $(PWD):/root/tmpsrc $(AZIMG) az
 
 # overrideable defaults
 AUTOUPGRADE          ?= patch
-K8S_VER              ?= 1.31
+K8S_VER              ?= 1.32
 NODE_COUNT           ?= 2
 NODE_COUNT_WIN	     ?= $(NODE_COUNT)
 NODEUPGRADE          ?= NodeImage
@@ -52,16 +52,11 @@ azlogin: ## Login and set account to $SUB
 	@$(AZCLI) login
 	@$(AZCLI) account set -s $(SUB)
 
-# Fallback pin to work around aks-preview upstream breaks (checksum mismatches, etc.).
-# Past Issue: https://github.com/Azure/azure-cli-extensions/issues/10101
-AKS_PREVIEW_FALLBACK_VERSION ?= 21.0.0b7
+# Keep the toolchain compatible with test clusters running Kubernetes < 1.33.
+AKS_PREVIEW_VERSION ?= 22.0.0b15
 
-azcfg: ## Install aks-preview (latest, falling back to AKS_PREVIEW_FALLBACK_VERSION on failure)
-	@$(AZCLI) extension add --name aks-preview --upgrade --yes \
-		|| { \
-			echo "aks-preview latest install failed; falling back to $(AKS_PREVIEW_FALLBACK_VERSION)"; \
-			$(AZCLI) extension add --name aks-preview --version $(AKS_PREVIEW_FALLBACK_VERSION) --upgrade --yes; \
-		}
+azcfg: ## Install pinned aks-preview
+	@$(AZCLI) extension add --name aks-preview --version $(AKS_PREVIEW_VERSION) --upgrade --yes
 
 ip:
 	$(AZCLI) network public-ip create --name $(IP_PREFIX)-$(CLUSTER)-$(IPVERSION) \

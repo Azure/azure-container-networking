@@ -10,9 +10,16 @@ parameters:
   dependsOn: ""
   region: ""
   os: linux
+  LTS: true
 
 
 steps:
+  - bash: |
+      set -euo pipefail
+      sudo apt-get update
+      sudo apt-get install --yes --allow-downgrades "azure-cli=2.91.0-1~$(lsb_release -cs)"
+    displayName: Install Azure CLI 2.91.0
+
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
