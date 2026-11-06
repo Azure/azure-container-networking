@@ -69,6 +69,16 @@ const (
 	nmAgentSnatAndDnsSupportAPI = "NetworkManagementDNSSupport"
 )
 
+// cnsRequestTimeout returns the CNS client timeout configured in the network config,
+// falling back to defaultRequestTimeout when unset.
+func cnsRequestTimeout(nwCfg *cni.NetworkConfig) time.Duration {
+	if nwCfg == nil || nwCfg.CNSRequestTimeoutSeconds <= 0 {
+		return defaultRequestTimeout
+	}
+
+	return time.Duration(nwCfg.CNSRequestTimeoutSeconds) * time.Second
+}
+
 // Wire Server addresses per environment.
 const (
 	// defaultWireServerAddress is the well-known Azure Wire Server IP used in production.
@@ -531,7 +541,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 	}
 
-	cnsClient, err := cnscli.NewWithUnixSocket(nwCfg.CNSUrl, nwCfg.CNSSocketPath, defaultRequestTimeout)
+	cnsClient, err := cnscli.NewWithUnixSocket(nwCfg.CNSUrl, nwCfg.CNSSocketPath, cnsRequestTimeout(nwCfg))
 	if err != nil {
 		return fmt.Errorf("failed to create cns client with error: %w", err)
 	}
@@ -647,7 +657,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		//	ipamAddResult.interfaceInfo[ifIndex].IPConfigs, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace, plugin.nm.GetNumberOfEndpoints("", nwCfg.Name)))
 		endpointIndex++
 	}
-	cnsclient, err := cnscli.New(nwCfg.CNSUrl, defaultRequestTimeout)
+	cnsclient, err := cnscli.New(nwCfg.CNSUrl, cnsRequestTimeout(nwCfg))
 	if err != nil {
 		return errors.Wrap(err, "failed to create cns client")
 	}
@@ -1105,7 +1115,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	if plugin.ipamInvoker == nil {
 		switch nwCfg.IPAM.Type {
 		case network.AzureCNS:
-			cnsClient, cnsErr := cnscli.NewWithUnixSocket("", nwCfg.CNSSocketPath, defaultRequestTimeout)
+			cnsClient, cnsErr := cnscli.NewWithUnixSocket("", nwCfg.CNSSocketPath, cnsRequestTimeout(nwCfg))
 			if cnsErr != nil {
 				logger.Error("failed to create cns client", zap.Error(cnsErr))
 				return errors.Wrap(cnsErr, "failed to create cns client")
@@ -1364,7 +1374,7 @@ func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 		return plugin.Errorf("%s", err.Error())
 	}
 
-	cnsclient, err := cnscli.New(nwCfg.CNSUrl, defaultRequestTimeout)
+	cnsclient, err := cnscli.New(nwCfg.CNSUrl, cnsRequestTimeout(nwCfg))
 	if err != nil {
 		logger.Error("failed to initialized cns client",
 			zap.String("url", nwCfg.CNSUrl),
