@@ -38,6 +38,30 @@ The second command builds the `azure-npm` docker image.
 The third command builds the `azure-npm` binary and place it in a tar archive. 
 The binaries are placed in the `output` directory.
 
+The unsigned Linux image and the signed Linux packaging path use Azure Linux 3.
+Their unversioned runtime package set matches the managed Dalec NPM environment:
+`SymCrypt`, `SymCrypt-OpenSSL`, `bash`, `ca-certificates`, `grep`, `ipset`,
+`iptables`, and `openssl-libs`. Ubuntu-specific APT configuration is no longer
+used.
+
+Both Linux image paths retain the MS Go 1.26 compiler and `CGO_ENABLED=0`, using
+`GOEXPERIMENT=ms_nocgo_opensslcrypto` to load Azure Linux OpenSSL instead of the
+Ubuntu-specific crypto opt-out. Windows images, Windows build settings, and
+standalone host archive builds are unchanged.
+
+Matching the runtime OS and packages does not make the ACN and Dalec artifacts
+identical. Dalec uses a CGO-enabled build and its own compiler and dependency
+selection.
+
+After building a Linux image with Docker, run the runtime contract check:
+```bash
+bash hack/scripts/test_npm_image.sh "$(make --no-print-directory npm-image-name-and-tag OS=linux ARCH=amd64)"
+```
+The NPM Linux image CI runs this check before logging out of the registry. It
+checks the OS, packages, nft/legacy tools, GNU grep, CA bundle, executable
+permissions, CLI startup, and forced OpenSSL FIPS initialization. This is not a
+claim of application FIPS certification.
+
 ### Windows
 ```
 $env:ACN_PACKAGE_PATH = "github.com/Azure/azure-container-networking"
