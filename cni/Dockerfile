@@ -23,6 +23,7 @@ COPY . .
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-vnet -trimpath -ldflags "-s -w -X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" cni/network/plugin/main.go
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-vnet-telemetry -trimpath -ldflags "-s -w -X main.version="$VERSION" -X "$CNI_AI_PATH"="$CNI_AI_ID"" -gcflags="-dwarflocationlists=true" cni/telemetry/service/telemetrymain.go
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-vnet-ipam -trimpath -ldflags "-s -w -X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" cni/ipam/plugin/main.go
+RUN if [ "$OS" = "linux" ]; then GOOS=$OS CGO_ENABLED=0 go build -o /go/bin/azure-vnet-ipam-bridge -trimpath -ldflags "-s -w" ./cni/ipam/bridge; fi
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-vnet-stateless -trimpath -ldflags "-s -w -X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" cni/network/stateless/main.go
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-cni-telemetry-sidecar -trimpath -ldflags "-s -w -X main.version="$VERSION" -X "$CNI_AI_PATH"="$CNI_AI_ID"" -gcflags="-dwarflocationlists=true" ./cns/cni-telemetry-sidecar
 # Derived from the golden Linux conflist rather than checked in, so the two cannot drift.

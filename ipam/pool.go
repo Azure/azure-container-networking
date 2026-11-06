@@ -62,6 +62,8 @@ type addressPool struct {
 	Priority  int
 	RefCount  int
 	epoch     int
+
+	OperatorManaged bool `json:",omitempty"`
 }
 
 // AddressPoolInfo contains information about an address pool.
@@ -80,6 +82,8 @@ type addressRecord struct {
 	ID        string
 	Addr      net.IP
 	InUse     bool
+	Blocked   bool   `json:",omitempty"`
+	Resource  string `json:",omitempty"`
 	unhealthy bool
 	epoch     int
 }
@@ -394,7 +398,7 @@ func (ap *addressPool) getInfo() *AddressPoolInfo {
 	var unhealthyAddrs []net.IP
 
 	for _, ar := range ap.Addresses {
-		if !ar.InUse {
+		if !ar.InUse && (!ap.OperatorManaged || (!ar.Blocked && ar.ID == "")) {
 			available++
 		}
 		if ar.unhealthy {
@@ -489,7 +493,7 @@ func (ap *addressPool) requestAddress(address string, options map[string]string)
 	// If no address was found, return any available address.
 	if ar == nil {
 		for _, ar = range ap.Addresses {
-			if !ar.InUse && ar.ID == "" {
+			if !ar.InUse && ar.ID == "" && (!ap.OperatorManaged || !ar.Blocked) {
 				break
 			}
 			ar = nil
@@ -501,6 +505,17 @@ func (ap *addressPool) requestAddress(address string, options map[string]string)
 		}
 	}
 
+	if ap.OperatorManaged {
+		if ar.Blocked || options[OptAddressType] == OptAddressTypeGateway || id == "" {
+			return "", fmt.Errorf("%w: address is not eligible for cilium pool allocation", errCiliumPoolState)
+		}
+		if ar.ID != "" && ar.ID != id {
+			return "", errAddressInUse
+		}
+		if existing := ap.addrsByID[id]; existing != nil && existing != ar {
+			return "", errAddressInUse
+		}
+	}
 	if id != "" {
 		ap.addrsByID[id] = ar
 		ar.ID = id
@@ -524,6 +539,13 @@ func (ap *addressPool) releaseAddress(address string, options map[string]string)
 	var ar *addressRecord
 	var id string
 	var err error
+	if ap.OperatorManaged && strings.Contains(address, "/") {
+		ip, _, parseErr := net.ParseCIDR(address)
+		if parseErr != nil {
+			return fmt.Errorf("ipam: invalid release address: %w", parseErr)
+		}
+		address = ip.String()
+	}
 
 	logger.Info("Releasing address with", zap.String("address", address), zap.Any("options", options))
 	defer func() { logger.Error("Address release completed with", zap.String("address", address), zap.Error(err)) }()
@@ -554,7 +576,7 @@ func (ap *addressPool) releaseAddress(address string, options map[string]string)
 		return nil
 	}
 
-	if !ar.InUse {
+	if !ar.InUse && (!ap.OperatorManaged || ar.ID == "") {
 		logger.Info("Address not in use. Not Returning error")
 		return nil
 	}

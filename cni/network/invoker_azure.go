@@ -32,8 +32,9 @@ const (
 )
 
 type AzureIPAMInvoker struct {
-	plugin delegatePlugin
-	nwInfo *network.EndpointInfo
+	plugin      delegatePlugin
+	nwInfo      *network.EndpointInfo
+	poolEnabled bool
 }
 
 type delegatePlugin interface {
@@ -45,8 +46,9 @@ type delegatePlugin interface {
 // Create an IPAM instance every time a CNI action is called.
 func NewAzureIpamInvoker(plugin *NetPlugin, nwInfo *network.EndpointInfo) *AzureIPAMInvoker {
 	return &AzureIPAMInvoker{
-		plugin: plugin,
-		nwInfo: nwInfo,
+		plugin:      plugin,
+		nwInfo:      nwInfo,
+		poolEnabled: plugin.ciliumPool != nil,
 	}
 }
 
@@ -56,14 +58,13 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 	if addConfig.nwCfg == nil {
 		return addResult, invoker.plugin.Errorf("nil nwCfg passed to CNI ADD: %v", errNilNetworkConfig)
 	}
-
 	if len(invoker.nwInfo.Subnets) > 0 {
 		addConfig.nwCfg.IPAM.Subnet = invoker.nwInfo.Subnets[0].Prefix.String()
 	}
 
 	// Call into IPAM plugin to allocate an address pool for the network.
 	result, err := invoker.plugin.DelegateAdd(addConfig.nwCfg.IPAM.Type, addConfig.nwCfg)
-	if err != nil && strings.Contains(err.Error(), ipam.ErrNoAvailableAddressPools.Error()) {
+	if err != nil && !invoker.poolEnabled && strings.Contains(err.Error(), ipam.ErrNoAvailableAddressPools.Error()) {
 		invoker.deleteIpamState()
 		logger.Info("Retry pool allocation after deleting IPAM state")
 		result, err = invoker.plugin.DelegateAdd(addConfig.nwCfg.IPAM.Type, addConfig.nwCfg)

@@ -48,9 +48,9 @@ type XmlDocument struct {
 				XMLName   xml.Name `xml:"IPAddress"`
 				Address   string   `xml:"Address,attr"`
 				IsPrimary bool     `xml:"IsPrimary,attr"`
-			}
-		}
-	}
+			} `xml:"IPAddress"`
+		} `xml:"IPSubnet"`
+	} `xml:"Interface"`
 }
 
 // Metadata retrieved from wireserver
@@ -86,7 +86,8 @@ var httpClient *http.Client
 // InitHttpClient initializes the httpClient object
 func InitHttpClient(
 	connectionTimeoutSec int,
-	responseHeaderTimeoutSec int) *http.Client {
+	responseHeaderTimeoutSec int,
+) *http.Client {
 	log.Printf("[Utils] Initializing HTTP client with connection timeout: %d, response header timeout: %d",
 		connectionTimeoutSec, responseHeaderTimeoutSec)
 	httpClient = &http.Client{

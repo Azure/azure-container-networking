@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/ipam"
 	"github.com/Azure/azure-container-networking/network"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
@@ -37,9 +38,11 @@ type add struct {
 	resultsIPv6Index int
 	errv4            error
 	errv6            error
+	calls            int
 }
 
 func (d *add) DelegateAdd(pluginName string, nwCfg *cni.NetworkConfig) (*cniTypesCurr.Result, error) {
+	d.calls++
 	if pluginName == ipamV6 {
 		if d.errv6 != nil {
 			return nil, d.errv6
@@ -396,7 +399,23 @@ func TestAzureIPAMInvoker_Delete(t *testing.T) {
 }
 
 func TestNewAzureIpamInvoker(t *testing.T) {
-	NewAzureIpamInvoker(nil, nil)
+	NewAzureIpamInvoker(&NetPlugin{}, nil)
+}
+
+func TestPoolInvokerUsesStartupConfiguration(t *testing.T) {
+	delegate := &mockDelegatePlugin{add: add{errv4: ipam.ErrNoAvailableAddressPools}}
+	invoker := NewAzureIpamInvoker(&NetPlugin{ciliumPool: &common.CiliumPoolConfig{}}, &network.EndpointInfo{})
+	invoker.plugin = delegate
+	_, err := invoker.Add(IPAMAddConfig{nwCfg: &cni.NetworkConfig{
+		Mode: "transparent-tunnel",
+		IPAM: cni.IPAM{Type: azureIPAMPlugin},
+	}})
+	if err == nil {
+		t.Fatal("empty pool must fail allocation")
+	}
+	if delegate.calls != 1 {
+		t.Fatalf("delegated %d times; pool mode must not reset state and retry", delegate.calls)
+	}
 }
 
 func TestRemoveIpamState_Add(t *testing.T) {

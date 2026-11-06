@@ -112,6 +112,12 @@ func rootExecute() error {
 			cniReport.VMUptime = upTime.Format("2006-01-02 15:04:05")
 		}
 
+		config.CiliumPool, err = common.LoadCiliumPoolConfig()
+		if err != nil {
+			network.PrintCNIError(fmt.Sprintf("Failed to load cilium pool configuration: %v", err))
+			return errors.Wrap(err, "loading cilium pool configuration")
+		}
+
 		// CNI attempts to acquire lock
 		if err = netPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
 			// Error acquiring lock

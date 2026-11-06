@@ -1,0 +1,9 @@
+{
+  "nodeName": "worker-1",
+  "stateDir": "/var/lib/azure-vnet-cilium",
+  "interface": "eth0",
+  "nicID": "/subscriptions/SUBSCRIPTION/resourceGroups/RESOURCE_GROUP/providers/Microsoft.Network/networkInterfaces/WORKER_NIC",
+  "subnet": "10.20.16.0/20",
+  "minAllocate": 10,
+  "preAllocate": 8
+}
