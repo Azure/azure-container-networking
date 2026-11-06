@@ -41,6 +41,7 @@ type CNSConfig struct {
 	EnableStateMigration            bool
 	EnableSubnetScarcity            bool
 	EnableStaleHNSCleanupOnNCCreate bool
+	VFPPendingRetryTimeoutMs        int
 	EnableSwiftV1DualStack          bool
 	EnableSwiftV2                   bool
 	EnableSwiftV2PrefixAllocation   bool

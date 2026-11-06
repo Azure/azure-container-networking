@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -19,8 +20,10 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
+	nma "github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
+	"github.com/avast/retry-go/v4"
 	"github.com/pkg/errors"
 )
 
@@ -494,7 +497,70 @@ func (service *HTTPRestService) removeToBeDeletedIPStateUntransacted(
 	return 0, ""
 }
 
-func (service *HTTPRestService) getAllNetworkContainerResponses(req cns.GetNetworkContainerRequest) []cns.GetNetworkContainerResponse {
+// On code 31, re-check NMAgent every vfpPendingRetryInterval until the timeout instead
+// of waiting for CNI-invoked retry. Waiters share one NMAgent call per interval.
+func (service *HTTPRestService) getAllNetworkContainerResponsesWithRetry(
+	req cns.GetNetworkContainerRequest,
+) []cns.GetNetworkContainerResponse {
+	// Unchanged initial check. If NMAgent errors, this returns CNS's stored config without a VFP check.
+	resps, _ := service.getAllNetworkContainerResponses(req, 0)
+	timeoutMs, _ := service.GetOption(acn.OptVFPPendingRetryTimeoutMs).(int)
+	timeout := time.Duration(timeoutMs) * time.Millisecond
+	if timeout <= 0 || !vfpPending(resps) {
+		return resps
+	}
+
+	// Stop retrying once timeout has passed. This context isn't passed to the lookups, so a lookup
+	// already running still finishes or hits its own 2 s NMAgent timeout.
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	start := time.Now()
+	err := retry.Do(func() error {
+		// retry.Do calls this right away. That call reuses the version list the initial check just
+		// cached, so the next NMAgent call is a full interval later.
+		next, err := service.getAllNetworkContainerResponses(req, vfpPendingRetryInterval)
+		if err != nil {
+			// Keep the previous code 31 response, not the unverified config returned with this error.
+			return retry.Unrecoverable(err)
+		}
+		resps = next
+		if vfpPending(resps) {
+			return ResponseCodeToError(types.NetworkContainerVfpProgramPending)
+		}
+		return nil
+	}, retry.Context(ctx), retry.Attempts(0), retry.Delay(vfpPendingRetryInterval), retry.DelayType(retry.FixedDelay))
+
+	logger.Printf("[Azure-CNS] VFP programming pending retry ended: pod=%s waitMs=%d stillPending=%t err=%v", //nolint:staticcheck // will migrate to logger/v2
+		req.OrchestratorContext, time.Since(start).Milliseconds(), vfpPending(resps), err)
+	return resps
+}
+
+func vfpPending(resps []cns.GetNetworkContainerResponse) bool {
+	return slices.ContainsFunc(resps, func(r cns.GetNetworkContainerResponse) bool {
+		return r.Response.ReturnCode == types.NetworkContainerVfpProgramPending
+	})
+}
+
+// getNCVersionList returns the cached NMAgent NC version list if it is younger than maxAge, otherwise
+// fetches it. Caller must hold the service lock.
+func (service *HTTPRestService) getNCVersionList(ctx context.Context, maxAge time.Duration) (nma.NCVersionList, error) {
+	if maxAge > 0 && time.Since(service.ncVersionListAt) < maxAge {
+		return service.ncVersionList, nil
+	}
+	fetchedAt := time.Now() // before the call, so the age bounds how old the data can be
+	list, err := service.nma.GetNCVersionList(ctx)
+	if err != nil {
+		return nma.NCVersionList{}, err //nolint:wrapcheck // callers only log it
+	}
+	service.ncVersionList, service.ncVersionListAt = list, fetchedAt
+	return list, nil
+}
+
+// getAllNetworkContainerResponses returns CNS's stored NC config and checks its VFP status with NMAgent.
+// On NMAgent error, it returns the unverified config alongside the error so callers can choose whether to use it.
+func (service *HTTPRestService) getAllNetworkContainerResponses(
+	req cns.GetNetworkContainerRequest, maxNCVersionListAge time.Duration,
+) ([]cns.GetNetworkContainerResponse, error) {
 	service.Lock()
 	defer service.Unlock()
 
@@ -509,7 +575,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(req cns.GetNetwo
 				ReturnCode: types.UnsupportedOrchestratorType,
 				Message:    fmt.Sprintf("Invalid orchestrator type %v", orchestrator),
 			},
-		}}
+		}}, nil
 	}
 
 	podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)
@@ -519,7 +585,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(req cns.GetNetwo
 				ReturnCode: types.UnexpectedError,
 				Message:    fmt.Sprintf("Unmarshalling orchestrator context failed with error %v", err),
 			},
-		}}
+		}}, nil
 	}
 
 	orchestratorContext := podInfo.Name() + podInfo.Namespace()
@@ -530,17 +596,17 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(req cns.GetNetwo
 				ReturnCode: types.UnknownContainerID,
 				Message:    fmt.Sprintf("Failed to find networkContainerID for orchestratorContext %s", orchestratorContext),
 			},
-		}}
+		}}, nil
 	}
 	ncIDs := strings.Split(string(*storedNCIDs), ",")
 
 	ctx, cancel := context.WithTimeout(context.Background(), nmaAPICallTimeout)
 	defer cancel()
-	ncVersionListResp, err := service.nma.GetNCVersionList(ctx)
+	ncVersionListResp, err := service.getNCVersionList(ctx, maxNCVersionListAge)
 	if err != nil {
 		logger.Errorf("failed to get nc version list from nmagent: %+v", err) //nolint:staticcheck // Preserve existing logger usage.
-		// Preserve cached NC availability when NMAgent cannot confirm VFP status.
-		return buildNetworkContainerResponses(ncIDs, service.state.ContainerStatus, false)
+		// Build from CNS's stored NC config, not the failed NMAgent version-list response.
+		return buildNetworkContainerResponses(ncIDs, service.state.ContainerStatus, false), err
 	}
 	programmedVersions := map[string]string{}
 	for _, nc := range ncVersionListResp.Containers {
@@ -549,7 +615,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(req cns.GetNetwo
 	}
 
 	service.updateNCVFPStatusUntransacted(ncIDs, programmedVersions)
-	return buildNetworkContainerResponses(ncIDs, service.state.ContainerStatus, true)
+	return buildNetworkContainerResponses(ncIDs, service.state.ContainerStatus, true), nil
 }
 
 // updateNCVFPStatusUntransacted requires the caller to hold the service write lock.
