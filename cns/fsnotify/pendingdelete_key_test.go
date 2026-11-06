@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
-	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	"go.uber.org/zap"
 )
 
@@ -20,26 +19,16 @@ const (
 )
 
 type recordingReleaseClient struct {
-	mu        sync.Mutex
-	reqs      []cns.IPConfigsRequest
-	errs      []error
-	requestCh chan string
+	mu         sync.Mutex
+	reqs       []cns.IPConfigsRequest
+	releaseErr error
 }
 
 func (c *recordingReleaseClient) ReleaseIPs(_ context.Context, req cns.IPConfigsRequest) error {
 	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.reqs = append(c.reqs, req)
-	var err error
-	if len(c.errs) > 0 {
-		err = c.errs[0]
-		c.errs = c.errs[1:]
-	}
-	requestCh := c.requestCh
-	c.mu.Unlock()
-	if requestCh != nil {
-		requestCh <- req.InfraContainerID
-	}
-	return err
+	return c.releaseErr
 }
 
 func (c *recordingReleaseClient) snapshot() []cns.IPConfigsRequest {
@@ -200,6 +189,7 @@ func TestWatchPendingDeleteRemovesReleasedFile(t *testing.T) {
 	go func() {
 		done <- w.watchPendingDelete(ctx)
 	}()
+	w.pendingDelete <- "already-removed"
 	w.pendingDelete <- testContainerID
 	waitForFileRemoval(t, filepath.Join(dir, testContainerID))
 
@@ -220,141 +210,28 @@ func TestWatchPendingDeleteRemovesReleasedFile(t *testing.T) {
 	}
 }
 
-func TestWatchPendingDeleteContinuesAfterLocalFailure(t *testing.T) {
+func TestStartReturnsReleaseError(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "deleteIDs")
-	cli := &recordingReleaseClient{}
+	releaseErr := errors.New("connection refused")
+	cli := &recordingReleaseClient{releaseErr: releaseErr}
 	w, err := New(cli, dir, zap.NewNop())
 	if err != nil {
-		t.Fatal(err)
-	}
-	w.retryInterval = 2 * time.Second
-
-	if err := os.WriteFile(filepath.Join(dir, "empty-container"), nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := AddFile(testPodInterfaceID, testContainerID, dir); err != nil {
 		t.Fatal(err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
-	go func() {
-		done <- w.watchPendingDelete(ctx)
-	}()
-	w.pendingDelete <- "empty-container"
-	w.pendingDelete <- testContainerID
-	waitForFileRemoval(t, filepath.Join(dir, testContainerID))
-
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	err = w.Start(ctx)
+	if !errors.Is(err, releaseErr) {
+		t.Fatalf("want release error, got %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, testContainerID)); err != nil {
+		t.Fatalf("pending delete file should remain for outer retry: %v", err)
+	}
 	if got := len(cli.snapshot()); got != 1 {
-		t.Fatalf("want valid delete processed without waiting for local retry, got %d requests", got)
-	}
-
-	cancel()
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("watchPendingDelete did not exit after cancellation")
-	}
-}
-
-func TestConnectionFailureBackoff(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "deleteIDs")
-	connectionErr := cnsclient.NewConnectionFailureErr(errors.New("connection refused"))
-	cli := &recordingReleaseClient{
-		errs:      []error{connectionErr, connectionErr, connectionErr, connectionErr, nil, connectionErr},
-		requestCh: make(chan string, 6),
-	}
-	w, err := New(cli, dir, zap.NewNop())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	waitIntervals := make(chan time.Duration)
-	continueWait := make(chan struct{})
-	w.waitForRetry = func(ctx context.Context, interval time.Duration) error {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case waitIntervals <- interval:
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-continueWait:
-			return nil
-		}
-	}
-
-	containerIDs := []string{"container-1", "container-2", "container-3", "container-4", "container-5", "container-6"}
-	for _, containerID := range containerIDs {
-		if err := AddFile(containerID+"-eth0", containerID, dir); err != nil {
-			t.Fatal(err)
-		}
-		w.pendingDelete <- containerID
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
-	go func() {
-		done <- w.watchPendingDelete(ctx)
-	}()
-
-	nextRequest := func() string {
-		t.Helper()
-		select {
-		case request := <-cli.requestCh:
-			return request
-		case <-time.After(time.Second):
-			t.Fatal("timed out waiting for release request")
-			return ""
-		}
-	}
-	nextWait := func() time.Duration {
-		t.Helper()
-		select {
-		case interval := <-waitIntervals:
-			return interval
-		case <-time.After(time.Second):
-			t.Fatal("timed out waiting for backoff")
-			return 0
-		}
-	}
-
-	for i, wantInterval := range []time.Duration{30 * time.Second, time.Minute, maxReleaseInterval, maxReleaseInterval} {
-		if got := nextRequest(); got != containerIDs[i] {
-			t.Fatalf("want request for %q, got %q", containerIDs[i], got)
-		}
-		if got := nextWait(); got != wantInterval {
-			t.Fatalf("want backoff %s, got %s", wantInterval, got)
-		}
-		select {
-		case got := <-cli.requestCh:
-			t.Fatalf("consumer processed %q while waiting after a connection failure", got)
-		default:
-		}
-		continueWait <- struct{}{}
-	}
-
-	for _, want := range containerIDs[4:] {
-		if got := nextRequest(); got != want {
-			t.Fatalf("want request for %q, got %q", want, got)
-		}
-	}
-	waitForFileRemoval(t, filepath.Join(dir, containerIDs[4]))
-	if got := nextWait(); got != 30*time.Second {
-		t.Fatalf("want reset backoff 30s, got %s", got)
-	}
-
-	cancel()
-	select {
-	case err := <-done:
-		if err == nil {
-			t.Fatal("want cancellation error")
-		}
-	case <-time.After(time.Second):
-		t.Fatal("watcher did not interrupt backoff after cancellation")
-	}
-	if got := len(cli.snapshot()); got != len(containerIDs) {
-		t.Fatalf("want %d release requests, got %d", len(containerIDs), got)
+		t.Fatalf("want 1 release request, got %d", got)
 	}
 }
