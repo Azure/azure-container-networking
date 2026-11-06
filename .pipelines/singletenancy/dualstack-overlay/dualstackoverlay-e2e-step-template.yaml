@@ -92,25 +92,9 @@ steps:
       retryCountOnTaskFailure: 3
 
   - ${{ if eq(parameters.os, 'windows') }}:
-    - script: |
-        nodeList=`kubectl get node -owide | grep Windows | awk '{print $1}'`
-        for node in $nodeList; do
-            taint=`kubectl describe node $node | grep Taints | awk '{print $2}'`
-            if [ $taint == "node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule" ]; then
-                kubectl taint nodes $node node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule-
-            fi
-        done
-        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=windows CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_DUALSTACK_OVERLAY=true VALIDATE_DUALSTACK=true CNI_VERSION=$(make cni-version) CNS_VERSION=$(make cns-version) CLEANUP=true
-      name: "WindowsDualStackOverlayControlPlaneScaleTests"
-      displayName: "Windows DualStack Overlay ControlPlane Scale Tests"
-      retryCountOnTaskFailure: 3
-
-    - script: |
-        echo "DualStack Overlay DataPath Test"
-        cd test/integration/datapath
-        sudo -E env "PATH=$PATH" go test -count=1 datapath_windows_test.go -timeout 3m -tags connection -restartKubeproxy true -run ^TestDatapathWin$
-      name: "WindowsDualStackOverlayDatapathTests"
-      displayName: "Windows DualStack Overlay Datapath Tests"
-      retryCountOnTaskFailure: 3
-
-    # Windows node restart and validation tests removed due to flakiness
+    - template: ../../templates/windows-overlay-e2e-step-template.yaml
+      parameters:
+        clusterName: ${{ parameters.clusterName }}
+        validateCniType: dualstack
+        testLoadArgs: "INSTALL_DUALSTACK_OVERLAY=true VALIDATE_DUALSTACK=true"
+        scaleup: ${{ parameters.scaleup }}

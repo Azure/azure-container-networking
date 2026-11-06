@@ -204,15 +204,17 @@ func hnsStateFileIPs(result []byte) (map[string]string, error) {
 	return hnsPodIps, nil
 }
 
-// return windows HNS network state
+// PowerShell returns an object rather than an array for a single network.
 func hnsNetworkState(result []byte) ([]HNSNetwork, error) {
 	var hnsNetworkResult []HNSNetwork
-	err := json.Unmarshal(result, &hnsNetworkResult)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal HNS network state file")
+	if err := json.Unmarshal(result, &hnsNetworkResult); err == nil {
+		return hnsNetworkResult, nil
 	}
-
-	return hnsNetworkResult, nil
+	var singleResult HNSNetwork
+	if err := json.Unmarshal(result, &singleResult); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal HNS network state as array or object")
+	}
+	return []HNSNetwork{singleResult}, nil
 }
 
 func azureVnetIps(result []byte) (map[string]string, error) {
@@ -280,26 +282,35 @@ func validateHNSNetworkState(ctx context.Context, nodes *corev1.NodeList, client
 			return errors.Wrap(err, "failed to unmarshal HNS state file")
 		}
 
-		// check hns properties
-		if len(hnsNetwork) == 1 {
-			return errors.New("HNS default ext network or azure network does not exist")
+		if err := validateHNSNetworks(hnsNetwork); err != nil {
+			return err
 		}
+	}
+	return nil
+}
 
-		for _, network := range hnsNetwork {
-			if network.State != 1 {
-				return errors.New("windows HNS network state is not correct")
-			}
-			if network.ManagementIP == "" {
-				return errors.New("windows HNS network is missing ipv4 management IP")
-			}
+func validateHNSNetworks(networks []HNSNetwork) error {
+	if len(networks) < 1 {
+		return errors.New("no HNS networks found")
+	}
 
-			// dualstack scenario
-			if network.IPv6 {
-				if network.ManagementIPv6 == "" {
-					return errors.New("windows HNS network is missing ipv6 management IP")
-				}
-			}
+	foundAzure := false
+	for _, network := range networks {
+		if network.Name == "azure" {
+			foundAzure = true
 		}
+		if network.State != 1 {
+			return errors.New("windows HNS network state is not correct")
+		}
+		if network.ManagementIP == "" {
+			return errors.New("windows HNS network is missing ipv4 management IP")
+		}
+		if network.IPv6 && network.ManagementIPv6 == "" {
+			return errors.New("windows HNS network is missing ipv6 management IP")
+		}
+	}
+	if !foundAzure {
+		return errors.New("HNS 'azure' network does not exist")
 	}
 	return nil
 }
