@@ -1099,7 +1099,7 @@ func main() {
 					return errors.Wrap(err, "failed to start fsnotify watcher, will retry")
 				}
 				return nil
-			}, retry.DelayType(retry.BackOffDelay), retry.UntilSucceeded(), retry.Context(rootCtx)) // infinite cancellable exponential backoff retrier
+			}, retry.DelayType(retry.BackOffDelay), retry.MaxDelay(2*time.Minute), retry.UntilSucceeded(), retry.Context(rootCtx)) // infinite cancellable exponential backoff retrier with capped delay
 		}()
 	}
 

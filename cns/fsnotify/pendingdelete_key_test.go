@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
+	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	"go.uber.org/zap"
 )
 
@@ -208,9 +209,45 @@ func TestWatchPendingDeleteRemovesReleasedFile(t *testing.T) {
 	}
 }
 
-func TestStartReturnsReleaseError(t *testing.T) {
+func TestWatchPendingDeleteContinuesAfterNonConnectionError(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "deleteIDs")
-	releaseErr := errors.New("connection refused")
+	cli := &recordingReleaseClient{releaseErr: errors.New("rejected by CNS")}
+	w, err := New(cli, dir, zap.NewNop())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, containerID := range []string{"container-1", "container-2"} {
+		if err := AddFile(containerID+"-eth0", containerID, dir); err != nil {
+			t.Fatal(err)
+		}
+		w.pendingDelete <- containerID
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- w.watchPendingDelete(ctx)
+	}()
+	deadline := time.Now().Add(time.Second)
+	for len(cli.snapshot()) < 2 {
+		if time.Now().After(deadline) {
+			t.Fatalf("want both deletes attempted, got %d", len(cli.snapshot()))
+		}
+		time.Sleep(time.Millisecond)
+	}
+	for _, containerID := range []string{"container-1", "container-2"} {
+		if _, err := os.Stat(filepath.Join(dir, containerID)); err != nil {
+			t.Fatalf("failed delete file should remain: %v", err)
+		}
+	}
+	cancel()
+	<-done
+}
+
+func TestStartReturnsConnectionFailure(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "deleteIDs")
+	releaseErr := cnsclient.NewConnectionFailureErr(errors.New("connection refused"))
 	cli := &recordingReleaseClient{releaseErr: releaseErr}
 	w, err := New(cli, dir, zap.NewNop())
 	if err != nil {
@@ -224,7 +261,7 @@ func TestStartReturnsReleaseError(t *testing.T) {
 	defer cancel()
 	err = w.Start(ctx)
 	if !errors.Is(err, releaseErr) {
-		t.Fatalf("want release error, got %v", err)
+		t.Fatalf("want connection error, got %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, testContainerID)); err != nil {
 		t.Fatalf("pending delete file should remain for outer retry: %v", err)

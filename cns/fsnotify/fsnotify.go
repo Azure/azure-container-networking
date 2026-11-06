@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/Azure/azure-container-networking/cns"
+	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/fsnotify/fsnotify"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -86,15 +87,24 @@ func (w *watcher) watchPendingDelete(ctx context.Context) error {
 				if errors.Is(err, fs.ErrNotExist) {
 					continue
 				}
-				return errors.Wrap(err, "reading pending delete file")
+				w.log.Error("failed to read pending delete file", zap.String("containerID", containerID), zap.Error(err))
+				continue
 			}
 			podInterfaceID := string(data)
 			w.log.Info("releasing IP for missed delete", zap.String("podInterfaceID", podInterfaceID), zap.String("containerID", containerID))
 			if err := w.releaseIP(ctx, podInterfaceID, containerID); err != nil {
-				return errors.Wrap(err, "releasing IP for missed delete")
+				var connectionErr *cnsclient.ConnectionFailureErr
+				if ctx.Err() != nil || errors.As(err, &connectionErr) {
+					// CNS is unreachable; restart so the caller's retry backs off and rescans.
+					return errors.Wrap(err, "releasing IP for missed delete")
+				}
+				// Keep the file and move on so one bad entry cannot block the queue.
+				w.log.Error("failed to release IP for missed delete", zap.String("containerID", containerID), zap.Error(err))
+				continue
 			}
 			if err := removeFile(containerID, w.path); err != nil {
-				return errors.Wrap(err, "removing released pending delete file")
+				w.log.Error("failed to remove file for missed delete", zap.String("containerID", containerID), zap.Error(err))
+				continue
 			}
 			w.log.Info("successfully released IP for missed delete", zap.String("containerID", containerID))
 		}
