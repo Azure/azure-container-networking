@@ -1,6 +1,8 @@
 package network
 
 import (
+	"time"
+
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/common"
 )
@@ -80,6 +82,11 @@ func (nm *MockNetworkManager) SetStatelessCNIMode() error {
 // IsStatelessCNIMode checks if the Stateless CNI mode has been enabled or not
 func (nm *MockNetworkManager) IsStatelessCNIMode() bool {
 	return false
+}
+
+// SetCNSRequestTimeout is a no-op for the mock network manager
+func (nm *MockNetworkManager) SetCNSRequestTimeout(_ time.Duration) error {
+	return nil
 }
 
 // GetEndpointID returns the ContainerID value

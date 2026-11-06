@@ -435,6 +435,10 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
+	if err = plugin.nm.SetCNSRequestTimeout(cnsRequestTimeout(nwCfg)); err != nil {
+		return err
+	}
+
 	// Parse Pod arguments.
 	k8sPodName, k8sNamespace, err := plugin.getPodInfo(args.Args)
 	if err != nil {
@@ -1087,6 +1091,10 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 	if argErr := plugin.validateArgs(args, nwCfg); argErr != nil {
 		err = argErr
+		return err
+	}
+
+	if err = plugin.nm.SetCNSRequestTimeout(cnsRequestTimeout(nwCfg)); err != nil {
 		return err
 	}
 

@@ -124,6 +124,7 @@ type NetworkManager interface {
 	GetNumberOfEndpoints(ifName string, networkID string) int
 	GetEndpointID(containerID, ifName string) string
 	IsStatelessCNIMode() bool
+	SetCNSRequestTimeout(timeout time.Duration) error
 	SaveState(eps []*endpoint) error
 	DeleteState(epInfos []*EndpointInfo) error
 	GetEndpointInfosFromContainerID(containerID string) []*EndpointInfo
@@ -173,6 +174,20 @@ func (nm *networkManager) SetStatelessCNIMode() error {
 	nm.statelessCniMode = true
 	// Create CNS client
 	client, err := cnsclient.New(cnsBaseURL, cnsReqTimeout)
+	if err != nil {
+		return errors.Wrapf(err, "failed to initialize CNS client")
+	}
+	nm.CnsClient = client
+	return nil
+}
+
+// SetCNSRequestTimeout recreates the stateless CNS client with the given timeout.
+// It is a no-op when stateless CNI mode is not enabled.
+func (nm *networkManager) SetCNSRequestTimeout(timeout time.Duration) error {
+	if !nm.statelessCniMode {
+		return nil
+	}
+	client, err := cnsclient.New(cnsBaseURL, timeout)
 	if err != nil {
 		return errors.Wrapf(err, "failed to initialize CNS client")
 	}
