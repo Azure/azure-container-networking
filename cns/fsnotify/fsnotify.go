@@ -26,7 +26,6 @@ type watcher struct {
 	log  *zap.Logger
 
 	pendingDelete chan string
-	batchSize     int
 }
 
 // Create the AsyncDelete watcher.
@@ -41,7 +40,6 @@ func New(cli ReleaseIPsClient, path string, logger *zap.Logger) (*watcher, error
 		path:          path,
 		log:           logger,
 		pendingDelete: make(chan string, pendingDeleteBatchSize),
-		batchSize:     pendingDeleteBatchSize,
 	}, nil
 }
 
@@ -55,7 +53,7 @@ func (w *watcher) enqueuePendingDeletes(ctx context.Context) error {
 	defer directory.Close()
 
 	for {
-		files, readErr := directory.ReadDir(w.batchSize)
+		files, readErr := directory.ReadDir(pendingDeleteBatchSize)
 		for _, file := range files {
 			if !file.Type().IsRegular() {
 				continue
@@ -90,10 +88,6 @@ func (w *watcher) watchPendingDelete(ctx context.Context) error {
 				}
 				return errors.Wrap(err, "reading pending delete file")
 			}
-			if len(data) == 0 {
-				return errors.Errorf("pending delete file %q is empty", filePath)
-			}
-
 			podInterfaceID := string(data)
 			w.log.Info("releasing IP for missed delete", zap.String("podInterfaceID", podInterfaceID), zap.String("containerID", containerID))
 			if err := w.releaseIP(ctx, podInterfaceID, containerID); err != nil {

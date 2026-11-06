@@ -3,6 +3,7 @@ package fsnotify
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -61,9 +62,8 @@ func TestEnqueuePendingDeletesUsesBackpressure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	w.batchSize = 2
-	w.pendingDelete = make(chan string, w.batchSize)
-	for _, containerID := range []string{"container-1", "container-2", "container-3"} {
+	for i := 0; i <= pendingDeleteBatchSize; i++ {
+		containerID := fmt.Sprintf("container-%03d", i)
 		if err := AddFile(containerID+"-eth0", containerID, dir); err != nil {
 			t.Fatal(err)
 		}
@@ -95,7 +95,6 @@ func TestEnqueuePendingDeletesFindsFilesCreatedAfterEOF(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	w.batchSize = 1
 	if err := AddFile("container-1-eth0", "container-1", dir); err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +126,6 @@ func TestWatchFSEnqueuesWrittenFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	w.batchSize = 1
 	if err := AddFile("preseed-eth0", "preseed", dir); err != nil {
 		t.Fatal(err)
 	}
