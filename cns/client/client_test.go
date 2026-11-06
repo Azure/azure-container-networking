@@ -445,11 +445,11 @@ func TestSetRequestTimeout(t *testing.T) {
 	c, err := New("", 15*time.Second)
 	require.NoError(t, err)
 
+	assert.Equal(t, 15*time.Second, c.RequestTimeout())
+
 	c.SetRequestTimeout(30 * time.Second)
 
-	hc, ok := c.client.(*http.Client)
-	require.True(t, ok)
-	assert.Equal(t, 30*time.Second, hc.Timeout)
+	assert.Equal(t, 30*time.Second, c.RequestTimeout())
 }
 
 func TestBuildRoutes(t *testing.T) {

@@ -638,8 +638,14 @@ func TestSetCNSRequestTimeout(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	original := nm.CnsClient
+	if got := nm.CnsClient.RequestTimeout(); got != cnsReqTimeout {
+		t.Fatalf("expected default timeout %v, got %v", cnsReqTimeout, got)
+	}
 	nm.SetCNSRequestTimeout(30 * time.Second)
 	if nm.CnsClient != original {
 		t.Fatalf("expected the stateless CNS client to be updated in place")
+	}
+	if got := nm.CnsClient.RequestTimeout(); got != 30*time.Second {
+		t.Fatalf("expected stateless CNS client timeout 30s, got %v", got)
 	}
 }

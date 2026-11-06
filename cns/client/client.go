@@ -136,6 +136,14 @@ func (c *Client) SetRequestTimeout(timeout time.Duration) {
 	}
 }
 
+// RequestTimeout returns the HTTP timeout used for requests to CNS, or 0 if it cannot be determined.
+func (c *Client) RequestTimeout() time.Duration {
+	if hc, ok := c.client.(*http.Client); ok {
+		return hc.Timeout
+	}
+	return 0
+}
+
 func buildRoutes(baseURL string, paths []string) (map[string]url.URL, error) {
 	base, err := url.Parse(baseURL)
 	if err != nil {
