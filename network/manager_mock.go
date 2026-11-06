@@ -85,9 +85,7 @@ func (nm *MockNetworkManager) IsStatelessCNIMode() bool {
 }
 
 // SetCNSRequestTimeout is a no-op for the mock network manager
-func (nm *MockNetworkManager) SetCNSRequestTimeout(_ time.Duration) error {
-	return nil
-}
+func (nm *MockNetworkManager) SetCNSRequestTimeout(_ time.Duration) {}
 
 // GetEndpointID returns the ContainerID value
 func (nm *MockNetworkManager) GetEndpointID(containerID, ifName string) string {

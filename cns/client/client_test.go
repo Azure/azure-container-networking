@@ -441,6 +441,17 @@ func TestNew(t *testing.T) {
 	}
 }
 
+func TestSetRequestTimeout(t *testing.T) {
+	c, err := New("", 15*time.Second)
+	require.NoError(t, err)
+
+	c.SetRequestTimeout(30 * time.Second)
+
+	hc, ok := c.client.(*http.Client)
+	require.True(t, ok)
+	assert.Equal(t, 30*time.Second, hc.Timeout)
+}
+
 func TestBuildRoutes(t *testing.T) {
 	tests := []struct {
 		name    string

@@ -629,9 +629,7 @@ func TestCnsEndpointInfotoCNIEpInfos_Cases(t *testing.T) {
 
 func TestSetCNSRequestTimeout(t *testing.T) {
 	nm := &networkManager{}
-	if err := nm.SetCNSRequestTimeout(30 * time.Second); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	nm.SetCNSRequestTimeout(30 * time.Second)
 	if nm.CnsClient != nil {
 		t.Fatalf("expected no CNS client when stateless mode is disabled")
 	}
@@ -640,10 +638,8 @@ func TestSetCNSRequestTimeout(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	original := nm.CnsClient
-	if err := nm.SetCNSRequestTimeout(30 * time.Second); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if nm.CnsClient == nil || nm.CnsClient == original {
-		t.Fatalf("expected the stateless CNS client to be recreated")
+	nm.SetCNSRequestTimeout(30 * time.Second)
+	if nm.CnsClient != original {
+		t.Fatalf("expected the stateless CNS client to be updated in place")
 	}
 }

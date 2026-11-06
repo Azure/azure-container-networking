@@ -129,6 +129,13 @@ func NewWithUnixSocket(baseURL, unixSocketPath string, requestTimeout time.Durat
 	return client, nil
 }
 
+// SetRequestTimeout updates the HTTP timeout used for requests to CNS.
+func (c *Client) SetRequestTimeout(timeout time.Duration) {
+	if hc, ok := c.client.(*http.Client); ok {
+		hc.Timeout = timeout
+	}
+}
+
 func buildRoutes(baseURL string, paths []string) (map[string]url.URL, error) {
 	base, err := url.Parse(baseURL)
 	if err != nil {
