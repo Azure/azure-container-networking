@@ -9,7 +9,7 @@ AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v
 
 # overrideable defaults
 AUTOUPGRADE          ?= patch
-K8S_VER              ?= 1.31
+K8S_VER              ?= 1.32
 NODE_COUNT           ?= 2
 NODE_COUNT_WIN	     ?= $(NODE_COUNT)
 NODEUPGRADE          ?= NodeImage
@@ -52,7 +52,7 @@ azlogin: ## Login and set account to $SUB
 	@$(AZCLI) login
 	@$(AZCLI) account set -s $(SUB)
 
-# Keep the toolchain compatible with the Kubernetes 1.31 test clusters.
+# Keep the toolchain compatible with test clusters running Kubernetes < 1.33.
 AKS_PREVIEW_VERSION ?= 22.0.0b15
 
 azcfg: ## Install pinned aks-preview

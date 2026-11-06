@@ -10,6 +10,7 @@ parameters:
   dependsOn: ""
   region: ""
   os: linux
+  LTS: true
 
 
 steps:
