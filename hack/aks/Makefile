@@ -4,7 +4,7 @@
 KUBECFG = $(HOME)/.kube
 SSH     = $(HOME)/.ssh
 AZCFG   = $(HOME)/.azure
-AZIMG   = mcr.microsoft.com/azure-cli
+AZIMG   = mcr.microsoft.com/azure-cli:2.91.0
 AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v $(SSH):/root/.ssh -v $(PWD):/root/tmpsrc $(AZIMG) az
 
 # overrideable defaults
@@ -52,16 +52,11 @@ azlogin: ## Login and set account to $SUB
 	@$(AZCLI) login
 	@$(AZCLI) account set -s $(SUB)
 
-# Fallback pin to work around aks-preview upstream breaks (checksum mismatches, etc.).
-# Past Issue: https://github.com/Azure/azure-cli-extensions/issues/10101
-AKS_PREVIEW_FALLBACK_VERSION ?= 21.0.0b7
+# Keep the toolchain compatible with the Kubernetes 1.31 test clusters.
+AKS_PREVIEW_VERSION ?= 22.0.0b15
 
-azcfg: ## Install aks-preview (latest, falling back to AKS_PREVIEW_FALLBACK_VERSION on failure)
-	@$(AZCLI) extension add --name aks-preview --upgrade --yes \
-		|| { \
-			echo "aks-preview latest install failed; falling back to $(AKS_PREVIEW_FALLBACK_VERSION)"; \
-			$(AZCLI) extension add --name aks-preview --version $(AKS_PREVIEW_FALLBACK_VERSION) --upgrade --yes; \
-		}
+azcfg: ## Install pinned aks-preview
+	@$(AZCLI) extension add --name aks-preview --version $(AKS_PREVIEW_VERSION) --upgrade --yes
 
 ip:
 	$(AZCLI) network public-ip create --name $(IP_PREFIX)-$(CLUSTER)-$(IPVERSION) \
@@ -140,7 +135,6 @@ up: swift-up ## Alias to swift-up
 
 nodesubnet-byocni-nokubeproxy-up: rg-up ipv4 overlay-net-up ## Brings up an NodeSubnet BYO CNI cluster without kube-proxy
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--kms-infrastructure-encryption Enabled \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
 		--kubernetes-version $(K8S_VER) \
@@ -159,7 +153,6 @@ nodesubnet-byocni-nokubeproxy-up: rg-up ipv4 overlay-net-up ## Brings up an Node
 
 overlay-byocni-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay BYO CNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--kms-infrastructure-encryption Enabled \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
 		--kubernetes-version $(K8S_VER) \
@@ -181,7 +174,6 @@ endif
 
 overlay-byocni-nokubeproxy-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay BYO CNI cluster without kube-proxy
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--kms-infrastructure-encryption Enabled \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
 		--kubernetes-version $(K8S_VER) \
@@ -200,7 +192,6 @@ overlay-byocni-nokubeproxy-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay
 
 overlay-cilium-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay Cilium cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--kms-infrastructure-encryption Enabled \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
 		--kubernetes-version $(K8S_VER) \
@@ -219,7 +210,6 @@ overlay-cilium-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay Cilium clus
 
 overlay-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay AzCNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--kms-infrastructure-encryption Enabled \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
 		--kubernetes-version $(K8S_VER) \
@@ -240,7 +230,6 @@ endif
 
 swift-byocni-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT BYO CNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--kms-infrastructure-encryption Enabled \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
 		--kubernetes-version $(K8S_VER) \
@@ -261,7 +250,6 @@ endif
 
 swift-byocni-nokubeproxy-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT BYO CNI cluster without kube-proxy, add managed identity and public ip
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--kms-infrastructure-encryption Enabled \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
 		--kubernetes-version $(K8S_VER) \
@@ -280,7 +268,6 @@ swift-byocni-nokubeproxy-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT BYO CNI
 
 swift-cilium-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT Cilium cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--kms-infrastructure-encryption Enabled \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
 		--kubernetes-version $(K8S_VER) \
@@ -299,7 +286,6 @@ swift-cilium-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT Cilium cluster
 
 swift-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT AzCNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--kms-infrastructure-encryption Enabled \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
 		--kubernetes-version $(K8S_VER) \
@@ -316,7 +302,6 @@ swift-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT AzCNI cluster
 
 swiftv2-multitenancy-cluster-up: rg-up ipv4
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--kms-infrastructure-encryption Enabled \
 		--network-plugin azure \
 		--network-plugin-mode overlay \
 		--kubernetes-version $(K8S_VER) \
@@ -332,7 +317,6 @@ swiftv2-multitenancy-cluster-up: rg-up ipv4
 
 swiftv2-dummy-cluster-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT AzCNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--kms-infrastructure-encryption Enabled \
 		--network-plugin azure \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
@@ -346,7 +330,6 @@ swiftv2-dummy-cluster-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT AzCNI clus
 # https://dev.azure.com/msazure/CloudNativeCompute/_git/aks-rp?path=/resourceprovider/server/microsoft.com/containerservice/flags/network_flags.go&version=GBmaster&line=134&lineEnd=135&lineStartColumn=1&lineEndColumn=1&lineStyle=plain&_a=contents
 vnetscale-swift-byocni-up: rg-up ipv4 vnetscale-swift-net-up ## Bring up a Vnet Scale SWIFT BYO CNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--kms-infrastructure-encryption Enabled \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
 		--kubernetes-version $(K8S_VER) \
@@ -365,7 +348,6 @@ vnetscale-swift-byocni-up: rg-up ipv4 vnetscale-swift-net-up ## Bring up a Vnet 
 
 vnetscale-swift-byocni-nokubeproxy-up: rg-up ipv4 vnetscale-swift-net-up ## Bring up a Vnet Scale SWIFT BYO CNI cluster without kube-proxy
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--kms-infrastructure-encryption Enabled \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
 		--kubernetes-version $(K8S_VER) \
@@ -385,7 +367,6 @@ vnetscale-swift-byocni-nokubeproxy-up: rg-up ipv4 vnetscale-swift-net-up ## Brin
 
 vnetscale-swift-cilium-up: rg-up ipv4 vnetscale-swift-net-up ## Bring up a Vnet Scale SWIFT Cilium cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--kms-infrastructure-encryption Enabled \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
 		--kubernetes-version $(K8S_VER) \
@@ -405,7 +386,6 @@ vnetscale-swift-cilium-up: rg-up ipv4 vnetscale-swift-net-up ## Bring up a Vnet 
 
 vnetscale-swift-up: rg-up ipv4 vnetscale-swift-net-up ## Bring up a Vnet Scale SWIFT AzCNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--kms-infrastructure-encryption Enabled \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
 		--kubernetes-version $(K8S_VER) \
@@ -423,7 +403,6 @@ vnetscale-swift-up: rg-up ipv4 vnetscale-swift-net-up ## Bring up a Vnet Scale S
 
 nodesubnet-cilium-up: rg-up ipv4 overlay-net-up ## Bring up a Nodesubnet Cilium cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--kms-infrastructure-encryption Enabled \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
 		--kubernetes-version $(K8S_VER) \
@@ -440,7 +419,6 @@ nodesubnet-cilium-up: rg-up ipv4 overlay-net-up ## Bring up a Nodesubnet Cilium 
 
 cniv1-up: rg-up ipv4 overlay-net-up ## Bring up a CNIv1 cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--kms-infrastructure-encryption Enabled \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
 		--kubernetes-version $(K8S_VER) \
@@ -461,7 +439,6 @@ endif
 
 dualstack-overlay-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up an dualstack Overlay cluster with Linux node only
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--kms-infrastructure-encryption Enabled \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
 		--kubernetes-version $(K8S_VER) \
@@ -480,7 +457,6 @@ dualstack-overlay-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up an dualstack O
 
 dualstack-overlay-byocni-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up an dualstack Overlay BYO CNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--kms-infrastructure-encryption Enabled \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
 		--kubernetes-version $(K8S_VER) \
@@ -502,7 +478,6 @@ endif
 
 cilium-dualstack-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up a Cilium Dualstack Overlay cluster with Linux node only
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--kms-infrastructure-encryption Enabled \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
 		--kubernetes-version $(K8S_VER) \
@@ -522,7 +497,6 @@ cilium-dualstack-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up a Cilium Dualst
 
 dualstack-byocni-nokubeproxy-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up a Dualstack overlay BYOCNI cluster with Linux node only and no kube-proxy
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--kms-infrastructure-encryption Enabled \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
 		--kubernetes-version $(K8S_VER) \
