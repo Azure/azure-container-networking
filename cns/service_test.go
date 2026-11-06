@@ -324,6 +324,82 @@ func TestMtlsRootCAsFromCertificate(t *testing.T) {
 	}
 }
 
+func TestGetTLSConfigFromFileCAPath(t *testing.T) {
+	logger.InitLogger("azure-cns.log", 0, 0, t.TempDir())
+	certPath := createTestCertificate(t)
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	var caPEM []byte
+	expectedCAs := x509.NewCertPool()
+	for _, name := range []string{"root", "other root"} {
+		template := &x509.Certificate{
+			SerialNumber:          big.NewInt(int64(len(caPEM) + 1)),
+			Subject:               pkix.Name{CommonName: name},
+			NotBefore:             time.Now().Add(-time.Hour),
+			NotAfter:              time.Now().Add(time.Hour),
+			IsCA:                  true,
+			BasicConstraintsValid: true,
+			KeyUsage:              x509.KeyUsageCertSign,
+		}
+		derBytes, err := x509.CreateCertificate(rand.Reader, template, template, &privateKey.PublicKey, privateKey)
+		require.NoError(t, err)
+		certificate, err := x509.ParseCertificate(derBytes)
+		require.NoError(t, err)
+		expectedCAs.AddCert(certificate)
+		caPEM = append(caPEM, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes})...)
+	}
+	caPath := filepath.Join(t.TempDir(), "ca.pem")
+	require.NoError(t, os.WriteFile(caPath, caPEM, 0o600))
+	invalidPath := filepath.Join(t.TempDir(), "invalid.pem")
+	require.NoError(t, os.WriteFile(invalidPath, []byte("not a certificate"), 0o600))
+	emptyPath := filepath.Join(t.TempDir(), "empty.pem")
+	require.NoError(t, os.WriteFile(emptyPath, nil, 0o600))
+	missingPath := filepath.Join(t.TempDir(), "missing.pem")
+
+	for _, test := range []struct {
+		name    string
+		caPath  string
+		useMTLS bool
+		wantErr string
+	}{
+		{name: "CA bundle", caPath: caPath, useMTLS: true},
+		{name: "certificate fallback", useMTLS: true},
+		{name: "missing CA file", caPath: missingPath, useMTLS: true, wantErr: "failed to read mTLS CA file"},
+		{name: "invalid CA file", caPath: invalidPath, useMTLS: true, wantErr: "no valid PEM certificates"},
+		{name: "empty CA file", caPath: emptyPath, useMTLS: true, wantErr: "no valid PEM certificates"},
+		{name: "CA ignored without mTLS", caPath: missingPath},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			config, err := getTLSConfigFromFile(serverTLS.TlsSettings{
+				TLSCertificatePath: certPath,
+				TLSCAPath:          test.caPath,
+				UseMTLS:            test.useMTLS,
+				MinTLSVersion:      "TLS 1.2",
+			})
+			if test.wantErr != "" {
+				require.ErrorContains(t, err, test.wantErr)
+				require.Nil(t, config)
+				return
+			}
+			require.NoError(t, err)
+			if !test.useMTLS {
+				require.Nil(t, config.ClientCAs)
+				require.Nil(t, config.RootCAs)
+				return
+			}
+			require.Equal(t, tls.RequireAndVerifyClientCert, config.ClientAuth)
+			require.NotNil(t, config.VerifyPeerCertificate)
+			wantCAs := expectedCAs
+			if test.caPath == "" {
+				wantCAs, err = mtlsRootCAsFromCertificate(&config.Certificates[0])
+				require.NoError(t, err)
+			}
+			require.True(t, wantCAs.Equal(config.ClientCAs))
+			require.True(t, wantCAs.Equal(config.RootCAs))
+		})
+	}
+}
+
 // createTestCertificate is a test helper that creates a test certificate
 // and writes it to a temporary file that is cleaned up after the test.
 // Returns the path to the test certificate file
