@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
+	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -95,6 +96,11 @@ func TestWindowsNPMLiteConformanceConfig(t *testing.T) {
 }
 
 func TestWindowsNPMLiteConformanceCorpus(t *testing.T) {
+	const (
+		ingressCIDRExcept = "ingress-cidr-except"
+		egressCIDRExcept  = "egress-cidr-except"
+		allIPv4CIDR       = "0.0.0.0/0"
+	)
 	var suite liteConformanceSuite
 	decoder := json.NewDecoder(bytes.NewReader(readLiteConformanceFile(t, "cases.v1.json")))
 	decoder.DisallowUnknownFields()
@@ -159,8 +165,47 @@ func TestWindowsNPMLiteConformanceCorpus(t *testing.T) {
 			case liteAccepted:
 				require.NoError(t, err)
 				require.NotNil(t, translated)
-				require.NotEmpty(t, translated.ACLs)
 				require.Empty(t, translated.RuleIPSets)
+				expectedDirection := policies.Ingress
+				switch testCase.Name {
+				case "ingress-cidr", ingressCIDRExcept:
+				case "egress-cidr", egressCIDRExcept:
+					expectedDirection = policies.Egress
+				default:
+					t.Fatalf("unexpected accepted case %q", testCase.Name)
+				}
+				withExcept := testCase.Name == ingressCIDRExcept || testCase.Name == egressCIDRExcept
+				allowedCIDR := suite.PeerCIDRs[liteAllowed]
+				if withExcept {
+					allowedCIDR = allIPv4CIDR
+				}
+				allow := &policies.ACLPolicy{
+					Target:    policies.Allowed,
+					Direction: expectedDirection,
+					DstPorts:  policies.Ports{Port: 8080},
+					Protocol:  policies.TCP,
+				}
+				if expectedDirection == policies.Ingress {
+					allow.SrcDirectIPs = []string{allowedCIDR}
+				} else {
+					allow.DstDirectIPs = []string{allowedCIDR}
+				}
+				expectedACLs := []*policies.ACLPolicy{allow}
+				if withExcept {
+					drop := *allow
+					drop.Target = policies.Dropped
+					drop.Priority = policies.ExceptBlockPriority
+					// HNS assigns ordinary Allow ACLs priority 222; lower values take precedence.
+					require.Less(t, drop.Priority, uint16(222))
+					if expectedDirection == policies.Ingress {
+						drop.SrcDirectIPs = []string{suite.PeerCIDRs[liteDenied]}
+					} else {
+						drop.DstDirectIPs = []string{suite.PeerCIDRs[liteDenied]}
+					}
+					expectedACLs = append(expectedACLs, &drop)
+				}
+				expectedACLs = append(expectedACLs, policies.NewACLPolicy(policies.Dropped, expectedDirection))
+				require.Equal(t, expectedACLs, translated.ACLs)
 			case liteUnsupportedPeer:
 				require.ErrorIs(t, err, ErrUnsupportedNonCIDR)
 				require.Nil(t, translated)
@@ -174,7 +219,7 @@ func TestWindowsNPMLiteConformanceCorpus(t *testing.T) {
 	}
 	require.ElementsMatch(t, []string{
 		"ingress-cidr", "egress-cidr",
-		"ingress-cidr-except", "egress-cidr-except",
+		ingressCIDRExcept, egressCIDRExcept,
 		"ingress-pod-peer-rejected", "egress-pod-peer-rejected",
 		"ingress-namespace-peer-rejected", "egress-namespace-peer-rejected",
 		"ingress-named-port-rejected", "egress-named-port-rejected",
