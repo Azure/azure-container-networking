@@ -60,8 +60,8 @@ echo $env:IMAGE
 ## Conformance validation
 
 The [NPM conformance pipeline](../.pipelines/npm/npm-conformance-tests.yaml) accepts
-an optional `npmImage` parameter for validating an existing Linux/amd64 image,
-including a pre-release Dalec image. The image must be pullable by the test
+an optional `npmImage` parameter for validating an existing image on Linux/amd64
+and Linux/arm64, including a pre-release Dalec image. The image must be pullable by the test
 cluster. Supply a complete reference in any of these forms:
 
 ```text
@@ -77,16 +77,68 @@ string, or using `__use-default__` retains the source build and its
 `$IMAGE_REGISTRY/azure-npm:linux-amd64-<source-version>` image.
 
 All four existing legs run: foreground, background, Linux stress, and place-first
-service tests. The stress leg uses the background configuration while retaining
-its own cluster and public-IP identity. Each run has a separate resource group,
+service tests. Supplying an override also runs background conformance on arm64,
+so the supplied image must support both architectures. Source-built validation
+remains amd64-only. The stress leg uses the background configuration while
+retaining its own cluster and public-IP identity. Each run has a separate resource group,
 and each job uses its own kubeconfig. Deployment checks the requested image and
 DaemonSet rollout before testing, and logs pod image IDs for runtime evidence.
 Image, configuration, or rollout failures fail the job without falling back to a
 source-built image.
 
-This pipeline does not validate Windows or arm64. Clearing the override restores
+This pipeline does not validate Windows. Clearing the override restores
 source-built validation; it is not a substitute for validating a failed candidate.
 The override does not change the manual-install manifest or production defaults.
+
+### Windows NPM Lite
+
+The reusable [Lite configuration](../test/npm/windows-lite/config.json) and
+[version 1 case corpus](../test/npm/windows-lite/cases.v1.json) are inputs to a
+Windows NPM Lite test runner on an existing test cluster. They do not provision a
+cluster, build an image, or add Windows legs to the Linux pipeline. The existing
+Windows unit-test jobs load these same files and check their translation
+expectations; those checks are not live image conformance.
+
+Pin both files to the same published ACN commit. Keep that test-source revision
+separate from the candidate image's product-source provenance. Merge the required
+configuration into the Windows NPM configuration only, without changing Linux
+configuration or other Windows settings. After rollout, the runner must verify
+that every tested Windows NPM pod actually uses the expected `NPM_CONFIG` file
+with `EnableV2NPM=true`, `EnableNPMLite=true`, `EnableHTTPDebugAPI=false`, and
+`EnablePprof=false`. Missing or false Lite configuration fails validation; the
+ordinary `npm.exe start` command alone is not Lite evidence.
+
+Before and after the cases, verify the supplied immutable Windows/amd64 child
+image reference, running container image IDs, Windows image OS version, ready
+DaemonSet pods, and HostProcess configuration. Use the original candidate
+reference unchanged, without rebuilding or substituting another repository or
+digest. Record these observations together with the corpus commit and per-case
+results. A queue parameter, a ConfigMap alone, or results from non-Lite NPM do not
+prove that the candidate ran in Lite mode.
+
+The corpus has `schemaVersion: 1`, `suite: windows-npm-lite`, and standard
+Kubernetes NetworkPolicy objects. A consumer must reject unknown versions,
+rejection codes, roles, or probe expectations rather than skipping cases. It
+creates an isolated test namespace and three Windows workload roles: `subject`,
+`allowed-peer`, and `denied-peer`. Label each with `acn-npm-lite-role=<role>`,
+provide a TCP listener on port 8080 named `http`, and place the subject and peers
+on different Windows nodes. Set each policy's namespace to the test namespace.
+Replace only the declared `peerCIDRs` sentinels in `ipBlock.cidr` and
+`ipBlock.except` with the corresponding workload's actual IPv4 `/32`.
+
+Run all ten cases serially. Before each policy, both probes must connect. After
+applying it, wait for the declared `allow` or `deny` outcomes, then delete it and
+require both connections to recover before the next case. The four positive
+cases cover ingress/egress CIDR allow rules and CIDR exceptions. The six negative
+cases cover ingress/egress peer pod selectors, peer namespace selectors, and
+named ports. The policy's target `spec.podSelector` is still supported in Lite.
+
+For a rejection case, both connections must remain allowed and each tested
+Windows NPM pod must emit the specified `rejectionMessages` reason, correlated
+with that policy's name and unique namespace, after its creation. Missing
+rejection evidence, stale logs, or unexpected traffic changes fail the case.
+Failed traffic alone never counts as proof of unsupported-policy rejection.
+Clean up only this run's policies and namespace, including on failure.
 
 ## Usage
 [Microsoft Docs](https://learn.microsoft.com/en-us/azure/aks/use-network-policies#verify-network-policy-setup) has a detailed step by step example on how to use Kubernetes network policy.
