@@ -111,7 +111,6 @@ type HTTPRestService struct {
 	state                    *httpRestServiceState
 	podsPendingIPAssignment  *bounded.TimedSet
 	sync.RWMutex
-	dncPartitionKey            string
 	EndpointState              map[string]*EndpointInfo // key : container id
 	EndpointStateStore         store.KeyValueStore
 	EndpointDeleteIntents      map[string]EndpointDeleteIntent // key : container id
@@ -202,6 +201,7 @@ type httpRestServiceState struct {
 	Location                         string
 	NetworkType                      string
 	OrchestratorType                 string
+	DncPartitionKey                  string
 	NodeID                           string
 	Initialized                      bool
 	ContainerIDByOrchestratorContext map[string]*ncList         // OrchestratorContext is the key and value is a list of NetworkContainerIDs separated by comma
@@ -378,7 +378,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	responseHeaderTimeout, _ := service.GetOption(acn.OptHttpResponseHeaderTimeout).(int)
 	acn.InitHttpClient(connectionTimeout, responseHeaderTimeout)
 
-	logger.SetContextDetails(service.state.OrchestratorType, service.state.NodeID)
+	logger.SetContextDetails(service.state.OrchestratorType, service.state.NodeID, service.state.DncPartitionKey) //nolint:staticcheck // updating to logger v2 is outside scope of current refactor
 	logger.Printf("[Azure CNS]  Listening.")
 
 	return nil

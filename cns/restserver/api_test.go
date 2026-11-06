@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -236,6 +237,83 @@ func TestSetOrchestratorType(t *testing.T) {
 	if err != nil {
 		t.Errorf("setOrchestratorType failed Err:%+v", err)
 		t.Fatal(err)
+	}
+}
+
+func TestSetOrchestratorTypePartitionPersistence(t *testing.T) {
+	const (
+		nodeID         = "node1"
+		otherNodeID    = "node2"
+		firstPartition = "partition1"
+		nextPartition  = "partition2"
+	)
+
+	for _, tt := range []struct {
+		name         string
+		orchestrator string
+		nodeID       string
+		partition    string
+		wantCode     types.ResponseCode
+	}{
+		{"set", cns.ServiceFabric, nodeID, firstPartition, types.Success},
+		{"replace", cns.ServiceFabric, nodeID, nextPartition, types.Success},
+		{"clear", cns.ServiceFabric, nodeID, "", types.Success},
+		{"unsupported orchestrator", "unsupported", nodeID, nextPartition, types.UnsupportedOrchestratorType},
+		{"different node with NCs", cns.ServiceFabric, otherNodeID, nextPartition, types.InvalidRequest},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			statePath := filepath.Join(t.TempDir(), cnsJsonFileName)
+			mainStore, err := store.NewJsonFileStore(statePath, nil, nil)
+			require.NoError(t, err)
+			s := &HTTPRestService{
+				Service: &cns.Service{Service: &common.Service{}},
+				store:   mainStore,
+				state: &httpRestServiceState{
+					OrchestratorType: cns.ServiceFabric,
+					NodeID:           nodeID,
+					DncPartitionKey:  "partition0",
+					ContainerStatus:  map[string]containerstatus{"nc123": {}},
+				},
+			}
+			require.NoError(t, s.saveState())
+			body, err := json.Marshal(cns.SetOrchestratorTypeRequest{ //nolint:musttag // modifying existing struct is beyond scope of this test
+				OrchestratorType: tt.orchestrator,
+				NodeID:           tt.nodeID,
+				DncPartitionKey:  tt.partition,
+			})
+			require.NoError(t, err)
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, cns.SetOrchestratorType, bytes.NewReader(body))
+			writer := httptest.NewRecorder()
+			s.setOrchestratorType(writer, request)
+			var response cns.Response
+			require.NoError(t, json.Unmarshal(writer.Body.Bytes(), &response))
+			require.Equal(t, tt.wantCode, response.ReturnCode)
+
+			wantPartition := "partition0"
+			if tt.wantCode == types.Success {
+				wantPartition = tt.partition
+			}
+			assert.Equal(t, wantPartition, s.state.DncPartitionKey)
+			contents, err := os.ReadFile(statePath)
+			require.NoError(t, err)
+			var persisted map[string]json.RawMessage
+			require.NoError(t, json.Unmarshal(contents, &persisted))
+			var savedState map[string]interface{}
+			require.NoError(t, json.Unmarshal(persisted[storeKey], &savedState))
+			assert.Equal(t, wantPartition, savedState["DncPartitionKey"])
+
+			reopened, err := store.NewJsonFileStore(statePath, nil, nil)
+			require.NoError(t, err)
+			restarted := &HTTPRestService{
+				Service: &cns.Service{Service: &common.Service{}},
+				store:   reopened,
+				state:   &httpRestServiceState{},
+			}
+			require.NoError(t, restarted.restoreState())
+			assert.Equal(t, wantPartition, restarted.state.DncPartitionKey)
+			assert.Equal(t, cns.ServiceFabric, restarted.state.OrchestratorType)
+			assert.Equal(t, nodeID, restarted.state.NodeID)
+		})
 	}
 }
 
