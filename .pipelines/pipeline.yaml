@@ -13,6 +13,7 @@ variables:
   BUILD_POOL_NAME_DEFAULT: $(BUILD_POOL_1ESPT_AMD)
   BUILD_POOL_NAME_LINUX_ARM64: $(BUILD_POOL_1ESPT_ARM)
   commitID: $(Build.BuildId)
+  IMAGE_REGISTRY: acnpublic.azurecr.io
   CNS_IMAGE_REPO: ACN
   IPAM_IMAGE_REPO: ACN
   CNI_IMAGE_REPO: ACN
@@ -45,12 +46,19 @@ extends:
             steps:
               - bash: |
                   set -euo pipefail
+                  cniVersion="$(make -s cni-version)"
+                  cnsVersion="$(make -s cns-version)"
+                  ipamVersion="$(make -s azure-ipam-version)"
+                  if [[ -z "$cniVersion" || -z "$cnsVersion" || -z "$ipamVersion" ]]; then
+                    echo "Image version resolution returned an empty value" >&2
+                    exit 1
+                  fi
                   echo "Source: $(Build.SourceVersion)"
                   echo "##vso[task.setvariable variable=commitID;isOutput=true]$(Build.BuildId)"
-                  echo "##vso[task.setvariable variable=cniVersion;isOutput=true]$(make cni-version)"
-                  echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]$(make cns-version)"
-                  echo "##vso[task.setvariable variable=azureIpamVersion;isOutput=true]$(make azure-ipam-version)"
-                  echo "##vso[task.setvariable variable=ipamVersion;isOutput=true]$(make azure-ipam-version)"
+                  echo "##vso[task.setvariable variable=cniVersion;isOutput=true]$cniVersion"
+                  echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]$cnsVersion"
+                  echo "##vso[task.setvariable variable=azureIpamVersion;isOutput=true]$ipamVersion"
+                  echo "##vso[task.setvariable variable=ipamVersion;isOutput=true]$ipamVersion"
                   echo "##vso[task.setvariable variable=cniImageRepo;isOutput=true]ACN"
                   echo "##vso[task.setvariable variable=cnsImageRepo;isOutput=true]ACN"
                   echo "##vso[task.setvariable variable=ipamImageRepo;isOutput=true]ACN"

@@ -15,16 +15,24 @@ steps:
 
   - script: |
       set -e
-      make ${{ parameters.name }}-manifest-build PLATFORMS="${{ parameters.platforms }}" 
+      command -v buildah
+      make ${{ parameters.name }}-manifest-build CONTAINER_BUILDER=buildah PLATFORMS="${{ parameters.platforms }}" '.SHELLFLAGS=-ec'
     name: manifest_build
     displayName: Manifest Build
     retryCountOnTaskFailure: 3
 
   - script: |
-      set -ex
+      set -exo pipefail
       echo "checking XDG_RUNTIME_DIR"
       echo $XDG_RUNTIME_DIR
-      make ${{ parameters.name }}-manifest-push
+      make ${{ parameters.name }}-manifest-push CONTAINER_BUILDER=buildah
+      image="$(make -s ${{ parameters.name }}-image-name)"
+      version="$(make -s ${{ parameters.name }}-version)"
+      skopeo inspect --raw "docker://${IMAGE_REGISTRY}/${image}:${version}" |
+        jq -e --arg platforms "${{ parameters.platforms }}" '
+          [.manifests[].platform | .os + "/" + .architecture] | unique |
+          if . == ($platforms | split(" ") | unique) then .
+          else error("Published image platforms do not match: " + $platforms) end'
       mkdir -p $(Build.ArtifactStagingDirectory)/images
 
       echo "setting XDG_RUNTIME_DIR"
