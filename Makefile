@@ -609,7 +609,7 @@ npm-image-pull: ## pull cns container image.
 IMAGE_ARCHIVE_DIR ?= $(shell pwd)
 
 manifest-create:
-	$(CONTAINER_BUILDER) manifest create $(IMAGE_REGISTRY)/$(IMAGE):$(TAG)
+	$(CONTAINER_BUILDER) manifest create --amend $(IMAGE_REGISTRY)/$(IMAGE):$(TAG)
 
 manifest-add:
 	$(CONTAINER_BUILDER) manifest add --os=$(OS) $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) docker://$(IMAGE_REGISTRY)/$(IMAGE):$(subst /,-,$(PLATFORM))-$(TAG)
@@ -933,7 +933,7 @@ test-load: ## run all load tests
 	AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION) \
 		CNI_VERSION=$(CNI_VERSION) \
 		CNS_VERSION=$(CNS_VERSION) \
-		go test -timeout 40m -race -tags=load ./test/integration/load... -v
+		go test -count=1 -timeout 40m -race -tags=load ./test/integration/load... -v
 
 test-validate-state:
 	cd test/integration/load && go test -mod=readonly -count=1 -timeout 30m -tags load --skip 'TestE2E*' -run ^TestValidateState
