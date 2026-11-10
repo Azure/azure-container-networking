@@ -26,7 +26,7 @@ var requiredLinuxPackages = []string{
 
 var (
 	linuxBuilderRe = regexp.MustCompile(`(?m)^FROM mcr\.microsoft\.com/oss/go/microsoft/golang:\d+\.\d+\.\d+(?:-\d+)?-azurelinux3\.0 AS builder\s*$`)
-	linuxBaseRe    = regexp.MustCompile(`(?im)^FROM (?:--platform=\S+ )?(mcr\.microsoft\.com/azurelinux/base/core:3\.0@sha256:[0-9a-f]{64}) AS linux\s*$`)
+	linuxBaseRe    = regexp.MustCompile(`(?im)^FROM (?:--platform=\S+ )?(mcr\.microsoft\.com/azurelinux/base/core:3\.0) AS linux\s*$`)
 	tdnfBlockRe    = regexp.MustCompile(`(?s)tdnf install -y(.*?)&& tdnf clean all`)
 )
 
@@ -52,7 +52,7 @@ func TestNPMDockerfileLinuxRuntime(t *testing.T) {
 		image := linuxBaseRe.FindStringSubmatch(content)
 		switch {
 		case image == nil:
-			t.Errorf("%s: missing digest-pinned Azure Linux 3 runtime", df)
+			t.Errorf("%s: missing floating Azure Linux 3.0 runtime tag (digest pins are not allowed)", df)
 		case base == "":
 			base = image[1]
 		case image[1] != base:

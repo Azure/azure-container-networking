@@ -39,6 +39,8 @@ The third command builds the `azure-npm` binary and place it in a tar archive.
 The binaries are placed in the `output` directory.
 
 The unsigned Linux image and the signed Linux packaging path use Azure Linux 3.
+Both paths use the floating `mcr.microsoft.com/azurelinux/base/core:3.0` tag
+without a digest pin, so rebuilds can pick up updates published to that tag.
 Their unversioned runtime package set matches the managed Dalec NPM environment:
 `SymCrypt`, `SymCrypt-OpenSSL`, `bash`, `ca-certificates`, `grep`, `ipset`,
 `iptables`, and `openssl-libs`. Ubuntu-specific APT package installation is no
