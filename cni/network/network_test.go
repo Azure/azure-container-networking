@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/api"
@@ -1912,6 +1913,25 @@ func TestWireServerAddressForEnv(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.expected, wireServerAddressForEnv(tt.env))
+		})
+	}
+}
+
+func TestCNSRequestTimeout(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      *cni.NetworkConfig
+		expected time.Duration
+	}{
+		{name: "nil config uses default", cfg: nil, expected: defaultRequestTimeout},
+		{name: "unset uses default", cfg: &cni.NetworkConfig{}, expected: defaultRequestTimeout},
+		{name: "negative uses default", cfg: &cni.NetworkConfig{CNSRequestTimeoutSeconds: -5}, expected: defaultRequestTimeout},
+		{name: "configured value is used", cfg: &cni.NetworkConfig{CNSRequestTimeoutSeconds: 30}, expected: 30 * time.Second},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, cnsRequestTimeout(tt.cfg))
 		})
 	}
 }
