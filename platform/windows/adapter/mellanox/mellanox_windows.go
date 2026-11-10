@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/log"
+	"golang.org/x/sys/windows/registry"
 )
 
 const (
@@ -21,7 +22,7 @@ const (
 	priorityVLANTagIdentifier = "*PriorityVLANTag"
 
 	// Registry key Path Prefix
-	registryKeyPrefix = "HKLM:\\System\\CurrentControlSet\\Control\\Class\\"
+	registryKeyPrefix = "System\\CurrentControlSet\\Control\\Class\\"
 )
 
 var (
@@ -120,19 +121,49 @@ func (m *Mellanox) getMellanoxPriorityVLANTagValueForV3() (int, error) {
 		return 0, err
 	}
 
-	cmd := fmt.Sprintf(
-		`Get-ItemProperty -Path '%s' -Name '%s' | Select-Object -ExpandProperty '%s'`, registryKeyFullPath, priorityVLANTagIdentifier, priorityVLANTagIdentifier)
-	regvalue, err := executePowershellCommand(cmd)
+	intValue, err := readRegistryVLANTag(registry.LOCAL_MACHINE, registryKeyFullPath)
 	if err != nil {
-		return 0, err
-	}
-
-	intValue, err := strconv.Atoi(regvalue)
-	if err != nil {
-		return 0, fmt.Errorf("failed to convert PriorityVLANTag value to integer: %w", err)
+		return 0, fmt.Errorf("failed to read PriorityVLANTag: %w", err)
 	}
 
 	return intValue, nil
+}
+
+func readRegistryVLANTag(root registry.Key, path string) (int, error) {
+	key, err := registry.OpenKey(root, path, registry.QUERY_VALUE)
+	if err != nil {
+		return 0, err
+	}
+	defer key.Close()
+
+	value, valueType, err := key.GetStringValue(priorityVLANTagIdentifier)
+	if err == registry.ErrUnexpectedType && (valueType == registry.DWORD || valueType == registry.QWORD) {
+		number, _, numberErr := key.GetIntegerValue(priorityVLANTagIdentifier)
+		if numberErr != nil {
+			return 0, numberErr
+		}
+		value = strconv.FormatUint(number, 10)
+	} else if err == registry.ErrUnexpectedType && valueType == registry.MULTI_SZ {
+		values, _, valuesErr := key.GetStringsValue(priorityVLANTagIdentifier)
+		if valuesErr != nil {
+			return 0, valuesErr
+		}
+		value = strings.Join(values, "\r\n")
+	} else if err != nil {
+		return 0, err
+	}
+
+	return strconv.Atoi(strings.TrimSpace(value))
+}
+
+func writeRegistryVLANTag(root registry.Key, path string, value int) error {
+	key, err := registry.OpenKey(root, path, registry.SET_VALUE)
+	if err != nil {
+		return err
+	}
+	defer key.Close()
+
+	return key.SetStringValue(priorityVLANTagIdentifier, strconv.Itoa(value))
 }
 
 // adapter is version 4 and up since adapter's advance property consists of reg key : PriorityVLANTag
@@ -158,15 +189,12 @@ func (m *Mellanox) setMellanoxPriorityVLANTagValueForV3(adapterName string, desi
 		return err
 	}
 
-	cmd := fmt.Sprintf(`New-ItemProperty -Path '%s' -Name '%s' -Value %d -PropertyType String -Force`,
-		registryKeyFullPath, priorityVLANTagIdentifier, desiredVal)
-	_, err = executePowershellCommand(cmd)
-	if err != nil {
-		return fmt.Errorf("error while executing powershell command to set Item property for adapter  %s: %w", adapterName, err)
+	if err := writeRegistryVLANTag(registry.LOCAL_MACHINE, registryKeyFullPath, desiredVal); err != nil {
+		return fmt.Errorf("failed to set PriorityVLANTag for adapter %s: %w", adapterName, err)
 	}
 
 	log.Printf("Restarting Mellanox network adapter for regkey change to take effect")
-	cmd = fmt.Sprintf(`Restart-NetAdapter -Name '%s'`, adapterName)
+	cmd := fmt.Sprintf(`Restart-NetAdapter -Name '%s'`, adapterName)
 	_, err = executePowershellCommand(cmd)
 	if err != nil {
 		return fmt.Errorf("error while executing powershell command to restart net adapter  %s: %w", adapterName, err)
