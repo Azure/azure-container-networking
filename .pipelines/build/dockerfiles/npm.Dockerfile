@@ -95,7 +95,7 @@ RUN apt-get update && apt-get install -y \
         libncursesw6=6.4+20240113-1ubuntu2.2 \
         libtinfo6=6.4+20240113-1ubuntu2.2 \
         libpam-modules=1.5.3-5ubuntu5.7 \
-        perl-base=5.38.2-3.2ubuntu0.6 \
+        perl-base=5.38.2-3.2ubuntu0.7 \
         tar=1.35+dfsg-3ubuntu0.4 \
         util-linux=2.39.3-9ubuntu6.6 \
         mount=2.39.3-9ubuntu6.6 \
