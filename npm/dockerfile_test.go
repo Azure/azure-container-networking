@@ -82,10 +82,13 @@ func TestNPMDockerfileLinuxRuntime(t *testing.T) {
 func TestNPMDockerfileLinuxCrypto(t *testing.T) {
 	for _, path := range []string{unsignedLinuxDockerfile, "../.pipelines/build/scripts/npm.sh"} {
 		content := readDockerfile(t, path)
-		for _, setting := range []string{"MS_GO_NOSYSTEMCRYPTO=1", "CGO_ENABLED=0"} {
+		for _, setting := range []string{"GOEXPERIMENT=ms_nocgo_opensslcrypto", "CGO_ENABLED=0"} {
 			if !strings.Contains(content, setting) {
-				t.Errorf("%s: missing release build setting %s", path, setting)
+				t.Errorf("%s: missing %s", path, setting)
 			}
 		}
+	}
+	if strings.Contains(readDockerfile(t, unsignedLinuxDockerfile), "MS_GO_NOSYSTEMCRYPTO") {
+		t.Errorf("%s: Linux container build must use system crypto", unsignedLinuxDockerfile)
 	}
 }

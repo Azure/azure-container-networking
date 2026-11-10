@@ -30,5 +30,7 @@ help=$(/usr/bin/azure-npm --help)
 start_help=$(/usr/bin/azure-npm start --help)
 [[ "$start_help" == *--kubeconfig* ]]
 
+# Exercise initialization with the Azure Linux OpenSSL FIPS provider enabled.
+OPENSSL_FORCE_FIPS_MODE=1 GODEBUG=fips140=on /usr/bin/azure-npm --help >/dev/null
 echo "NPM image runtime contract passed"
 EOF

@@ -45,12 +45,13 @@ Their unversioned runtime package set matches the managed Dalec NPM environment:
 not used.
 
 The Linux image paths use the release branch's MS Go 1.26 compiler with
-`CGO_ENABLED=0` and `MS_GO_NOSYSTEMCRYPTO=1`. The image migration preserves the
-branch's system-crypto opt-out rather than enabling a new crypto backend.
+`CGO_ENABLED=0` and `GOEXPERIMENT=ms_nocgo_opensslcrypto` to use the Azure Linux
+OpenSSL backend without CGO. The signed Linux build also clears any inherited
+`MS_GO_NOSYSTEMCRYPTO` opt-out.
 Matching the runtime OS and packages does not make the ACN and Dalec artifacts
-identical: Dalec uses a CGO-enabled build and its own compiler and dependency
-selection. Windows images and standalone host archive builds are otherwise
-unchanged by this migration.
+identical: Dalec uses `CGO_ENABLED=1` with Microsoft Go's default system OpenSSL,
+as well as its own compiler and dependency selection. Windows images and
+standalone host archive builds retain their existing crypto settings.
 
 After building a Linux image with Docker, run the runtime contract check:
 ```bash
@@ -58,8 +59,9 @@ bash hack/scripts/test_npm_image.sh "$(make --no-print-directory npm-image-name-
 ```
 The NPM Linux image CI runs this check before logging out of the registry. It
 checks the OS, packages, nft/legacy tools, GNU grep, CA bundle, executable
-permissions, and NPM CLI startup. It does not claim OpenSSL FIPS initialization
-for this release's crypto-opt-out binary.
+permissions, and NPM CLI startup, including initialization with the Azure Linux
+OpenSSL FIPS provider enabled. This startup check is not a full FIPS-enabled OS
+validation or certification.
 
 ### Windows
 ```
