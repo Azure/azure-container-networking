@@ -40,6 +40,8 @@ The binaries are placed in the `output` directory.
 
 Both the unsigned Linux image (`npm/linux.Dockerfile`) and the signed-image
 packaging path (`.pipelines/build/dockerfiles/npm.Dockerfile`) use Azure Linux 3.
+Both paths use the floating `mcr.microsoft.com/azurelinux/base/core:3.0` tag
+without a digest pin, so rebuilds can pick up updates published to that tag.
 They install `SymCrypt`, `SymCrypt-OpenSSL`, `bash`, `ca-certificates`, `grep`,
 `ipset`, `iptables`, and `openssl-libs` without individual package version pins.
 These are the runtime dependencies used by the managed Dalec NPM image, including

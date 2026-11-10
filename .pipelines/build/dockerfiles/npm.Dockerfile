@@ -13,7 +13,7 @@ COPY ${ARTIFACT_DIR}/bin/azure-npm.exe npm.exe
 CMD ["npm.exe", "start", "--kubeconfig=.\\kubeconfig"]
 
 
-FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/base/core:3.0@sha256:bd88359666e3f20296e7fe639a480dfd3c3c8eba299b21f26e4560353e21a656 as linux
+FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/base/core:3.0 as linux
 ARG ARTIFACT_DIR
 
 RUN tdnf install -y \
