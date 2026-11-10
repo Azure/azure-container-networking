@@ -45,6 +45,13 @@ steps:
     name: "integrationTest"
     displayName: "Run CNS Integration Tests on AKS Overlay"
 
+  - template: ../../templates/cns-uds-upgrade-steps.yaml
+    parameters:
+      installFlag: INSTALL_AZURE_CNI_OVERLAY
+      installerImage: azure-cni
+      cniType: cniv2
+      scaleup: ${{ parameters.scaleup }}
+
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -81,6 +88,13 @@ steps:
         kubectl delete ns load-test
     displayName: "Validate Node Restart"
     retryCountOnTaskFailure: 3
+
+  - script: |
+      echo "check the CNS IPAM Unix socket after a cold start"
+      bash hack/scripts/validate-cns-uds.sh
+    condition: and(succeeded(), eq(variables['cnsUdsE2E'], 'true'))
+    name: "validateCNSUDSAfterRestart"
+    displayName: "Validate CNS IPAM Unix Socket After Node Restart"
 
   - script: |
       echo "Run wireserver and metadata connectivity Tests"

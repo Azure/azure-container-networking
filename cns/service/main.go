@@ -567,6 +567,12 @@ func main() {
 		}
 	}
 	configuration.SetCNSConfigDefaults(cnsconfig)
+	cnsconfig.EnableIPAMUnixSocket, err = configuration.IPAMUnixSocketEnabled(cnsconfig.EnableIPAMUnixSocket)
+	if err != nil {
+		//nolint:staticcheck // the structured logger is initialized after configuration.
+		logger.Errorf("fatal: failed to read IPAM Unix socket setting: %v", err)
+		os.Exit(1)
+	}
 	config.IPAMSocket = cnsconfig.EnableIPAMUnixSocket
 
 	disableTelemetry := cnsconfig.TelemetrySettings.DisableAll

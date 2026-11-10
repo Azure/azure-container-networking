@@ -69,6 +69,13 @@ steps:
         name: "LRPTest"
         displayName: "Run Cilium Local Redirect Policy Test"
 
+  - template: ../../templates/cns-uds-upgrade-steps.yaml
+    parameters:
+      installFlag: INSTALL_OVERLAY
+      installerImage: azure-ipam
+      cniType: cilium
+      scaleup: ${{ parameters.scaleup }}
+
   - task: AzureCLI@1
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -105,6 +112,13 @@ steps:
         kubectl delete ns load-test
     displayName: "Validate Node Restart"
     retryCountOnTaskFailure: 3
+
+  - script: |
+      echo "check the CNS IPAM Unix socket after a cold start"
+      bash hack/scripts/validate-cns-uds.sh
+    condition: and(succeeded(), eq(variables['cnsUdsE2E'], 'true'))
+    name: "validateCNSUDSAfterRestart"
+    displayName: "Validate CNS IPAM Unix Socket After Node Restart"
 
   - template: ../../templates/cilium-connectivity-tests.yaml
 
