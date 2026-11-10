@@ -91,11 +91,16 @@ func (c *logger) Close() {
 	}
 }
 
-func (c *logger) SetContextDetails(orchestrator, nodeID string) {
+func (c *logger) SetContextDetails(orchestrator, nodeID, dncPartitionKey string) {
 	c.logger.Logf("SetContext details called with: %v orchestrator nodeID %v", orchestrator, nodeID)
 	c.m.Lock()
 	c.metadata[orchestratorTypeKey] = orchestrator
 	c.metadata[nodeIDKey] = nodeID
+	if dncPartitionKey == "" {
+		delete(c.metadata, dncPartitionKeyKey)
+	} else {
+		c.metadata[dncPartitionKeyKey] = dncPartitionKey
+	}
 	c.m.Unlock()
 }
 
@@ -215,12 +220,14 @@ func (c *logger) sendTraceInternal(msg string, lvl ai.Level) {
 	report := ai.Report{
 		Message:          msg,
 		Level:            lvl,
-		Context:          c.metadata[nodeIDKey],
 		CustomDimensions: map[string]string{"Level": lvl.String()},
 	}
+
 	c.m.RLock()
 	maps.Copy(report.CustomDimensions, c.metadata)
 	c.m.RUnlock()
+
+	report.Context = report.CustomDimensions[nodeIDKey]
 	c.th.TrackLog(report)
 }
 
