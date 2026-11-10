@@ -6,11 +6,13 @@ package mellanox
 import (
 	"bytes"
 	"fmt"
+	"net"
 	"os/exec"
 	"strconv"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/log"
+	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
 
@@ -23,6 +25,7 @@ const (
 
 	// Registry key Path Prefix
 	registryKeyPrefix = "System\\CurrentControlSet\\Control\\Class\\"
+	networkClassPath  = registryKeyPrefix + "{4d36e972-e325-11ce-bfc1-08002be10318}"
 )
 
 var (
@@ -78,6 +81,11 @@ func (m *Mellanox) GetPriorityVLANTag() (int, error) {
 		return 0, fmt.Errorf("failed to find mellanox adapter: %w", err)
 	}
 
+	// Fall back to the provider when the registry value cannot be mapped unambiguously.
+	if value, err := readAdapterVLANTag(adapterName); err == nil {
+		return value, nil
+	}
+
 	// Find if adapter has property PriorityVLANTag (version 4 or up) or not (version 3)
 	cmd := fmt.Sprintf(`Get-NetAdapterAdvancedProperty | Where-Object { $_.RegistryKeyword -like '%s' -and $_.Name -eq '%s' } | Select-Object -ExpandProperty Name`,
 		priorityVLANTagIdentifier, adapterName)
@@ -91,6 +99,88 @@ func (m *Mellanox) GetPriorityVLANTag() (int, error) {
 	}
 
 	return m.getMellanoxPriorityVLANTagValueForV3()
+}
+
+func readAdapterVLANTag(adapterName string) (int, error) {
+	iface, err := net.InterfaceByName(adapterName)
+	if err != nil {
+		return 0, err
+	}
+	row := windows.MibIfRow2{InterfaceIndex: uint32(iface.Index)}
+	if err := windows.GetIfEntry2Ex(windows.MibIfEntryNormalWithoutStatistics, &row); err != nil {
+		return 0, err
+	}
+	if !strings.EqualFold(windows.UTF16ToString(row.Alias[:]), adapterName) {
+		return 0, fmt.Errorf("adapter name changed")
+	}
+
+	path, err := adapterRegistryPath(registry.LOCAL_MACHINE, networkClassPath, row.InterfaceGuid.String())
+	if err != nil {
+		return 0, err
+	}
+	if err := checkVLANTagKeyword(registry.LOCAL_MACHINE, path); err != nil {
+		return 0, err
+	}
+	return readRegistryVLANTag(registry.LOCAL_MACHINE, path)
+}
+
+func adapterRegistryPath(root registry.Key, classPath, guid string) (string, error) {
+	class, err := registry.OpenKey(root, classPath, registry.ENUMERATE_SUB_KEYS)
+	if err != nil {
+		return "", err
+	}
+	defer class.Close()
+	names, err := class.ReadSubKeyNames(-1)
+	if err != nil {
+		return "", err
+	}
+
+	var path string
+	for _, name := range names {
+		if len(name) != 4 || strings.Trim(name, "0123456789") != "" {
+			continue
+		}
+		key, err := registry.OpenKey(class, name, registry.QUERY_VALUE)
+		if err != nil {
+			return "", err
+		}
+		instanceID, _, err := key.GetStringValue("NetCfgInstanceId")
+		key.Close()
+		if err == registry.ErrNotExist {
+			continue
+		}
+		if err != nil {
+			return "", err
+		}
+		if strings.EqualFold(instanceID, guid) {
+			if path != "" {
+				return "", fmt.Errorf("multiple registry keys for adapter %s", guid)
+			}
+			path = classPath + `\` + name
+		}
+	}
+	if path == "" {
+		return "", fmt.Errorf("registry key not found for adapter %s", guid)
+	}
+	return path, nil
+}
+
+func checkVLANTagKeyword(root registry.Key, path string) error {
+	key, err := registry.OpenKey(root, path+`\Ndi\params`, registry.ENUMERATE_SUB_KEYS)
+	if err != nil {
+		return err
+	}
+	defer key.Close()
+	names, err := key.ReadSubKeyNames(-1)
+	if err != nil {
+		return err
+	}
+	for _, name := range names {
+		if strings.HasSuffix(strings.ToLower(name), "priorityvlantag") && !strings.EqualFold(name, priorityVLANTagIdentifier) {
+			return fmt.Errorf("multiple PriorityVLANTag keywords")
+		}
+	}
+	return nil
 }
 
 // Checks if a Mellanox adapter's PriorityVLANTag value
