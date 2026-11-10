@@ -487,6 +487,11 @@ func TestCmdAdd(t *testing.T) {
 			args:    buildArgs("failGetVersionedResult", happyPodArgs, invalidVersionNetConfByteArr),
 			wantErr: true,
 		},
+		{
+			name:    "Fail invalid cnsSocketPath during CmdAdd",
+			args:    buildArgs("failSocketPath", happyPodArgs, []byte(`{"cniVersion":"1.0.0","name":"happynetconf","cnsSocketPath":"relative.sock"}`)),
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -536,6 +541,16 @@ func TestCmdDel(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:    "Fail parse netconf during CmdDel",
+			args:    buildArgs("failParseNetConf", happyPodArgs, []byte("invalidNetConf")),
+			wantErr: true,
+		},
+		{
+			name:    "Fail invalid cnsSocketPath during CmdDel",
+			args:    buildArgs("failSocketPath", happyPodArgs, []byte(`{"cniVersion":"1.0.0","name":"happynetconf","cnsSocketPath":"relative.sock"}`)),
+			wantErr: true,
+		},
+		{
 			name:    "Fail request CNS release using ReleaseIPAddress during CmdDel",
 			args:    buildArgs("failRequestCNSReleaseIPArgs", happyPodArgs, happyNetConfByteArr),
 			wantErr: true,
@@ -576,4 +591,11 @@ func TestCmdCheck(t *testing.T) {
 	ipamPlugin, _ := NewPlugin(testLogger, mockCNSClient, nil)
 	err = ipamPlugin.CmdCheck(nil)
 	require.NoError(t, err)
+}
+
+func TestParseNetConfCNSSocketPath(t *testing.T) {
+	cfg, err := parseNetConf([]byte(`{"name":"cilium","cnsSocketPath":"/var/run/azure-cns/cns.sock"}`))
+	require.NoError(t, err)
+	require.Equal(t, "0.2.0", cfg.CNIVersion)
+	require.Equal(t, "/var/run/azure-cns/cns.sock", cfg.CNSSocketPath)
 }

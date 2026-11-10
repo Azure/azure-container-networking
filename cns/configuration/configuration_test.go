@@ -57,6 +57,7 @@ func TestReadConfigFromFile(t *testing.T) {
 				InitializeFromCNI:        true,
 				EnableHomeAZ:             true,
 				EnableHomeAZMultitenancy: true,
+				EnableIPv6Multitenancy:   true,
 				EnablePprof:              true,
 				EnableSubnetScarcity:     true,
 				EnableSwiftV1DualStack:   true,
@@ -109,6 +110,28 @@ func TestReadConfigFromFile(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestReadIPv6MultitenancyFlag(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		config  string
+		enabled bool
+	}{
+		{name: "omitted", config: `{}`},
+		{name: "disabled", config: `{"EnableIPv6Multitenancy": false}`},
+		{name: "enabled", config: `{"EnableIPv6Multitenancy": true}`, enabled: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), defaultConfigName)
+			require.NoError(t, os.WriteFile(path, []byte(tt.config), 0o600))
+			config, err := readConfigFromFile(path)
+			require.NoError(t, err)
+			require.Equal(t, tt.enabled, config.EnableIPv6Multitenancy)
+			SetCNSConfigDefaults(config)
+			require.Equal(t, tt.enabled, config.EnableIPv6Multitenancy)
 		})
 	}
 }

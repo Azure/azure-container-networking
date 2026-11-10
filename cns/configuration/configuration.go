@@ -34,12 +34,14 @@ type CNSConfig struct {
 	EnableHomeAZ                    bool
 	EnableHomeAZMultitenancy        bool
 	EnableIPAMv2                    bool
+	EnableIPv6Multitenancy          bool
 	EnableK8sDevicePlugin           bool
 	EnableLoggerV2                  bool
 	EnablePprof                     bool
 	EnableStateMigration            bool
 	EnableSubnetScarcity            bool
 	EnableStaleHNSCleanupOnNCCreate bool
+	VFPPendingRetryTimeoutMs        int
 	EnableSwiftV1DualStack          bool
 	EnableSwiftV2                   bool
 	EnableSwiftV2PrefixAllocation   bool
@@ -67,6 +69,7 @@ type CNSConfig struct {
 	GRPCSettings                    GRPCSettings
 	MinTLSVersion                   string
 	MtlsClientCertSubjectName       string
+	EnableIPAMUnixSocket            bool
 }
 
 type TelemetrySettings struct {

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/pkg/errors"
@@ -12,6 +13,7 @@ import (
 
 const (
 	joinNetworkURLFmt = `http://%s/machine/plugins/?comp=nmagent&type=NetworkManagement/joinedVirtualNetworks/%s/api-version/1`
+	joinSubnetURLFmt  = `http://%s/machine/plugins/?comp=nmagent&type=NetworkManagement/joinedVirtualNetworks/%s/joinedSubnets/%s/authenticationToken/%s/api-version/1?useLegacyChannel=false`
 	publishNCURLFmt   = `http://%s/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/%s/networkContainers/%s/authenticationToken/%s/api-version/1`
 	unpublishNCURLFmt = `http://%s/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/%s/networkContainers/%s/authenticationToken/%s/api-version/1/method/DELETE`
 )
@@ -21,8 +23,14 @@ type Proxy struct {
 	HTTPClient do
 }
 
-func (p *Proxy) JoinNetwork(ctx context.Context, vnetID string) (*http.Response, error) {
-	reqURL := fmt.Sprintf(joinNetworkURLFmt, p.Host, vnetID)
+func (p *Proxy) JoinNetwork(ctx context.Context, vnetID string, useRNCPublisher bool) (*http.Response, error) {
+	var joinNetworkURLFormat string
+	if useRNCPublisher {
+		joinNetworkURLFormat = joinNetworkURLFmt + "?useLegacyChannel=false"
+	} else {
+		joinNetworkURLFormat = joinNetworkURLFmt
+	}
+	reqURL := fmt.Sprintf(joinNetworkURLFormat, p.Host, vnetID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bytes.NewBufferString(`""`))
 	if err != nil {
@@ -34,6 +42,25 @@ func (p *Proxy) JoinNetwork(ctx context.Context, vnetID string) (*http.Response,
 	resp, err := p.HTTPClient.Do(req)
 	if err != nil {
 		return nil, errors.Wrap(err, "wireserver proxy: join network: could not perform http request")
+	}
+
+	return resp, nil
+}
+
+func (p *Proxy) JoinSubnet(ctx context.Context, vnetID, subnetName string, ncParams cns.NetworkContainerParameters) (*http.Response, error) {
+	escapedSubnetName := url.QueryEscape(url.PathEscape(subnetName))
+	reqURL := fmt.Sprintf(joinSubnetURLFmt, p.Host, vnetID, escapedSubnetName, ncParams.AuthToken)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bytes.NewBufferString(`""`))
+	if err != nil {
+		return nil, errors.Wrap(err, "wireserver proxy: join subnet: could not build http request")
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := p.HTTPClient.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "wireserver proxy: join subnet: could not perform http request")
 	}
 
 	return resp, nil

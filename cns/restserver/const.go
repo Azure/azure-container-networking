@@ -16,7 +16,8 @@ const (
 	// the racing request can only reject work that should have succeeded.
 	endpointDeleteIntentTTL = 10 * time.Minute
 	// Rest service state identifier for named lock
-	stateJoinedNetworks = "JoinedNetworks"
-	dncApiVersion       = "?api-version=2018-03-01"
-	nmaAPICallTimeout   = 2 * time.Second
+	dncAPIVersion     = "?api-version=2018-03-01"
+	nmaAPICallTimeout = 2 * time.Second
+	// how often CNS re-checks NMAgent while an NC is VFP programming pending
+	vfpPendingRetryInterval = 500 * time.Millisecond
 )

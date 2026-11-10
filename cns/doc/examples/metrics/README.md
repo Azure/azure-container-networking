@@ -14,6 +14,15 @@ count ({job="kube-system/azure-cns"}) by (__name__)
 
 CNS exposes standard Go and Prom metrics such as `go_goroutines`, `go_gc*`, `up`, and more.
 
+The `cns_ipam_requests_total{route,transport}` counter records requests to the four IPAM routes.
+The `transport` label is `tcp` or `unix`.
+The counter includes requests that return an error.
+
+To compare traffic by transport, use:
+```promql
+sum(rate(cns_ipam_requests_total[5m])) by (transport)
+```
+
 Metrics designed to be customer-facing are generally prefixed with `cx_` and can be listed similarly:
 ```promql
 count ({__name__=~"cx.*",job="kube-system/azure-cns"}) by (__name__)

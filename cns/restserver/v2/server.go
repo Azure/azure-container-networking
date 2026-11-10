@@ -19,13 +19,15 @@ func New(s *restserver.HTTPRestService) *Server {
 	return &Server{s}
 }
 
-func (s Server) Start(ctx context.Context, addr string) error {
+func (s Server) newEcho() *echo.Echo {
 	e := echo.New()
 	e.HideBanner = true
-	e.POST(cns.RequestIPConfig, echo.WrapHandler(restserver.NewHandlerFuncWithHistogram(s.RequestIPConfigHandler, restserver.HTTPRequestLatency)))
-	e.POST(cns.RequestIPConfigs, echo.WrapHandler(restserver.NewHandlerFuncWithHistogram(s.RequestIPConfigsHandler, restserver.HTTPRequestLatency)))
-	e.POST(cns.ReleaseIPConfig, echo.WrapHandler(restserver.NewHandlerFuncWithHistogram(s.ReleaseIPConfigHandler, restserver.HTTPRequestLatency)))
-	e.POST(cns.ReleaseIPConfigs, echo.WrapHandler(restserver.NewHandlerFuncWithHistogram(s.ReleaseIPConfigsHandler, restserver.HTTPRequestLatency)))
+	if !s.IPAMSocketEnabled() {
+		e.POST(cns.RequestIPConfig, echo.WrapHandler(restserver.NewIPAMHandler(s.RequestIPConfigHandler, "tcp")))
+		e.POST(cns.RequestIPConfigs, echo.WrapHandler(restserver.NewIPAMHandler(s.RequestIPConfigsHandler, "tcp")))
+		e.POST(cns.ReleaseIPConfig, echo.WrapHandler(restserver.NewIPAMHandler(s.ReleaseIPConfigHandler, "tcp")))
+		e.POST(cns.ReleaseIPConfigs, echo.WrapHandler(restserver.NewIPAMHandler(s.ReleaseIPConfigsHandler, "tcp")))
+	}
 	e.POST(cns.PathDebugIPAddresses, echo.WrapHandler(http.HandlerFunc(s.HandleDebugIPAddresses)))
 	e.POST(cns.PathDebugPodContext, echo.WrapHandler(http.HandlerFunc(s.HandleDebugPodContext)))
 	e.POST(cns.PathDebugRestData, echo.WrapHandler(http.HandlerFunc(s.HandleDebugRestData)))
@@ -39,6 +41,12 @@ func (s Server) Start(ctx context.Context, addr string) error {
 	e.POST(cns.V2Prefix+cns.GetAllNetworkContainers, echo.WrapHandler(http.HandlerFunc(s.GetAllNetworkContainers)))
 	e.POST(cns.V2Prefix+cns.CreateHostNCApipaEndpointPath, echo.WrapHandler(http.HandlerFunc(s.CreateHostNCApipaEndpoint)))
 	e.POST(cns.V2Prefix+cns.DeleteHostNCApipaEndpointPath, echo.WrapHandler(http.HandlerFunc(s.DeleteHostNCApipaEndpoint)))
+
+	return e
+}
+
+func (s Server) Start(ctx context.Context, addr string) error {
+	e := s.newEcho()
 
 	if err := e.Start(addr); err != nil {
 		logger.Errorf("failed to run echo server due to %+v", err)

@@ -208,19 +208,9 @@ make regenerate-crd
 
 If you update `crd/**/api/...` without regenerating the manifest, the checked-in contract is stale.
 
-### Rendered Dockerfiles
-
-Rendered Dockerfiles explicitly point back to their source template:
-
-```Dockerfile
-# SOURCE: cns/Dockerfile.tmpl
-```
-
-Edit the template, not the rendered file, then regenerate rendered outputs through the repo tooling. The checked-in rendered file is contract output, not authoring source.
-
 ### Shared build tools are repo-owned
 
-Repo tooling is versioned and reproducible (`build/tools/go.mod`, `go tool -modfile=...`, renderkit, golangci-lint). Do not assume local global tools are the source of truth.
+Repo tooling is versioned and reproducible (`build/tools/go.mod`, `go tool -modfile=...`, golangci-lint). Do not assume local global tools are the source of truth.
 
 ## Common Mistakes
 
@@ -232,7 +222,6 @@ Repo tooling is versioned and reproducible (`build/tools/go.mod`, `go tool -modf
 | Inventing `Deleting` status when metadata already signals deletion | Use `DeletionTimestamp.IsZero()` |
 | Startup bootstrap with hidden retries and side effects | Make bootstrap explicit, replay-safe, and idempotent |
 | Hand-editing generated CRD manifest | Edit API type, regenerate CRD |
-| Editing rendered Dockerfile directly | Edit `Dockerfile.tmpl`, regenerate rendered file |
 | Reconcile loop that keeps churning external state | Use state-derived idempotence and stable convergence |
 
 ## Cross-References

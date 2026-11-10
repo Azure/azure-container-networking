@@ -34,7 +34,7 @@ For task-specific guidance, use the appropriate skill:
 ## General Guidelines
 
 - This repository builds container networking components for Azure (CNI, CNS, NPM, etc.)
-- Build system uses `make dockerfiles` with template rendering via `renderkit`
+- Dockerfiles are the source of truth under each component directory and .pipelines/build/dockerfiles/; base image tags and SHAs are kept current by Dependabot
 - Tools dependencies are managed via a dedicated modfile (`tools.go.mod` at repo root, or `tools-go/go.mod` in some branches)
 - CI uses both GitHub Actions and Azure Pipelines (`.pipelines/`)
 - `cilium-log-collector` is the only component using `CGO_ENABLED=1`

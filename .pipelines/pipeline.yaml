@@ -33,6 +33,17 @@ schedules:
   always: true
 
 parameters:
+  - name: testBundle
+    type: string
+    default: full
+    values:
+      - full
+      - cni-cns
+      - ipam
+      - cilium
+      - cilium-ebpf
+      - cilium-masq
+      - ipv6-bpf
   # Empty or __use-default__ builds and publishes the component image.
   # A supplied image skips those entries and is used by the install path.
   - name: cniImage
@@ -106,6 +117,19 @@ extends:
               prTargetBranch: $[ variables['System.PullRequest.TargetBranchName'] ]
             steps:
               - template: /.pipelines/templates/git-diff-check.yaml@self
+              - ${{ if ne(parameters.testBundle, 'full') }}:
+                - bash: python3 hack/scripts/image_test_bundle.py
+                  name: ImageBundle
+                  displayName: Select image bundle stages
+                  env:
+                    TEST_BUNDLE: ${{ parameters.testBundle }}
+                    CNI_IMAGE: ${{ parameters.cniImage }}
+                    CNS_IMAGE: ${{ parameters.cnsImage }}
+                    IPAM_IMAGE: ${{ parameters.ipamImage }}
+                    AZURE_IPTABLES_MONITOR_IMAGE: ${{ parameters.azureIptablesMonitorImage }}
+                    AZURE_IP_MASQ_MERGER_IMAGE: ${{ parameters.azureIpMasqMergerImage }}
+                    CILIUM_LOG_COLLECTOR_IMAGE: ${{ parameters.ciliumLogCollectorImage }}
+                    IPV6_HP_BPF_IMAGE: ${{ parameters.ipv6HpBpfImage }}
               - script: |
                   # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
                   CUSTOM_RUN_NAME_PREFIX="${{ parameters.runNamePrefix }}"
@@ -179,7 +203,7 @@ extends:
 
       - template: /.pipelines/templates/run-unit-tests.yaml@self
 
-      - ${{ if not(contains(variables['Build.SourceBranch'], 'refs/pull')) }}:
+      - ${{ if or(ne(parameters.testBundle, 'full'), not(contains(variables['Build.SourceBranch'], 'refs/pull'))) }}:
         - stage: binaries
           displayName: Build Binaries
           dependsOn:
@@ -460,7 +484,7 @@ extends:
                     name: $(name)
                     platforms: $(platforms)
                     publishArtifact: false
-    
+
         - stage: publish_npm
           displayName: Publish NPM Multiarch Manifest
           dependsOn:
@@ -535,6 +559,7 @@ extends:
         # Cilium Podsubnet E2E tests
         - template: /.pipelines/singletenancy/cilium/cilium-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "cilium_e2e"
             displayName: Cil Podsubnet
@@ -547,6 +572,7 @@ extends:
         # Cilium Podsubnet Vnet Scale E2E tests
         - template: /.pipelines/singletenancy/cilium/cilium-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "cilium_vnetscale_e2e"
             displayName: Cil Podsubnet Vnet Scale Ubuntu
@@ -560,6 +586,7 @@ extends:
         # Cilium EBPF Podsubnet E2E tests
         - template: /.pipelines/singletenancy/cilium-ebpf/cilium-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "cilium_ebpf_podsubnet_e2e"
             displayName: Cil EBPF Podsubnet Ubuntu 24
@@ -568,10 +595,11 @@ extends:
             vmSize: Standard_B2ms
             k8sVersion: ""
             dependsOn: ["test"]
-  
+
         # Cilium Nodesubnet E2E tests
         - template: /.pipelines/singletenancy/cilium-nodesubnet/cilium-nodesubnet-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "cilium_nodesubnet_e2e"
             displayName: Cil NodeSubnet
@@ -583,6 +611,7 @@ extends:
         # Cilium Overlay E2E tests
         - template: /.pipelines/singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "cilium_overlay_e2e"
             displayName: Cil on AKS Overlay
@@ -595,6 +624,7 @@ extends:
         # Cilium Dualstack Overlay E2E tests
         - template: /.pipelines/singletenancy/cilium-dualstack-overlay/cilium-dualstackoverlay-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "cilium_dualstackoverlay_e2e"
             displayName: Cil on AKS DualStack Overlay
@@ -604,10 +634,11 @@ extends:
             vmSize: Standard_B2ms
             k8sVersion: ""
             dependsOn: ["test"]
-    
+
         # Cilium EBPF Overlay E2E tests
         - template: /.pipelines/singletenancy/cilium-overlay-ebpf/cilium-overlay-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "cilium_ebpf_overlay_e2e"
             displayName: Cil EBPF on AKS Overlay Azure Linux
@@ -620,6 +651,7 @@ extends:
         # Cilium EBPF Dualstack Overlay E2E tests
         - template: /.pipelines/singletenancy/cilium-dualstack-ebpf/cilium-dualstack-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "cilium_ebpf_ds_e2e"
             displayName: Cilium EBPF on AKS DualStack Overlay
@@ -628,11 +660,12 @@ extends:
             clusterName: "cilbpfdse2e"
             vmSize: Standard_B2ms
             k8sVersion: ""
-            dependsOn: ["test"]        
+            dependsOn: ["test"]
 
         # Cilium Overlay with hubble E2E tests
         - template: /.pipelines/singletenancy/cilium-overlay-withhubble/cilium-overlay-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "cilium_h_overlay_e2e"
             displayName: Cil on AKS Overlay with Hubble
@@ -646,6 +679,7 @@ extends:
         # Azure Overlay E2E tests
         - template: /.pipelines/singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "linux_azure_overlay_e2e"
             displayName: Azure Overlay Linux
@@ -656,10 +690,11 @@ extends:
             k8sVersion: ""
             dependsOn: ["test"]
             scaleup: 100
-    
+
         # Windows Azure Overlay E2E tests
         - template: /.pipelines/singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "win_azure_overlay_e2e"
             displayName: Azure Overlay Windows
@@ -674,6 +709,7 @@ extends:
         # Azure Overlay E2E Stateless CNI tests
         - template: /.pipelines/singletenancy/azure-cni-overlay-stateless/azure-cni-overlay-stateless-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "azure_overlay_stateless_e2e"
             displayName: Azure Stateless CNI Overlay
@@ -685,6 +721,7 @@ extends:
         # AKS Swift E2E tests
         - template: /.pipelines/singletenancy/aks-swift/e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "aks_swift_e2e"
             displayName: AKS Swift Ubuntu
@@ -700,6 +737,7 @@ extends:
         # AKS Swift Vnet Scale E2E tests
         - template: /.pipelines/singletenancy/aks-swift/e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "aks_swift_vnetscale_e2e"
             displayName: AKS Swift Vnet Scale Ubuntu
@@ -712,6 +750,7 @@ extends:
         # CNIv1 E2E tests
         - template: /.pipelines/singletenancy/aks/e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "aks_ubuntu_22_linux_e2e"
             displayName: AKS Ubuntu 22
@@ -726,6 +765,7 @@ extends:
         # Windows AKS E2E tests
         - template: /.pipelines/singletenancy/aks/e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "aks_windows_22_e2e"
             displayName: AKS Windows 2022
@@ -741,6 +781,7 @@ extends:
         # CNI dual stack overlay E2E tests
         - template: /.pipelines/singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "linux_dualstackoverlay_e2e"
             displayName: AKS DualStack Overlay Linux
@@ -754,6 +795,7 @@ extends:
         # Windows DualStack Overlay E2E tests
         - template: /.pipelines/singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml@self
           parameters:
+            testBundle: ${{ parameters.testBundle }}
             use1ESPublishTask: true
             name: "win_dualstackoverlay_e2e"
             displayName: AKS DualStack Overlay Windows

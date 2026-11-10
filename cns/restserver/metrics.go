@@ -23,6 +23,13 @@ const (
 )
 
 var (
+	ipamRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cns_ipam_requests_total",
+			Help: "Number of CNS IPAM requests by route and transport.",
+		},
+		[]string{"route", "transport"},
+	)
 	HTTPRequestLatency = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name: "http_request_latency_seconds",
@@ -125,6 +132,7 @@ var (
 
 func init() {
 	metrics.Registry.MustRegister(
+		ipamRequests,
 		HTTPRequestLatency,
 		ipAssignmentLatency,
 		ipConfigStatusStateTransitionTime,
@@ -138,6 +146,14 @@ func init() {
 		pendingReleaseIPCount,
 		nicResourceMACParseErrors,
 	)
+}
+
+// NewIPAMHandler records IPAM request counts and latency for the specified transport.
+func NewIPAMHandler(handler http.HandlerFunc, transport string) http.HandlerFunc {
+	return NewHandlerFuncWithHistogram(func(w http.ResponseWriter, req *http.Request) {
+		ipamRequests.WithLabelValues(req.URL.Path, transport).Inc()
+		handler(w, req)
+	}, HTTPRequestLatency)
 }
 
 // Every http response is 200 so we really want cns  response code.

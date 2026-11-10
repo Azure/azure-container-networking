@@ -2,7 +2,7 @@ ARG ARCH
 
 
 # intermediate for win-ltsc2022
-FROM --platform=windows/${ARCH} mcr.microsoft.com/windows/servercore:ltsc2022@sha256:76cf422c98ca437b308374d0498280541fa42ac7061bb44015a6c8b70cf4db6a as windows
+FROM --platform=windows/${ARCH} mcr.microsoft.com/windows/servercore:ltsc2022@sha256:b52799a67fa596d4bddcd82ae1dab0077a84767fbc33c7342b72b53ecc71ad09 as windows
 ARG ARTIFACT_DIR
 
 COPY ${ARTIFACT_DIR}/files/kubeconfigtemplate.yaml kubeconfigtemplate.yaml
@@ -87,15 +87,15 @@ RUN apt-get update && apt-get install -y \
         libcap2=1:2.66-5ubuntu2.4 \
         libgcrypt20=1.10.3-2ubuntu0.2 \
         libgnutls30t64=3.8.3-1.1ubuntu3.6 \
-        libsystemd0=255.4-1ubuntu8.17 \
-        libudev1=255.4-1ubuntu8.17 \
-        liblzma5=5.6.1+really5.4.5-1ubuntu0.3 \
+        libsystemd0=255.4-1ubuntu8.18 \
+        libudev1=255.4-1ubuntu8.18 \
+        liblzma5=5.6.1+really5.4.5-1ubuntu0.4 \
         sed=4.9-2ubuntu0.24.04.1 \
         gzip=1.12-1ubuntu3.2 \
         libncursesw6=6.4+20240113-1ubuntu2.2 \
         libtinfo6=6.4+20240113-1ubuntu2.2 \
         libpam-modules=1.5.3-5ubuntu5.7 \
-        perl-base=5.38.2-3.2ubuntu0.6 \
+        perl-base=5.38.2-3.2ubuntu0.7 \
         tar=1.35+dfsg-3ubuntu0.4 \
         util-linux=2.39.3-9ubuntu6.6 \
         mount=2.39.3-9ubuntu6.6 \
@@ -109,7 +109,7 @@ RUN apt-get update && apt-get install -y \
         libattr1=1:2.5.2-1ubuntu0.1 \
         libbz2-1.0=1.0.8-5.1ubuntu0.1 \
         libp11-kit0=0.25.3-4ubuntu2.2 \
-        zlib1g=1:1.3.dfsg-3.1ubuntu2.2 \
+        zlib1g=1:1.3.dfsg-3.1ubuntu2.3 \
     && apt-get autoremove -y && apt-get clean
 #RUN apt-get update && \
 #    apt-get install -y \

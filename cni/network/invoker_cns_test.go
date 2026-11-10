@@ -1794,6 +1794,33 @@ func Test_setHostOptions(t *testing.T) {
 	}
 }
 
+func TestSetHostOptionsInvalidPrimaryIP(t *testing.T) {
+	tests := []struct {
+		name    string
+		address string
+	}{
+		{name: "empty"},
+		{name: "invalid", address: "invalid"},
+		{name: "leading whitespace", address: " 10.0.1.20"},
+		{name: "trailing whitespace", address: "10.0.1.20 "},
+		{name: "subnet prefix", address: "10.0.1.20/24"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			options := map[string]interface{}{}
+			info := IPResultInfo{
+				ncPrimaryIP:   tt.address,
+				hostPrimaryIP: "10.0.0.3",
+				hostGateway:   "10.0.0.1",
+			}
+
+			err := setHostOptions(getCIDRNotationForAddress("10.0.1.0/24"), options, &info)
+			require.ErrorContains(t, err, "network container primary IP address")
+			require.Empty(t, options)
+		})
+	}
+}
+
 func Test_getInterfaceInfoKey(t *testing.T) {
 	require := require.New(t) //nolint further usage of require without passing t
 	inv := &CNSIPAMInvoker{}

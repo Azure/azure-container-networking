@@ -38,7 +38,7 @@ type requestController struct {
 }
 
 // New creates a new multi-tenant CRD operator.
-func New(restService *restserver.HTTPRestService, kubeconfig *rest.Config) (*requestController, error) {
+func New(restService *restserver.HTTPRestService, kubeconfig *rest.Config, enableIPv6 bool) (*requestController, error) { //nolint:revive // Preserve the existing concrete return type.
 	// Check that logger package has been initialized.
 	if logger.Log == nil {
 		return nil, errors.New("Must initialize logger before calling")
@@ -76,6 +76,7 @@ func New(restService *restserver.HTTPRestService, kubeconfig *rest.Config) (*req
 		KubeClient:     mgr.GetClient(),
 		NodeName:       nodeName,
 		CNSRestService: restService,
+		EnableIPv6:     enableIPv6,
 	}
 	if err := reconciler.SetupWithManager(mgr); err != nil {
 		logger.Errorf("Error setting up new multiTenantCrdReconciler: %v", err)

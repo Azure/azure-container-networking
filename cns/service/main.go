@@ -567,6 +567,7 @@ func main() {
 		}
 	}
 	configuration.SetCNSConfigDefaults(cnsconfig)
+	config.IPAMSocket = cnsconfig.EnableIPAMUnixSocket
 
 	disableTelemetry := cnsconfig.TelemetrySettings.DisableAll
 	if !disableTelemetry {
@@ -618,19 +619,24 @@ func main() {
 			scenarioString = cniConflistScenarioArg
 		}
 
+		cnsSocketPath := ""
+		if cnsconfig.EnableIPAMUnixSocket {
+			cnsSocketPath = restserver.IPAMUnixSocketPath
+		}
+
 		switch scenario := cniConflistScenario(scenarioString); scenario {
 		case scenarioV4Overlay:
-			conflistGenerator = &cniconflist.V4OverlayGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.V4OverlayGenerator{Writer: writer, CNSSocketPath: cnsSocketPath}
 		case scenarioDualStackOverlay:
-			conflistGenerator = &cniconflist.DualStackOverlayGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.DualStackOverlayGenerator{Writer: writer, CNSSocketPath: cnsSocketPath}
 		case scenarioOverlay:
-			conflistGenerator = &cniconflist.OverlayGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.OverlayGenerator{Writer: writer, CNSSocketPath: cnsSocketPath}
 		case scenarioCilium:
-			conflistGenerator = &cniconflist.CiliumGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.CiliumGenerator{Writer: writer, CNSSocketPath: cnsSocketPath}
 		case scenarioSWIFT:
-			conflistGenerator = &cniconflist.SWIFTGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.SWIFTGenerator{Writer: writer, CNSSocketPath: cnsSocketPath}
 		case scenarioAzurecniChainedCilium:
-			conflistGenerator = &cniconflist.AzureCNIChainedCiliumGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.AzureCNIChainedCiliumGenerator{Writer: writer, CNSSocketPath: cnsSocketPath}
 		default:
 			logger.Errorf("unable to generate cni conflist for unknown scenario: %s", scenario)
 			os.Exit(1)
@@ -716,12 +722,12 @@ func main() {
 		config.ChannelMode = cns.Managed
 	}
 
-	homeAzMonitor := restserver.NewHomeAzMonitor(nmaClient, time.Duration(cnsconfig.AZRSettings.PopulateHomeAzCacheRetryIntervalSecs)*time.Second)
-	// homeAz monitor is only required when there is a direct channel between DNC and CNS.
+	nmagentMonitor := restserver.NewNMAgentMonitor(nmaClient, time.Duration(cnsconfig.AZRSettings.PopulateHomeAzCacheRetryIntervalSecs)*time.Second)
+	// The NMAgent monitor is only required when there is a direct channel between DNC and CNS.
 	// This will prevent the monitor from unnecessarily calling NMA APIs for other scenarios such as AKS-swift, swiftv2
 	if cnsconfig.ChannelMode == cns.Direct {
-		homeAzMonitor.Start()
-		defer homeAzMonitor.Stop()
+		nmagentMonitor.Start()
+		defer nmagentMonitor.Stop()
 	}
 
 	if telemetryDaemonEnabled {
@@ -790,7 +796,7 @@ func main() {
 
 	imdsClient := imds.NewClient()
 	httpRemoteRestService, err := restserver.NewHTTPRestService(&config, wsclient, &wsProxy, &restserver.IPtablesProvider{}, nmaClient,
-		endpointStateStore, conflistGenerator, homeAzMonitor, imdsClient)
+		endpointStateStore, conflistGenerator, nmagentMonitor, imdsClient)
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)
 		return
@@ -807,6 +813,7 @@ func main() {
 	httpRemoteRestService.SetOption(acn.OptProgramSNATIPTables, cnsconfig.ProgramSNATIPTables)
 	httpRemoteRestService.SetOption(acn.OptManageEndpointState, cnsconfig.ManageEndpointState)
 	httpRemoteRestService.SetOption(acn.OptEnableStaleHNSCleanupOnNCCreate, cnsconfig.EnableStaleHNSCleanupOnNCCreate)
+	httpRemoteRestService.SetOption(acn.OptVFPPendingRetryTimeoutMs, cnsconfig.VFPPendingRetryTimeoutMs)
 
 	// Create default ext network if commandline option is set
 	if len(strings.TrimSpace(createDefaultExtNetworkType)) > 0 {
@@ -1075,7 +1082,11 @@ func main() {
 		// Start fs watcher here
 		z.Info("AsyncPodDelete is enabled")
 		logger.Printf("AsyncPodDelete is enabled")
-		cnsclient, err := cnsclient.New("", cnsReqTimeout) // nolint
+		asyncDeleteSocketPath := ""
+		if cnsconfig.EnableIPAMUnixSocket {
+			asyncDeleteSocketPath = restserver.IPAMUnixSocketPath
+		}
+		cnsclient, err := cnsclient.NewWithUnixSocket("", asyncDeleteSocketPath, cnsReqTimeout) // nolint
 		if err != nil {
 			z.Error("failed to create cnsclient", zap.Error(err))
 		}
@@ -1103,7 +1114,7 @@ func main() {
 	}
 
 	if !disableTelemetry {
-		go metric.SendHeartBeat(rootCtx, time.Minute*time.Duration(cnsconfig.TelemetrySettings.HeartBeatIntervalInMins), homeAzMonitor, cnsconfig.ChannelMode)
+		go metric.SendHeartBeat(rootCtx, time.Minute*time.Duration(cnsconfig.TelemetrySettings.HeartBeatIntervalInMins), nmagentMonitor, cnsconfig.ChannelMode)
 		go httpRemoteRestService.SendNCSnapShotPeriodically(rootCtx, cnsconfig.TelemetrySettings.SnapshotIntervalInMins)
 	}
 
@@ -1285,7 +1296,7 @@ func InitializeMultiTenantController(ctx context.Context, httpRestService cns.HT
 	httpRestServiceImpl.SetNodeOrchestrator(&orchestrator)
 
 	// Create multiTenantController.
-	multiTenantController, err = multitenantoperator.New(httpRestServiceImpl, kubeConfig)
+	multiTenantController, err = multitenantoperator.New(httpRestServiceImpl, kubeConfig, cnsconfig.EnableIPv6Multitenancy)
 	if err != nil {
 		logger.Errorf("Failed to create multiTenantController:%v", err)
 		return err

@@ -45,11 +45,31 @@ var clientPaths = []string{
 	cns.DeleteNetworkContainer,
 	cns.NetworkContainersURLPath,
 	cns.GetHomeAz,
+	cns.GetRNCSupport,
 	cns.EndpointAPI,
+}
+
+var ipamPaths = map[string]struct{}{
+	cns.RequestIPConfig:  {},
+	cns.RequestIPConfigs: {},
+	cns.ReleaseIPConfig:  {},
+	cns.ReleaseIPConfigs: {},
 }
 
 type do interface {
 	Do(*http.Request) (*http.Response, error)
+}
+
+type routeTransport struct {
+	tcp  http.RoundTripper
+	ipam http.RoundTripper
+}
+
+func (t *routeTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if _, ok := ipamPaths[req.URL.Path]; ok {
+		return t.ipam.RoundTrip(req) //nolint:wrapcheck // preserve transport errors
+	}
+	return t.tcp.RoundTrip(req) //nolint:wrapcheck // preserve transport errors
 }
 
 // Client specifies a client to connect to Ipam Plugin.
@@ -87,6 +107,26 @@ func New(baseURL string, requestTimeout time.Duration) (*Client, error) {
 		},
 		routes: routes,
 	}, nil
+}
+
+// NewWithUnixSocket sends IPAM requests through an absolute Unix socket path. Other requests use TCP.
+func NewWithUnixSocket(baseURL, unixSocketPath string, requestTimeout time.Duration) (*Client, error) {
+	client, err := New(baseURL, requestTimeout)
+	if err != nil || unixSocketPath == "" {
+		return client, err
+	}
+
+	tcpTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok || tcpTransport == nil {
+		return nil, errors.New("cns Unix transport requires http.DefaultTransport to be *http.Transport")
+	}
+	ipamTransport, err := newUnixIPAMTransport(unixSocketPath, tcpTransport)
+	if err != nil {
+		return nil, err
+	}
+
+	client.client = &http.Client{Transport: &routeTransport{tcp: tcpTransport, ipam: ipamTransport}, Timeout: requestTimeout}
+	return client, nil
 }
 
 func buildRoutes(baseURL string, paths []string) (map[string]url.URL, error) {
@@ -1025,6 +1065,46 @@ func (c *Client) GetHomeAz(ctx context.Context) (*cns.GetHomeAzResponse, error) 
 	}
 
 	return &getHomeAzResponse, nil
+}
+
+// GetRNCSupport gets the latest cached NMAgent RNC capability discovery result.
+func (c *Client) GetRNCSupport(ctx context.Context) (*cns.GetRNCSupportResponse, error) {
+	u := c.routes[cns.GetRNCSupport]
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody)
+	if err != nil {
+		return nil, errors.Wrap(err, "building http request")
+	}
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "sending HTTP request")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, &CNSClientError{
+			Code: types.UnsupportedAPI,
+			Err:  errors.New("rnc support API is unavailable"),
+		}
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, &CNSClientError{
+			Code: types.UnexpectedError,
+			Err:  &FailedHTTPRequest{Code: resp.StatusCode},
+		}
+	}
+
+	var response cns.GetRNCSupportResponse
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, errors.Wrap(err, "decoding response as JSON")
+	}
+	if response.Response.ReturnCode != types.Success {
+		return nil, &CNSClientError{
+			Code: response.Response.ReturnCode,
+			Err:  errors.New(response.Response.Message),
+		}
+	}
+	return &response, nil
 }
 
 // GetEndpoint calls the EndpointHandlerAPI in CNS to retrieve the state of a given EndpointID

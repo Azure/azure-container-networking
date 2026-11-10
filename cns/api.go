@@ -374,6 +374,17 @@ type GetHomeAzResponse struct {
 	HomeAzResponse HomeAzResponse `json:"homeAzResponse"`
 }
 
+type RNCSupportResponse struct {
+	IsSupported bool `json:"isSupported"`
+}
+
+// GetRNCSupportResponse describes the latest NMAgent capability discovery result.
+// RNCSupportResponse is authoritative only when Response.ReturnCode is Success.
+type GetRNCSupportResponse struct {
+	Response           Response           `json:"response"`
+	RNCSupportResponse RNCSupportResponse `json:"rncSupportResponse"`
+}
+
 // Used by EndpointHandler API to update endpoint state.
 type EndpointRequest struct {
 	HnsEndpointID string `json:"hnsEndpointID"`

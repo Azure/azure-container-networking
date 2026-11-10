@@ -62,7 +62,7 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 	)
 
 	// try to retrieve NodeInfoResponse from mDNC
-	url := fmt.Sprintf(common.SyncNodeNetworkContainersURLFmt, dncEP, infraVnet, nodeID, dncApiVersion)
+	url := fmt.Sprintf(common.SyncNodeNetworkContainersURLFmt, dncEP, infraVnet, nodeID, dncAPIVersion)
 	req, _ := http.NewRequestWithContext(context.TODO(), http.MethodGet, url, nil)
 	resp, err := httpc.Do(req)
 	if err == nil {
@@ -519,8 +519,35 @@ type podIPs struct {
 func (service *HTTPRestService) GetNetworkContainerInternal(
 	req cns.GetNetworkContainerRequest,
 ) (cns.GetNetworkContainerResponse, types.ResponseCode) {
-	getNetworkContainerResponses := service.getAllNetworkContainerResponses(req)
+	getNetworkContainerResponses := service.getAllNetworkContainerResponsesWithRetry(req)
 	return getNetworkContainerResponses[0], getNetworkContainerResponses[0].Response.ReturnCode
+}
+
+// UpdateNetworkContainerIPv6Configuration persists a validated IPv6 address, prefix length and gateway
+// without replacing unrelated NC state. Empty values remove the IPv6 address and gateway.
+func (service *HTTPRestService) UpdateNetworkContainerIPv6Configuration(ncID string, subnet cns.IPSubnet, gateway string) error {
+	service.Lock()
+	defer service.Unlock()
+
+	existing, ok := service.state.ContainerStatus[ncID]
+	if !ok {
+		return fmt.Errorf("nc %s: %w", ncID, ResponseCodeToError(types.UnknownContainerID))
+	}
+	config := existing.CreateNetworkContainerRequest.IPv6Configuration
+	if config.IPSubnet == subnet && config.GatewayIPAddress == gateway {
+		return nil
+	}
+
+	updated := existing
+	updated.CreateNetworkContainerRequest.IPv6Configuration.IPSubnet = subnet
+	updated.CreateNetworkContainerRequest.IPv6Configuration.GatewayIPAddress = gateway
+	service.state.ContainerStatus[ncID] = updated
+	if err := service.saveState(); err != nil {
+		// Keep the old configuration so the next reconciliation retries persistence.
+		service.state.ContainerStatus[ncID] = existing
+		return fmt.Errorf("persist ipv6 configuration for nc %s: %w", ncID, err)
+	}
+	return nil
 }
 
 // DeleteNetworkContainerInternal deletes a network container.

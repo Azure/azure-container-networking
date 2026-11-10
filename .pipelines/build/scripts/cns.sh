@@ -4,6 +4,7 @@ set -eux
 [[ $OS =~ windows ]] && FILE_EXT='.exe' || FILE_EXT=''
 
 export CGO_ENABLED=0
+export GOEXPERIMENT=ms_nocgo_opensslcrypto
 
 mkdir -p "$OUT_DIR"/files
 mkdir -p "$OUT_DIR"/bin

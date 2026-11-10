@@ -46,6 +46,10 @@ spec:
         - name: cns-container
           image: acnpublic.azurecr.io/azure-cns:latest
           imagePullPolicy: Always
+          resources:
+            limits:
+              cpu: 250m
+              memory: 250Mi
           securityContext:
             privileged: true
           workingDir: $env:CONTAINER_SANDBOX_MOUNT_POINT
