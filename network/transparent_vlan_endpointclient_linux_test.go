@@ -1444,12 +1444,13 @@ func TestAddVnetRulesLBProbeV6SourceRewrite(t *testing.T) {
 		require.Empty(t, *cmds)
 	})
 
-	t.Run("does not fail the endpoint when nft fails", func(t *testing.T) {
+	t.Run("fails the endpoint when nft fails", func(t *testing.T) {
 		plc := platform.NewMockExecClient(false)
 		cmds := recordNftCmds(plc, errors.New("nft: command not found"))
 
 		err := newClient(plc).AddVnetRules(&EndpointInfo{IsIPv6Enabled: true})
-		require.NoError(t, err)
+		require.ErrorContains(t, err, "failed to add IPv6 load balancer probe source rewrite on eth0_1")
+		require.ErrorContains(t, err, "nft: command not found")
 		require.Len(t, *cmds, 1)
 	})
 }

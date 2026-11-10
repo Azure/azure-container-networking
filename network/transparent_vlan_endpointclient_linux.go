@@ -489,7 +489,9 @@ func (client *TransparentVlanEndpointClient) AddVnetRules(epInfo *EndpointInfo) 
 		if err := client.addVnetMangleAndTunnelingRules(iptables.V6, vishnetlink.FAMILY_V6); err != nil {
 			return err
 		}
-		client.addLBProbeV6SourceRewrite()
+		if err := client.addLBProbeV6SourceRewrite(); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -507,13 +509,14 @@ func lbProbeV6SourceRewriteCmd(vlanIfName string) string {
 		lbProbeV6NftTable, vlanIfName, lbProbeV6SourceIP, lbProbeV6PlaceholderIP)
 }
 
-// addLBProbeV6SourceRewrite lets Azure Load Balancer IPv6 health probes reach the container. It is best effort: a
-// failure only affects IPv6 load balancer probes, so it must not fail the endpoint. Namespace: vnet
-func (client *TransparentVlanEndpointClient) addLBProbeV6SourceRewrite() {
+// addLBProbeV6SourceRewrite lets Azure Load Balancer IPv6 health probes reach the container. A failure is returned
+// rather than logged: without the rewrite the IPv6 backend is silently probed down, which is hard to trace back to
+// the CNI. Namespace: vnet
+func (client *TransparentVlanEndpointClient) addLBProbeV6SourceRewrite() error {
 	if _, err := client.plClient.ExecuteRawCommand(lbProbeV6SourceRewriteCmd(client.vlanIfName)); err != nil {
-		logger.Error("[transparent-vlan] Failed to add IPv6 load balancer probe source rewrite, IPv6 load balancer health probes to this vlan will fail",
-			zap.String("vlanIfName", client.vlanIfName), zap.Error(err))
+		return errors.Wrapf(err, "failed to add IPv6 load balancer probe source rewrite on %s", client.vlanIfName)
 	}
+	return nil
 }
 
 // addVnetMangleAndTunnelingRules inserts iptables mangle PREROUTING rules (mark + accept)
