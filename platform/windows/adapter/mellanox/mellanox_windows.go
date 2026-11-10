@@ -5,6 +5,7 @@ package mellanox
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net"
 	"os/exec"
@@ -32,6 +33,11 @@ var (
 	errorMellanoxAdapterNotFound = fmt.Errorf("no network adapter found with %s in description", mellanoxSearchString)
 	errorMellanoxDeviceNotFound  = fmt.Errorf("no network device found with %s in description", mellanoxSearchString)
 	errorPowershellNotFound      = fmt.Errorf("failed to find powershell executable")
+	errInvalidInterfaceIndex     = errors.New("invalid interface index")
+	errAdapterNameChanged        = errors.New("adapter name changed")
+	errAmbiguousAdapterRegistry  = errors.New("multiple registry keys for adapter")
+	errAdapterRegistryNotFound   = errors.New("registry key not found for adapter")
+	errAmbiguousVLANTagKeyword   = errors.New("multiple PriorityVLANTag keywords")
 )
 
 type Mellanox struct{}
@@ -82,7 +88,8 @@ func (m *Mellanox) GetPriorityVLANTag() (int, error) {
 	}
 
 	// Fall back to the provider when the registry value cannot be mapped unambiguously.
-	if value, err := readAdapterVLANTag(adapterName); err == nil {
+	value, nativeErr := readAdapterVLANTag(adapterName)
+	if nativeErr == nil {
 		return value, nil
 	}
 
@@ -104,14 +111,18 @@ func (m *Mellanox) GetPriorityVLANTag() (int, error) {
 func readAdapterVLANTag(adapterName string) (int, error) {
 	iface, err := net.InterfaceByName(adapterName)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("get adapter interface: %w", err)
 	}
-	row := windows.MibIfRow2{InterfaceIndex: uint32(iface.Index)}
-	if err := windows.GetIfEntry2Ex(windows.MibIfEntryNormalWithoutStatistics, &row); err != nil {
-		return 0, err
+	if iface.Index <= 0 {
+		return 0, errInvalidInterfaceIndex
+	}
+	row := windows.MibIfRow2{InterfaceIndex: uint32(iface.Index)} //nolint:gosec // Windows interface indexes are uint32.
+	err = windows.GetIfEntry2Ex(windows.MibIfEntryNormalWithoutStatistics, &row)
+	if err != nil {
+		return 0, fmt.Errorf("get adapter interface entry: %w", err)
 	}
 	if !strings.EqualFold(windows.UTF16ToString(row.Alias[:]), adapterName) {
-		return 0, fmt.Errorf("adapter name changed")
+		return 0, errAdapterNameChanged
 	}
 
 	path, err := adapterRegistryPath(registry.LOCAL_MACHINE, networkClassPath, row.InterfaceGuid.String())
@@ -127,12 +138,12 @@ func readAdapterVLANTag(adapterName string) (int, error) {
 func adapterRegistryPath(root registry.Key, classPath, guid string) (string, error) {
 	class, err := registry.OpenKey(root, classPath, registry.ENUMERATE_SUB_KEYS)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("open network class key: %w", err)
 	}
 	defer class.Close()
 	names, err := class.ReadSubKeyNames(-1)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("enumerate network class keys: %w", err)
 	}
 
 	var path string
@@ -142,25 +153,25 @@ func adapterRegistryPath(root registry.Key, classPath, guid string) (string, err
 		}
 		key, err := registry.OpenKey(class, name, registry.QUERY_VALUE)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("open network class subkey: %w", err)
 		}
 		instanceID, _, err := key.GetStringValue("NetCfgInstanceId")
 		key.Close()
-		if err == registry.ErrNotExist {
+		if errors.Is(err, registry.ErrNotExist) {
 			continue
 		}
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("read adapter instance ID: %w", err)
 		}
 		if strings.EqualFold(instanceID, guid) {
 			if path != "" {
-				return "", fmt.Errorf("multiple registry keys for adapter %s", guid)
+				return "", fmt.Errorf("%w: %s", errAmbiguousAdapterRegistry, guid)
 			}
 			path = classPath + `\` + name
 		}
 	}
 	if path == "" {
-		return "", fmt.Errorf("registry key not found for adapter %s", guid)
+		return "", fmt.Errorf("%w: %s", errAdapterRegistryNotFound, guid)
 	}
 	return path, nil
 }
@@ -168,16 +179,16 @@ func adapterRegistryPath(root registry.Key, classPath, guid string) (string, err
 func checkVLANTagKeyword(root registry.Key, path string) error {
 	key, err := registry.OpenKey(root, path+`\Ndi\params`, registry.ENUMERATE_SUB_KEYS)
 	if err != nil {
-		return err
+		return fmt.Errorf("open adapter parameters: %w", err)
 	}
 	defer key.Close()
 	names, err := key.ReadSubKeyNames(-1)
 	if err != nil {
-		return err
+		return fmt.Errorf("enumerate adapter parameters: %w", err)
 	}
 	for _, name := range names {
 		if strings.HasSuffix(strings.ToLower(name), "priorityvlantag") && !strings.EqualFold(name, priorityVLANTagIdentifier) {
-			return fmt.Errorf("multiple PriorityVLANTag keywords")
+			return errAmbiguousVLANTagKeyword
 		}
 	}
 	return nil
@@ -222,38 +233,46 @@ func (m *Mellanox) getMellanoxPriorityVLANTagValueForV3() (int, error) {
 func readRegistryVLANTag(root registry.Key, path string) (int, error) {
 	key, err := registry.OpenKey(root, path, registry.QUERY_VALUE)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("open adapter key: %w", err)
 	}
 	defer key.Close()
 
 	value, valueType, err := key.GetStringValue(priorityVLANTagIdentifier)
-	if err == registry.ErrUnexpectedType && (valueType == registry.DWORD || valueType == registry.QWORD) {
+	switch {
+	case errors.Is(err, registry.ErrUnexpectedType) && (valueType == registry.DWORD || valueType == registry.QWORD):
 		number, _, numberErr := key.GetIntegerValue(priorityVLANTagIdentifier)
 		if numberErr != nil {
-			return 0, numberErr
+			return 0, fmt.Errorf("read integer PriorityVLANTag: %w", numberErr)
 		}
 		value = strconv.FormatUint(number, 10)
-	} else if err == registry.ErrUnexpectedType && valueType == registry.MULTI_SZ {
+	case errors.Is(err, registry.ErrUnexpectedType) && valueType == registry.MULTI_SZ:
 		values, _, valuesErr := key.GetStringsValue(priorityVLANTagIdentifier)
 		if valuesErr != nil {
-			return 0, valuesErr
+			return 0, fmt.Errorf("read multi-string PriorityVLANTag: %w", valuesErr)
 		}
 		value = strings.Join(values, "\r\n")
-	} else if err != nil {
-		return 0, err
+	case err != nil:
+		return 0, fmt.Errorf("read string PriorityVLANTag: %w", err)
 	}
 
-	return strconv.Atoi(strings.TrimSpace(value))
+	parsed, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil {
+		return 0, fmt.Errorf("parse PriorityVLANTag: %w", err)
+	}
+	return parsed, nil
 }
 
 func writeRegistryVLANTag(root registry.Key, path string, value int) error {
 	key, err := registry.OpenKey(root, path, registry.SET_VALUE)
 	if err != nil {
-		return err
+		return fmt.Errorf("open adapter key: %w", err)
 	}
 	defer key.Close()
 
-	return key.SetStringValue(priorityVLANTagIdentifier, strconv.Itoa(value))
+	if err = key.SetStringValue(priorityVLANTagIdentifier, strconv.Itoa(value)); err != nil {
+		return fmt.Errorf("write PriorityVLANTag: %w", err)
+	}
+	return nil
 }
 
 // adapter is version 4 and up since adapter's advance property consists of reg key : PriorityVLANTag
@@ -279,7 +298,8 @@ func (m *Mellanox) setMellanoxPriorityVLANTagValueForV3(adapterName string, desi
 		return err
 	}
 
-	if err := writeRegistryVLANTag(registry.LOCAL_MACHINE, registryKeyFullPath, desiredVal); err != nil {
+	err = writeRegistryVLANTag(registry.LOCAL_MACHINE, registryKeyFullPath, desiredVal)
+	if err != nil {
 		return fmt.Errorf("failed to set PriorityVLANTag for adapter %s: %w", adapterName, err)
 	}
 
