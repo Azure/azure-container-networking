@@ -307,6 +307,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	// Add handlers.
 	listener := service.Listener
 	// default handlers
+	listener.AddHandler(cns.SupportedAPIsPath, service.supportedAPIsHandler)
 	listener.AddHandler(cns.SetEnvironmentPath, service.setEnvironment)
 	listener.AddHandler(cns.CreateNetworkPath, service.createNetwork)
 	listener.AddHandler(cns.DeleteNetworkPath, service.deleteNetwork)
@@ -349,6 +350,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	}
 
 	// handlers for v0.2
+	listener.AddHandler(cns.V2Prefix+cns.SupportedAPIsPath, service.supportedAPIsHandler)
 	listener.AddHandler(cns.V2Prefix+cns.SetEnvironmentPath, service.setEnvironment)
 	listener.AddHandler(cns.V2Prefix+cns.CreateNetworkPath, service.createNetwork)
 	listener.AddHandler(cns.V2Prefix+cns.DeleteNetworkPath, service.deleteNetwork)

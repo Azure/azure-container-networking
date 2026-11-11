@@ -25,6 +25,7 @@ const (
 )
 
 var clientPaths = []string{
+	cns.SupportedAPIsPath,
 	cns.GetNetworkContainerByOrchestratorContext,
 	cns.GetAllNetworkContainers,
 	cns.CreateHostNCApipaEndpointPath,
