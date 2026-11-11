@@ -52,6 +52,10 @@ payload build already selected this backend; the unsigned Linux build now
 matches it. Windows images, Windows build settings, and standalone host archive
 builds are unchanged.
 
+The signed NPM compiler is read from `npm/<os>.Dockerfile`. Without an explicit
+`MSFT_GO_IMAGE` override, an unresolved NPM builder fails before installation
+rather than using the shared fallback image.
+
 Matching the runtime OS and packages does not make the ACN and Dalec artifacts
 identical. Dalec uses a CGO-enabled build and its own compiler and dependency
 selection.

@@ -8,7 +8,7 @@ set -euxo pipefail
 # Priority:
 #   1. MSFT_GO_IMAGE env var (explicit override)
 #   2. Parsed from the source Dockerfile for $name
-#   3. Hardcoded fallback digest below
+#   3. Hardcoded fallback digest below (non-NPM builds only)
 #
 # To update the fallback, run:
 #   IMG=mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0
@@ -45,7 +45,13 @@ resolve_go_image() {
 
 if [[ -z "${MSFT_GO_IMAGE:-}" ]]; then
   MSFT_GO_IMAGE="$(resolve_go_image)"
-  MSFT_GO_IMAGE="${MSFT_GO_IMAGE:-$DEFAULT_IMAGE}"
+  if [[ -z "${MSFT_GO_IMAGE}" ]]; then
+    if [[ "${name:-}" == "npm" ]]; then
+      echo "##[error]install-go.sh: could not resolve the golang image from ${REPO_ROOT}/npm/${OS:-linux}.Dockerfile; refusing to fall back to DEFAULT_IMAGE so signed npm never diverges from the unsigned Go version." >&2
+      exit 1
+    fi
+    MSFT_GO_IMAGE="$DEFAULT_IMAGE"
+  fi
 fi
 
 ARCH="${ARCH:-amd64}"
