@@ -1362,7 +1362,7 @@ func (service *HTTPRestService) supportedAPIsHandler(w http.ResponseWriter, r *h
 		return
 	}
 
-	_ = common.Encode(w, cns.SupportedAPIsResponse{SupportedAPIs: []string{}})
+	_ = common.Encode(w, cns.SupportedAPIsResponse{SupportedAPIs: service.supportedAPIs})
 }
 
 // This function is used to query NMagents's supported APIs list

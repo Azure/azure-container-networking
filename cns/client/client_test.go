@@ -2507,7 +2507,7 @@ func TestSupportedAPIs(t *testing.T) {
 		want    []string
 		wantErr bool
 	}{
-		{name: "capability names", status: http.StatusOK, body: `{"supportedApis":["exampleCapability"]}`, want: []string{"exampleCapability"}},
+		{name: "RNC capability", status: http.StatusOK, body: `{"supportedApis":["RNCSupported"]}`, want: []string{cns.RNCSupportedAPI}},
 		{name: "no capabilities", status: http.StatusOK, body: `{"supportedApis":[]}`, want: []string{}},
 		{name: "older CNS", status: http.StatusNotFound, body: "not found", wantErr: true},
 		{name: "server error", status: http.StatusInternalServerError, body: "server error", wantErr: true},

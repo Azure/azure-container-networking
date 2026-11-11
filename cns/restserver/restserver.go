@@ -122,6 +122,7 @@ type HTTPRestService struct {
 	nodesubnetIPFetcher        *nodesubnet.IPFetcher
 	ipamServer                 *ipamServer
 	ipamSocket                 bool
+	supportedAPIs              []string
 	nicncClient                nicncClient
 	mtpncClient                mtpncClient
 	nodeinfoClient             nodeinfoClient
@@ -302,6 +303,11 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	if err != nil {
 		logger.Errorf("[Azure CNS]  Failed to restore network state, err:%v.", err)
 		return err
+	}
+
+	service.supportedAPIs = []string{}
+	if config.ChannelMode == cns.Direct {
+		service.supportedAPIs = append(service.supportedAPIs, cns.RNCSupportedAPI)
 	}
 
 	// Add handlers.

@@ -2401,15 +2401,22 @@ func TestSupportedAPIs(t *testing.T) {
 				service.RegisterPProfEndpoints()
 				service.nma = nil
 
+				wantAPIs := []string{}
+				wantJSON := `{"supportedApis":[]}`
+				if mode == cns.Direct {
+					wantAPIs = append(wantAPIs, cns.RNCSupportedAPI)
+					wantJSON = `{"supportedApis":["RNCSupported"]}`
+				}
+
 				for _, path := range []string{cns.SupportedAPIsPath, cns.V2Prefix + cns.SupportedAPIsPath} {
 					recorder := httptest.NewRecorder()
 					service.Listener.GetMux().ServeHTTP(recorder, httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, http.NoBody))
 					require.Equal(t, http.StatusOK, recorder.Code)
 					require.Equal(t, "application/json; charset=UTF-8", recorder.Header().Get("Content-Type"))
-					require.JSONEq(t, `{"supportedApis":[]}`, recorder.Body.String())
+					require.JSONEq(t, wantJSON, recorder.Body.String())
 					var response cns.SupportedAPIsResponse
 					require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
-					require.Equal(t, []string{}, response.SupportedAPIs)
+					require.Equal(t, wantAPIs, response.SupportedAPIs)
 
 					for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodHead, http.MethodOptions} {
 						recorder := httptest.NewRecorder()

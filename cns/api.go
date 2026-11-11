@@ -350,6 +350,9 @@ type DeleteHostNCApipaEndpointResponse struct {
 	Response Response
 }
 
+// RNCSupportedAPI advertises availability of the RNC support query API.
+const RNCSupportedAPI = "RNCSupported"
+
 // SupportedAPIsResponse advertises curated capabilities, not registered routes.
 type SupportedAPIsResponse struct {
 	SupportedAPIs []string `json:"supportedApis"`
