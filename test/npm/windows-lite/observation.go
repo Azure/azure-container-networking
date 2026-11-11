@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf16"
 )
 
 var (
@@ -374,8 +376,13 @@ func readMountedConfig(ctx context.Context, k kubeClient, namespace string, valu
 		`$p = [IO.Path]::GetFullPath((Join-Path $env:CONTAINER_SANDBOX_MOUNT_POINT '` + relative + `')); ` +
 		`[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); ` +
 		`[pscustomobject]@{path=$p;content=[Convert]::ToBase64String([IO.File]::ReadAllBytes($p))} | ConvertTo-Json -Compress`
+	// Keep script variables intact across the Windows exec command-line boundary.
+	encoded := make([]byte, 0, len(script)*2)
+	for _, word := range utf16.Encode([]rune(script)) {
+		encoded = binary.LittleEndian.AppendUint16(encoded, word)
+	}
 	data, err := k.checked(ctx, nil, "exec", "-n", namespace, value.Metadata.Name, "-c", container.Name, "--",
-		"powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script)
+		"powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", base64.StdEncoding.EncodeToString(encoded))
 	if err != nil {
 		return out, err
 	}
