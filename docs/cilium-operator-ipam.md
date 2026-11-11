@@ -9,6 +9,12 @@ The implementation at `5f3ea9af8423a835bc6ed934640ebf928646d8b9` still contains
 the old bridge, databases and admission leases. Updating this specification
 does not convert those binaries or qualify them for the revised contract.
 
+The post-review revision closes D5/D6 by choosing a conservative phase-one
+recovery contract: a fresh DEL without endpoint state cannot release a remaining
+claim. It requires the fenced replacement procedure in section 16. This can
+require operator intervention after an API outage; automatic missing-record
+recovery is not promised. Section 35 separates evaluation and production gates.
+
 The central change is a **separate, stateless `azure-cilium-ipam` CNI plugin**
 that reads and updates CiliumNode directly. Azure CNI retains its existing
 network/endpoint state. Cilium Operator remains the only component allocating
@@ -243,7 +249,7 @@ them.
 | --- | --- | --- |
 | NIC secondary configuration | Azure network resource | ARM, written by Cilium Operator |
 | Published node inventory | `spec.ipam.pool` | Kubernetes API, written by operator |
-| Reservation and owner | `status.ipam.used` | Kubernetes API, changed by the IPAM plugin |
+| Reservation and owner | `status.ipam.used` | Kubernetes API, changed by the IPAM plugin; separately authorized fenced recovery is the explicit exception in section 16 |
 | Interface/resource metadata | `status.azure.interfaces` | Kubernetes API, written by operator |
 | Container/endpoint addressing and teardown data | Existing Azure CNI network state | Existing network plugin and existing storage behavior |
 | Current guest observations | IMDS, NMAgent and live host networking | Request-local observations; no new cache file |
@@ -746,7 +752,7 @@ whether the claim committed. All three must be represented in tests and logs.
 | Claim response is lost | Do not select another IP blindly; recover through the stable owner. |
 | Endpoint setup fails after confirmed claim | Remove partial networking, then release the exact claim. |
 | Local endpoint persistence fails | Treat ADD as failed; clean up or retain the claim until teardown can be established. |
-| Process dies after claim | Runtime replay/DEL or a fenced recovery procedure resolves ownership; no time-based free. |
+| Process dies after claim | ADD replay may recover the same eligible claim. DEL with usable endpoint state can clean up; no-record DEL with a remaining claim requires section 16 recovery. |
 | Rollback cannot reach the API | Retain the claim and surface the incomplete rollback. |
 
 ```mermaid
@@ -800,6 +806,13 @@ have a live endpoint. A leak is an operational problem; duplicate use is a
 correctness failure. The design prefers retaining a questionable claim until
 teardown is authoritative.
 
+Failed-ADD compensation may use the IP and host-veth data still held by the
+same network invocation, but only after its complete cleanup succeeds. If the
+process loses those inputs or cleanup is uncertain, it cannot turn a later
+owner-only DEL into an addressed release. A runtime choosing DEL instead of ADD
+replay after an uncertain allocation can therefore require fenced recovery even
+when no endpoint was actually created; phase one deliberately does not guess.
+
 ## 14. Successful DEL and safe ordering
 
 The meeting's normal DEL path is straightforward: Azure CNI restores its
@@ -817,9 +830,19 @@ stale local record causing a later DEL to remove rules for a reused IP.
 
 The refinement introduces no new persistent state. It does mean that a failed
 remote release can leave a claim after the endpoint record is gone. Section
-15 specifies recovery by stable owner and verified teardown. This change and
-its missing-endpoint behavior must be reviewed together; changing one without
-the other would create a leak or unsafe retry path.
+15 defines a read-only owner check for that fresh-process retry, and section 16
+defines fenced replacement when the claim remains. The ordinary runtime retry
+cannot manufacture the lost teardown proof. This availability restriction is
+a post-meeting design choice made to close the review finding, not a claim that
+the meeting approved automatic recovery or mandatory node replacement.
+
+The caller supplies `ipam.address` only after successful cleanup using a restored
+endpoint record or complete in-memory failed-ADD information, followed by
+successful retirement of any teardown-bearing record. It retains the existing
+network-operation serialization through that sequence. An uncertain record
+write is a failure: do not release. A later invocation must restore the record
+if it exists or follow the no-record path if it does not. No completion marker,
+new journal or allocation-state field is added to the existing store.
 
 ```mermaid
 sequenceDiagram
@@ -856,26 +879,39 @@ wait for the operator to notice the usage reduction.
 
 ## 15. Duplicate DEL, absent endpoint state and stale requests
 
-DEL must be repeatable after success and after partial failure. An explicit
-address with no matching claim is already released. A matching claim is removed
-conditionally. A different owner at that address is never removed. If a stale
-request encounters another owner, the implementation must report that outcome
-without mutating the new claim; whether the caller classifies a proven old
-completed DEL as success or an ownership diagnostic is part of the final error
-mapping, not permission to free the new owner.
+Normal DEL uses the restored IP, as agreed in the meeting. Addressed DEL and
+owner-only DEL have deliberately different permissions. The existing
+`ipam.address` input distinguishes them; no additional CNI command, response
+payload or local completion file is introduced.
 
-Normal DEL uses the restored IP, as agreed in the meeting. Owner-based lookup
-is a **proposed exceptional recovery path**, not a second local pod mapping.
-It is needed when ADD committed but its response was lost, or when local
-teardown completed before a remote release failed. A bare missing state file
-does not prove either case.
+| Caller evidence and request | Plugin behavior | Outcome |
+| --- | --- | --- |
+| Complete cleanup in this invocation, followed by successful record retirement; address supplied | Read the bound CiliumNode, validate the exact owner/resource, then conditionally remove only that claim | Success after confirmed removal |
+| Address supplied, but that address is absent and the owner has no other claim | No mutation | Idempotent success |
+| Address supplied, but it belongs to a different owner or this owner has a different/duplicate claim | Preserve every claim and return an ownership-mismatch error | Diagnosis required; never release by address alone |
+| No endpoint record and no address supplied; exact owner has no claim on the valid bound object | Read only; do not touch any host rule or another owner's claim | Idempotent DEL success |
+| No endpoint record and no address supplied; one or more exact-owner claims remain | Read only and return `recovery-required` | Claim retained; section 16 fenced replacement required |
+| API unavailable, object missing/replaced, invalid identity or unreadable/corrupt local state | Do not interpret the failure as an absent claim or endpoint | Explicit dependency or recovery error |
 
-The network caller must establish that the specific old sandbox endpoint has
-been removed using the runtime's lifecycle and the existing deterministic
-endpoint/network cleanup mechanisms. It must not delete an IP-scoped rule
-for an address now belonging to another endpoint. If sandbox teardown cannot
-be established, stop and retain the claim. The exact no-record teardown checks
-are an implementation sign-off gate, particularly when the namespace is gone.
+`recovery-required` and ownership-mismatch are proposed diagnostic categories
+mapped to the existing CNI error mechanism, not new wire commands. Logs identify
+the node, stable sandbox owner and failing stage without disclosing credentials.
+Repeated runtime retries do not promote either error into authorization to
+release. A claim's age, absent pod, absent namespace or vanished veth is not
+proof that IP-keyed host rules were cleaned up.
+
+On the no-record path, `azure-vnet` supplies only the ordinary stable request
+identity. The new plugin reads CiliumNode to determine whether that owner still
+has a reservation; it returns no recovered IP to the network plugin and does
+not perform host cleanup. An owner match is information, not permission to
+delete. This explicitly replaces the earlier proposed automatic owner-only
+release path.
+
+Absent-owner success relies on the supported lifecycle: the operator preserves
+used entries, only a completed normal release or fenced recovery removes them,
+and privileged object/status destruction is not occurring. It is not proof
+that an administrator never erased ownership. A known state-loss or identity
+incident follows sections 16 and 20 rather than the ordinary duplicate-DEL path.
 
 ```mermaid
 sequenceDiagram
@@ -886,37 +922,68 @@ sequenceDiagram
     participant K as Kubernetes API
     R->>C: Repeat DEL after partial failure
     C->>C: No endpoint record remains
-    alt Old sandbox teardown can be established
-        C->>I: DEL with stable sandbox identity
-        I->>K: Find exact-owner claim
-        alt Claim exists
-            I->>K: Conditionally remove that claim
-        else Claim is already absent
-            I-->>C: Idempotent success
-        end
-    else Missing state does not establish teardown
-        C-->>R: Recovery required, retain remote ownership
+    C->>I: DEL with stable identity and no address
+    I->>K: Read exact-owner claims on bound object
+    alt No claim exists and identity is valid
+        I-->>C: Idempotent success without mutation
+        C-->>R: DEL success
+    else Claim remains
+        I-->>C: Recovery-required without mutation
+        C-->>R: Error requiring fenced replacement
+    else Object or API cannot be trusted
+        I-->>C: Explicit dependency or identity error
+        C-->>R: Failure without releasing ownership
     end
 ```
 
-**Figure 17. Missing endpoint record.** Never infer safety solely from a
-directory being empty or a pod disappearing from Kubernetes.
+**Figure 17. Missing endpoint record is an inspection-only path.** API recovery
+alone does not authorize removal of a remaining claim.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as First network invocation
+    participant L as Linux networking
+    participant K as CiliumNode API
+    participant R as Fresh runtime DEL
+    participant I as IPAM plugin
+    C->>K: Reserve through delegated IPAM
+    C->>L: Partially program veth and IP-keyed rules
+    C--xL: Process exits before cleanup or endpoint record
+    R->>R: No endpoint record or namespace proves no cleanup
+    R->>I: Delegate DEL without an address
+    I->>K: Read matching owner claim
+    K-->>I: Claim remains
+    I-->>R: Recovery-required
+    Note over L,K: Residual rules are not guessed away and claim stays reserved
+```
+
+**Figure 17a. Failed ADD without endpoint state.** The safe phase-one outcome
+is explicit recovery, not an automatic release inferred from sandbox absence.
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant D as Delayed old DEL
+    participant C as azure-vnet
     participant I as IPAM plugin
     participant K as Kubernetes API
-    D->>I: Release IP X for owner A
-    I->>K: Read X
-    K-->>I: X belongs to owner B
-    I-->>D: Do not mutate B, report stale-owner outcome
-    Note over I,K: No release by address alone
+    Note over C,K: Owner A completed cleanup and release before B reused X
+    D->>C: DEL for old sandbox A
+    C->>C: No A record remains, so skip host-rule cleanup
+    C->>I: DEL for A without an address
+    I->>K: Read exact-owner claims
+    K-->>I: No A claim, X belongs to B
+    I-->>C: Success without mutation
+    C-->>D: Idempotent success
+    Note over C,K: B's endpoint rules and reservation are untouched
 ```
 
-**Figure 18. Stale deletion after reuse.** The owner comparison is mandatory
-even though the caller supplied an IP from its old state.
+**Figure 18. Delayed old DEL after exact-IP reuse.** Normal delayed calls cannot
+recover an old teardown record because it was retired before release. A directly
+replayed addressed IPAM request for A also cannot remove B: it receives the
+ownership-mismatch outcome above. Restoring stale network backups on an active
+node is outside this ordinary lifecycle and requires section 20 recovery.
 
 ## 16. API failure during DEL and bounded retries
 
@@ -928,10 +995,19 @@ Existing traffic unrelated to that DEL does not depend on continued API reads.
 
 The network plugin may already have removed the endpoint before release fails.
 Therefore "DEL failed" does not necessarily mean that the pod's dataplane still
-exists. Report the stage clearly. The runtime can retry and the stable-owner
-path can complete release after connectivity returns. A pod may remain
-Terminating while the runtime awaits successful teardown; this availability
-tradeoff was explicitly accepted for phase one.
+exists. Report the stage clearly. While the original network invocation still
+holds the known address and confirmed cleanup evidence, bounded delegated
+release retries may finish normally after connectivity returns. Once that
+invocation exits, a no-record retry is inspection-only. If the release actually
+committed but its response was lost, absence of the old owner's claim permits
+idempotent success. If the claim remains, restoring connectivity is insufficient:
+fenced replacement is required.
+
+Synchronous retry was accepted in the meeting; this additional fresh-process
+recovery limitation is a proposed phase-one tradeoff, not meeting consensus.
+A sandbox can remain Terminating and its claim can consume capacity until the
+platform operator completes recovery. The evaluation handoff must disclose
+this limitation and demonstrate the recovery procedure before deployment.
 
 ```mermaid
 sequenceDiagram
@@ -946,19 +1022,109 @@ sequenceDiagram
     I->>K: GET or conditional release
     K--xI: API unavailable or credentials rejected
     I-->>C: Release unconfirmed
-    C-->>R: Retryable teardown failure
-    Note over R,K: Claim remains reserved during the outage
-    R->>C: Retry after dependency recovery
-    C->>I: Replay release by stable owner
-    I->>K: Confirm and remove matching claim
-    I-->>C: Release success
-    C-->>R: DEL success
+    C-->>R: Release unconfirmed, invocation exits
+    Note over R,K: Endpoint record is already retired
+    R->>C: Fresh DEL after API recovery
+    C->>I: Owner-only inspection, no address
+    I->>K: Read current exact-owner claims
+    alt Original release committed
+        I-->>C: Owner absent, idempotent success
+        C-->>R: DEL success
+    else Original release did not commit
+        I-->>C: Claim remains, recovery-required
+        C-->>R: Explicit error, no automatic claim removal
+    end
 ```
 
-**Figure 19. Synchronous retry model.** A retryable outcome is not an infinite
-retry loop inside the original process.
+**Figure 19. API failure after record retirement.** In-process retry and a
+fresh invocation have different evidence; neither may invent a teardown proof.
 
-DEL must not depend on new allocations being possible. It should work with
+### Supported phase-one fenced replacement procedure
+
+The **self-managed platform operator**, using separately authorized lifecycle
+and recovery credentials, owns this procedure. The ordinary CNI credential
+cannot promote itself to that role. This is a node-wide disruptive operation,
+not per-IP automatic garbage collection or a new resident recovery service.
+
+1. Stop new scheduling and platform-triggered node/CNI activity. Preserve the
+   CiliumNode UID, Node UID, VM/NIC identity and exact claims for the recovery
+   decision. Read the API directly; do not use a stale pod list as ownership
+   evidence. Cordon by itself is not a fence.
+2. Stop/deallocate the affected VM through the platform and verify its
+   stopped/deallocated power state. Prevent restart by the node lifecycle
+   automation for the duration of recovery. The fence covers all sandboxes
+   and CNI processes on that VM. If the platform cannot establish and maintain
+   this exclusion, release nothing.
+3. Keep the old host incarnation permanently out of service. Phase-one recovery
+   replaces it with a clean host installation; it does not boot the old disk
+   and hope persistent networking or stale endpoint records will be harmless.
+   The verified stopped VM cannot send traffic, and its old rules and processes
+   will never re-enter service. This is the teardown evidence that no-record
+   CNI was unable to obtain.
+4. With the API reachable, re-read and validate the captured Node/CiliumNode
+   UIDs and VM/NIC binding. Identify the supported consumer's claims on that
+   fenced VM. Under UID/resourceVersion tests, remove only those exact
+   owner/resource entries. Preserve operator metadata and unrelated entries;
+   never reset the entire used map. Unexpected owners, identity changes or
+   an uncertain write stop normal recovery for investigation. A lost response
+   is reconciled by reading the same fenced object's exact claims again.
+5. Keep the fence and scheduling exclusion in force through node/object/NIC
+   decommissioning. Reconcile old ASG membership and apply section 24's policy
+   admission restrictions before any potentially affected address is reused.
+   An ARM GET alone is not fabric acknowledgment. If that policy safety cannot
+   be established, retain the affected resources out of service; do not declare
+   the environment ready. CNI does not delete NIC IP configurations.
+6. Provision a clean replacement through the controlled lifecycle in sections
+   20 and 27, with a new node/sandbox identity, qualified credentials,
+   primary-only host networking and operator-owned allocation. Do not copy
+   stale endpoint state, replay old sandbox requests on it, or reuse the old
+   host incarnation. Re-run the evaluation readiness and dataplane checks
+   before enabling scheduling.
+
+The administrative status mutation is authorized by verified whole-VM
+exclusion, not by a missing namespace or by trusting an arbitrary IP argument.
+It is the explicit exceptional writer allowed during recovery while all node
+consumers are fenced. Ordinary allocation remains exclusively with the IPAM
+plugin and cloud pool management with the operator. There is no new credential
+installed in the plugin, no recovery bit in CiliumNode and no local journal.
+If the recovery operator loses its identity observations, it re-establishes the
+fence and current API evidence before continuing.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant P as Authorized platform operator
+    participant V as Old VM and lifecycle automation
+    participant K as Kubernetes API
+    participant N as Clean replacement
+    P->>V: Exclude scheduling, stop VM and prevent restart
+    V-->>P: Verified stopped and held out of service
+    P->>K: Re-read captured identity and exact claims
+    P->>K: Conditional removal of validated fenced owners
+    K-->>P: Confirm intended removals, preserve other fields
+    P->>P: Complete policy and resource decommission gates
+    P->>N: Provision clean host with new identity
+    N->>N: Qualify host, pool and dataplane
+    P->>N: Enable scheduling only after qualification
+```
+
+**Figure 19a. Missing-record recovery is explicit fenced replacement.**
+A missing or unreachable API delays this procedure; it never becomes permission
+to release from an offline ownership snapshot.
+
+| Required failure trace | Evidence available | Permitted action and final outcome |
+| --- | --- | --- |
+| Record retired, release fails, process exits | Fresh process has owner identity but no cleanup proof | Inspect only. If owner is absent, succeed; if present, retain and use fenced replacement. |
+| ADD crashes after partial host programming without saved state | Remote claim may identify an IP, but host-veth/rule cleanup is unproved | Do not reconstruct cleanup from a remote claim. Retain the claim and replace the fenced host. |
+| Old DEL arrives after successful release and exact-IP reuse | No old endpoint record and no old-owner claim | Perform no host-rule cleanup and no claim mutation; return idempotent success while preserving the new owner. |
+
+These are mandatory evaluation regressions, including interrupted recovery.
+They establish safe bounded behavior; they do not promise automatic repair
+for every process crash. Requiring a clean replacement is the chosen cost of
+closing D5/D6 without additional persistence or an extended IPAM response.
+
+An addressed DEL with confirmed teardown must not depend on new allocations
+being possible. It should work with
 an empty pool, a withdrawn address, an operator outage or unavailable NMAgent,
 provided the object identity and ownership can be established and the API
 accepts the release. Test this separation explicitly. Conversely, treating
@@ -980,7 +1146,8 @@ termination independently of IP reclamation. It also introduces a persistent
 queue, a consumer and recovery rules. None is automatically supplied by a
 short-lived stateless CNI executable.
 
-Phase one therefore uses synchronous release with runtime retry. There is no
+Phase one therefore uses synchronous release with bounded retry and the
+explicit missing-record recovery limit in section 16. There is no
 new directory of pending IP deletions, no background goroutine surviving the
 CNI process, no renamed bridge that periodically releases addresses, and no
 timer that expires used entries. The old CNS mechanism remains unchanged for
@@ -1189,10 +1356,11 @@ before fresh registration. An approved recovery can use observed endpoint
 records as evidence, but an automatic pod-list-to-used-map rebuild is not part
 of this design.
 
-Admission protection for object deletion/rebinding and the exact recovery
-authority are release decisions. Without them, the product has a documented
-destructive-administrator limitation, not the stronger guarantees of the
-superseded persisted-identity implementation.
+Section 16 selects the platform operator and verified VM exclusion as the
+authority for missing-record recovery. Broader admission protection for object
+deletion/rebinding remains a release decision. Without that protection, the
+product has a documented destructive-administrator limitation, not the stronger
+guarantees of the superseded persisted-identity implementation.
 
 ## 21. Reboot, process restart and host address ownership
 
@@ -1208,11 +1376,12 @@ directory or change its backend. Where that state is on a volatile filesystem,
 it can disappear. Remote claims do not disappear with it.
 
 The resulting mismatch is not repaired by declaring all remote IPs free.
-The supported procedure must establish old sandbox teardown, recover through
-stable owners where possible and keep the node out of fresh workload service
-when ownership or host networking cannot be established. If the deployment
-needs fully automatic reboot recovery, that must be demonstrated by the
-lifecycle tests; it is not supplied merely by preserving the old wipe behavior.
+Where usable endpoint records survive, the normal teardown and addressed-release
+contract applies. Where records are lost and claims remain, section 16 requires
+fenced replacement, not owner-only automatic release. Keep the node out of new
+workload service until the appropriate path and host readiness complete.
+Fully automatic recovery after loss of those records is outside phase one;
+preserving legacy wipe behavior does not supply the missing evidence.
 
 ```mermaid
 sequenceDiagram
@@ -1225,11 +1394,11 @@ sequenceDiagram
     H->>H: Restore primary-only host networking
     K->>K: Retain remote claims
     R->>R: Inspect existing state and sandbox lifecycle
-    alt Safe teardown and host usability are established
-        R->>K: Complete valid pending releases through plugin
+    alt Existing records permit teardown and host checks pass
+        R->>K: Complete addressed releases through plugin
         R->>R: Qualify node and resume workload admission
-    else State loss or host conflict is unresolved
-        R->>R: Keep node unavailable and report recovery reason
+    else Records lost with claims or host conflict unresolved
+        R->>R: Keep node unavailable and require supported recovery
     end
 ```
 
@@ -1659,7 +1828,7 @@ which fresh ADD can trust a persisted pool while the API is down.
 | Node credentials invalid | Fails explicitly | Remote release waits for valid authorization | No dependency on periodic credential reads |
 | Operator unavailable | Can use currently qualified free supply | Can remove claims through a healthy API | Continue, subject to unchanged host/fabric |
 | ARM allocation fails | Existing qualified supply remains usable | Local claim removal does not need ARM | Continue unless fabric/resource state changes |
-| NMAgent unavailable | Cannot qualify new supply | Must not require fresh allocation discovery to release a known owner | No automatic teardown |
+| NMAgent unavailable | Cannot qualify new supply | Addressed release with confirmed teardown does not need fresh allocation discovery; no-record claims still require recovery | No automatic teardown |
 | IMDS/identity discovery unavailable | Fail when required identity cannot be established | Use the approved minimal release identity contract; do not broaden privilege | No automatic teardown |
 | Pod NSG Controller unavailable | Core IPAM may work, but policy-safe admission is not established | Old membership cleanup may be delayed | Existing policy may remain stale |
 | Existing endpoint store unreadable | Network operation fails safely | No blind teardown/release from missing evidence | Requires separate dataplane diagnosis |
@@ -1973,7 +2142,7 @@ only one does not resolve the others.
 | Used count exceeds running pods | Exact owners, runtime sandboxes, endpoint evidence, interrupted operations | Reconcile teardown; do not free from pod count alone. |
 | Pod works cross-node but not same-node | veth marks, table 101, live gateway, scoped NOTRACK and NSG test | Diagnose tunnel/enforcement path. |
 | Pool/usage look healthy but host probes fail | Host local routes and secondary assignments | Correct host-network ownership under the supported procedure. |
-| DEL cannot finish | Local teardown stage, current claim owner, API/credential failure | Restore API access and replay without freeing another owner. |
+| DEL cannot finish | Local teardown stage, surviving endpoint record, current claim owner, API/credential failure | Restore API access. Release only with section 14 evidence; a remaining claim without a record requires section 16 fenced replacement. |
 | New pod inherits policy | Exact reused IP, old/new selectors, ASG membership, fresh-flow result | Treat as policy lifecycle failure; stop unsafe reuse. |
 | CiliumNode is missing or replaced | API object lifecycle and actual VM state | Fence/drain and follow approved recovery, not auto-bootstrap. |
 
@@ -1996,8 +2165,10 @@ sequenceDiagram
 
 Ordinary transient recovery means restoring the dependency and retrying:
 credentials, API connectivity, operator availability or guest observation.
-There is no new persisted fence bit to clear. Current incompatibility checks
-will still reject admission until the mismatch is actually removed.
+There is no new persisted fence bit to clear. However, an invocation that has
+lost its endpoint record and still has a claim cannot automatically recover
+merely because the API returns. It follows section 16. Current incompatibility
+checks still reject admission until the mismatch is actually removed.
 
 Destructive recovery is different and requires explicit platform authority.
 Stop or drain the affected VM/sandboxes, establish teardown, reconcile claims
@@ -2032,8 +2203,9 @@ status-subresource behavior.
 | Uncertain responses | Commit then lost response, replay after process exit, no duplicate claim. |
 | Failed ADD | Failure at each endpoint/persistence stage; compensation cannot free an IP with uncertain teardown. |
 | DEL | Exact IP and owner, duplicate DEL, no current pool entry, unavailable guest discovery, other-owner protection. |
-| Missing endpoint | Failed ADD and post-teardown release retry; unknown teardown stops rather than guessing. |
-| Ordering | Local-state retirement failure keeps claim; lost release response cannot trigger stale destructive teardown after reuse. |
+| Missing endpoint | Owner-only DEL performs no host cleanup or status mutation. Absent owner succeeds; remaining owner returns recovery-required. API errors are not absence. |
+| Ordering | Record retirement followed by failed release/process exit takes the specified recovery branch. Failed ADD with residual IP-keyed rules retains ownership. Delayed old DEL preserves a reused IP's new claim and rules. |
+| Fenced recovery | No claim removal before verified VM exclusion; conditional exact-owner removals preserve other fields; lost responses are reconciled; old host never restarts; replacement passes readiness. |
 | Selection | Explicit new plugin, missing inputs, no legacy fallback, unchanged non-opted-in behavior. |
 | Dependencies | New binary's client graph stays outside the existing generic IPAM executable. |
 | Storage | No BoltDB or new allocation-state files/locks are opened by the new plugin. |
@@ -2283,11 +2455,13 @@ code still present in the PR.
 
 There is no new persisted bridge fence or lease. A transient failure clears
 when a fresh invocation can establish the required current conditions and
-complete its API operation. Identity replacement, lost authoritative state
-and uncertain endpoint teardown still require a controlled recovery procedure;
-removing a persisted fence does not make those situations safe automatically.
-No administrator should need to delete a bridge database to recover ordinary
-API connectivity or late initial pool publication.
+complete its API operation. This does not cover DEL after loss of its teardown
+evidence: if a claim remains without the endpoint record, section 16 requires
+operator-driven fencing and clean replacement even after connectivity returns.
+Identity replacement and lost authoritative state also require controlled
+recovery. No bridge database is deleted to recover ordinary API connectivity
+or late initial pool publication; absence of such a database does not guarantee
+automatic recovery from every failure.
 
 ### Why should IPAM inspect the network database?
 
@@ -2356,7 +2530,7 @@ rewrite. The new specification is the review basis.
 | --- | --- |
 | New plugin executable/package | Add `azure-cilium-ipam` with request-scoped client, narrow wire adapter and ADD/DEL contract. Exact package path is an implementation choice. |
 | Network invoker | Select the separate plugin; reuse existing explicit-IP delegation; exclude destructive legacy IPAM-reset fallback. |
-| Network lifecycle | Implement and test safe teardown/state-retirement/release ordering plus no-record retry behavior. |
+| Network lifecycle | Implement addressed release only after successful cleanup/state retirement; no-record DEL is inspection-only, with explicit recovery-required handling. |
 | Old bridge | Remove daemon entrypoint, synchronization/publisher logic, lifetime lock and service dependency. |
 | Added persistence | Remove added BoltDB implementation/dependency, pool identity, leases, boot records and persistent fences. |
 | Generic configuration | Remove pool-file-driven storage selection and network-plugin access to host pool settings. |
@@ -2382,8 +2556,8 @@ useful than presenting an unreviewed safety assumption as consensus.
 | D2 | Bootstrap ownership | Platform-controlled explicit registration; plugin has no create/delete permission. Review clean-provisioning and admission enforcement. |
 | D3 | Owner encoding | Versioned network/sandbox/interface identifier; prove collision-free replay and old-owner protection. |
 | D4 | Status concurrency | UID/version-tested status patches; qualify real API behavior and the operator's preservation of usage. |
-| D5 | DEL ordering | Retire teardown-bearing network state before remote reuse; review against existing lifecycle semantics and crash tests. |
-| D6 | Missing-endpoint recovery | Stable-owner release only after authoritative teardown. Specify exact no-namespace/no-record checks before implementation approval. |
+| D5 | DEL ordering | Selected in this revision: retire teardown-bearing state before remote release, retain same-invocation cleanup inputs for bounded retries, and release nothing after uncertain cleanup/state writes. Qualify section 16's three failure traces. |
+| D6 | Missing-endpoint recovery | Selected in this revision: owner-only DEL never removes a remaining claim or host rule. Return recovery-required and use verified whole-VM fencing plus clean replacement under section 16. No automatic no-record repair is claimed. |
 | D7 | Outage availability | Accept synchronous DEL blocking on API/authentication failure for phase one, or separately approve async delivery. Reconcile task acceptance text. |
 | D8 | Destructive lifecycle | Protect/coordinate Node and CiliumNode deletion and VM replacement; do not claim historical fencing without persisted history. |
 | D9 | ASG-safe reuse | Define concrete policy coordination and enforcement evidence before production isolation claims. |
