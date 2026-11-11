@@ -109,9 +109,9 @@ load_owner() {
     local state="$NPM_LITE_WORK_DIR/owner.json"
     jq -e --arg build "$BUILD_BUILDID" --arg job "$SYSTEM_JOBID" --arg attempt "$SYSTEM_JOBATTEMPT" '
         .build == $build and .job == $job and .attempt == $attempt and
-        (.owner | test("^[a-f0-9-]{36}$")) and
-        .resourceGroup == ("e2e-npm-lite-" + .build + "-" + .owner) and
-        .cluster == ("npm-lite-" + .build + "-" + (.owner[0:8]))
+        .owner == (.build + ":" + .job + ":" + .attempt) and
+        .resourceGroup == ("e2e-npm-lite-" + .build) and
+        .cluster == "conformance-windows-lite"
     ' "$state" > /dev/null || fail "resource ownership state does not match this job"
     resource_group="$(jq -er .resourceGroup "$state")"
     cluster="$(jq -er .cluster "$state")"
@@ -120,17 +120,19 @@ load_owner() {
 
 provision_and_run() {
     validate_inputs
-    local token resource_group cluster owner exists password
+    local resource_group cluster node_resource_group owner exists password
     [[ -x "$NPM_LITE_WORK_DIR/windows-npm-lite" && -f "$NPM_LITE_WORK_DIR/deployment.json" &&
         ! -e "$NPM_LITE_WORK_DIR/owner.json" ]] ||
         fail "prepared executor/deployment is missing or resource ownership already exists"
-    token="$(cat /proc/sys/kernel/random/uuid)"
-    resource_group="e2e-npm-lite-$BUILD_BUILDID-$token"
-    cluster="npm-lite-$BUILD_BUILDID-${token:0:8}"
+    resource_group="e2e-npm-lite-$BUILD_BUILDID"
+    cluster="conformance-windows-lite"
+    node_resource_group="MC_${resource_group}_${cluster}_${NPM_LITE_LOCATION}"
+    [[ "${#node_resource_group}" -le 80 ]] || fail "default AKS node resource-group name exceeds 80 characters"
+    owner="$BUILD_BUILDID:$SYSTEM_JOBID:$SYSTEM_JOBATTEMPT"
     exists="$(timeout 120s az group exists --name "$resource_group" --only-show-errors -o tsv)"
     [[ "$exists" == false ]] || fail "refusing to reuse a resource group"
     jq -n --arg build "$BUILD_BUILDID" --arg job "$SYSTEM_JOBID" --arg attempt "$SYSTEM_JOBATTEMPT" \
-        --arg owner "$token" --arg resourceGroup "$resource_group" --arg cluster "$cluster" \
+        --arg owner "$owner" --arg resourceGroup "$resource_group" --arg cluster "$cluster" \
         '{build:$build, job:$job, attempt:$attempt, owner:$owner, resourceGroup:$resourceGroup, cluster:$cluster}' \
         > "$NPM_LITE_WORK_DIR/owner.json"
     load_owner
