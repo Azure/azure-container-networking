@@ -451,6 +451,94 @@ func TestRunnerPropagatesFailures(t *testing.T) {
 	}
 }
 
+func TestTrafficCommandTimeoutRetainsProbeEvidence(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cluster, input := testCluster(t)
+		command := func(ctx context.Context, args []string, stdin []byte) (commandResult, error) {
+			if cluster.policy != nil && slices.Contains(args, "exec") && slices.Contains(args, "denied-peer") {
+				commandCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+				defer cancel()
+				<-commandCtx.Done()
+				return commandResult{
+					stdout: []byte(strings.Repeat("x", 1024) + "output-must-be-truncated"),
+					stderr: []byte("TIMEOUT\n"),
+				}, fmt.Errorf("kubectl canceled: %w", commandCtx.Err())
+			}
+			return cluster.command(ctx, args, stdin)
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), 35*time.Minute)
+		defer cancel()
+		err := run(ctx, input, command)
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("lost command deadline: %v", err)
+		}
+		for _, detail := range []string{
+			"case ingress-cidr: policy traffic:", "denied-peer", "subject",
+			"10.10.0.10:8080", "expected deny", "after 30s", "TIMEOUT",
+		} {
+			if !strings.Contains(err.Error(), detail) {
+				t.Errorf("missing %q from probe failure: %v", detail, err)
+			}
+		}
+		if strings.Contains(err.Error(), strings.Repeat("x", 513)) ||
+			strings.Contains(err.Error(), "output-must-be-truncated") {
+			t.Errorf("unbounded probe output: %v", err)
+		}
+		if cluster.policiesCreated != 1 || cluster.namespaceDeletes != 1 {
+			t.Fatal("command failure continued cases or skipped owned cleanup")
+		}
+	})
+}
+
+func TestTrafficDeadlineRetainsLastMismatch(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cluster, input := testCluster(t)
+		cluster.fault = "policy never enforced"
+		ctx, cancel := context.WithTimeout(t.Context(), 35*time.Minute)
+		defer cancel()
+		err := run(ctx, input, cluster.command)
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("lost convergence deadline: %v", err)
+		}
+		for _, detail := range []string{
+			"case ingress-cidr: policy traffic:", "denied-peer", "subject",
+			"10.10.0.10:8080", "expected deny, observed allow",
+		} {
+			if !strings.Contains(err.Error(), detail) {
+				t.Errorf("missing %q from convergence failure: %v", detail, err)
+			}
+		}
+		if cluster.policiesCreated != 1 || cluster.namespaceDeletes != 1 {
+			t.Fatal("convergence failure continued cases or skipped owned cleanup")
+		}
+	})
+}
+
+func TestTrafficDiscardsMismatchAfterConvergence(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cluster, input := testCluster(t)
+		mismatches := 2
+		command := func(ctx context.Context, args []string, stdin []byte) (commandResult, error) {
+			if cluster.policy != nil && slices.Contains(args, "exec") && slices.Contains(args, "denied-peer") {
+				cluster.fault = ""
+				if mismatches > 0 {
+					cluster.fault = "policy never enforced"
+					mismatches--
+				}
+			}
+			return cluster.command(ctx, args, stdin)
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), 35*time.Minute)
+		defer cancel()
+		if err := run(ctx, input, command); err != nil {
+			t.Fatal(err)
+		}
+		if mismatches != 0 || cluster.policiesDeleted != 10 || cluster.namespaceDeletes != 1 {
+			t.Fatal("eventual convergence skipped mismatches, cases or cleanup")
+		}
+	})
+}
+
 func TestRunnerAcceptsRelativeConfigMapPaths(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		cluster, input := testCluster(t)
