@@ -5,6 +5,8 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/binary"
 	"errors"
 	"os"
 	"slices"
@@ -12,6 +14,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf16"
 )
 
 func TestConfigRequiresAllFourBooleans(t *testing.T) {
@@ -34,6 +37,47 @@ func TestConfigRequiresAllFourBooleans(t *testing.T) {
 		if err := validateConfig(marshalTest(t, value)); err == nil {
 			t.Fatalf("accepted missing %s", key)
 		}
+	}
+}
+
+func TestMountedConfigPreservesPowerShellScript(t *testing.T) {
+	cluster, input := testCluster(t)
+	executions := 0
+	command := func(ctx context.Context, args []string, stdin []byte) (commandResult, error) {
+		if slices.Contains(args, "powershell.exe") {
+			executions++
+			index := slices.Index(args, "-EncodedCommand")
+			if index < 0 || index != len(args)-2 || slices.Contains(args, "-Command") {
+				t.Fatalf("mounted config script must use one encoded argument: %v", args)
+			}
+			data, err := base64.StdEncoding.DecodeString(args[index+1])
+			if err != nil || len(data) == 0 || len(data)%2 != 0 {
+				t.Fatalf("invalid UTF-16LE command payload: %v", err)
+			}
+			words := make([]uint16, len(data)/2)
+			for i := range words {
+				words[i] = binary.LittleEndian.Uint16(data[2*i:])
+			}
+			script := string(utf16.Decode(words))
+			for _, literal := range []string{
+				`$ErrorActionPreference = 'Stop'`,
+				`IsNullOrWhiteSpace($env:CONTAINER_SANDBOX_MOUNT_POINT)`,
+				`$p = [IO.Path]::GetFullPath`,
+				`[IO.File]::ReadAllBytes($p)`,
+			} {
+				if !strings.Contains(script, literal) {
+					t.Fatalf("PowerShell script lost literal %q: %q", literal, script)
+				}
+			}
+		}
+		return cluster.command(ctx, args, stdin)
+	}
+	_, err := readMountedConfig(t.Context(), kubeClient{input.kubeconfig, command}, input.npmNamespace, cluster.npm[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if executions != 1 {
+		t.Fatalf("expected one mounted config read, got %d", executions)
 	}
 }
 
