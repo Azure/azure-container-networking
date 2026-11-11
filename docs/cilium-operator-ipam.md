@@ -413,6 +413,13 @@ scenario-specific filesystem tests through Azure CNI. Legacy configurations
 that never select this plugin retain their existing behavior. An explicit
 request for the new plugin must fail if its prerequisites are missing.
 
+For that explicit selector, the network plugin validates the outer networking
+combination immediately after parsing, before bare-metal, multitenancy or other
+early dispatch can bypass the intended invoker. It rejects unsupported
+execution modes and IPv6 combinations before host mutation. This small dispatch
+check does not parse CiliumNode, read a Cilium settings file or construct an API
+client; those remain the new IPAM executable's responsibilities.
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -1696,8 +1703,10 @@ Acceptance includes renewal across expiry and reboot, atomic credential
 replacement, revocation/recovery, legitimate node access and rejected
 foreign-node operations. Existing endpoint traffic must continue when
 credentials fail. New ADD fails; remote DEL release waits for valid API
-authorization under the synchronous contract. The task's stronger outage-DEL
-wording needs explicit reconciliation, not an undocumented exception.
+authorization and the required teardown evidence. A remaining claim after
+endpoint-record loss requires section 16 recovery, not just credential renewal.
+The proposed task-acceptance delta is stated in section 37; the task is not
+treated as completed by documenting that narrower evaluation behavior.
 
 ## 26. Repeatable installation and qualified readiness
 
@@ -1760,6 +1769,50 @@ installation either converges or stops with a specific actionable error.
 The source examples in this PR still describe the earlier bridge until the
 implementation follow-up updates them; they are not ready-to-run manifests
 for this revised design.
+
+### Evaluation handoff checklist
+
+The self-managed platform owns installation and scheduling readiness. The
+release producer supplies the coherent payload and tested extraction
+instructions; neither responsibility is delegated to an implicit bridge.
+The candidate release manifest must record the following values before
+handoff. Placeholders in this proposal are not installable artifacts.
+
+| Item | Required handoff value or destination |
+| --- | --- |
+| Delivery image | Immutable MCR image digest, target architecture and corresponding source revision |
+| Extraction | Exact command for the candidate image's `/dropgz` extractor and a staging directory; `/dropgz` is an executable with embedded assets, not a directory of binaries |
+| Network binary | Extracted `azure-vnet`, hash verified, installed at `/opt/cni/bin/azure-vnet` |
+| New IPAM binary | Extracted `azure-cilium-ipam`, hash verified, installed at `/opt/cni/bin/azure-cilium-ipam`; no old bridge service |
+| Primary CNI configuration | One `/etc/cni/net.d/10-azure.conflist`, derived from the golden Linux conflist through the supported transparent-tunnel generation/template path, with the explicit new IPAM selector |
+| Node credentials | Protected `/etc/azure-vnet/cilium-ipam.kubeconfig` and its credential-provider inputs, with owner, scope, validity interval and replacement procedure recorded |
+| Operator set | Azure-capable image digest, chart checksum, CRD source and rendered operator-only values |
+| Readiness and limits | Named platform readiness owner; tested node/pod/concurrency limits; warm reserve and subnet budget; supported OS/runtime/kernel/MTU |
+| Recovery | Named authorized platform operator and demonstrated section 16 fence/replacement procedure |
+
+1. Verify the digest and architecture, extract into staging, and compare the
+   network/IPAM binary hashes and names against the manifest. The existing
+   image layout does not prove that the new binary has been added; absence
+   blocks handoff.
+2. Keep the clean or drained node out of scheduling while preparing host tools,
+   primary-only networking, scoped credentials and atomic binary installation.
+   Render the conflist from the shared source/template rather than maintaining
+   another independent golden configuration.
+3. Install operator-only resources and controlled registration, then validate
+   Node/VM/NIC identity and qualified supply. Ensure no second primary CNI or
+   Cilium agent can overwrite configuration or usage.
+4. Run the evaluation gates in section 35, including startup replay,
+   interrupted installation, supported invalid-mode cases and the three DEL
+   failure traces. Record actual running versions and configured capacity.
+5. Have the platform readiness owner enable scheduling only inside the tested
+   envelope. Supply the recovery runbook and explicit manual-recovery and policy
+   limitations with the artifact. Stop admissions or retire the environment
+   before evaluation credentials expire if automatic renewal is not provided.
+
+No installer DaemonSet is required by this checklist. A scripted extraction
+and bootstrap path is sufficient if it is replayable and its failure behavior
+is qualified. Production credential automation and additional availability
+claims retain their own gates.
 
 ## 27. Bicep provisioning and reproducible Azure environments
 
@@ -1824,8 +1877,8 @@ which fresh ADD can trust a persisted pool while the API is down.
 
 | Dependency failure | New ADD | DEL/release | Existing endpoints |
 | --- | --- | --- | --- |
-| Kubernetes API unreachable | Fails without a confirmed claim | Cannot confirm remote release; local cleanup may already be complete | No automatic teardown; traffic can continue |
-| Node credentials invalid | Fails explicitly | Remote release waits for valid authorization | No dependency on periodic credential reads |
+| Kubernetes API unreachable | Fails without a confirmed claim | Cannot confirm remote release; a remaining claim after record loss requires section 16 recovery | No automatic teardown; traffic can continue |
+| Node credentials invalid | Fails explicitly | Restore authorization, then apply the same-invocation/addressed or no-record contract as applicable | No dependency on periodic credential reads |
 | Operator unavailable | Can use currently qualified free supply | Can remove claims through a healthy API | Continue, subject to unchanged host/fabric |
 | ARM allocation fails | Existing qualified supply remains usable | Local claim removal does not need ARM | Continue unless fabric/resource state changes |
 | NMAgent unavailable | Cannot qualify new supply | Addressed release with confirmed teardown does not need fresh allocation discovery; no-record claims still require recovery | No automatic teardown |
@@ -2206,7 +2259,7 @@ status-subresource behavior.
 | Missing endpoint | Owner-only DEL performs no host cleanup or status mutation. Absent owner succeeds; remaining owner returns recovery-required. API errors are not absence. |
 | Ordering | Record retirement followed by failed release/process exit takes the specified recovery branch. Failed ADD with residual IP-keyed rules retains ownership. Delayed old DEL preserves a reused IP's new claim and rules. |
 | Fenced recovery | No claim removal before verified VM exclusion; conditional exact-owner removals preserve other fields; lost responses are reconciled; old host never restarts; replacement passes readiness. |
-| Selection | Explicit new plugin, missing inputs, no legacy fallback, unchanged non-opted-in behavior. |
+| Selection | Explicit new plugin, missing inputs, bare-metal/execution-mode, multitenancy and IPv6 rejection before bypassing dispatch or mutating the host; no accidental CNS invoker or legacy fallback; unchanged non-opted-in behavior. |
 | Dependencies | New binary's client graph stays outside the existing generic IPAM executable. |
 | Storage | No BoltDB or new allocation-state files/locks are opened by the new plugin. |
 
@@ -2256,6 +2309,40 @@ candidate artifacts, qualify bootstrap and run the lifecycle scenarios.
 Use actual CiliumNode, guest and endpoint observations rather than accepting
 pod Ready as the only assertion. Record stage timing from reservation demand
 through usable endpoint, not merely the ARM request duration.
+
+### Evaluation versus production gates
+
+The initial evaluation is an isolated, self-managed environment with trusted
+test workloads and an explicitly limited capability claim. It is not a
+production multi-tenant isolation or high-availability release. The release
+manifest identifies which column is being qualified. Nothing in the evaluation
+column waives unique ownership, safe cleanup or protection against a second
+allocator.
+
+| Capability | Required for first evaluation | Additional production or capability-specific gate |
+| --- | --- | --- |
+| Reservation correctness | Confirmed claims, concurrency/replay tests, no fallback, correct normal ADD/DEL and unchanged unrelated fields | Sustained fleet-scale correctness and approved latency/error budgets |
+| DEL failure recovery | All three section 16 traces, read-only no-record behavior and rehearsed fenced clean replacement, including interruption | Any promised automatic recovery needs a separately specified and tested protocol; manual disruption must fit the approved availability contract |
+| API/credential outage | Existing traffic unaffected by the outage itself; explicit admission/release failures; valid-credential restoration and the documented recovery outcomes | Automatic renewal/revocation across expiry and reboot; accepted task 40396608/40396613 contract |
+| Installation/readiness | Qualified extraction/bootstrap checklist, identity boundary, early-CNI and installation replay tests, one primary consumer | Fleet installation/upgrade automation and operational ownership; installer DaemonSet remains optional |
+| Operator growth | Actual standalone-VM allocation and usage-driven growth, pinned artifacts, measured timing and disclosure of any refresh warning | Task 40396607 incremental-refresh correction and approved growth/recovery objectives |
+| Host lifecycle | Primary-only networking on the tested image, detection of unqualified host state, and safe exclusion/replacement when records or host usability are lost | Task 40396605 supported reboot/DHCP/NIC-change behavior and any automatic recovery claims |
+| Policy | Fixed-placement, fresh-flow same/cross-node allow/deny/allow with controls; disclose that cross-identity reuse and label-transition isolation are not qualified | Task 40396606 concrete coordination and regression preventing stale access during reuse, controller loss and label changes |
+| Capacity/HA | Defined small-test limits, warm-address budget and safe exhaustion/backpressure; no HA claim | Real subnet/NIC exhaustion, ARM 429/403, controller/operator failover and intended API topology at approved scale |
+| Dataplane/support matrix | Source preservation, DNS, Service, egress, host probes and tested MTU on the explicitly named environment | Broader OS/kernel/runtime/iptables/MTU matrix, fragmentation, soak and upgrades for the advertised support envelope |
+| Distribution | Exact qualified candidate, repeatable extraction and a release gate tied to those artifact digests | Routine patch/release maintenance and qualification of all additionally advertised capabilities |
+
+For evaluation, do not place adversarial identities or production workloads in
+the environment, represent the ASG reuse gap as solved, or return an old address
+to service through the recovery path before section 16's policy exclusion
+conditions are met. Explicit limitation is not permission to conduct an
+unsafe shared-tenant deployment.
+
+The detailed inventory below spans both columns. A pipeline declares its
+capability profile and selects the corresponding gates; it may not relabel a
+failed required evaluation test as future production work. Conversely, first
+evaluation does not require async DEL, an installer DaemonSet, automatic cloud
+shrink or a production-scale HA claim.
 
 | Gate | Required evidence |
 | --- | --- |
@@ -2422,7 +2509,7 @@ task cannot compensate for unresolved host or policy correctness.
 | Start/monitor bridge systemd service | Replaced by short-lived plugin invocation and platform bootstrap/readiness. |
 | Renew 30-second admission lease | Removed. ADD requires a current successful API transaction. |
 | Export lease freshness and persistent fence reason | Replace with operation/dependency/identity diagnostics and explicit recovery status outside a new allocation store. |
-| DEL continues during API/authentication outage | Local cleanup and existing traffic can continue; remote claim release cannot complete synchronously. Requires task acceptance reconciliation. |
+| DEL continues during API/authentication outage | Local cleanup can proceed, but confirmed remote release needs API access and teardown evidence. A remaining claim after record loss requires fenced replacement; proposed acceptance delta follows. |
 | Restore local pool identity after reboot | No new local identity history exists. Use controlled object/VM lifecycle and tested teardown recovery. |
 | Min/preallocation is part of an immutable local contract | Operator policy can change under a validated configuration procedure; it is not persisted as a local fence. |
 | Measure database cost | Measure existing endpoint storage plus API/guest cost; no new IPAM DB exists. |
@@ -2432,6 +2519,37 @@ The design supersedes mechanism-specific text, not the underlying correctness
 goals. Where a goal conflicts with the chosen phase-one contract, that conflict
 is explicitly left for acceptance/sign-off rather than hidden in a footnote.
 No work-item edits or comments are performed by this specification revision.
+
+### Proposed outage-DEL acceptance delta
+
+For the evaluation contract, propose the following explicit replacement for
+the outage-DEL wording in tasks [40396608][wi-40396608] and
+[40396613][wi-40396613]:
+
+> API connectivity or credential failure does not itself tear down existing
+> endpoints. New ADD cannot succeed without a confirmed claim. A DEL with
+> sufficient local endpoint information may complete host cleanup, but may
+> report success only after confirmed release or a valid already-absent-owner
+> check. Bounded same-invocation release retries can recover after dependency
+> restoration. A fresh no-record DEL with a remaining claim returns
+> recovery-required and retains ownership until verified node fencing and
+> clean replacement complete. Tests demonstrate both the safe failure and
+> the documented recovery outcome; unconditional runtime DEL completion
+> during an outage and automatic post-outage missing-record repair are not
+> evaluation guarantees.
+
+The acceptance evidence must include invalid credentials, network/API loss,
+a committed release with a lost response, an uncommitted release followed by
+process exit, and a delayed old DEL after reuse. Distinguish outage-induced
+traffic behavior from the deliberate disruption caused by authorized node
+fencing. Record recovery duration and retained capacity without inventing a
+production availability target.
+
+This is proposed wording for owner approval, not an ADO edit or a declaration
+that either Committed task is done. If production requires uninterrupted DEL
+completion or automatic repair in these cases, that requirement remains
+unsatisfied until a separate recovery/async contract is approved and qualified.
+The evaluation scope and its limits must be accepted at handoff.
 
 ```mermaid
 flowchart LR
@@ -2558,7 +2676,7 @@ useful than presenting an unreviewed safety assumption as consensus.
 | D4 | Status concurrency | UID/version-tested status patches; qualify real API behavior and the operator's preservation of usage. |
 | D5 | DEL ordering | Selected in this revision: retire teardown-bearing state before remote release, retain same-invocation cleanup inputs for bounded retries, and release nothing after uncertain cleanup/state writes. Qualify section 16's three failure traces. |
 | D6 | Missing-endpoint recovery | Selected in this revision: owner-only DEL never removes a remaining claim or host rule. Return recovery-required and use verified whole-VM fencing plus clean replacement under section 16. No automatic no-record repair is claimed. |
-| D7 | Outage availability | Accept synchronous DEL blocking on API/authentication failure for phase one, or separately approve async delivery. Reconcile task acceptance text. |
+| D7 | Outage availability | Evaluation contract selected in sections 16 and 35: bounded synchronous retry, with fenced replacement after record loss if the claim remains. Section 37 proposes the precise task-acceptance delta; owner acceptance and stronger production availability remain gates. |
 | D8 | Destructive lifecycle | Protect/coordinate Node and CiliumNode deletion and VM replacement; do not claim historical fencing without persisted history. |
 | D9 | ASG-safe reuse | Define concrete policy coordination and enforcement evidence before production isolation claims. |
 | D10 | Operator compatibility | Qualify the final distributed Azure-capable image and resolve standalone incremental refresh separately. |
