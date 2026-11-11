@@ -2,6 +2,7 @@ package configuration
 
 import (
 	"os"
+	"strconv"
 
 	"github.com/pkg/errors"
 )
@@ -24,7 +25,22 @@ const (
 	EnvPodCIDRs         = "POD_CIDRs"
 	EnvServiceCIDRs     = "SERVICE_CIDRs"
 	EnvInfraVNETCIDRs   = "INFRA_VNET_CIDRs"
+	// EnvIPAMUnixSocket overrides the file setting for a specific CNS pod.
+	EnvIPAMUnixSocket = "CNS_IPAM_UNIX_SOCKET_ENABLED"
 )
+
+// IPAMUnixSocketEnabled returns the pod override, or the file setting when the override is absent.
+func IPAMUnixSocketEnabled(configured bool) (bool, error) {
+	value, ok := os.LookupEnv(EnvIPAMUnixSocket)
+	if !ok {
+		return configured, nil
+	}
+	enabled, err := strconv.ParseBool(value)
+	if err != nil {
+		return false, errors.Wrapf(err, "invalid %s", EnvIPAMUnixSocket)
+	}
+	return enabled, nil
+}
 
 // ErrNodeNameUnset indicates the the $EnvNodeName variable is unset in the environment.
 var ErrNodeNameUnset = errors.Errorf("must declare %s environment variable", EnvNodeName)

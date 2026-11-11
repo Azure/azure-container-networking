@@ -5,6 +5,7 @@ package restserver
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -25,20 +26,27 @@ import (
 
 func TestListenIPAMSocket(t *testing.T) {
 	requireRootSocketTests(t)
-	t.Run("creates socket with mode 0600", func(t *testing.T) {
-		socketPath := filepath.Join(socketTestDirectory(t), "cns.sock")
+	for _, mode := range []os.FileMode{0o700, 0o750, 0o755} {
+		t.Run(fmt.Sprintf("directory mode %04o", mode), func(t *testing.T) {
+			directory := socketTestDirectory(t)
+			require.NoError(t, os.Chmod(directory, mode))
+			socketPath := filepath.Join(directory, "cns.sock")
 
-		listener, err := listenIPAMSocket(socketPath)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = listener.Close()
+			listener, err := listenIPAMSocket(socketPath)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_ = listener.Close()
+			})
+
+			socketInfo, err := os.Lstat(socketPath)
+			require.NoError(t, err)
+			require.NotZero(t, socketInfo.Mode()&os.ModeSocket)
+			require.Equal(t, os.FileMode(ipamSocketMode), socketInfo.Mode().Perm())
+			directoryInfo, err := os.Lstat(directory)
+			require.NoError(t, err)
+			require.Equal(t, mode, directoryInfo.Mode().Perm())
 		})
-
-		socketInfo, err := os.Lstat(socketPath)
-		require.NoError(t, err)
-		require.NotZero(t, socketInfo.Mode()&os.ModeSocket)
-		require.Equal(t, os.FileMode(ipamSocketMode), socketInfo.Mode().Perm())
-	})
+	}
 
 	t.Run("replaces old socket", func(t *testing.T) {
 		socketPath := filepath.Join(socketTestDirectory(t), "cns.sock")
@@ -103,15 +111,17 @@ func TestListenIPAMSocketRejectsUnsafeDirectory(t *testing.T) {
 		_, err := listenIPAMSocket(filepath.Join(directory, "cns.sock"))
 		require.ErrorIs(t, err, errIPAMSocketDirectory)
 	})
-	t.Run("permissions", func(t *testing.T) {
-		directory := socketTestDirectory(t)
-		require.NoError(t, os.Chmod(directory, 0o755))
-		_, err := listenIPAMSocket(filepath.Join(directory, "cns.sock"))
-		require.ErrorIs(t, err, errIPAMSocketDirectory)
-		info, err := os.Lstat(directory)
-		require.NoError(t, err)
-		require.Equal(t, os.FileMode(0o755), info.Mode().Perm())
-	})
+	for _, mode := range []os.FileMode{0o720, 0o702, 0o775, 0o777} {
+		t.Run(fmt.Sprintf("directory mode %04o", mode), func(t *testing.T) {
+			directory := socketTestDirectory(t)
+			require.NoError(t, os.Chmod(directory, mode))
+			_, err := listenIPAMSocket(filepath.Join(directory, "cns.sock"))
+			require.ErrorIs(t, err, errIPAMSocketDirectory)
+			info, err := os.Lstat(directory)
+			require.NoError(t, err)
+			require.Equal(t, mode, info.Mode().Perm())
+		})
+	}
 	t.Run("owner", func(t *testing.T) {
 		directory := socketTestDirectory(t)
 		require.NoError(t, os.Chown(directory, 1, 1))

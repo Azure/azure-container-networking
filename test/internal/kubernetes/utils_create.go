@@ -69,6 +69,7 @@ const (
 	envCNIImageNameOverride  = "CNI_IMAGE_NAME_OVERRIDE"
 	envCNSImageNameOverride  = "CNS_IMAGE_NAME_OVERRIDE"
 	envIPAMImageNameOverride = "IPAM_IMAGE_NAME_OVERRIDE"
+	envIPAMUnixSocket        = "CNS_IPAM_UNIX_SOCKET_ENABLED"
 	EnvInstallCNS            = "INSTALL_CNS"
 	cnsLinuxLabelSelector    = "k8s-app=azure-cns"
 	cnsWindowsLabelSelector  = "k8s-app=azure-cns-win"
@@ -791,9 +792,26 @@ func parseCNSDaemonset(cnsScenarioMap map[CNSScenario]map[corev1.OSName]cnsDetai
 		if len(cnsScenarioDetails.containerVolumeMounts) > 0 {
 			cns.Spec.Template.Spec.Containers[0].VolumeMounts = cnsScenarioDetails.containerVolumeMounts
 		}
+		if enabled, _ := strconv.ParseBool(os.Getenv(envIPAMUnixSocket)); enabled && nodeOS == corev1.Linux {
+			cns.Spec.Template.Spec.Containers[0] = withIPAMUnixSocket(cns.Spec.Template.Spec.Containers[0])
+		}
 		return cns, cnsScenarioDetails, nil
 	}
 	return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(ErrNoCNSScenarioDefined, "no CNSSCenario env vars set to true, must explicitly set one to true")
+}
+
+// withIPAMUnixSocket activates UDS in the CNS pod, as AKS does, and mounts the host socket directory.
+func withIPAMUnixSocket(container corev1.Container) corev1.Container {
+	const socketDirectory = "/var/run/azure-cns"
+	const socketVolume = "azure-endpoints"
+	container.Env = append(container.Env, corev1.EnvVar{Name: envIPAMUnixSocket, Value: "true"})
+	for _, mount := range container.VolumeMounts {
+		if strings.TrimSuffix(mount.MountPath, "/") == socketDirectory {
+			return container
+		}
+	}
+	container.VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{Name: socketVolume, MountPath: socketDirectory})
+	return container
 }
 
 func hostPathTypePtr(h corev1.HostPathType) *corev1.HostPathType {
