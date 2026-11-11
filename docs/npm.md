@@ -105,7 +105,7 @@ The independent stage and job are both named `WindowsNPMLite`. It reuses the
 legacy Windows pipeline's service connection, disposable test-only admin
 fixture, and one-Linux/two-Windows2022-node topology. It does not require a new
 secret, variable group, or caller credential. It uses the build-scoped
-`e2e-npm-lite-<BuildId>` resource group and fixed `conformance-windows-lite`
+`e2e-npm-lite-<BuildId>` resource group and fixed `conformance-win-lite`
 cluster name, separate from Linux resources. An existing group is never reused;
 cleanup requires the matching build/job/attempt ownership tag. Each job uses a
 private kubeconfig without writing shared SSH keys or kubeconfig files.

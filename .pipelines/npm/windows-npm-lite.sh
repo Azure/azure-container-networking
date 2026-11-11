@@ -111,7 +111,7 @@ load_owner() {
         .build == $build and .job == $job and .attempt == $attempt and
         .owner == (.build + ":" + .job + ":" + .attempt) and
         .resourceGroup == ("e2e-npm-lite-" + .build) and
-        .cluster == "conformance-windows-lite"
+        .cluster == "conformance-win-lite"
     ' "$state" > /dev/null || fail "resource ownership state does not match this job"
     resource_group="$(jq -er .resourceGroup "$state")"
     cluster="$(jq -er .cluster "$state")"
@@ -125,7 +125,7 @@ provision_and_run() {
         ! -e "$NPM_LITE_WORK_DIR/owner.json" ]] ||
         fail "prepared executor/deployment is missing or resource ownership already exists"
     resource_group="e2e-npm-lite-$BUILD_BUILDID"
-    cluster="conformance-windows-lite"
+    cluster="conformance-win-lite"
     node_resource_group="MC_${resource_group}_${cluster}_${NPM_LITE_LOCATION}"
     [[ "${#node_resource_group}" -le 80 ]] || fail "default AKS node resource-group name exceeds 80 characters"
     owner="$BUILD_BUILDID:$SYSTEM_JOBID:$SYSTEM_JOBATTEMPT"
