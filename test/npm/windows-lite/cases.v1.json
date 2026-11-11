@@ -1,0 +1,225 @@
+{
+  "schemaVersion": 1,
+  "suite": "windows-npm-lite",
+  "podLabelKey": "acn-npm-lite-role",
+  "peerCIDRs": {
+    "allowed-peer": "192.0.2.10/32",
+    "denied-peer": "192.0.2.11/32"
+  },
+  "rejectionMessages": {
+    "unsupported-peer-selector": "Non-CIDR blocks, named ports, and ingress/egress namespace/pod selectors are not supported when NPM Lite is enabled, allowing only CIDR-based policies",
+    "unsupported-named-port": "unsupported namedport translation features used on windows"
+  },
+  "cases": [
+    {
+      "name": "ingress-cidr",
+      "policy": {
+        "apiVersion": "networking.k8s.io/v1",
+        "kind": "NetworkPolicy",
+        "metadata": {"name": "ingress-cidr"},
+        "spec": {
+          "podSelector": {"matchLabels": {"acn-npm-lite-role": "subject"}},
+          "policyTypes": ["Ingress"],
+          "ingress": [{
+            "from": [{"ipBlock": {"cidr": "192.0.2.10/32"}}],
+            "ports": [{"protocol": "TCP", "port": 8080}]
+          }]
+        }
+      },
+      "rejection": "none",
+      "probes": [
+        {"from": "allowed-peer", "to": "subject", "protocol": "TCP", "port": 8080, "expect": "allow"},
+        {"from": "denied-peer", "to": "subject", "protocol": "TCP", "port": 8080, "expect": "deny"}
+      ]
+    },
+    {
+      "name": "egress-cidr",
+      "policy": {
+        "apiVersion": "networking.k8s.io/v1",
+        "kind": "NetworkPolicy",
+        "metadata": {"name": "egress-cidr"},
+        "spec": {
+          "podSelector": {"matchLabels": {"acn-npm-lite-role": "subject"}},
+          "policyTypes": ["Egress"],
+          "egress": [{
+            "to": [{"ipBlock": {"cidr": "192.0.2.10/32"}}],
+            "ports": [{"protocol": "TCP", "port": 8080}]
+          }]
+        }
+      },
+      "rejection": "none",
+      "probes": [
+        {"from": "subject", "to": "allowed-peer", "protocol": "TCP", "port": 8080, "expect": "allow"},
+        {"from": "subject", "to": "denied-peer", "protocol": "TCP", "port": 8080, "expect": "deny"}
+      ]
+    },
+    {
+      "name": "ingress-cidr-except",
+      "policy": {
+        "apiVersion": "networking.k8s.io/v1",
+        "kind": "NetworkPolicy",
+        "metadata": {"name": "ingress-cidr-except"},
+        "spec": {
+          "podSelector": {"matchLabels": {"acn-npm-lite-role": "subject"}},
+          "policyTypes": ["Ingress"],
+          "ingress": [{
+            "from": [{"ipBlock": {"cidr": "0.0.0.0/0", "except": ["192.0.2.11/32"]}}],
+            "ports": [{"protocol": "TCP", "port": 8080}]
+          }]
+        }
+      },
+      "rejection": "none",
+      "probes": [
+        {"from": "allowed-peer", "to": "subject", "protocol": "TCP", "port": 8080, "expect": "allow"},
+        {"from": "denied-peer", "to": "subject", "protocol": "TCP", "port": 8080, "expect": "deny"}
+      ]
+    },
+    {
+      "name": "egress-cidr-except",
+      "policy": {
+        "apiVersion": "networking.k8s.io/v1",
+        "kind": "NetworkPolicy",
+        "metadata": {"name": "egress-cidr-except"},
+        "spec": {
+          "podSelector": {"matchLabels": {"acn-npm-lite-role": "subject"}},
+          "policyTypes": ["Egress"],
+          "egress": [{
+            "to": [{"ipBlock": {"cidr": "0.0.0.0/0", "except": ["192.0.2.11/32"]}}],
+            "ports": [{"protocol": "TCP", "port": 8080}]
+          }]
+        }
+      },
+      "rejection": "none",
+      "probes": [
+        {"from": "subject", "to": "allowed-peer", "protocol": "TCP", "port": 8080, "expect": "allow"},
+        {"from": "subject", "to": "denied-peer", "protocol": "TCP", "port": 8080, "expect": "deny"}
+      ]
+    },
+    {
+      "name": "ingress-pod-peer-rejected",
+      "policy": {
+        "apiVersion": "networking.k8s.io/v1",
+        "kind": "NetworkPolicy",
+        "metadata": {"name": "ingress-pod-peer-rejected"},
+        "spec": {
+          "podSelector": {"matchLabels": {"acn-npm-lite-role": "subject"}},
+          "policyTypes": ["Ingress"],
+          "ingress": [{
+            "from": [{"podSelector": {"matchLabels": {"acn-npm-lite-role": "allowed-peer"}}}],
+            "ports": [{"protocol": "TCP", "port": 8080}]
+          }]
+        }
+      },
+      "rejection": "unsupported-peer-selector",
+      "probes": [
+        {"from": "allowed-peer", "to": "subject", "protocol": "TCP", "port": 8080, "expect": "allow"},
+        {"from": "denied-peer", "to": "subject", "protocol": "TCP", "port": 8080, "expect": "allow"}
+      ]
+    },
+    {
+      "name": "egress-pod-peer-rejected",
+      "policy": {
+        "apiVersion": "networking.k8s.io/v1",
+        "kind": "NetworkPolicy",
+        "metadata": {"name": "egress-pod-peer-rejected"},
+        "spec": {
+          "podSelector": {"matchLabels": {"acn-npm-lite-role": "subject"}},
+          "policyTypes": ["Egress"],
+          "egress": [{
+            "to": [{"podSelector": {"matchLabels": {"acn-npm-lite-role": "allowed-peer"}}}],
+            "ports": [{"protocol": "TCP", "port": 8080}]
+          }]
+        }
+      },
+      "rejection": "unsupported-peer-selector",
+      "probes": [
+        {"from": "subject", "to": "allowed-peer", "protocol": "TCP", "port": 8080, "expect": "allow"},
+        {"from": "subject", "to": "denied-peer", "protocol": "TCP", "port": 8080, "expect": "allow"}
+      ]
+    },
+    {
+      "name": "ingress-namespace-peer-rejected",
+      "policy": {
+        "apiVersion": "networking.k8s.io/v1",
+        "kind": "NetworkPolicy",
+        "metadata": {"name": "ingress-namespace-peer-rejected"},
+        "spec": {
+          "podSelector": {"matchLabels": {"acn-npm-lite-role": "subject"}},
+          "policyTypes": ["Ingress"],
+          "ingress": [{
+            "from": [{"namespaceSelector": {}}],
+            "ports": [{"protocol": "TCP", "port": 8080}]
+          }]
+        }
+      },
+      "rejection": "unsupported-peer-selector",
+      "probes": [
+        {"from": "allowed-peer", "to": "subject", "protocol": "TCP", "port": 8080, "expect": "allow"},
+        {"from": "denied-peer", "to": "subject", "protocol": "TCP", "port": 8080, "expect": "allow"}
+      ]
+    },
+    {
+      "name": "egress-namespace-peer-rejected",
+      "policy": {
+        "apiVersion": "networking.k8s.io/v1",
+        "kind": "NetworkPolicy",
+        "metadata": {"name": "egress-namespace-peer-rejected"},
+        "spec": {
+          "podSelector": {"matchLabels": {"acn-npm-lite-role": "subject"}},
+          "policyTypes": ["Egress"],
+          "egress": [{
+            "to": [{"namespaceSelector": {}}],
+            "ports": [{"protocol": "TCP", "port": 8080}]
+          }]
+        }
+      },
+      "rejection": "unsupported-peer-selector",
+      "probes": [
+        {"from": "subject", "to": "allowed-peer", "protocol": "TCP", "port": 8080, "expect": "allow"},
+        {"from": "subject", "to": "denied-peer", "protocol": "TCP", "port": 8080, "expect": "allow"}
+      ]
+    },
+    {
+      "name": "ingress-named-port-rejected",
+      "policy": {
+        "apiVersion": "networking.k8s.io/v1",
+        "kind": "NetworkPolicy",
+        "metadata": {"name": "ingress-named-port-rejected"},
+        "spec": {
+          "podSelector": {"matchLabels": {"acn-npm-lite-role": "subject"}},
+          "policyTypes": ["Ingress"],
+          "ingress": [{
+            "from": [{"ipBlock": {"cidr": "192.0.2.10/32"}}],
+            "ports": [{"protocol": "TCP", "port": "http"}]
+          }]
+        }
+      },
+      "rejection": "unsupported-named-port",
+      "probes": [
+        {"from": "allowed-peer", "to": "subject", "protocol": "TCP", "port": 8080, "expect": "allow"},
+        {"from": "denied-peer", "to": "subject", "protocol": "TCP", "port": 8080, "expect": "allow"}
+      ]
+    },
+    {
+      "name": "egress-named-port-rejected",
+      "policy": {
+        "apiVersion": "networking.k8s.io/v1",
+        "kind": "NetworkPolicy",
+        "metadata": {"name": "egress-named-port-rejected"},
+        "spec": {
+          "podSelector": {"matchLabels": {"acn-npm-lite-role": "subject"}},
+          "policyTypes": ["Egress"],
+          "egress": [{
+            "to": [{"ipBlock": {"cidr": "192.0.2.10/32"}}],
+            "ports": [{"protocol": "TCP", "port": "http"}]
+          }]
+        }
+      },
+      "rejection": "unsupported-named-port",
+      "probes": [
+        {"from": "subject", "to": "allowed-peer", "protocol": "TCP", "port": 8080, "expect": "allow"},
+        {"from": "subject", "to": "denied-peer", "protocol": "TCP", "port": 8080, "expect": "allow"}
+      ]
+    }
+  ]
+}
