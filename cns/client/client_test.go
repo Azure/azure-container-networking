@@ -2499,7 +2499,7 @@ func TestNumberOfCPUCores(t *testing.T) {
 	}
 }
 
-func TestSupportedAPIs(t *testing.T) {
+func TestSupportedFeatures(t *testing.T) {
 	for _, test := range []struct {
 		name    string
 		status  int
@@ -2507,18 +2507,18 @@ func TestSupportedAPIs(t *testing.T) {
 		want    []string
 		wantErr bool
 	}{
-		{name: "RNC capability", status: http.StatusOK, body: `{"supportedApis":["RNCSupported"]}`, want: []string{cns.RNCSupportedAPI}},
-		{name: "no capabilities", status: http.StatusOK, body: `{"supportedApis":[]}`, want: []string{}},
+		{name: "RNC feature", status: http.StatusOK, body: `{"supportedFeatures":["RNCSupported"]}`, want: []string{cns.RNCSupportedFeature}},
+		{name: "no features", status: http.StatusOK, body: `{"supportedFeatures":[]}`, want: []string{}},
 		{name: "older CNS", status: http.StatusNotFound, body: "not found", wantErr: true},
 		{name: "server error", status: http.StatusInternalServerError, body: "server error", wantErr: true},
 		{name: "invalid JSON", status: http.StatusOK, body: "{", wantErr: true},
-		{name: "missing API list", status: http.StatusOK, body: "{}", wantErr: true},
-		{name: "null API list", status: http.StatusOK, body: `{"supportedApis":null}`, wantErr: true},
+		{name: "missing feature list", status: http.StatusOK, body: "{}", wantErr: true},
+		{name: "null feature list", status: http.StatusOK, body: `{"supportedFeatures":null}`, wantErr: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, http.MethodGet, r.Method)
-				assert.Equal(t, cns.SupportedAPIsPath, r.URL.Path)
+				assert.Equal(t, cns.SupportedFeaturesPath, r.URL.Path)
 				body, err := io.ReadAll(r.Body)
 				assert.NoError(t, err)
 				assert.Empty(t, body)
@@ -2529,7 +2529,7 @@ func TestSupportedAPIs(t *testing.T) {
 			defer server.Close()
 			client, err := New(server.URL, time.Second)
 			require.NoError(t, err)
-			got, err := client.SupportedAPIs(t.Context())
+			got, err := client.SupportedFeatures(t.Context())
 			if test.wantErr {
 				require.Error(t, err)
 				require.Nil(t, got)
@@ -2546,22 +2546,22 @@ func TestSupportedAPIs(t *testing.T) {
 	}
 }
 
-func TestSupportedAPIsCancellation(t *testing.T) {
+func TestSupportedFeaturesCancellation(t *testing.T) {
 	client, err := New(testBaseURL, time.Second)
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	capabilities, err := client.SupportedAPIs(ctx)
+	features, err := client.SupportedFeatures(ctx)
 	require.ErrorIs(t, err, context.Canceled)
-	require.Nil(t, capabilities)
+	require.Nil(t, features)
 }
 
-func TestSupportedAPIsIntegration(t *testing.T) {
+func TestSupportedFeaturesIntegration(t *testing.T) {
 	client, err := New(testBaseURL, time.Second)
 	require.NoError(t, err)
-	capabilities, err := client.SupportedAPIs(t.Context())
+	features, err := client.SupportedFeatures(t.Context())
 	require.NoError(t, err)
-	require.Equal(t, []string{}, capabilities)
+	require.Equal(t, []string{}, features)
 }
 
 func TestNMASupportedAPIs(t *testing.T) {

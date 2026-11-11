@@ -122,7 +122,7 @@ type HTTPRestService struct {
 	nodesubnetIPFetcher        *nodesubnet.IPFetcher
 	ipamServer                 *ipamServer
 	ipamSocket                 bool
-	supportedAPIs              []string
+	supportedFeatures          []string
 	nicncClient                nicncClient
 	mtpncClient                mtpncClient
 	nodeinfoClient             nodeinfoClient
@@ -305,15 +305,15 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 		return err
 	}
 
-	service.supportedAPIs = []string{}
+	service.supportedFeatures = []string{}
 	if config.ChannelMode == cns.Direct {
-		service.supportedAPIs = append(service.supportedAPIs, cns.RNCSupportedAPI)
+		service.supportedFeatures = append(service.supportedFeatures, cns.RNCSupportedFeature)
 	}
 
 	// Add handlers.
 	listener := service.Listener
 	// default handlers
-	listener.AddHandler(cns.SupportedAPIsPath, service.supportedAPIsHandler)
+	listener.AddHandler(cns.SupportedFeaturesPath, service.supportedFeaturesHandler)
 	listener.AddHandler(cns.SetEnvironmentPath, service.setEnvironment)
 	listener.AddHandler(cns.CreateNetworkPath, service.createNetwork)
 	listener.AddHandler(cns.DeleteNetworkPath, service.deleteNetwork)
@@ -356,7 +356,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	}
 
 	// handlers for v0.2
-	listener.AddHandler(cns.V2Prefix+cns.SupportedAPIsPath, service.supportedAPIsHandler)
+	listener.AddHandler(cns.V2Prefix+cns.SupportedFeaturesPath, service.supportedFeaturesHandler)
 	listener.AddHandler(cns.V2Prefix+cns.SetEnvironmentPath, service.setEnvironment)
 	listener.AddHandler(cns.V2Prefix+cns.CreateNetworkPath, service.createNetwork)
 	listener.AddHandler(cns.V2Prefix+cns.DeleteNetworkPath, service.deleteNetwork)

@@ -2384,8 +2384,10 @@ func unpublishNCViaCNS(networkID, networkContainerID, deleteNetworkContainerURL 
 	return nil
 }
 
-func TestSupportedAPIs(t *testing.T) {
+func TestSupportedFeatures(t *testing.T) {
 	const listenerURL = "tcp://127.0.0.1:0"
+
+	require.Equal(t, "/supportedfeatures", cns.SupportedFeaturesPath)
 
 	for _, mode := range []string{cns.Direct, cns.Managed, cns.CRD, cns.MultiTenantCRD, cns.AzureHost} {
 		for _, ipamSocket := range []bool{false, true} {
@@ -2401,22 +2403,22 @@ func TestSupportedAPIs(t *testing.T) {
 				service.RegisterPProfEndpoints()
 				service.nma = nil
 
-				wantAPIs := []string{}
-				wantJSON := `{"supportedApis":[]}`
+				wantFeatures := []string{}
+				wantJSON := `{"supportedFeatures":[]}`
 				if mode == cns.Direct {
-					wantAPIs = append(wantAPIs, cns.RNCSupportedAPI)
-					wantJSON = `{"supportedApis":["RNCSupported"]}`
+					wantFeatures = append(wantFeatures, cns.RNCSupportedFeature)
+					wantJSON = `{"supportedFeatures":["RNCSupported"]}`
 				}
 
-				for _, path := range []string{cns.SupportedAPIsPath, cns.V2Prefix + cns.SupportedAPIsPath} {
+				for _, path := range []string{cns.SupportedFeaturesPath, cns.V2Prefix + cns.SupportedFeaturesPath} {
 					recorder := httptest.NewRecorder()
 					service.Listener.GetMux().ServeHTTP(recorder, httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, http.NoBody))
 					require.Equal(t, http.StatusOK, recorder.Code)
 					require.Equal(t, "application/json; charset=UTF-8", recorder.Header().Get("Content-Type"))
 					require.JSONEq(t, wantJSON, recorder.Body.String())
-					var response cns.SupportedAPIsResponse
+					var response cns.SupportedFeaturesResponse
 					require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
-					require.Equal(t, wantAPIs, response.SupportedAPIs)
+					require.Equal(t, wantFeatures, response.SupportedFeatures)
 
 					for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodHead, http.MethodOptions} {
 						recorder := httptest.NewRecorder()

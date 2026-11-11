@@ -24,10 +24,10 @@ const (
 	headerContentType = "Content-Type"
 )
 
-var errMissingSupportedAPIs = errors.New("cns/client: response is missing supported APIs")
+var errMissingSupportedFeatures = errors.New("cns/client: response is missing supported features")
 
 var clientPaths = []string{
-	cns.SupportedAPIsPath,
+	cns.SupportedFeaturesPath,
 	cns.GetNetworkContainerByOrchestratorContext,
 	cns.GetAllNetworkContainers,
 	cns.CreateHostNCApipaEndpointPath,
@@ -923,9 +923,9 @@ func (c *Client) UnpublishNC(ctx context.Context, uncr cns.UnpublishNetworkConta
 	return nil
 }
 
-// SupportedAPIs returns the curated capabilities advertised by CNS.
-func (c *Client) SupportedAPIs(ctx context.Context) ([]string, error) {
-	u := c.routes[cns.SupportedAPIsPath]
+// SupportedFeatures returns the curated features advertised by CNS.
+func (c *Client) SupportedFeatures(ctx context.Context) ([]string, error) {
+	u := c.routes[cns.SupportedFeaturesPath]
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody)
 	if err != nil {
 		return nil, errors.Wrap(err, "building http request")
@@ -941,14 +941,14 @@ func (c *Client) SupportedAPIs(ctx context.Context) ([]string, error) {
 		return nil, &FailedHTTPRequest{Code: resp.StatusCode}
 	}
 
-	var out cns.SupportedAPIsResponse
+	var out cns.SupportedFeaturesResponse
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return nil, errors.Wrap(err, "decoding response body")
 	}
-	if out.SupportedAPIs == nil {
-		return nil, errMissingSupportedAPIs
+	if out.SupportedFeatures == nil {
+		return nil, errMissingSupportedFeatures
 	}
-	return out.SupportedAPIs, nil
+	return out.SupportedFeatures, nil
 }
 
 // NMAgentSupportedAPIs returns the supported API names from NMAgent. This can
