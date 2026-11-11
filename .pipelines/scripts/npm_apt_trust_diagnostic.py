@@ -386,9 +386,13 @@ def main():
                 for path in sorted(keys):
                     info = capture(str(path), lambda: keyring_info(path, apt_user))
                     if info is not None and info["status"] == "present":
-                        info["mono_present"] = capture(
-                            "fingerprint " + str(path), lambda: has_mono_key(home, path=path)
-                        )
+                        if info["size"] == 0:
+                            info["status"] = "empty"
+                            info["mono_present"] = False
+                        else:
+                            info["mono_present"] = capture(
+                                "fingerprint " + str(path), lambda: has_mono_key(home, path=path)
+                            )
                     report["keyrings"].append(info)
             report["package_transactions"] = capture("package_transactions", transactions)
             report["kernel_fips_enabled"] = capture("kernel_fips_enabled", fips_state)
