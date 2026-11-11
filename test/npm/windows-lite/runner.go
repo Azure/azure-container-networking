@@ -200,7 +200,8 @@ func (r *runner) createRoles(ctx context.Context) error {
 }
 
 func (r *runner) traffic(ctx context.Context, probes []probe, baseline bool) error {
-	return converge(ctx, convergenceLimit, consecutiveRounds, func(ctx context.Context) (bool, error) {
+	var lastMismatch error
+	err := converge(ctx, convergenceLimit, consecutiveRounds, func(ctx context.Context) (bool, error) {
 		if err := r.stableRoles(ctx); err != nil {
 			return false, err
 		}
@@ -211,22 +212,34 @@ func (r *runner) traffic(ctx context.Context, probes []probe, baseline bool) err
 			}
 			from, to := r.roles[planned.From], r.roles[planned.To]
 			endpoint := netip.AddrPortFrom(to.IP, planned.Port)
+			started := time.Now()
 			result, err := r.kube.invoke(ctx, nil, "exec", "-n", r.namespaceName, from.PodName, "-c", from.ContainerName,
 				"--", "/agnhost", "connect", endpoint.String(), "--timeout=3s", "--protocol=tcp")
 			if err != nil {
-				return false, err
+				return false, fmt.Errorf("probe %s to %s (%s), expected %s after %s: %w (stdout %q, stderr %q)",
+					planned.From, planned.To, endpoint, planned.Expect, time.Since(started), err,
+					result.stdout[:min(len(result.stdout), 512)], result.stderr[:min(len(result.stderr), 512)])
 			}
 			actual, err := parseProbe(result)
 			if err != nil {
-				return false, err
+				return false, fmt.Errorf("probe %s to %s (%s), expected %s after %s: %w",
+					planned.From, planned.To, endpoint, planned.Expect, time.Since(started), err)
 			}
-			matching = matching && actual == planned.Expect
+			if actual != planned.Expect {
+				matching = false
+				lastMismatch = fmt.Errorf("%w: last probe mismatch %s to %s (%s): expected %s, observed %s",
+					errEvidence, planned.From, planned.To, endpoint, planned.Expect, actual)
+			}
 		}
 		if err := r.stableRoles(ctx); err != nil {
 			return false, err
 		}
 		return matching, nil
 	})
+	if err != nil {
+		return errors.Join(err, lastMismatch)
+	}
+	return nil
 }
 
 func (r *runner) rejection(ctx context.Context, entry conformanceCase, created resource) error {
