@@ -1355,6 +1355,16 @@ func (service *HTTPRestService) DeleteHostNCApipaEndpoint(w http.ResponseWriter,
 	logger.Response(service.Name, response, response.Response.ReturnCode, err)
 }
 
+func (service *HTTPRestService) supportedAPIsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", http.MethodGet)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	_ = common.Encode(w, cns.SupportedAPIsResponse{SupportedAPIs: []string{}})
+}
+
 // This function is used to query NMagents's supported APIs list
 func (service *HTTPRestService) nmAgentSupportedApisHandler(w http.ResponseWriter, r *http.Request) {
 	logger.Request(service.Name, "nmAgentSupportedApisHandler", nil)
