@@ -68,8 +68,10 @@ bash hack/scripts/test_npm_image.sh "$(make --no-print-directory npm-image-name-
 The same command accepts a signed-image reference. It checks the OS, packages,
 network tools, CA bundle, executable payload, CLI help, and initialization with
 OpenSSL FIPS mode enabled. Run on the image's architecture or with container
-emulation configured. The source-image pipeline runs this check after each NPM
-Linux build, before cluster conformance testing.
+emulation configured. The source-image pipeline pulls the published image before
+running this check after each NPM Linux build and before cluster conformance
+testing. A failed pull stops validation. The helper also accepts locally built
+images without pulling.
 
 ### Windows
 ```
