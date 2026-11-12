@@ -13,9 +13,9 @@ through a direct RPC. The operator owns the published address pool. The IPAM
 plugin records which addresses are reserved. CNS and the Cilium agent are not
 required.
 
-The diagrams use component names. The Azure CNI network-plugin executable
-and configuration `type` remain `azure-vnet`; the proposed Azure Cilium IPAM
-executable and `ipam.type` are `azure-cilium-ipam`.
+Azure CNI uses the network-plugin executable and configuration `type`
+`azure-vnet`. Azure Cilium IPAM uses the executable and `ipam.type`
+`azure-cilium-ipam`.
 
 ```mermaid
 flowchart LR
@@ -91,10 +91,9 @@ is removed before IP release; the saved endpoint record is retired afterward.
 it available for another allocation, provided it still passes eligibility
 checks. Pod DEL does not remove the Azure NIC secondary configuration.
 
-This is the proposed implementation contract. The reboot mechanism in
-section 8 is a concrete addition for review; it was not specified in the
-meeting. Ordinary reboot and transient release failures must recover without
-manual reconciliation or node replacement.
+Ordinary reboot and transient release failures must recover without manual
+reconciliation or node replacement. Section 8 defines automatic reboot
+reconciliation using the kernel boot ID.
 
 ## 2. Scope and component boundary
 
@@ -167,7 +166,7 @@ Here `.10` is reserved and `.11` is unreserved. DEL for `.10` removes its
 
 The owner identifies a **network, sandbox and interface**, not merely a pod
 name. It also includes the VM's immutable identity and kernel boot ID for
-reboot reconciliation. A proposed versioned encoding is:
+reboot reconciliation. The versioned encoding is:
 
 ```text
 azure-cilium-ipam/v1/<vm-unique-id>/<boot-id>/<network>/<sandbox-id>/<ifname>
@@ -180,7 +179,7 @@ Normal duplicate requests within one sandbox use the same owner.
 
 CiliumNode is bound to the Kubernetes Node UID through its owner reference,
 to the VM ARM ID through `spec.instance-id`, and to the immutable VM ID through
-the proposed `azure-container-networking.io/vm-id` annotation. Provisioning
+the `azure-container-networking.io/vm-id` annotation. Provisioning
 creates this binding; ordinary requests validate rather than replace it.
 The selected NIC resource remains on every reservation.
 
@@ -258,18 +257,15 @@ sequenceDiagram
 
 ## 5. DEL ordering and retry behavior
 
-Keep the existing normal stateful CNI sequence shown in Figure 3:
+Normal stateful CNI deletion follows the sequence in Figure 3:
 **remove endpoint networking, release IPAM ownership, then save endpoint-state
 deletion**. Do not move the saved-state deletion ahead of the release.
 The release request carries the endpoint address already known to Azure CNI.
 Delegated DEL returns success or an error, not an address result.
 
-There are two meanings of "delete the endpoint" in the review discussion.
-In the inspected shared node-subnet/CNS caller, `DeleteEndpoint` performs
-network cleanup **before** the invoker's IP release, while `DeleteState`
-saves the endpoint-record deletion **after** it. This order predates the PR;
-see the [normal DEL source][src-del]. The proposal follows that code rather
-than claiming all existing modes release before physical cleanup.
+`DeleteEndpoint` removes endpoint networking **before** the invoker's IP
+release. `DeleteState` saves the endpoint-record deletion **after** release.
+Networking cleanup and saved-state deletion are distinct operations.
 
 The IPAM plugin conditionally removes only the requested owner's reservation.
 It does not require the address to remain eligible for new allocation: an
@@ -304,23 +300,20 @@ objects. Do not remove shared node rules. This is a narrow endpoint-cleanup
 idempotency requirement, not a new Kubernetes read in the network plugin or
 an additional persistent allocation record.
 
-Normal DEL still stops on an endpoint-cleanup error before reaching release,
-matching the inspected caller. Failed-ADD rollback is different: its separate
-allocation cleanup still runs. That distinction is intentional and is
-described next.
+Normal DEL stops on an endpoint-cleanup error before reaching release.
+Failed-ADD rollback is different: its separate allocation cleanup still runs.
 
 ## 6. Failed ADD: still attempt IP release
 
-Preserve the existing failed-ADD cleanup policy. Once allocation has
-succeeded, Azure CNI registers an allocation-cleanup defer. Its endpoint
+Once allocation has succeeded, Azure CNI registers an allocation-cleanup
+defer. Its endpoint
 cleanup runs separately. Even if endpoint or state cleanup reports an error,
 the allocation-cleanup defer still attempts IPAM DEL.
 
-This is how the [existing ADD defers][src-add] and
-[`cleanupAllocationOnError`][src-add-release] are structured. A return from
-the endpoint-cleanup defer does not cancel the other registered defer.
-The proposal must not introduce an additional rule that permanently retains
-the claim merely because endpoint cleanup failed.
+`cleanupAllocationOnError` runs independently of the endpoint-cleanup defer.
+A return from the endpoint-cleanup defer does not cancel the other registered
+defer. An endpoint-cleanup error must not prevent the allocation-release
+attempt.
 
 ```mermaid
 sequenceDiagram
@@ -349,8 +342,8 @@ reconciliation after an actual reboot. Retaining a claim because the API
 could not be updated is different from intentionally refusing to attempt
 release because host cleanup failed.
 
-This preserves existing best-effort rollback behavior; it does **not** make
-endpoint teardown and IP release an atomic transaction. Residual host rules
+Rollback is best-effort; endpoint teardown and IP release are **not** an
+atomic transaction. Residual host rules
 are still a networking error to report and clean up. The runtime must abandon
 the failed sandbox rather than treat the failed ADD as successful. Tests must
 cover cleanup errors, retained cleanup inputs, exact-IP reuse and stale
@@ -358,9 +351,9 @@ requests; an empty used entry alone does not prove a clean dataplane.
 
 ## 7. DEL without a saved endpoint
 
-The existing caller already delegates DEL with no address when no endpoint
-is found, using the sandbox/container identity. The new plugin supports that
-same path by finding the exact owner in `status.ipam.used`.
+When no endpoint is found, Azure CNI delegates DEL without an address, using
+the sandbox/container identity. Azure Cilium IPAM finds the exact owner in
+`status.ipam.used`.
 
 It does not ask Azure CNI to parse CiliumNode and does not return an IP through
 the DEL response. It removes only the matching network/sandbox/interface
@@ -397,10 +390,8 @@ claims. Any inability to clean missing host information remains the existing
 networking recovery concern, not a reason to require node replacement for an
 otherwise valid IPAM DEL.
 
-The [CNS invoker][src-cns] can additionally hand connection failures to its
-existing async-delete mechanism. The new plugin does not inherit that worker
-or queue. It uses synchronous API release and runtime retry, as agreed for
-the first version.
+Azure Cilium IPAM uses synchronous API release and runtime retry. It has no
+asynchronous deletion worker or persistent deletion queue.
 
 ## 8. Automatic reboot reconciliation
 
@@ -409,16 +400,13 @@ endpoint state and the API object have different lifetimes; the plugin must
 account for that explicitly instead of treating their disagreement as an
 irreversible error.
 
-On Linux the default endpoint-state path is
-[`/var/run/azure-vnet.json`][src-paths], normally on volatile storage.
-The source also has [network rehydration behavior][src-network-restore] for
-retained state; file reset is not a universal rule for every installation.
-The [legacy IPAM restore path][src-ipam-restore] can mark addresses unused
-after detecting reboot. For this integration, support the fresh-sandbox
-Linux reboot model: old pod networking is not restored, and the runtime
-creates new sandbox identities.
+On Linux the default endpoint-state path is `/var/run/azure-vnet.json`,
+normally on volatile storage. Deployments that retain state can have different
+rehydration behavior, so file reset is not a universal rule. This integration
+requires the fresh-sandbox Linux reboot model: old pod networking is not
+restored, and the runtime creates new sandbox identities.
 
-### Proposed mechanism: qualify claims by kernel boot ID
+### Qualify claims by kernel boot ID
 
 Every new reservation's owner includes the immutable VM ID and Linux kernel
 boot ID from section 3. On ADD or DEL, the plugin reads the current boot ID
@@ -505,11 +493,10 @@ If no eligible free IP exists, ADD returns a clear capacity or supply-not-ready
 error. After the operator publishes usable supply, a normal retry can succeed.
 Do not delete state or fall back to another allocator to repair exhaustion.
 
-The reference wire contract is Azure-capable Cilium v1.20.1. Pin and qualify
-the matching image, chart and CRD together. The
-[pinned Azure backend][src-azure-backend] does not implement automatic
-NIC-IP reclamation, so pod DEL returns an address to the node's reusable pool,
-not the Azure subnet.
+The supported wire contract is Azure-capable Cilium v1.20.1. Pin and qualify
+the matching image, chart and CRD together. Its Azure backend does not implement
+automatic NIC-IP reclamation, so pod DEL returns an address to the node's
+reusable pool, not the Azure subnet.
 
 For a new node:
 
@@ -541,10 +528,8 @@ sequenceDiagram
 
 **Figure 9. Initial registration is distinct from ordinary pod allocation.**
 
-Binary extraction through the release image is sufficient for the initial
-self-managed deployment. A dedicated installer, credential automation,
-broader availability work and policy coordination remain separate delivery
-work; they are not expanded here into the IPAM lifecycle design.
+The self-managed installation extracts the network and IPAM binaries from
+the release image and installs them as a matching pair.
 
 ## 10. Required tests
 
@@ -580,61 +565,3 @@ Normal reboot recovery must be demonstrated on the supported Linux image,
 not inferred from a changed boot ID in a unit test. The complete integration
 test must include guest programming, runtime sandbox recreation and same-node/
 cross-node traffic.
-
-## 11. Answers to the review questions
-
-**Does DEL move the IP from used to available?** Yes: remove the matching
-`status.ipam.used` entry. The IP stays in `spec.ipam.pool` and on the NIC.
-
-**What happens when local state resets on reboot but CiliumNode persists?**
-The proposed owner boot ID lets the new plugin automatically retire this VM's
-previous-boot reservations before allocating. No manual reconciliation is
-part of the ordinary reboot path. Same-boot restarts do not reset usage.
-
-**Should release happen before deleting the endpoint?** Preserve the actual
-existing distinction: normal `DeleteEndpoint` networking cleanup comes first,
-IPAM release next, and saved-state deletion last. The earlier proposal's
-saved-state-before-release ordering is not used.
-
-**Should failed ADD still release an IP if endpoint cleanup fails?** Yes.
-Keep the independent allocation-cleanup attempt. A failed API update can
-leave a reservation pending retry, but a host-cleanup error does not itself
-skip IP release or require node replacement.
-
-**Why keep Azure CNI state?** It provides the endpoint teardown inputs and the
-known address for normal DEL. The IPAM plugin does not need another local copy.
-
-**What needs design agreement beyond the meeting?** The versioned owner
-encoding and automatic previous-boot reconciliation in section 8. They solve
-the remote/local lifetime mismatch without adding a host allocation store.
-Implementation must also pass the stale-cleanup reuse test; this document
-does not claim that existing best-effort cleanup makes networking and IPAM
-an atomic transaction.
-
-## 12. Source references
-
-The lifecycle comparison uses the pre-PR base
-`6bc9a78e3bc551028e55bdd99245401da18ad461`, so it describes existing behavior
-rather than behavior introduced by this integration.
-
-| Source | Relevant behavior |
-| --- | --- |
-| [Normal DEL][src-del] | No-endpoint identity release; endpoint networking cleanup; IPAM release; final state save |
-| [Failed-ADD defers][src-add] and [allocation cleanup][src-add-release] | Allocation cleanup is separate and still attempts release after endpoint-cleanup errors |
-| [Azure IPAM invoker][src-invoker] | Delegates a known address, or delegates DEL without an address |
-| [CNS invoker][src-cns] | Uses sandbox identity and supports its own async connection-failure handoff |
-| [Linux state paths][src-paths] and [network restore][src-network-restore] | Default `/var/run` paths; rehydration logic when state remains |
-| [Legacy IPAM restore][src-ipam-restore] | Can mark IPs unused after reboot detection |
-| [Cilium allocation types][src-types] | Pool includes used addresses; owner/resource fields and status semantics |
-| [Azure operator backend][src-azure-backend] | Cloud allocation and currently unsupported NIC-IP release |
-
-[src-del]: https://github.com/Azure/azure-container-networking/blob/6bc9a78e3bc551028e55bdd99245401da18ad461/cni/network/network.go#L1173-L1251
-[src-add]: https://github.com/Azure/azure-container-networking/blob/6bc9a78e3bc551028e55bdd99245401da18ad461/cni/network/network.go#L591-L679
-[src-add-release]: https://github.com/Azure/azure-container-networking/blob/6bc9a78e3bc551028e55bdd99245401da18ad461/cni/network/network.go#L905-L921
-[src-invoker]: https://github.com/Azure/azure-container-networking/blob/6bc9a78e3bc551028e55bdd99245401da18ad461/cni/network/invoker_azure.go
-[src-cns]: https://github.com/Azure/azure-container-networking/blob/6bc9a78e3bc551028e55bdd99245401da18ad461/cni/network/invoker_cns.go#L353-L439
-[src-paths]: https://github.com/Azure/azure-container-networking/blob/6bc9a78e3bc551028e55bdd99245401da18ad461/platform/os_linux.go#L22-L30
-[src-network-restore]: https://github.com/Azure/azure-container-networking/blob/6bc9a78e3bc551028e55bdd99245401da18ad461/network/manager.go#L189-L281
-[src-ipam-restore]: https://github.com/Azure/azure-container-networking/blob/6bc9a78e3bc551028e55bdd99245401da18ad461/ipam/manager.go#L132-L156
-[src-types]: https://github.com/cilium/cilium/blob/7d68cfb394f2960e10aa72e76d0d51e66c1b2ebc/pkg/ipam/types/types.go
-[src-azure-backend]: https://github.com/cilium/cilium/blob/7d68cfb394f2960e10aa72e76d0d51e66c1b2ebc/pkg/azure/ipam/node.go
