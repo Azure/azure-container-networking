@@ -3,7 +3,7 @@
 ## 1. Design summary
 
 Use **Cilium Operator to allocate Azure NIC secondary IPs** and a separate
-**`azure-cilium-ipam` CNI plugin to assign those IPs to pods**. Azure CNI
+**Azure Cilium IPAM plugin to assign those IPs to pods**. Azure CNI
 continues to create and delete the pod's networking and keep its existing
 endpoint state. The new IPAM plugin reads and updates CiliumNode directly;
 it has no local allocation database and does not run as a daemon.
@@ -13,10 +13,14 @@ through a direct RPC. The operator owns the published address pool. The IPAM
 plugin records which addresses are reserved. CNS and the Cilium agent are not
 required.
 
+The diagrams use component names. The Azure CNI network-plugin executable
+and configuration `type` remain `azure-vnet`; the proposed Azure Cilium IPAM
+executable and `ipam.type` are `azure-cilium-ipam`.
+
 ```mermaid
 flowchart LR
-    R[Container runtime] --> C[azure-vnet]
-    C --> I[azure-cilium-ipam]
+    R[Container runtime] --> C[Azure CNI]
+    C --> I[Azure Cilium IPAM]
     C --> E[Existing endpoint state]
     C --> L[Linux endpoint networking]
     I <--> K[CiliumNode on Kubernetes API]
@@ -25,11 +29,11 @@ flowchart LR
 ```
 
 **Figure 1. Component responsibilities.** Azure CNI owns endpoint networking;
-Cilium-IPAM owns pod reservations; Cilium Operator owns cloud allocation.
+Azure Cilium IPAM owns pod reservations; Cilium Operator owns cloud allocation.
 
 ### ADD happy path
 
-Azure CNI delegates IPAM ADD to `azure-cilium-ipam`. The plugin reads the
+Azure CNI delegates IPAM ADD to Azure Cilium IPAM. The plugin reads the
 node's pool, selects an eligible unused IP, and records the reservation on
 CiliumNode **before returning the address**. Azure CNI creates the endpoint
 and saves its normal endpoint information.
@@ -38,8 +42,8 @@ and saves its normal endpoint information.
 sequenceDiagram
     autonumber
     participant R as Runtime
-    participant C as azure-vnet
-    participant I as azure-cilium-ipam
+    participant C as Azure CNI
+    participant I as Azure Cilium IPAM
     participant K as CiliumNode API
     R->>C: ADD sandbox
     C->>I: Delegate ADD
@@ -64,8 +68,8 @@ saves the endpoint-state deletion and returns success.
 sequenceDiagram
     autonumber
     participant R as Runtime
-    participant C as azure-vnet
-    participant I as azure-cilium-ipam
+    participant C as Azure CNI
+    participant I as Azure Cilium IPAM
     participant K as CiliumNode API
     R->>C: DEL sandbox
     C->>C: Read existing endpoint state
@@ -101,8 +105,8 @@ prefix allocation and multiple allocation NICs are outside this change.
 
 | Component | Responsibility |
 | --- | --- |
-| `azure-vnet` | Normal CNI lifecycle, endpoint setup/cleanup, and existing endpoint state |
-| `azure-cilium-ipam` | Read qualified supply; atomically claim or release an IP; reconcile previous-boot claims |
+| Azure CNI | Normal CNI lifecycle, endpoint setup/cleanup, and existing endpoint state |
+| Azure Cilium IPAM | Read qualified supply; atomically claim or release an IP; reconcile previous-boot claims |
 | Cilium Operator | Allocate NIC secondaries, publish pool/interface metadata and replenish reserve |
 | Node provisioning | Register the correct Node/VM/NIC binding and install one coherent consumer |
 
@@ -130,8 +134,8 @@ There are two different records, not two copies of the same allocation store:
 | --- | --- | --- |
 | Addresses allocated to this node | `spec.ipam.pool` | Cilium Operator |
 | Azure NIC/subnet/address metadata | `status.azure.interfaces` | Cilium Operator |
-| Address reserved for a sandbox | `status.ipam.used` | `azure-cilium-ipam` |
-| Pod IP, host interface and endpoint teardown details | Existing Azure CNI network state | `azure-vnet` |
+| Address reserved for a sandbox | `status.ipam.used` | Azure Cilium IPAM |
+| Pod IP, host interface and endpoint teardown details | Existing Azure CNI network state | Azure CNI |
 
 The pool includes reserved addresses. For example:
 
@@ -239,7 +243,7 @@ error; it does not cause a second allocation.
 ```mermaid
 sequenceDiagram
     autonumber
-    participant I as IPAM
+    participant I as Azure Cilium IPAM
     participant K as CiliumNode API
     participant R as Runtime retry
     I->>K: Commit owner claim
@@ -321,9 +325,9 @@ the claim merely because endpoint cleanup failed.
 ```mermaid
 sequenceDiagram
     autonumber
-    participant C as azure-vnet ADD
+    participant C as Azure CNI
     participant H as Host and endpoint state
-    participant I as azure-cilium-ipam
+    participant I as Azure Cilium IPAM
     participant K as CiliumNode API
     C->>I: Allocate
     I-->>C: Confirmed IP reservation
@@ -367,8 +371,8 @@ belonging to another sandbox is never released by matching the IP alone.
 sequenceDiagram
     autonumber
     participant R as Runtime
-    participant C as azure-vnet
-    participant I as azure-cilium-ipam
+    participant C as Azure CNI
+    participant I as Azure Cilium IPAM
     participant K as CiliumNode API
     R->>C: DEL sandbox
     C->>C: No saved endpoint found
@@ -434,7 +438,7 @@ field. There is no change to the Cilium CRD schema.
 sequenceDiagram
     autonumber
     participant H as Host / runtime
-    participant I as Cilium-IPAM
+    participant I as Azure Cilium IPAM
     participant K as CiliumNode API
     H->>H: Reboot and prepare fresh networking
     Note over K: Boot A claims remain
@@ -570,7 +574,7 @@ must exercise both reservation ownership and Linux rules; a matching owner
 check in IPAM alone cannot prove that a stale network cleanup is harmless.
 Use existing endpoint identity and cleanup helpers, and make any necessary
 retry fix narrowly scoped to the behavior under test rather than moving
-Kubernetes ownership logic into `azure-vnet`.
+Kubernetes ownership logic into Azure CNI.
 
 Normal reboot recovery must be demonstrated on the supported Linux image,
 not inferred from a changed boot ID in a unit test. The complete integration
