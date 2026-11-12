@@ -13,9 +13,12 @@ import (
 	"github.com/Azure/azure-container-networking/cns/middlewares/mock"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"gotest.tools/v3/assert"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 var (
@@ -137,6 +140,79 @@ func TestIPConfigsRequestHandlerWrapperScheduledWithDRA(t *testing.T) {
 	assert.Equal(t, resp.PodIPInfo[0].NICType, cns.InfraNIC)
 	assert.Equal(t, resp.PodIPInfo[0].SkipDefaultRoutes, true)
 	assert.Equal(t, resp.PodConfigurations.SkipDefaultRouteProgramming, true)
+}
+
+func TestIPConfigsRequestHandlerWrapperLocalDNS(t *testing.T) {
+	t.Setenv(configuration.EnvPodCIDRs, "10.0.1.0/24")
+	t.Setenv(configuration.EnvServiceCIDRs, "10.0.0.0/16")
+	t.Setenv(configuration.EnvInfraVNETCIDRs, "10.240.0.0/16")
+	scheme := runtime.NewScheme()
+	require.NoError(t, v1.AddToScheme(scheme))
+	require.NoError(t, v1alpha1.AddToScheme(scheme))
+	podInfo := testPod1Info
+	for _, label := range []string{
+		configuration.LabelPodSwiftV2,
+		configuration.LabelPodNetworkInstanceSwiftV2,
+	} {
+		t.Run(label, func(t *testing.T) {
+			metadata := metav1.ObjectMeta{Name: podInfo.Name(), Namespace: podInfo.Namespace()}
+			pod := &v1.Pod{ObjectMeta: metadata}
+			pod.Labels = map[string]string{label: "azure"}
+			mtpnc := &v1alpha1.MultitenantPodNetworkConfig{
+				ObjectMeta: metadata,
+				Status: v1alpha1.MultitenantPodNetworkConfigStatus{
+					InterfaceInfos: []v1alpha1.InterfaceInfo{{
+						PrimaryIP:  "192.168.0.1/32",
+						MacAddress: "00:00:00:00:00:01",
+						DeviceType: v1alpha1.DeviceTypeVnetNIC,
+					}},
+				},
+			}
+			middleware := K8sSWIFTv2Middleware{
+				Cli: fake.NewClientBuilder().WithScheme(scheme).WithObjects(pod, mtpnc).Build(),
+			}
+			defaultHandler := func(context.Context, cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+				return &cns.IPConfigsResponse{
+					PodIPInfo: []cns.PodIpInfo{{
+						PodIPConfig: cns.IPSubnet{IPAddress: "10.0.1.10", PrefixLength: 32},
+						NICType:     cns.InfraNIC,
+					}},
+				}, nil
+			}
+			failureHandler := func(context.Context, cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+				t.Fatal("unexpected allocation rollback")
+				return nil, nil
+			}
+			req := cns.IPConfigsRequest{
+				PodInterfaceID:   podInfo.InterfaceID(),
+				InfraContainerID: podInfo.InfraContainerID(),
+			}
+			var err error
+			req.OrchestratorContext, err = podInfo.OrchestratorContext()
+			require.NoError(t, err)
+			handler := middleware.IPConfigsRequestHandlerWrapper(defaultHandler, failureHandler)
+			for range 2 {
+				resp, err := handler(t.Context(), req)
+				require.NoError(t, err)
+				require.Len(t, resp.PodIPInfo, 2)
+				require.Equal(t, cns.InfraNIC, resp.PodIPInfo[0].NICType)
+				require.True(t, resp.PodIPInfo[0].SkipDefaultRoutes)
+				require.Equal(t, []cns.Route{
+					{IPAddress: "10.240.0.0/16", GatewayIPAddress: overlayGatewayv4},
+					{IPAddress: "10.0.0.0/16", GatewayIPAddress: overlayGatewayv4},
+					{IPAddress: "10.0.1.0/24", GatewayIPAddress: overlayGatewayv4},
+					{IPAddress: "169.254.10.10/32", GatewayIPAddress: overlayGatewayv4},
+					{IPAddress: "169.254.10.11/32", GatewayIPAddress: overlayGatewayv4},
+				}, resp.PodIPInfo[0].Routes)
+				require.Equal(t, cns.DelegatedVMNIC, resp.PodIPInfo[1].NICType)
+				require.False(t, resp.PodIPInfo[1].SkipDefaultRoutes)
+				require.Equal(t, []cns.Route{
+					{IPAddress: virtualGW + "/32"},
+					{IPAddress: "0.0.0.0/0", GatewayIPAddress: virtualGW},
+				}, resp.PodIPInfo[1].Routes)
+			}
+		})
+	}
 }
 
 func TestIPConfigsRequestHandlerWrapperFailure(t *testing.T) {
@@ -402,7 +478,7 @@ func TestSetRoutesSuccess(t *testing.T) {
 			NICType: cns.InfraNIC,
 			Routes: []cns.Route{
 				{
-					IPAddress:        "10.0.1.10/24",
+					IPAddress:        "10.240.0.1/16",
 					GatewayIPAddress: overlayGatewayv4,
 				},
 				{
@@ -410,7 +486,15 @@ func TestSetRoutesSuccess(t *testing.T) {
 					GatewayIPAddress: overlayGatewayv4,
 				},
 				{
-					IPAddress:        "10.240.0.1/16",
+					IPAddress:        "10.0.1.10/24",
+					GatewayIPAddress: overlayGatewayv4,
+				},
+				{
+					IPAddress:        "169.254.10.10/32",
+					GatewayIPAddress: overlayGatewayv4,
+				},
+				{
+					IPAddress:        "169.254.10.11/32",
 					GatewayIPAddress: overlayGatewayv4,
 				},
 			},
@@ -423,7 +507,7 @@ func TestSetRoutesSuccess(t *testing.T) {
 			NICType: cns.InfraNIC,
 			Routes: []cns.Route{
 				{
-					IPAddress:        "16A0:0010:AB00:001E::2/32",
+					IPAddress:        "16A0:0020:AB00:0000::/32",
 					GatewayIPAddress: overlayGatewayV6,
 				},
 				{
@@ -431,7 +515,7 @@ func TestSetRoutesSuccess(t *testing.T) {
 					GatewayIPAddress: overlayGatewayV6,
 				},
 				{
-					IPAddress:        "16A0:0020:AB00:0000::/32",
+					IPAddress:        "16A0:0010:AB00:001E::2/32",
 					GatewayIPAddress: overlayGatewayV6,
 				},
 			},
@@ -466,7 +550,9 @@ func TestSetRoutesSuccess(t *testing.T) {
 	}
 
 	for i := range podIPInfo {
-		cmp.Equal(podIPInfo[i].Routes, desiredPodIPInfo[i].Routes)
+		require.Equal(t, desiredPodIPInfo[i].Routes, podIPInfo[i].Routes)
+		require.NoError(t, middleware.setRoutes(&podIPInfo[i]))
+		require.Equal(t, desiredPodIPInfo[i].Routes, podIPInfo[i].Routes)
 	}
 }
 
