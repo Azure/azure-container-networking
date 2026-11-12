@@ -109,6 +109,8 @@ secret, variable group, or caller credential. It uses the build-scoped
 cluster name, separate from Linux resources. An existing group is never reused;
 cleanup requires the matching build/job/attempt ownership tag. Each job uses a
 private kubeconfig without writing shared SSH keys or kubeconfig files.
+Nodepool changes retry only an explicit AKS operation-in-progress rejection,
+within their existing provisioning deadlines; other errors fail immediately.
 
 The candidate must be anonymously retrievable by the build agent and pullable by
 the new Windows nodes. Preparation verifies the raw child/config digest chain,

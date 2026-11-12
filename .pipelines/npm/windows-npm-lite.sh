@@ -118,6 +118,32 @@ load_owner() {
     owner="$(jq -er .owner "$state")"
 }
 
+run_nodepool_operation() {
+    local deadline=$((SECONDS + $1)) remaining output status
+    shift
+    while true; do
+        remaining=$((deadline - SECONDS))
+        ((remaining > 0)) || fail "nodepool operation exceeded its provisioning deadline"
+        if output="$(timeout --signal=INT --kill-after=10s "${remaining}s" az aks nodepool "$@" 2>&1)"; then
+            [[ -z "$output" ]] || printf '%s\n' "$output"
+            return 0
+        else
+            status=$?
+        fi
+        printf 'windows-npm-lite: nodepool %s exited %s\n%s\n' "$1" "$status" "$output" >&2
+        if [[ "$status" -ne 1 ||
+            "$output" != *"ERROR: (OperationNotAllowed) Operation is not allowed because there's an in-progress "* ||
+            "$output" != *"on the managed cluster"* ]]; then
+            return "$status"
+        fi
+        if ((deadline - SECONDS <= 10)); then
+            fail "nodepool operation exhausted its provisioning deadline"
+        fi
+        printf 'windows-npm-lite: AKS is busy; retrying nodepool %s in 10 seconds\n' "$1" >&2
+        sleep 10
+    done
+}
+
 provision_and_run() {
     validate_inputs
     local resource_group cluster node_resource_group owner exists password
@@ -149,10 +175,10 @@ provision_and_run() {
         --node-vm-size Standard_D4s_v3 --node-count 1 \
         --only-show-errors -o none
     unset password
-    timeout --signal=INT --kill-after=10s 15m az aks nodepool update \
+    run_nodepool_operation 900 update \
         --resource-group "$resource_group" --cluster-name "$cluster" --name nodepool1 \
         --node-taints CriticalAddonsOnly=true:NoSchedule --only-show-errors -o none
-    timeout --signal=INT --kill-after=10s 30m az aks nodepool add \
+    run_nodepool_operation 1800 add \
         --resource-group "$resource_group" --cluster-name "$cluster" --name awin22 \
         --os-type Windows --os-sku Windows2022 --node-vm-size Standard_D4s_v3 --node-count 2 \
         --only-show-errors -o none
