@@ -2509,11 +2509,16 @@ func TestSupportedFeatures(t *testing.T) {
 	}{
 		{name: "RNC feature", status: http.StatusOK, body: `{"supportedFeatures":["RNCSupported"]}`, want: []string{cns.RNCSupportedFeature}},
 		{name: "no features", status: http.StatusOK, body: `{"supportedFeatures":[]}`, want: []string{}},
+		{name: "unknown features preserved", status: http.StatusOK, body: `{"supportedFeatures":["FutureFeature","RNCSupported"]}`, want: []string{"FutureFeature", cns.RNCSupportedFeature}},
 		{name: "older CNS", status: http.StatusNotFound, body: "not found", wantErr: true},
 		{name: "server error", status: http.StatusInternalServerError, body: "server error", wantErr: true},
 		{name: "invalid JSON", status: http.StatusOK, body: "{", wantErr: true},
+		{name: "empty response body", status: http.StatusOK, wantErr: true},
+		{name: "null response", status: http.StatusOK, body: "null", wantErr: true},
 		{name: "missing feature list", status: http.StatusOK, body: "{}", wantErr: true},
 		{name: "null feature list", status: http.StatusOK, body: `{"supportedFeatures":null}`, wantErr: true},
+		{name: "feature list is not an array", status: http.StatusOK, body: `{"supportedFeatures":"RNCSupported"}`, wantErr: true},
+		{name: "feature is not a string", status: http.StatusOK, body: `{"supportedFeatures":[123]}`, wantErr: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -2546,6 +2551,70 @@ func TestSupportedFeatures(t *testing.T) {
 	}
 }
 
+func TestSupportedFeaturesRequestErrors(t *testing.T) {
+	t.Run("invalid request URL", func(t *testing.T) {
+		client := &Client{
+			routes: map[string]url.URL{cns.SupportedFeaturesPath: {Scheme: "http", Host: "bad\nhost"}},
+		}
+		features, err := client.SupportedFeatures(t.Context())
+		require.ErrorContains(t, err, "building http request")
+		require.Nil(t, features)
+	})
+
+	t.Run("transport failure", func(t *testing.T) {
+		client, err := New(defaultBaseURL, time.Second)
+		require.NoError(t, err)
+		client.client = rncSupportDoFunc(func(r *http.Request) (*http.Response, error) {
+			require.Equal(t, t.Context(), r.Context())
+			return nil, io.ErrUnexpectedEOF
+		})
+		features, err := client.SupportedFeatures(t.Context())
+		require.ErrorContains(t, err, "sending http request")
+		require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+		require.Nil(t, features)
+	})
+}
+
+type supportedFeaturesResponseBody struct {
+	io.Reader
+	closed bool
+}
+
+func (b *supportedFeaturesResponseBody) Close() error {
+	b.closed = true
+	return nil
+}
+
+func TestSupportedFeaturesClosesResponseBody(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		status  int
+		body    string
+		wantErr bool
+	}{
+		{name: "success", status: http.StatusOK, body: `{"supportedFeatures":["RNCSupported"]}`},
+		{name: "HTTP error", status: http.StatusInternalServerError, wantErr: true},
+		{name: "decode error", status: http.StatusOK, body: "{", wantErr: true},
+		{name: "missing feature list", status: http.StatusOK, body: "{}", wantErr: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			client, err := New(defaultBaseURL, time.Second)
+			require.NoError(t, err)
+			body := &supportedFeaturesResponseBody{Reader: bytes.NewBufferString(test.body)}
+			client.client = rncSupportDoFunc(func(*http.Request) (*http.Response, error) {
+				return &http.Response{StatusCode: test.status, Body: body}, nil
+			})
+			_, err = client.SupportedFeatures(t.Context())
+			if test.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			require.True(t, body.closed, "response body must be closed on every return path")
+		})
+	}
+}
+
 func TestSupportedFeaturesCancellation(t *testing.T) {
 	client, err := New(testBaseURL, time.Second)
 	require.NoError(t, err)
@@ -2557,11 +2626,37 @@ func TestSupportedFeaturesCancellation(t *testing.T) {
 }
 
 func TestSupportedFeaturesIntegration(t *testing.T) {
-	client, err := New(testBaseURL, time.Second)
-	require.NoError(t, err)
-	features, err := client.SupportedFeatures(t.Context())
-	require.NoError(t, err)
-	require.Equal(t, []string{}, features)
+	for _, mode := range []string{cns.Direct, cns.CRD} {
+		t.Run(mode, func(t *testing.T) {
+			config := common.ServiceConfig{ChannelMode: mode}
+			service, err := restserver.NewHTTPRestService(&config, &fakes.WireserverClientFake{},
+				&fakes.WireserverProxyFake{}, &restserver.IPtablesProvider{}, &fakes.NMAgentClientFake{},
+				nil, nil, nil, fakes.NewMockIMDSClient())
+			require.NoError(t, err)
+			service.SetOption(acncommon.OptCnsURL, defaultBaseURL)
+			service.SetOption(acncommon.OptCnsPort, "0")
+			require.NoError(t, service.Init(&config))
+			server := httptest.NewServer(service.Listener.GetMux())
+			t.Cleanup(server.Close)
+
+			want := []string{}
+			if mode == cns.Direct {
+				want = append(want, cns.RNCSupportedFeature)
+			}
+			for _, prefix := range []string{"", cns.V2Prefix} {
+				t.Run(prefix, func(t *testing.T) {
+					client, err := New(server.URL, time.Second)
+					require.NoError(t, err)
+					route := client.routes[cns.SupportedFeaturesPath]
+					route.Path = prefix + cns.SupportedFeaturesPath
+					client.routes[cns.SupportedFeaturesPath] = route
+					features, err := client.SupportedFeatures(t.Context())
+					require.NoError(t, err)
+					require.Equal(t, want, features)
+				})
+			}
+		})
+	}
 }
 
 func TestNMASupportedAPIs(t *testing.T) {

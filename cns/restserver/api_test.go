@@ -2389,7 +2389,7 @@ func TestSupportedFeatures(t *testing.T) {
 
 	require.Equal(t, "/supportedfeatures", cns.SupportedFeaturesPath)
 
-	for _, mode := range []string{cns.Direct, cns.Managed, cns.CRD, cns.MultiTenantCRD, cns.AzureHost} {
+	for _, mode := range []string{"", cns.Direct, cns.Managed, cns.CRD, cns.MultiTenantCRD, cns.AzureHost} {
 		for _, ipamSocket := range []bool{false, true} {
 			t.Run(mode+"/ipamSocket="+strconv.FormatBool(ipamSocket), func(t *testing.T) {
 				config := common.ServiceConfig{ChannelMode: mode, IPAMSocket: ipamSocket}
@@ -2410,7 +2410,8 @@ func TestSupportedFeatures(t *testing.T) {
 					wantJSON = `{"supportedFeatures":["RNCSupported"]}`
 				}
 
-				for _, path := range []string{cns.SupportedFeaturesPath, cns.V2Prefix + cns.SupportedFeaturesPath} {
+				for _, prefix := range []string{"", cns.V2Prefix} {
+					path := prefix + cns.SupportedFeaturesPath
 					recorder := httptest.NewRecorder()
 					service.Listener.GetMux().ServeHTTP(recorder, httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, http.NoBody))
 					require.Equal(t, http.StatusOK, recorder.Code)
@@ -2419,8 +2420,14 @@ func TestSupportedFeatures(t *testing.T) {
 					var response cns.SupportedFeaturesResponse
 					require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
 					require.Equal(t, wantFeatures, response.SupportedFeatures)
+					rncPath := prefix + cns.GetRNCSupport
+					_, registeredPath := service.Listener.GetMux().Handler(httptest.NewRequestWithContext(t.Context(), http.MethodGet, rncPath, http.NoBody))
+					require.Equal(t, mode == cns.Direct, registeredPath == rncPath, "feature advertisement must match RNC support route availability")
 
-					for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodHead, http.MethodOptions} {
+					for _, method := range []string{
+						http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete,
+						http.MethodHead, http.MethodOptions, http.MethodTrace, http.MethodConnect,
+					} {
 						recorder := httptest.NewRecorder()
 						service.Listener.GetMux().ServeHTTP(recorder, httptest.NewRequestWithContext(t.Context(), method, path, http.NoBody))
 						require.Equal(t, http.StatusMethodNotAllowed, recorder.Code)
