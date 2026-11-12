@@ -2,7 +2,7 @@ ARG ARCH
 
 
 # intermediate for win-ltsc2022
-FROM --platform=windows/${ARCH} mcr.microsoft.com/windows/servercore:ltsc2022@sha256:593cf4a5ef08cfff00a03637e45eba073b8fe9dc90b80af4449bc5f427c7cdcd as windows
+FROM --platform=windows/${ARCH} mcr.microsoft.com/windows/servercore:ltsc2022@sha256:301d571fc0cffed67083d4cc7a10167f551212f76b3f91eb7457e89aa5a183da as windows
 ARG ARTIFACT_DIR
 
 COPY ${ARTIFACT_DIR}/files/kubeconfigtemplate.yaml kubeconfigtemplate.yaml

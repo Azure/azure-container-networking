@@ -10,7 +10,7 @@ COPY ${ARTIFACT_DIR}/bin/dropgz.exe /dropgz.exe
 ENTRYPOINT [ "/dropgz.exe" ]
 
 # mcr.microsoft.com/azurelinux/distroless/base:3.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/distroless/base:3.0@sha256:6b85a86416a29cdcfd404e9fbd9c5ef49cc0612882cecc702535dcac39c9446c AS linux
+FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/distroless/base:3.0@sha256:370fb2c55e7f0474fed019623cce6a8db65a4d70dedfca9219fc69d6c7627f89 AS linux
 ARG ARTIFACT_DIR .
 
 COPY ${ARTIFACT_DIR}/bin/dropgz /dropgz
