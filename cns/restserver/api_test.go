@@ -2384,6 +2384,61 @@ func unpublishNCViaCNS(networkID, networkContainerID, deleteNetworkContainerURL 
 	return nil
 }
 
+func TestSupportedFeatures(t *testing.T) {
+	const listenerURL = "tcp://127.0.0.1:0"
+
+	require.Equal(t, "/supportedfeatures", cns.SupportedFeaturesPath)
+
+	for _, mode := range []string{"", cns.Direct, cns.Managed, cns.CRD, cns.MultiTenantCRD, cns.AzureHost} {
+		for _, ipamSocket := range []bool{false, true} {
+			t.Run(mode+"/ipamSocket="+strconv.FormatBool(ipamSocket), func(t *testing.T) {
+				config := common.ServiceConfig{ChannelMode: mode, IPAMSocket: ipamSocket}
+				service, err := NewHTTPRestService(&config, &fakes.WireserverClientFake{},
+					&fakes.WireserverProxyFake{}, &IPtablesProvider{}, &fakes.NMAgentClientFake{},
+					nil, nil, nil, fakes.NewMockIMDSClient())
+				require.NoError(t, err)
+				service.Options[acncommon.OptCnsURL] = listenerURL
+				service.Options[acncommon.OptCnsPort] = "0"
+				require.NoError(t, service.Init(&config))
+				service.RegisterPProfEndpoints()
+				service.nma = nil
+
+				wantFeatures := []string{}
+				wantJSON := `{"supportedFeatures":[]}`
+				if mode == cns.Direct {
+					wantFeatures = append(wantFeatures, cns.RNCSupportedFeature)
+					wantJSON = `{"supportedFeatures":["RNCSupported"]}`
+				}
+
+				for _, prefix := range []string{"", cns.V2Prefix} {
+					path := prefix + cns.SupportedFeaturesPath
+					recorder := httptest.NewRecorder()
+					service.Listener.GetMux().ServeHTTP(recorder, httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, http.NoBody))
+					require.Equal(t, http.StatusOK, recorder.Code)
+					require.Equal(t, "application/json; charset=UTF-8", recorder.Header().Get("Content-Type"))
+					require.JSONEq(t, wantJSON, recorder.Body.String())
+					var response cns.SupportedFeaturesResponse
+					require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
+					require.Equal(t, wantFeatures, response.SupportedFeatures)
+					rncPath := prefix + cns.GetRNCSupport
+					_, registeredPath := service.Listener.GetMux().Handler(httptest.NewRequestWithContext(t.Context(), http.MethodGet, rncPath, http.NoBody))
+					require.Equal(t, mode == cns.Direct, registeredPath == rncPath, "feature advertisement must match RNC support route availability")
+
+					for _, method := range []string{
+						http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete,
+						http.MethodHead, http.MethodOptions, http.MethodTrace, http.MethodConnect,
+					} {
+						recorder := httptest.NewRecorder()
+						service.Listener.GetMux().ServeHTTP(recorder, httptest.NewRequestWithContext(t.Context(), method, path, http.NoBody))
+						require.Equal(t, http.StatusMethodNotAllowed, recorder.Code)
+						require.Equal(t, http.MethodGet, recorder.Header().Get("Allow"))
+					}
+				}
+			})
+		}
+	}
+}
+
 func TestNmAgentSupportedApisHandler(t *testing.T) {
 	fmt.Println("Test: nmAgentSupportedApisHandler")
 
