@@ -113,6 +113,9 @@ func parseCorpus(data []byte) (corpus, error) {
 		if entry.Name != requiredCases[i] || len(entry.Probes) != 2 {
 			return out, fmt.Errorf("%w: unexpected corpus case at index %d", errContract, i)
 		}
+		if entry.Rejection != noRejection && entry.Rejection != unsupportedSelector && entry.Rejection != unsupportedPort {
+			return out, fmt.Errorf("%w: unknown rejection for %s", errContract, entry.Name)
+		}
 		if entry.Rejection != noRejection && out.RejectionMessages[entry.Rejection] == "" {
 			return out, fmt.Errorf("%w: unknown rejection for %s", errContract, entry.Name)
 		}
