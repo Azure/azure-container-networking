@@ -200,6 +200,8 @@ func (r *runner) createRoles(ctx context.Context) error {
 }
 
 func (r *runner) traffic(ctx context.Context, probes []probe, baseline bool) error {
+	started := time.Now()
+	completed, matchingRounds := 0, 0
 	var lastMismatch error
 	err := converge(ctx, convergenceLimit, consecutiveRounds, func(ctx context.Context) (bool, error) {
 		if err := r.stableRoles(ctx); err != nil {
@@ -212,32 +214,39 @@ func (r *runner) traffic(ctx context.Context, probes []probe, baseline bool) err
 			}
 			from, to := r.roles[planned.From], r.roles[planned.To]
 			endpoint := netip.AddrPortFrom(to.IP, planned.Port)
-			started := time.Now()
+			probeStarted := time.Now()
 			result, err := r.kube.invoke(ctx, nil, "exec", "-n", r.namespaceName, from.PodName, "-c", from.ContainerName,
 				"--", "/agnhost", "connect", endpoint.String(), "--timeout=3s", "--protocol=tcp")
 			if err != nil {
 				return false, fmt.Errorf("probe %s to %s (%s), expected %s after %s: %w (stdout %q, stderr %q)",
-					planned.From, planned.To, endpoint, planned.Expect, time.Since(started), err,
+					planned.From, planned.To, endpoint, planned.Expect, time.Since(probeStarted), err,
 					result.stdout[:min(len(result.stdout), 512)], result.stderr[:min(len(result.stderr), 512)])
 			}
 			actual, err := parseProbe(result)
 			if err != nil {
 				return false, fmt.Errorf("probe %s to %s (%s), expected %s after %s: %w",
-					planned.From, planned.To, endpoint, planned.Expect, time.Since(started), err)
+					planned.From, planned.To, endpoint, planned.Expect, time.Since(probeStarted), err)
 			}
 			if actual != planned.Expect {
 				matching = false
-				lastMismatch = fmt.Errorf("%w: last probe mismatch %s to %s (%s): expected %s, observed %s",
-					errEvidence, planned.From, planned.To, endpoint, planned.Expect, actual)
+				lastMismatch = fmt.Errorf("%w: last probe mismatch at %s: %s to %s (%s): expected %s, observed %s",
+					errEvidence, time.Since(started), planned.From, planned.To, endpoint, planned.Expect, actual)
 			}
 		}
 		if err := r.stableRoles(ctx); err != nil {
 			return false, err
 		}
+		completed++
+		if matching {
+			matchingRounds++
+		} else {
+			matchingRounds = 0
+		}
 		return matching, nil
 	})
 	if err != nil {
-		return errors.Join(err, lastMismatch)
+		return fmt.Errorf("after %s (%d completed rounds, %d consecutive matching rounds): %w",
+			time.Since(started), completed, matchingRounds, errors.Join(err, lastMismatch))
 	}
 	return nil
 }
@@ -361,6 +370,35 @@ func (r *runner) cleanup(ctx context.Context) error {
 	return waitAbsent(ctx, r.kube, "namespaces", r.namespaceName, "", value.Metadata.UID)
 }
 
+func (r *runner) caseFailure(ctx context.Context, name string, cause error) error {
+	const logLimit = 16384
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	failure := fmt.Errorf("case %s: %w", name, cause)
+	if _, err := r.current(ctx); err != nil {
+		return errors.Join(failure, fmt.Errorf("identify npm failure logs: %w", err))
+	}
+	for i := range r.before.identity {
+		identity := &r.before.identity[i]
+		if err := ctx.Err(); err != nil {
+			return errors.Join(failure, fmt.Errorf("read npm failure logs: %w", err))
+		}
+		logs, err := r.kube.checked(ctx, nil, "logs", "-n", r.npmNamespace,
+			identity.PodName, "-c", identity.ContainerName, "--timestamps=true", "--tail=200",
+			fmt.Sprintf("--limit-bytes=%d", logLimit))
+		if err != nil {
+			failure = errors.Join(failure, fmt.Errorf("read npm failure logs for %s: %w", identity.PodName, err))
+			continue
+		}
+		if _, err := r.current(ctx); err != nil {
+			return errors.Join(failure, fmt.Errorf("verify npm failure log identity: %w", err))
+		}
+		failure = fmt.Errorf("%w\nnpm log tail for %s on node %s: %s", failure,
+			identity.PodName, identity.NodeName, logs[max(0, len(logs)-logLimit):])
+	}
+	return failure
+}
+
 func (r *runner) execute(ctx context.Context) error {
 	err := converge(ctx, convergenceLimit, 1, func(ctx context.Context) (bool, error) {
 		current, err := inspectInventory(ctx, r.kube, r.npmNamespace, r.daemonSet, r.image)
@@ -396,7 +434,7 @@ func (r *runner) execute(ctx context.Context) error {
 	}
 	for _, entry := range r.corpus.Cases {
 		if err = r.runCase(ctx, entry); err != nil {
-			return fmt.Errorf("case %s: %w", entry.Name, err)
+			return r.caseFailure(ctx, entry.Name, err)
 		}
 	}
 	if stableErr := r.stableRoles(ctx); stableErr != nil {
