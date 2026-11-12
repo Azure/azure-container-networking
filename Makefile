@@ -594,6 +594,13 @@ npm-image: ## build the npm container image.
 		OS=$(OS) \
 		ARCH=$(ARCH)
 
+.PHONY: npm-image-validate
+npm-image-validate: ## validate the built Linux NPM image.
+ifneq (,$(filter buildah --push,$(CONTAINER_BUILDER) $(BUILDX_ACTION)))
+	docker pull "$(IMAGE_REGISTRY)/$(NPM_IMAGE):$(NPM_PLATFORM_TAG)"
+endif
+	bash hack/scripts/test_npm_image.sh "$(IMAGE_REGISTRY)/$(NPM_IMAGE):$(NPM_PLATFORM_TAG)"
+
 npm-image-push: ## push npm container image.
 	$(MAKE) container-push \
 		IMAGE=$(NPM_IMAGE) \

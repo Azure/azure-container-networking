@@ -64,8 +64,13 @@ After building a Linux image with Docker, run the runtime contract check:
 ```bash
 bash hack/scripts/test_npm_image.sh "$(make --no-print-directory npm-image-name-and-tag OS=linux ARCH=amd64)"
 ```
-The NPM Linux image CI runs this check before logging out of the registry. It
-checks the OS, packages, nft/legacy tools, GNU grep, CA bundle, executable
+The NPM Linux image CI runs `make npm-image-validate` before logging out of the
+registry. This target uses the build's backend selection: it pulls the published
+tag for Buildah or Docker `--push`, and uses the freshly loaded local image for
+Docker `--load`. A failed pull stops validation. The standalone helper does not
+force a pull, so it remains usable with local-only images.
+
+The check covers the OS, packages, nft/legacy tools, GNU grep, CA bundle, executable
 permissions, CLI startup, and forced OpenSSL FIPS initialization. This is not a
 claim of application FIPS certification.
 
