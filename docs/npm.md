@@ -250,6 +250,11 @@ Failure, cancellation, changed runtime identity, or incomplete cleanup returns
 a nonzero exit status. Success requires all ten cases, each case's baseline,
 applied and recovery traffic, and owned namespace cleanup. The caller propagates
 that exit status through its existing test and pipeline machinery.
+Traffic failures include elapsed time, completed rounds, and the time of the last
+mismatch within that phase. Before namespace cleanup, case failures also attempt to
+collect identity-checked NPM log tails (200 lines and 16 KiB per pod) within one
+minute, bounded by the existing execution deadline. Diagnostic failures preserve the
+original failure and the reserved cleanup window.
 These checks do not claim full-NPM conformance or Windows servicing coverage.
 
 ## Usage

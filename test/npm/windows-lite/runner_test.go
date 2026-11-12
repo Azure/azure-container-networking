@@ -247,8 +247,10 @@ func (f *fakeCluster) command(ctx context.Context, args []string, input []byte) 
 		}
 		return f.probe(args)
 	case "logs":
+		bounded := slices.Contains(args, "--limit-bytes=4194305") ||
+			(slices.Contains(args, "--tail=200") && slices.Contains(args, "--limit-bytes=16384"))
 		if namespace != "kube-system" || !slices.Contains(args, "--timestamps=true") ||
-			!slices.Contains(args, "--limit-bytes=4194305") || slices.Contains(args, "--previous") {
+			!bounded || slices.Contains(args, "--previous") {
 			return commandResult{}, fmt.Errorf("unbounded or wrong-container logs: %v", args)
 		}
 		if f.fault == "oversized logs" {
@@ -510,6 +512,115 @@ func TestTrafficDeadlineRetainsLastMismatch(t *testing.T) {
 		}
 		if cluster.policiesCreated != 1 || cluster.namespaceDeletes != 1 {
 			t.Fatal("convergence failure continued cases or skipped owned cleanup")
+		}
+	})
+}
+
+func TestTrafficDeadlineReportsCompletedRounds(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cluster, input := testCluster(t)
+		firstDenied := true
+		command := func(ctx context.Context, args []string, stdin []byte) (commandResult, error) {
+			if cluster.policy != nil && slices.Contains(args, "exec") {
+				timer := time.NewTimer(12 * time.Second)
+				defer timer.Stop()
+				select {
+				case <-ctx.Done():
+					return commandResult{}, ctx.Err()
+				case <-timer.C:
+				}
+				if firstDenied && slices.Contains(args, "denied-peer") {
+					firstDenied = false
+					return commandResult{}, nil
+				}
+			}
+			return cluster.command(ctx, args, stdin)
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), 35*time.Minute)
+		defer cancel()
+		err := run(ctx, input, command)
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("lost convergence deadline: %v", err)
+		}
+		for _, detail := range []string{
+			"after 1m30s", "3 completed rounds", "2 consecutive matching rounds",
+			"last probe mismatch at 24s", "expected deny, observed allow",
+		} {
+			if !strings.Contains(err.Error(), detail) {
+				t.Errorf("missing %q from convergence history: %v", detail, err)
+			}
+		}
+		if cluster.namespaceDeletes != 1 {
+			t.Fatal("incomplete convergence skipped owned cleanup")
+		}
+	})
+}
+
+func TestCaseFailureRetainsBoundedNPMLogs(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cluster, input := testCluster(t)
+		cluster.fault = "policy never enforced"
+		logReads := 0
+		command := func(ctx context.Context, args []string, stdin []byte) (commandResult, error) {
+			if slices.Contains(args, "logs") && slices.Contains(args, "--tail=200") {
+				logReads++
+				if cluster.namespaceDeletes != 0 || !slices.Contains(args, "--limit-bytes=16384") ||
+					argument(args, "-n") != input.npmNamespace {
+					t.Fatal("failure logs were unbounded, unscoped, or collected after cleanup")
+				}
+				return commandResult{stdout: []byte("discarded-prefix" + strings.Repeat("x", 16384) +
+					"\nendpoint policy application failed\n")}, nil
+			}
+			return cluster.command(ctx, args, stdin)
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), 35*time.Minute)
+		defer cancel()
+		err := run(ctx, input, command)
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("lost original case failure: %v", err)
+		}
+		if logReads != 2 || cluster.namespaceDeletes != 1 || cluster.policiesCreated != 1 {
+			t.Fatalf("failure diagnostics or cleanup missing: reads=%d deletes=%d policies=%d",
+				logReads, cluster.namespaceDeletes, cluster.policiesCreated)
+		}
+		for _, detail := range []string{
+			"azure-npm-win-0", "windows-a", "azure-npm-win-1", "windows-b", "endpoint policy application failed",
+		} {
+			if !strings.Contains(err.Error(), detail) {
+				t.Errorf("missing %q from candidate logs", detail)
+			}
+		}
+		if strings.Contains(err.Error(), "discarded-prefix") {
+			t.Fatal("candidate log tail exceeded its byte bound")
+		}
+	})
+}
+
+func TestFailureLogDeadlinePreservesCleanup(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cluster, input := testCluster(t)
+		cluster.fault = "policy never enforced"
+		logReads := 0
+		command := func(ctx context.Context, args []string, stdin []byte) (commandResult, error) {
+			if slices.Contains(args, "logs") && slices.Contains(args, "--tail=200") {
+				logReads++
+				started := time.Now()
+				<-ctx.Done()
+				if time.Since(started) != time.Minute {
+					t.Errorf("diagnostic deadline did not reserve cleanup: %s", time.Since(started))
+				}
+				return commandResult{}, fmt.Errorf("diagnostic log read: %w", ctx.Err())
+			}
+			return cluster.command(ctx, args, stdin)
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), 35*time.Minute)
+		defer cancel()
+		err := run(ctx, input, command)
+		if !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "diagnostic log read") {
+			t.Fatalf("lost original or diagnostic failure: %v", err)
+		}
+		if logReads != 1 || cluster.namespaceDeletes != 1 || cluster.policiesCreated != 1 {
+			t.Fatal("diagnostic timeout retried logs, continued cases, or skipped owned cleanup")
 		}
 	})
 }
