@@ -29,8 +29,7 @@ steps:
 
 - script: |
     set -euo pipefail
-    image=$(make --no-print-directory npm-image-name-and-tag OS=${{ parameters.os }} ARCH=${{ parameters.arch }})
-    bash hack/scripts/test_npm_image.sh "$image"
+    make --no-print-directory npm-image-validate OS=${{ parameters.os }} ARCH=${{ parameters.arch }}
   displayName: Validate NPM Linux image runtime
   condition: and(succeeded(), eq(variables['name'], 'npm'), eq(variables['os'], 'linux'))
 
