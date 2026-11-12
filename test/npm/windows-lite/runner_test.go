@@ -258,7 +258,8 @@ func (f *fakeCluster) command(ctx context.Context, args []string, input []byte) 
 		}
 		startup := f.npm[0].Status.ContainerStatuses[0].State.Running.StartedAt.Format(time.RFC3339Nano)
 		logs := startup + ` Using config file: C:\sandbox\etc\azure-npm-lite\azure-npm.json` + "\n" +
-			startup + " loaded config: {Toggles:{EnableV2NPM:true EnableNPMLite:true EnableHTTPDebugAPI:false EnablePprof:false}}\n"
+			startup + " loaded config: {Toggles:{EnableV2NPM:true EnableNPMLite:true EnableHTTPDebugAPI:false EnablePprof:false ApplyInBackground:true}}\n" +
+			time.Now().UTC().Format(time.RFC3339Nano) + " I0101 00:00:00.000000 1234 dataplane.go:153] [DataPlane] finished bootup phase\n"
 		if f.fault == "relative startup config" {
 			logs = strings.Replace(logs, `C:\sandbox\etc\azure-npm-lite\azure-npm.json`, `.\\etc\\azure-npm-lite\\azure-npm.json`, 1)
 		}
@@ -674,17 +675,26 @@ func TestNPMStartupConfigWaitIsBounded(t *testing.T) {
 		readyAfter time.Duration
 		wantWaits  int
 		expires    bool
+		bootupOnly bool
 	}{
-		{"loaded config after pod readiness", 20 * time.Second, 4, false},
-		{"loaded config never appears", 2 * time.Minute, 18, true},
+		{"loaded config after pod readiness", 20 * time.Second, 4, false, false},
+		{"loaded config never appears", 6 * time.Minute, 60, true, false},
+		{"second pod finishes background bootup", 3 * time.Minute, 36, false, true},
+		{"second pod never finishes background bootup", 6 * time.Minute, 60, true, true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				cluster, input := testCluster(t)
 				start, waits := time.Now(), 0
 				command := func(ctx context.Context, args []string, stdin []byte) (commandResult, error) {
-					if slices.Contains(args, "logs") && time.Since(start) < test.readyAfter {
+					if slices.Contains(args, "logs") && time.Since(start) < test.readyAfter &&
+						(!test.bootupOnly || slices.Contains(args, cluster.npm[1].Metadata.Name)) {
 						waits++
+						if test.bootupOnly {
+							result, err := cluster.command(ctx, args, stdin)
+							result.stdout = []byte(strings.ReplaceAll(string(result.stdout), "finished bootup phase", "bootup still pending"))
+							return result, err
+						}
 						return commandResult{}, nil
 					}
 					return cluster.command(ctx, args, stdin)
@@ -693,16 +703,19 @@ func TestNPMStartupConfigWaitIsBounded(t *testing.T) {
 				defer cancel()
 				err := run(ctx, input, command)
 				if test.expires {
-					if !errors.Is(err, context.DeadlineExceeded) || time.Since(start) != 90*time.Second ||
+					if !errors.Is(err, context.DeadlineExceeded) || !errors.Is(err, errNotReady) || time.Since(start) != 5*time.Minute ||
 						cluster.probes != 0 || cluster.namespace.Metadata.UID != "" || cluster.namespaceDeletes != 0 {
 						t.Fatalf("startup bound: elapsed %s, probes %d, cleanup %d, error %v",
 							time.Since(start), cluster.probes, cluster.namespaceDeletes, err)
+					}
+					if test.bootupOnly && !strings.Contains(err.Error(), cluster.npm[1].Metadata.Name) {
+						t.Fatalf("startup failure lost the pending candidate pod: %v", err)
 					}
 				} else {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if cluster.rolesCreatedAt.Sub(start) != 20*time.Second || cluster.probes != 180 ||
+					if cluster.rolesCreatedAt.Sub(start) != test.readyAfter || cluster.probes != 180 ||
 						cluster.namespaceDeletes != 1 || cluster.policiesDeleted != 10 {
 						t.Fatal("startup readiness skipped loaded config, cases, traffic, or cleanup")
 					}

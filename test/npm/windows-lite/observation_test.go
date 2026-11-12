@@ -110,7 +110,7 @@ func TestMountedConfigRejectsMissingOrInvalidBytes(t *testing.T) {
 func TestStartupConfigIsExactAndCurrent(t *testing.T) {
 	const path = `C:\sandbox\etc\azure-npm-lite\azure-npm.json`
 	const using = "2000-01-01T00:00:00Z Using config file: " + path + "\n"
-	const loaded = "2000-01-01T00:00:00Z loaded config: {Toggles:{EnableV2NPM:true EnableNPMLite:true EnableHTTPDebugAPI:false EnablePprof:false}}\n"
+	const loaded = "2000-01-01T00:00:00Z loaded config: {Toggles:{EnableV2NPM:true EnableNPMLite:true EnableHTTPDebugAPI:false EnablePprof:false ApplyInBackground:false}}\n"
 	if err := validateStartupConfig([]byte(using+loaded), path); err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestStartupConfigIsExactAndCurrent(t *testing.T) {
 
 func TestStartupConfigRequiresTheMountedAbsolutePath(t *testing.T) {
 	const path = `C:\sandbox\etc\azure-npm-lite\azure-npm.json`
-	const loaded = "2000-01-01T00:00:00Z loaded config: {Toggles:{EnableV2NPM:true EnableNPMLite:true EnableHTTPDebugAPI:false EnablePprof:false}}\n"
+	const loaded = "2000-01-01T00:00:00Z loaded config: {Toggles:{EnableV2NPM:true EnableNPMLite:true EnableHTTPDebugAPI:false EnablePprof:false ApplyInBackground:false}}\n"
 	for _, test := range []struct {
 		logged string
 		valid  bool
@@ -154,6 +154,32 @@ func TestStartupConfigRequiresTheMountedAbsolutePath(t *testing.T) {
 			using := "2000-01-01T00:00:00Z Using config file: " + test.logged + "\n"
 			if err := validateStartupConfig([]byte(using+loaded), path); (err == nil) != test.valid {
 				t.Fatalf("valid=%t: %v", test.valid, err)
+			}
+		})
+	}
+}
+
+func TestStartupRequiresBackgroundBootup(t *testing.T) {
+	const path = `C:\sandbox\etc\azure-npm-lite\azure-npm.json`
+	const using = "2000-01-01T00:00:00Z Using config file: " + path + "\n"
+	const loaded = "2000-01-01T00:00:00Z loaded config: {Toggles:{EnableV2NPM:true EnableNPMLite:true EnableHTTPDebugAPI:false EnablePprof:false ApplyInBackground:true}}\n"
+	const bootup = "2000-01-01T00:03:00Z I0101 00:03:00.000000 1234 dataplane.go:153] [DataPlane] finished bootup phase\n"
+	for _, test := range []struct {
+		name string
+		logs string
+		want error
+	}{
+		{"background still starting", using + loaded, errNotReady},
+		{"background finished", using + loaded + bootup, nil},
+		{"foreground needs no bootup marker", strings.Replace(using+loaded, "ApplyInBackground:true", "ApplyInBackground:false", 1), nil},
+		{"missing mode", strings.Replace(using+loaded, " ApplyInBackground:true", "", 1), errEvidence},
+		{"ambiguous mode", strings.Replace(using+loaded, "ApplyInBackground:true", "ApplyInBackground:true ApplyInBackground:false", 1), errEvidence},
+		{"malformed mode", strings.Replace(using+loaded, "ApplyInBackground:true", "ApplyInBackground:trueish", 1), errEvidence},
+		{"different bootup message", using + loaded + strings.Replace(bootup, "finished bootup phase", "finished bootup phase with an error", 1), errNotReady},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if err := validateStartupConfig([]byte(test.logs), path); !errors.Is(err, test.want) {
+				t.Fatalf("startup error=%v, want %v", err, test.want)
 			}
 		})
 	}
