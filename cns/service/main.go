@@ -1573,7 +1573,11 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 
 	// get CNS Node IP to compare NC Node IP with this Node IP to ensure NCs were created for this node
 	nodeIP := configuration.NodeIP()
-	nncReconciler := nncctrl.NewReconciler(httpRestServiceImplementation, initializerWrapper, poolMonitor, nodeIP, cnsconfig.EnableSwiftV2, cnsconfig.IPv6PrefixClamp)
+	var routes nncctrl.RouteClient
+	if cnsconfig.EnableOverlayBlackholeRoutes {
+		routes = nncctrl.NewRouteClient()
+	}
+	nncReconciler := nncctrl.NewReconciler(httpRestServiceImplementation, initializerWrapper, poolMonitor, nodeIP, cnsconfig.EnableSwiftV2, cnsconfig.IPv6PrefixClamp, routes)
 	// pass Node to the Reconciler for Controller xref
 	// IPAMv1 - reconcile only status changes (where generation doesn't change).
 	// IPAMv2 - reconcile all updates.
