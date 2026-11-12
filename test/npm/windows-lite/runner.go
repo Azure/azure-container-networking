@@ -18,6 +18,7 @@ const (
 	probeImageDigest = "sha256:66482b9d14a4e4d412c18533e738255dddabe6d05da19b2df0476f17bf2324ef"
 	probeImage       = "registry.k8s.io/e2e-test-images/agnhost@" + probeImageDigest
 	runLabel         = "acn-npm-lite-run"
+	npmStartupLimit  = 5 * time.Minute
 )
 
 type runner struct {
@@ -74,7 +75,7 @@ func (r *runner) observeNPM(ctx context.Context) ([]mountedConfig, error) {
 			return nil, err
 		}
 		if err := validateStartupConfig(logs, config.path); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("npm pod %s startup: %w", identity.PodName, err)
 		}
 		configs = append(configs, config)
 	}
@@ -415,9 +416,11 @@ func (r *runner) execute(ctx context.Context) error {
 		return err
 	}
 	var before []mountedConfig
-	err = converge(ctx, convergenceLimit, 1, func(ctx context.Context) (bool, error) {
+	var lastIncomplete error
+	err = converge(ctx, npmStartupLimit, 1, func(ctx context.Context) (bool, error) {
 		observed, observeErr := r.observeNPM(ctx)
 		if errors.Is(observeErr, errNotReady) {
+			lastIncomplete = fmt.Errorf("last incomplete startup observation: %w", observeErr)
 			return false, nil
 		}
 		if observeErr != nil {
@@ -427,7 +430,7 @@ func (r *runner) execute(ctx context.Context) error {
 		return true, nil
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("npm startup: %w", errors.Join(err, lastIncomplete))
 	}
 	if createErr := r.createRoles(ctx); createErr != nil {
 		return createErr

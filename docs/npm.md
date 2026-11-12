@@ -230,7 +230,11 @@ loaded toggles. The runner reads the actual mounted bytes and compares them
 with the ConfigMap. It does not inspect process memory or infer a working
 directory.
 
-Initial NPM observation waits up to ninety seconds for complete startup logs.
+Initial NPM observation waits up to five minutes for complete startup logs.
+It requires one observed `ApplyInBackground` boolean. When enabled, each current
+candidate container must also log `[DataPlane] finished bootup phase` before test
+roles are created. This waits for NPM's intentional controller-start delay rather
+than treating DaemonSet readiness or the listening HTTP API as completed startup.
 Configuration fallback, ambiguous or incorrect loaded configuration, and
 observation-command failures are fatal. A missing final startup observation or
 changed mounted config also fails the run.

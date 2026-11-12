@@ -222,6 +222,7 @@ func validateConfig(data []byte) error {
 var (
 	toggleBlock         = regexp.MustCompile(`\bToggles:\{([^{}]*)\}`)
 	absoluteWindowsPath = regexp.MustCompile(`^[A-Za-z]:\\`)
+	bootupComplete      = regexp.MustCompile(`(?m)^\S+[ \t]+I\d{4}[ \t]+\S+[ \t]+\d+[ \t]+dataplane\.go:\d+\][ \t]+\[DataPlane\] finished bootup phase\r?$`)
 )
 
 func cleanWindowsPath(value string) (string, error) {
@@ -299,6 +300,25 @@ func validateStartupConfig(logs []byte, configPath string) error {
 		if count != 1 {
 			return fmt.Errorf("%w: loaded config requires exactly one %s token", errEvidence, required)
 		}
+	}
+	var background bool
+	modeCount := 0
+	for _, token := range fields {
+		value, ok := strings.CutPrefix(token, "ApplyInBackground:")
+		if !ok {
+			continue
+		}
+		if value != "true" && value != "false" {
+			return fmt.Errorf("%w: loaded config has invalid ApplyInBackground token %s", errEvidence, token)
+		}
+		background = value == "true"
+		modeCount++
+	}
+	if modeCount != 1 {
+		return fmt.Errorf("%w: loaded config requires exactly one ApplyInBackground token", errEvidence)
+	}
+	if background && !bootupComplete.Match(logs) {
+		return fmt.Errorf("%w: npm background bootup has not finished", errNotReady)
 	}
 	return nil
 }
