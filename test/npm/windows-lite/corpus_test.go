@@ -6,6 +6,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/netip"
 	"reflect"
 	"strings"
@@ -64,6 +65,36 @@ func TestCorpusRejectsMissingWork(t *testing.T) {
 	}
 	if _, err := parseCorpus(append(bytes.Clone(raw), []byte("{}")...)); err == nil {
 		t.Fatal("accepted trailing corpus content")
+	}
+}
+
+func TestCorpusRejectionCodes(t *testing.T) {
+	raw, err := runfiles.ReadFile("cases.v1.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := parseCorpus(raw); err != nil {
+		t.Fatalf("rejected valid embedded corpus: %v", err)
+	}
+	for _, test := range []struct {
+		name string
+		edit func(*corpus)
+	}{
+		{"unknown code", func(c *corpus) { c.Cases[4].Rejection = "unknown" }},
+		{"unknown code with message", func(c *corpus) {
+			c.Cases[4].Rejection = "unknown"
+			c.RejectionMessages["unknown"] = "unknown rejection message"
+		}},
+		{"missing selector message", func(c *corpus) { delete(c.RejectionMessages, "unsupported-peer-selector") }},
+		{"empty named port message", func(c *corpus) { c.RejectionMessages["unsupported-named-port"] = "" }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			value := decodeTest[corpus](t, raw)
+			test.edit(&value)
+			if _, err := parseCorpus(marshalTest(t, value)); !errors.Is(err, errContract) {
+				t.Fatalf("expected invalid rejection contract, got %v", err)
+			}
+		})
 	}
 }
 
