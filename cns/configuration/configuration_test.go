@@ -114,6 +114,28 @@ func TestReadConfigFromFile(t *testing.T) {
 	}
 }
 
+func TestReadTLSCAPath(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		config string
+		want   string
+	}{
+		{name: "omitted", config: `{}`},
+		{name: "empty", config: `{"TLSCAPath": ""}`},
+		{name: "configured", config: `{"TLSCAPath": "/test/ca.pem"}`, want: "/test/ca.pem"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), defaultConfigName)
+			require.NoError(t, os.WriteFile(path, []byte(test.config), 0o600))
+			config, err := readConfigFromFile(path)
+			require.NoError(t, err)
+			require.Equal(t, test.want, config.TLSCAPath)
+			SetCNSConfigDefaults(config)
+			require.Equal(t, test.want, config.TLSCAPath)
+		})
+	}
+}
+
 func TestReadIPv6MultitenancyFlag(t *testing.T) {
 	for _, tt := range []struct {
 		name    string

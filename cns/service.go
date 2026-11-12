@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cns/common"
@@ -243,7 +244,12 @@ func getTLSConfigFromFile(tlsSettings localtls.TlsSettings) (*tls.Config, error)
 	}
 
 	if tlsSettings.UseMTLS {
-		rootCAs, err := mtlsRootCAsFromCertificate(&tlsCert)
+		var rootCAs *x509.CertPool
+		if tlsSettings.TLSCAPath != "" {
+			rootCAs, err = mtlsRootCAsFromFile(tlsSettings.TLSCAPath)
+		} else {
+			rootCAs, err = mtlsRootCAsFromCertificate(&tlsCert)
+		}
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get root CAs for configuring mTLS")
 		}
@@ -312,6 +318,18 @@ func getTLSConfigFromKeyVault(tlsSettings localtls.TlsSettings, errChan chan<- e
 	logger.Debugf("TLS configured successfully from KV: %+v", tlsSettings)
 
 	return &tlsConfig, nil
+}
+
+func mtlsRootCAsFromFile(path string) (*x509.CertPool, error) {
+	caPEM, err := os.ReadFile(path)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to read mTLS CA file")
+	}
+	rootCAs := x509.NewCertPool()
+	if !rootCAs.AppendCertsFromPEM(caPEM) {
+		return nil, errors.New("mTLS CA file contains no valid PEM certificates")
+	}
+	return rootCAs, nil
 }
 
 // Given a TLS cert, return the root CAs

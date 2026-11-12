@@ -836,6 +836,7 @@ func main() {
 		if cnsconfig.UseHTTPS {
 			config.TLSSettings = localtls.TlsSettings{
 				TLSSubjectName:                     cnsconfig.TLSSubjectName,
+				TLSCAPath:                          cnsconfig.TLSCAPath,
 				TLSCertificatePath:                 cnsconfig.TLSCertificatePath,
 				TLSPort:                            cnsconfig.TLSPort,
 				KeyVaultURL:                        cnsconfig.KeyVaultSettings.URL,
