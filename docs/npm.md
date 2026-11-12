@@ -38,6 +38,38 @@ The second command builds the `azure-npm` docker image.
 The third command builds the `azure-npm` binary and place it in a tar archive. 
 The binaries are placed in the `output` directory.
 
+The unsigned Linux image and the signed Linux packaging path use Azure Linux 3.
+Both paths use the floating `mcr.microsoft.com/azurelinux/base/core:3.0` tag
+without a digest pin, so rebuilds can pick up updates published to that tag.
+Their unversioned runtime package set matches the managed Dalec NPM environment:
+`SymCrypt`, `SymCrypt-OpenSSL`, `bash`, `ca-certificates`, `grep`, `ipset`,
+`iptables`, and `openssl-libs`. The Ubuntu-specific CVE package-install block is
+not used.
+
+The Linux image paths use the release branch's MS Go 1.26 compiler with
+`CGO_ENABLED=0` and `GOEXPERIMENT=ms_nocgo_opensslcrypto` to use the Azure Linux
+OpenSSL backend without CGO. The signed Linux build also clears any inherited
+`MS_GO_NOSYSTEMCRYPTO` opt-out.
+Matching the runtime OS and packages does not make the ACN and Dalec artifacts
+identical: Dalec uses `CGO_ENABLED=1` with Microsoft Go's default system OpenSSL,
+as well as its own compiler and dependency selection. Windows images and
+standalone host archive builds retain their existing crypto settings.
+
+After building a Linux image with Docker, run the runtime contract check:
+```bash
+bash hack/scripts/test_npm_image.sh "$(make --no-print-directory npm-image-name-and-tag OS=linux ARCH=amd64)"
+```
+The NPM Linux image CI runs `make npm-image-validate` before logging out of the
+registry. This target uses the build's backend selection: it pulls the published
+tag for Buildah or Docker `--push`, and uses the freshly loaded local image for
+Docker `--load`. A failed pull stops validation. The standalone helper does not
+force a pull, so it remains usable with local-only images.
+
+The check covers the OS, packages, nft/legacy tools, GNU grep, CA bundle, executable
+permissions, and NPM CLI startup, including initialization with the Azure Linux
+OpenSSL FIPS provider enabled. This startup check is not a full FIPS-enabled OS
+validation or certification.
+
 ### Windows
 ```
 $env:ACN_PACKAGE_PATH = "github.com/Azure/azure-container-networking"
