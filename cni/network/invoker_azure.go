@@ -63,7 +63,8 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 
 	// Call into IPAM plugin to allocate an address pool for the network.
 	result, err := invoker.plugin.DelegateAdd(addConfig.nwCfg.IPAM.Type, addConfig.nwCfg)
-	if err != nil && strings.Contains(err.Error(), ipam.ErrNoAvailableAddressPools.Error()) {
+	if err != nil && addConfig.nwCfg.IPAM.Type != cni.AzureCiliumIPAM &&
+		strings.Contains(err.Error(), ipam.ErrNoAvailableAddressPools.Error()) {
 		invoker.deleteIpamState()
 		logger.Info("Retry pool allocation after deleting IPAM state")
 		result, err = invoker.plugin.DelegateAdd(addConfig.nwCfg.IPAM.Type, addConfig.nwCfg)

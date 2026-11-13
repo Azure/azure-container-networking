@@ -12,7 +12,8 @@ import (
 )
 
 const (
-	PolicyStr string = "Policy"
+	PolicyStr       string = "Policy"
+	AzureCiliumIPAM string = "azure-cilium-ipam"
 )
 
 // KVPair represents a K-V pair of a json object.
@@ -41,13 +42,14 @@ type RuntimeDNSConfig struct {
 }
 
 type IPAM struct {
-	Mode          string `json:"mode,omitempty"`
-	Type          string `json:"type"`
-	Environment   string `json:"environment,omitempty"`
-	AddrSpace     string `json:"addressSpace,omitempty"`
-	Subnet        string `json:"subnet,omitempty"`
-	Address       string `json:"ipAddress,omitempty"`
-	QueryInterval string `json:"queryInterval,omitempty"`
+	Cilium        json.RawMessage `json:"cilium,omitempty"`
+	Mode          string          `json:"mode,omitempty"`
+	Type          string          `json:"type"`
+	Environment   string          `json:"environment,omitempty"`
+	AddrSpace     string          `json:"addressSpace,omitempty"`
+	Subnet        string          `json:"subnet,omitempty"`
+	Address       string          `json:"ipAddress,omitempty"`
+	QueryInterval string          `json:"queryInterval,omitempty"`
 }
 
 // NetworkConfig represents Azure CNI plugin network configuration.
