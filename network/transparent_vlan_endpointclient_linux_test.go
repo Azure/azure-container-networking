@@ -5,7 +5,6 @@ package network
 
 import (
 	"net"
-	"strings"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/iptables"
@@ -1392,20 +1391,6 @@ func TestRunWithRetries(t *testing.T) {
 	}
 }
 
-func TestLBProbeV6SourceRewriteRuleset(t *testing.T) {
-	ruleset := lbProbeV6SourceRewriteRuleset("eth0_1")
-
-	// re-creating the table makes the ruleset idempotent across endpoints sharing the vlan namespace
-	require.True(t, strings.HasPrefix(ruleset, "add table ip6 azure_lb_probe_v6; delete table ip6 azure_lb_probe_v6; table ip6 azure_lb_probe_v6 {"))
-	require.Contains(t, ruleset, `iifname "eth0_1" ip6 saddr fe80::1234:5678:9abc ip6 saddr set 100::1 notrack;`)
-	require.Contains(t, ruleset, "ip6 daddr 100::1 notrack;")
-	require.Contains(t, ruleset, `oifname "eth0_1" ip6 daddr 100::1 ip6 daddr set fe80::1234:5678:9abc;`)
-	require.Contains(t, ruleset, "type filter hook prerouting priority -300;")
-	require.Contains(t, ruleset, "type filter hook postrouting priority 300;")
-	// passed as a single argument without a shell, so it must not carry shell quoting
-	require.NotContains(t, ruleset, "'")
-}
-
 func TestAddVnetRulesLBProbeV6SourceRewrite(t *testing.T) {
 	newClient := func(plc *platform.MockExecClient) *TransparentVlanEndpointClient {
 		return &TransparentVlanEndpointClient{
@@ -1442,7 +1427,12 @@ func TestAddVnetRulesLBProbeV6SourceRewrite(t *testing.T) {
 
 		err := newClient(plc).AddVnetRules(&EndpointInfo{IsIPv6Enabled: true})
 		require.NoError(t, err)
-		require.Equal(t, []nftCall{{cmd: "nft", args: []string{lbProbeV6SourceRewriteRuleset("eth0_1")}}}, *calls)
+		want := "add table ip6 azure_lb_probe_v6; delete table ip6 azure_lb_probe_v6; table ip6 azure_lb_probe_v6 { " +
+			"chain prerouting { type filter hook prerouting priority -300; policy accept; " +
+			`iifname "eth0_1" ip6 saddr fe80::1234:5678:9abc ip6 saddr set 100::1 notrack; ip6 daddr 100::1 notrack; }; ` +
+			"chain postrouting { type filter hook postrouting priority 300; policy accept; " +
+			`oifname "eth0_1" ip6 daddr 100::1 ip6 daddr set fe80::1234:5678:9abc; }; }`
+		require.Equal(t, []nftCall{{cmd: "nft", args: []string{want}}}, *calls)
 	})
 
 	t.Run("skips the rewrite when IPv6 is disabled", func(t *testing.T) {
