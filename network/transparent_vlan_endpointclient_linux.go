@@ -502,6 +502,21 @@ func (client *TransparentVlanEndpointClient) AddVnetRules(epInfo *EndpointInfo) 
 // rewrites the IPv6 load balancer probe source to a routable placeholder on ingress from the vlan interface, and
 // restores it on egress. The rewrite is stateless, so probe flows are kept out of conntrack. nft parses its arguments
 // as one script, so the ruleset is passed as a single argument without a shell.
+//
+// Example of the resulting nftables ruleset for vlan interface eth0_1:
+//
+//	table ip6 azure_lb_probe_v6 {
+//	    chain prerouting {
+//	        type filter hook prerouting priority -300; policy accept;
+//	        iifname "eth0_1" ip6 saddr fe80::1234:5678:9abc ip6 saddr set 100::1 notrack
+//	        ip6 daddr 100::1 notrack
+//	    }
+//
+//	    chain postrouting {
+//	        type filter hook postrouting priority 300; policy accept;
+//	        oifname "eth0_1" ip6 daddr 100::1 ip6 daddr set fe80::1234:5678:9abc
+//	    }
+//	}
 func lbProbeV6SourceRewriteRuleset(vlanIfName string) string {
 	return fmt.Sprintf("add table %[1]s; delete table %[1]s; table %[1]s { "+
 		"chain prerouting { type filter hook prerouting priority -300; policy accept; "+
