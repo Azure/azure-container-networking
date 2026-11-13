@@ -508,6 +508,7 @@ func configureHostNCApipaEndpoint(
 	localIPConfiguration cns.IPConfiguration,
 	allowNCToHostCommunication bool,
 	allowHostToNCCommunication bool,
+	skipDefaultRoutes bool,
 	ncPolicies []cns.NetworkContainerRequestPolicies) (*hcn.HostComputeEndpoint, error) {
 	endpoint := &hcn.HostComputeEndpoint{
 		Name:               endpointName,
@@ -542,6 +543,12 @@ func configureHostNCApipaEndpoint(
 		NextHop:           hnsLoopbackAdapterIPAddress,
 		DestinationPrefix: "0.0.0.0/0",
 	}
+	if skipDefaultRoutes {
+		// Another interface of the container carries the default route (dual NIC), so this endpoint must not add one.
+		// The host (169.254.128.1) stays reachable on-link, and the ACLs above allow no other destination. The dummy
+		// route (no gateway) stops HNS from adding a default route of its own, as CNI does for the NC's endpoint.
+		hcnRoute.NextHop = "0.0.0.0"
+	}
 
 	endpoint.Routes = append(endpoint.Routes, hcnRoute)
 
@@ -563,6 +570,7 @@ func CreateHostNCApipaEndpoint(
 	localIPConfiguration cns.IPConfiguration,
 	allowNCToHostCommunication bool,
 	allowHostToNCCommunication bool,
+	skipDefaultRoutes bool,
 	ncPolicies []cns.NetworkContainerRequestPolicies) (string, error) {
 	var (
 		network      *hcn.HostComputeNetwork
@@ -603,6 +611,7 @@ func CreateHostNCApipaEndpoint(
 		localIPConfiguration,
 		allowNCToHostCommunication,
 		allowHostToNCCommunication,
+		skipDefaultRoutes,
 		ncPolicies); err != nil {
 		logger.Errorf("[Azure CNS] Failed to configure HostNCApipaEndpoint: %s. Error: %v", endpointName, err)
 		return "", err
