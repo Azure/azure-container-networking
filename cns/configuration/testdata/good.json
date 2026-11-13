@@ -5,6 +5,7 @@
     "EnableHomeAZ": true,
     "EnableHomeAZMultitenancy": true,
     "EnableIPv6Multitenancy": true,
+    "EnableOverlayBlackholeRoutes": true,
     "EnableSubnetScarcity": true,
     "EnableSwiftV1DualStack": true,
     "ManagedSettings": {
