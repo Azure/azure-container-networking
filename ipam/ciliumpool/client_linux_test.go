@@ -28,7 +28,7 @@ type testAPI struct {
 	replaceOnConflict bool
 }
 
-func testAllocator(t *testing.T) (*Allocator, *testAPI) {
+func testOperatorNode(t *testing.T) *unstructured.Unstructured {
 	t.Helper()
 	api := &testAPI{node: testNode(t, newState())}
 	api.node.SetOwnerReferences([]metav1.OwnerReference{{APIVersion: "v1", Kind: "Node", Name: testNodeName, UID: testNodeUID}})
@@ -39,7 +39,7 @@ func testAllocator(t *testing.T) (*Allocator, *testAPI) {
 	if err := unstructured.SetNestedField(api.node.Object, int64(2), specField, ipamField, "pre-allocate"); err != nil {
 		t.Fatal(err)
 	}
-	if err := unstructured.SetNestedField(api.node.Object, "instance", specField, "instance-id"); err != nil {
+	if err := unstructured.SetNestedField(api.node.Object, testInstanceID, specField, "instance-id"); err != nil {
 		t.Fatal(err)
 	}
 	if err := unstructured.SetNestedSlice(api.node.Object, []any{map[string]any{
@@ -50,6 +50,12 @@ func testAllocator(t *testing.T) (*Allocator, *testAPI) {
 	}}, statusField, testNetwork, "interfaces"); err != nil {
 		t.Fatal(err)
 	}
+	return api.node
+}
+
+func testAllocator(t *testing.T) (*Allocator, *testAPI) {
+	t.Helper()
+	api := &testAPI{node: testOperatorNode(t)}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		api.mu.Lock()
 		defer api.mu.Unlock()
@@ -139,7 +145,11 @@ func testAllocator(t *testing.T) (*Allocator, *testAPI) {
 	}
 	allocator := &Allocator{
 		Nodes:    client.Resource(schema.GroupVersionResource{Group: "cilium.io", Version: "v2", Resource: "ciliumnodes"}),
-		NodeName: testNodeName, Binding: Binding{NodeUID: testNodeUID, VMID: "vm", Resource: testNIC, Subnet: testSubnet, NodeName: testNodeName, InstanceID: "instance", Primary: testPrimary, MAC: testMAC},
+		NodeName: testNodeName,
+		Binding: Binding{
+			NodeUID: testNodeUID, VMID: "vm", Resource: testNIC, Subnet: testSubnet,
+			NodeName: testNodeName, InstanceID: testInstanceID, Primary: testPrimary, MAC: testMAC,
+		},
 		BootID: testBoot, PreAllocate: 2, Supply: map[string]bool{testIP: true, testOtherIP: true},
 	}
 	return allocator, api

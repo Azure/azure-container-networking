@@ -66,6 +66,11 @@ jobs:
       - name: Install system dependencies
         run: sudo apt-get update -y && sudo apt-get install -y iptables ipset iproute2
 
+      - name: Test CiliumNode API contract
+        env:
+          ACN_CILIUM_ENVTEST: "1"
+        run: go test ./ipam/ciliumpool -run '^TestCiliumNodeAPIContract$' -count=1
+
       - name: Build BPF lib
         run: make bpf-lib
 
