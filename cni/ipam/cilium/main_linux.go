@@ -78,7 +78,7 @@ func cniCommand(ctx context.Context, command string, args *skel.CmdArgs) error {
 		if callErr != nil {
 			return fmt.Errorf("allocating address: %w", callErr)
 		}
-		result, callErr := allocationResult(ip, cfg.Subnet, nw.CNIVersion)
+		result, callErr := allocationResult(ip, cfg.Subnet, cfg.Interface, nw.CNIVersion)
 		if callErr != nil {
 			return callErr
 		}
@@ -101,7 +101,7 @@ func cniCommand(ctx context.Context, command string, args *skel.CmdArgs) error {
 	}
 }
 
-func allocationResult(address, subnet, version string) (*current.Result, error) {
+func allocationResult(address, subnet, hostInterface, version string) (*current.Result, error) {
 	ip, err := netip.ParseAddr(address)
 	if err != nil || !ip.Is4() {
 		return nil, fmt.Errorf("%w: invalid allocated IPv4 address %q", ciliumpool.ErrOwnership, address)
@@ -110,7 +110,7 @@ func allocationResult(address, subnet, version string) (*current.Result, error) 
 	if err != nil || !prefix.Contains(ip) {
 		return nil, fmt.Errorf("%w: allocated address is outside subnet %q", ciliumpool.ErrOwnership, subnet)
 	}
-	return &current.Result{CNIVersion: version, IPs: []*current.IPConfig{{
+	return &current.Result{CNIVersion: version, Interfaces: []*current.Interface{{Name: hostInterface}}, IPs: []*current.IPConfig{{
 		Address: net.IPNet{IP: net.IP(ip.AsSlice()), Mask: net.CIDRMask(prefix.Bits(), 32)},
 		Gateway: net.IP(prefix.Addr().Next().AsSlice()),
 	}}}, nil

@@ -80,6 +80,9 @@ func ParseConfig(data []byte) (*cni.NetworkConfig, Config, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, Config{}, err
 	}
+	if nw.Master != "" && nw.Master != cfg.Interface {
+		return nil, Config{}, fmt.Errorf("%w: master differs from IPAM interface", ErrConfig)
+	}
 	return nw, cfg, nil
 }
 

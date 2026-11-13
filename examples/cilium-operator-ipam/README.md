@@ -42,6 +42,10 @@ at `/etc/cni/net.d/10-azure.conflist`. CNI and reconciliation use the same
 settings. `ipam.type` is the only mode selector. Unknown settings, including
 `stateDir`, `releaseExcessIPs` and `coordinatePeers`, are rejected.
 
+If `master` is specified, it must equal `ipam.cilium.interface`. Otherwise
+Azure CNI uses the host interface returned by IPAM without subnet-based NIC
+discovery. Install matching network and IPAM binaries together.
+
 ## Operator and permissions
 
 Use the Azure-capable Cilium v1.20.1 contract with its matching chart and CRD.

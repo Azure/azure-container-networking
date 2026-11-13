@@ -709,6 +709,9 @@ func sortInfraNICFirst(epInfos []*network.EndpointInfo) {
 func (plugin *NetPlugin) findMasterInterface(opt *createEpInfoOpt) string {
 	switch opt.ifInfo.NICType {
 	case cns.InfraNIC:
+		if opt.ipamAddConfig.nwCfg.IPAM.Type == cni.AzureCiliumIPAM {
+			return opt.ifInfo.Name
+		}
 		return plugin.findMasterInterfaceBySubnet(opt.ipamAddConfig.nwCfg, &opt.ifInfo.HostSubnetPrefix)
 	case cns.NodeNetworkInterfaceFrontendNIC:
 		return plugin.findInterfaceByMAC(opt.ifInfo.MacAddress.String())
