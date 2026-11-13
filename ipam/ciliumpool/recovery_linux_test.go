@@ -9,6 +9,29 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+func TestAPIPolicyDriftBlocksAdmissionButNotDelete(t *testing.T) {
+	a, api := testAllocator(t)
+	owner := Owner{Network: testNetwork, Sandbox: testSandbox, Interface: testIfName}
+	ip, err := a.Add(context.Background(), owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.PreAllocate++
+	if _, addErr := a.Add(context.Background(), owner); !errors.Is(addErr, ErrConfig) {
+		t.Fatalf("ADD accepted policy drift: %v", addErr)
+	}
+	if reconcileErr := a.Reconcile(context.Background()); !errors.Is(reconcileErr, ErrConfig) {
+		t.Fatalf("reconcile accepted policy drift: %v", reconcileErr)
+	}
+	if deleteErr := a.Delete(context.Background(), owner, ip); deleteErr != nil {
+		t.Fatalf("DEL blocked by policy drift: %v", deleteErr)
+	}
+	state, err := readState(api.node, a.Binding)
+	if err != nil || len(state.Reservations) != 0 {
+		t.Fatalf("reservation retained: %+v, %v", state, err)
+	}
+}
+
 func TestAPIExhaustionPreservesUsageAndOwnerOnlyDeleteReleases(t *testing.T) {
 	a, _ := testAllocator(t)
 	ctx := context.Background()

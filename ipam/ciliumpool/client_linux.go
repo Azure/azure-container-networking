@@ -70,7 +70,7 @@ func (a *Allocator) update(ctx context.Context, owner Owner, address string, com
 			return "", callErr
 		}
 		spare, found, err := unstructured.NestedInt64(node.Object, specField, ipamField, "pre-allocate")
-		if err != nil || !found || spare != int64(a.PreAllocate) {
+		if command != deleteOperation && (err != nil || !found || spare != int64(a.PreAllocate)) {
 			return "", fmt.Errorf("%w: preallocation differs from operator policy", ErrConfig)
 		}
 		state, err := readState(node, a.Binding)
