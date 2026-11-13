@@ -390,6 +390,58 @@ stages:
           condition: always()
           artifact: NpmLogs_$(AZURE_CLUSTER)
 
+  - stage: WindowsNPMLiteNative
+    displayName: Native Windows NPM Lite
+    dependsOn: [setup]
+    jobs:
+      - job: NativeConformance
+        displayName: Run native Windows NPM Lite handlers
+        timeoutInMinutes: 720
+        cancelTimeoutInMinutes: 180
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          demands:
+            - agent.os -equals Linux
+            - Role -equals Build
+        steps:
+          - checkout: self
+
+          - task: AzureCLI@2
+            displayName: Set up isolated native environment and run conformance
+            timeoutInMinutes: 545
+            inputs:
+              azureSubscription: Azure Network Agent - Test Standalone - Service Connection
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                python3 .pipelines/npm/native_npm_lite.py run \
+                  --state "$NATIVE_NPM_STATE"
+            env:
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+              NATIVE_NPM_STATE: $(Agent.TempDirectory)/npm-native-$(Build.BuildId)-$(System.StageAttempt).json
+
+          - task: AzureCLI@2
+            displayName: Clean up native environment and verify resource removal
+            condition: always()
+            timeoutInMinutes: 160
+            inputs:
+              azureSubscription: Azure Network Agent - Test Standalone - Service Connection
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                python3 .pipelines/npm/native_npm_lite.py cleanup \
+                  --state "$NATIVE_NPM_STATE"
+            env:
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+              NATIVE_NPM_STATE: $(Agent.TempDirectory)/npm-native-$(Build.BuildId)-$(System.StageAttempt).json
+
+          - publish: $(Agent.TempDirectory)/npm-native-$(Build.BuildId)-$(System.StageAttempt).summary.json
+            displayName: Publish native test and cleanup summary
+            condition: and(always(), eq(variables['NATIVE_NPM_SUMMARY_READY'], 'true'))
+            artifact: WindowsNativeNPMLite
+
   - stage: clean_up_Create_Cluster_and_Run_Test
     displayName: Cleanup Conformance
     dependsOn: [setup, Create_Cluster_and_Run_Test]

@@ -84,9 +84,46 @@ DaemonSet rollout before testing, and logs pod image IDs for runtime evidence.
 Image, configuration, or rollout failures fail the job without falling back to a
 source-built image.
 
-This pipeline does not validate Windows or arm64. Clearing the override restores
-source-built validation; it is not a substitute for validating a failed candidate.
-The override does not change the manual-install manifest or production defaults.
+Clearing the override restores source-built validation; it is not a substitute
+for validating a failed candidate. The override does not change the manual-install
+manifest or production defaults.
+
+### Native Windows NPM Lite
+
+The separate `WindowsNPMLiteNative` stage invokes the existing private Windows
+SwiftV2 harness through its Azure Pipelines entrypoint. It requires successful
+execution of both native handlers:
+
+- `swiftv2_npmlite_pod_to_pod_singularity`
+- `swiftv2_npmlite_default_deny_nonswift_singularity`
+
+These are not the generic Windows NetworkPolicy suite. They require two Windows
+BYON nodes, delegate networking, and non-Swift default-deny and control pods. The
+stage runs the native AccelNet suite, including its prerequisites, rather than
+copying private test code into this repository.
+
+Each conformance build attempt gets an isolated resource group and file share
+in Australia East. Setup, execution, and cleanup use the same immutable native
+pipeline source. No shared persistent cluster is reused or updated. Cleanup runs
+on failure and cancellation, cancels any outstanding child build before teardown,
+and verifies that both the resource group and per-run file share are absent.
+
+The stage rejects missing, skipped, failed, or ambiguous native test results,
+even when the delegated pipeline reports success. Detailed logs remain in the
+private runner; the `WindowsNativeNPMLite` artifact contains only run identities,
+the native source revision, normalized test results, and cleanup status.
+
+The pipeline identity needs permission to read, queue, and cancel the existing
+native runner, and to use its existing test-standalone service connection. The
+stage does not grant permissions or modify service connections. An unavailable
+connection, denied request, or unconfirmed cleanup fails validation explicitly.
+An indeterminate queue response requires reconciliation before cleanup; the
+stage never retries a queue mutation or deletes resources while ownership is
+uncertain.
+
+The native environment uses its supported AKS-RP component versions. `npmImage`
+continues to select only the Linux candidate; it does not select or qualify a
+Windows candidate image. Existing Linux test legs and their cleanup are unchanged.
 
 ## Usage
 [Microsoft Docs](https://learn.microsoft.com/en-us/azure/aks/use-network-policies#verify-network-policy-setup) has a detailed step by step example on how to use Kubernetes network policy.
