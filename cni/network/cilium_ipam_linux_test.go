@@ -3,20 +3,38 @@ package network
 import (
 	"errors"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/ipam"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/platform"
+	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cnitypes "github.com/containernetworking/cni/pkg/types/100"
 )
 
 const testLegacyIPAM = "azure-vnet-ipam"
 
+type statelessCiliumManager struct {
+	network.NetworkManager
+}
+
+func (statelessCiliumManager) IsStatelessCNIMode() bool { return true }
+
+func TestCiliumIPAMRejectsStatelessBeforeDispatch(t *testing.T) {
+	plugin := GetTestResources()
+	plugin.nm = statelessCiliumManager{}
+	cfg := cni.NetworkConfig{Mode: "transparent-tunnel", IPAM: cni.IPAM{Type: cni.AzureCiliumIPAM}}
+	err := plugin.Add(&cniSkel.CmdArgs{StdinData: cfg.Serialize()})
+	if err == nil || !strings.Contains(err.Error(), errCiliumIPAMConfig.Error()) {
+		t.Fatalf("stateless ADD reached dispatch: %v", err)
+	}
+}
+
 func TestCiliumIPAMRejectsUnsupportedDispatch(t *testing.T) {
 	valid := cni.NetworkConfig{Mode: "transparent-tunnel", IPAM: cni.IPAM{Type: "azure-cilium-ipam"}}
-	if err := validateCiliumIPAMConfig(&valid); err != nil {
+	if err := validateCiliumIPAMConfig(&valid, false); err != nil {
 		t.Fatal(err)
 	}
 	for _, change := range []func(*cni.NetworkConfig){
@@ -27,11 +45,11 @@ func TestCiliumIPAMRejectsUnsupportedDispatch(t *testing.T) {
 	} {
 		cfg := valid
 		change(&cfg)
-		if err := validateCiliumIPAMConfig(&cfg); err == nil {
+		if err := validateCiliumIPAMConfig(&cfg, false); err == nil {
 			t.Fatal("unsupported dispatch accepted")
 		}
 		cfg.IPAM.Type = testLegacyIPAM
-		if err := validateCiliumIPAMConfig(&cfg); err != nil {
+		if err := validateCiliumIPAMConfig(&cfg, true); err != nil {
 			t.Fatal("legacy configuration changed")
 		}
 	}

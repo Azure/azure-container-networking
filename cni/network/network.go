@@ -420,7 +420,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	if err = validateCiliumIPAMConfig(nwCfg); err != nil {
+	if err = validateCiliumIPAMConfig(nwCfg, plugin.nm.IsStatelessCNIMode()); err != nil {
 		return plugin.Errorf("Invalid IPAM configuration: %v", err)
 	}
 
