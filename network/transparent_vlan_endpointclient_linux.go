@@ -1,6 +1,7 @@
 package network
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"strings"
@@ -497,15 +498,16 @@ func (client *TransparentVlanEndpointClient) AddVnetRules(epInfo *EndpointInfo) 
 	return nil
 }
 
-// lbProbeV6SourceRewriteCmd returns an nft command that atomically (re)creates a table in the vnet namespace which
+// lbProbeV6SourceRewriteRuleset returns an nft script that atomically (re)creates a table in the vnet namespace which
 // rewrites the IPv6 load balancer probe source to a routable placeholder on ingress from the vlan interface, and
-// restores it on egress. The rewrite is stateless, so probe flows are kept out of conntrack.
-func lbProbeV6SourceRewriteCmd(vlanIfName string) string {
-	return fmt.Sprintf("nft 'add table %[1]s; delete table %[1]s; table %[1]s { "+
+// restores it on egress. The rewrite is stateless, so probe flows are kept out of conntrack. nft parses its arguments
+// as one script, so the ruleset is passed as a single argument without a shell.
+func lbProbeV6SourceRewriteRuleset(vlanIfName string) string {
+	return fmt.Sprintf("add table %[1]s; delete table %[1]s; table %[1]s { "+
 		"chain prerouting { type filter hook prerouting priority -300; policy accept; "+
 		"iifname \"%[2]s\" ip6 saddr %[3]s ip6 saddr set %[4]s notrack; ip6 daddr %[4]s notrack; }; "+
 		"chain postrouting { type filter hook postrouting priority 300; policy accept; "+
-		"oifname \"%[2]s\" ip6 daddr %[4]s ip6 daddr set %[3]s; }; }'",
+		"oifname \"%[2]s\" ip6 daddr %[4]s ip6 daddr set %[3]s; }; }",
 		lbProbeV6NftTable, vlanIfName, lbProbeV6SourceIP, lbProbeV6PlaceholderIP)
 }
 
@@ -513,7 +515,7 @@ func lbProbeV6SourceRewriteCmd(vlanIfName string) string {
 // rather than logged: without the rewrite the IPv6 backend is silently probed down, which is hard to trace back to
 // the CNI. Namespace: vnet
 func (client *TransparentVlanEndpointClient) addLBProbeV6SourceRewrite() error {
-	if _, err := client.plClient.ExecuteRawCommand(lbProbeV6SourceRewriteCmd(client.vlanIfName)); err != nil {
+	if _, err := client.plClient.ExecuteCommand(context.TODO(), "nft", lbProbeV6SourceRewriteRuleset(client.vlanIfName)); err != nil {
 		return errors.Wrapf(err, "failed to add IPv6 load balancer probe source rewrite on %s", client.vlanIfName)
 	}
 	return nil

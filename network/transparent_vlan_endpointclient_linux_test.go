@@ -1392,16 +1392,18 @@ func TestRunWithRetries(t *testing.T) {
 	}
 }
 
-func TestLBProbeV6SourceRewriteCmd(t *testing.T) {
-	cmd := lbProbeV6SourceRewriteCmd("eth0_1")
+func TestLBProbeV6SourceRewriteRuleset(t *testing.T) {
+	ruleset := lbProbeV6SourceRewriteRuleset("eth0_1")
 
-	// re-creating the table makes the command idempotent across endpoints sharing the vlan namespace
-	require.Contains(t, cmd, "nft 'add table ip6 azure_lb_probe_v6; delete table ip6 azure_lb_probe_v6; table ip6 azure_lb_probe_v6 {")
-	require.Contains(t, cmd, `iifname "eth0_1" ip6 saddr fe80::1234:5678:9abc ip6 saddr set 100::1 notrack;`)
-	require.Contains(t, cmd, "ip6 daddr 100::1 notrack;")
-	require.Contains(t, cmd, `oifname "eth0_1" ip6 daddr 100::1 ip6 daddr set fe80::1234:5678:9abc;`)
-	require.Contains(t, cmd, "type filter hook prerouting priority -300;")
-	require.Contains(t, cmd, "type filter hook postrouting priority 300;")
+	// re-creating the table makes the ruleset idempotent across endpoints sharing the vlan namespace
+	require.True(t, strings.HasPrefix(ruleset, "add table ip6 azure_lb_probe_v6; delete table ip6 azure_lb_probe_v6; table ip6 azure_lb_probe_v6 {"))
+	require.Contains(t, ruleset, `iifname "eth0_1" ip6 saddr fe80::1234:5678:9abc ip6 saddr set 100::1 notrack;`)
+	require.Contains(t, ruleset, "ip6 daddr 100::1 notrack;")
+	require.Contains(t, ruleset, `oifname "eth0_1" ip6 daddr 100::1 ip6 daddr set fe80::1234:5678:9abc;`)
+	require.Contains(t, ruleset, "type filter hook prerouting priority -300;")
+	require.Contains(t, ruleset, "type filter hook postrouting priority 300;")
+	// passed as a single argument without a shell, so it must not carry shell quoting
+	require.NotContains(t, ruleset, "'")
 }
 
 func TestAddVnetRulesLBProbeV6SourceRewrite(t *testing.T) {
@@ -1414,43 +1416,51 @@ func TestAddVnetRulesLBProbeV6SourceRewrite(t *testing.T) {
 			netUtilsClient: networkutils.NewNetworkUtils(netlink.NewMockNetlink(false, ""), plc),
 		}
 	}
-	recordNftCmds := func(plc *platform.MockExecClient, nftErr error) *[]string {
-		cmds := &[]string{}
-		plc.SetExecRawCommand(func(cmd string) (string, error) {
-			if strings.HasPrefix(cmd, "nft ") {
-				*cmds = append(*cmds, cmd)
+	type nftCall struct {
+		cmd  string
+		args []string
+	}
+	recordNftCalls := func(plc *platform.MockExecClient, nftErr error) *[]nftCall {
+		calls := &[]nftCall{}
+		plc.SetExecCommand(func(cmd string, args ...string) (string, error) {
+			if cmd == "nft" {
+				*calls = append(*calls, nftCall{cmd: cmd, args: args})
 				return "", nftErr
 			}
 			return "", nil
 		})
-		return cmds
+		plc.SetExecRawCommand(func(cmd string) (string, error) {
+			require.NotContains(t, cmd, "nft", "nft must not run through a shell")
+			return "", nil
+		})
+		return calls
 	}
 
 	t.Run("adds the rewrite when IPv6 is enabled", func(t *testing.T) {
 		plc := platform.NewMockExecClient(false)
-		cmds := recordNftCmds(plc, nil)
+		calls := recordNftCalls(plc, nil)
 
 		err := newClient(plc).AddVnetRules(&EndpointInfo{IsIPv6Enabled: true})
 		require.NoError(t, err)
-		require.Equal(t, []string{lbProbeV6SourceRewriteCmd("eth0_1")}, *cmds)
+		require.Equal(t, []nftCall{{cmd: "nft", args: []string{lbProbeV6SourceRewriteRuleset("eth0_1")}}}, *calls)
 	})
 
 	t.Run("skips the rewrite when IPv6 is disabled", func(t *testing.T) {
 		plc := platform.NewMockExecClient(false)
-		cmds := recordNftCmds(plc, nil)
+		calls := recordNftCalls(plc, nil)
 
 		err := newClient(plc).AddVnetRules(&EndpointInfo{IsIPv6Enabled: false})
 		require.NoError(t, err)
-		require.Empty(t, *cmds)
+		require.Empty(t, *calls)
 	})
 
 	t.Run("fails the endpoint when nft fails", func(t *testing.T) {
 		plc := platform.NewMockExecClient(false)
-		cmds := recordNftCmds(plc, errors.New("nft: command not found"))
+		calls := recordNftCalls(plc, errors.New("nft: command not found"))
 
 		err := newClient(plc).AddVnetRules(&EndpointInfo{IsIPv6Enabled: true})
 		require.ErrorContains(t, err, "failed to add IPv6 load balancer probe source rewrite on eth0_1")
 		require.ErrorContains(t, err, "nft: command not found")
-		require.Len(t, *cmds, 1)
+		require.Len(t, *calls, 1)
 	})
 }
