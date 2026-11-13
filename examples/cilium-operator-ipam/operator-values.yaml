@@ -1,0 +1,25 @@
+# Supply a qualified Azure multi-pool image tag/digest separately.
+agent: false
+cni:
+  install: false
+envoy:
+  enabled: false
+hubble:
+  enabled: false
+enableLBIPAM: false
+azure:
+  enabled: true
+  usePrimaryAddress: "false"
+ipam:
+  mode: azure
+  operator:
+    releaseExcessIPs: false
+operator:
+  enabled: true
+  replicas: 2
+  skipCRDCreation: false
+  removeNodeTaints: false
+  setNodeTaints: false
+  setNodeNetworkStatus: false
+  unmanagedPodWatcher:
+    restart: false

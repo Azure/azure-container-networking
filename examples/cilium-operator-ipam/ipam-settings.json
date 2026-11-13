@@ -1,0 +1,12 @@
+{
+  "nodeName": "worker-1",
+  "kubeconfig": "/etc/azure-vnet/cilium-ipam.kubeconfig",
+  "interface": "eth0",
+  "nicID": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/example/providers/Microsoft.Network/networkInterfaces/worker-1",
+  "subnet": "10.20.16.0/20",
+  "minAllocate": 10,
+  "preAllocate": 8,
+  "maxAboveWatermark": 0,
+  "releaseExcessIPs": false,
+  "coordinatePeers": false
+}
