@@ -185,18 +185,13 @@ func (plugin *Plugin) RetriableError(err error) *cniTypes.Error {
 func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error {
 	// Create the key value store.
 	if plugin.Store == nil {
-		var err error
-		if config.CiliumPool != nil {
-			plugin.Store, err = store.NewBoltStore(config.CiliumPool.StatePath(plugin.Name), storeLogger)
-		} else {
-			lockPath := platform.CNILockPath + plugin.Name + store.LockExtension
-			statePath := platform.CNIRuntimePath + plugin.Name + ".json"
-			lockclient, lockErr := processlock.NewFileLock(lockPath)
-			if lockErr != nil {
-				return errors.Wrap(lockErr, "creating file lock")
-			}
-			plugin.Store, err = store.NewJsonFileStore(statePath, lockclient, storeLogger)
+		lockclient, err := processlock.NewFileLock(platform.CNILockPath + plugin.Name + store.LockExtension)
+		if err != nil {
+			logger.Error("Error initializing file lock", zap.Error(err))
+			return errors.Wrap(err, "error creating new filelock")
 		}
+
+		plugin.Store, err = store.NewJsonFileStore(platform.CNIRuntimePath+plugin.Name+".json", lockclient, storeLogger)
 		if err != nil {
 			logger.Error("Failed to create store", zap.Error(err))
 			return err

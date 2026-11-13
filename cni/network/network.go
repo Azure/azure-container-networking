@@ -106,7 +106,6 @@ type NetPlugin struct {
 	nnsClient          NnsClient
 	multitenancyClient MultitenancyClient
 	netClient          InterfaceGetter
-	ciliumPool         *common.CiliumPoolConfig
 }
 
 type PolicyArgs struct {
@@ -173,10 +172,6 @@ func NewPlugin(name string,
 
 // Starts the plugin.
 func (plugin *NetPlugin) Start(config *common.PluginConfig) error {
-	plugin.ciliumPool = config.CiliumPool
-	if err := validateCiliumPoolNetworkState(config); err != nil {
-		return err
-	}
 	// Initialize base plugin.
 	err := plugin.Initialize(config)
 	if err != nil {
@@ -422,11 +417,6 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	nwCfg, err := cni.ParseNetworkConfig(args.StdinData)
 	if err != nil {
 		err = plugin.Errorf("Failed to parse network configuration: %v.", err)
-		return err
-	}
-
-	if err = validateCiliumPoolNetworkConfig(plugin.ciliumPool != nil, nwCfg); err != nil {
-		err = plugin.Errorf("Invalid network configuration: %v", err)
 		return err
 	}
 
