@@ -23,7 +23,6 @@ func (s *State) Release(owner Owner, address string) error {
 		}
 	}
 	delete(s.Reservations, selected)
-	delete(s.Pending, owner.key())
 	return nil
 }
 
@@ -34,11 +33,6 @@ func (s *State) RetireBoot(bootID string) error {
 	for ip, reservation := range s.Reservations {
 		if reservation.BootID != bootID {
 			delete(s.Reservations, ip)
-		}
-	}
-	for key, request := range s.Pending {
-		if request.BootID != bootID {
-			delete(s.Pending, key)
 		}
 	}
 	return nil

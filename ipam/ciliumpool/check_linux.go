@@ -16,7 +16,7 @@ func (a *Allocator) Check(ctx context.Context, owner Owner) error {
 	if callErr := validateCiliumNode(node, a.Binding); callErr != nil {
 		return callErr
 	}
-	state, _, err := readState(node, a.Binding)
+	state, err := readState(node, a.Binding)
 	if err != nil {
 		return err
 	}

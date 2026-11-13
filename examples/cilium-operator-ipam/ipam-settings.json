@@ -6,7 +6,5 @@
   "subnet": "10.20.16.0/20",
   "minAllocate": 10,
   "preAllocate": 8,
-  "maxAboveWatermark": 0,
-  "releaseExcessIPs": false,
-  "coordinatePeers": false
+  "maxAboveWatermark": 0
 }

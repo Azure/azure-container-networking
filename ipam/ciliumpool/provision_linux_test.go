@@ -14,7 +14,7 @@ import (
 	ktesting "k8s.io/client-go/testing"
 )
 
-func TestProvisionIsExplicitAndNeverOverwritesExistingLedger(t *testing.T) {
+func TestProvisionIsExplicitAndNeverOverwritesExistingUsage(t *testing.T) {
 	_, cfg, err := ParseConfig([]byte(testConfig))
 	if err != nil {
 		t.Fatal(err)
@@ -59,7 +59,13 @@ func TestProvisionIsExplicitAndNeverOverwritesExistingLedger(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	before := cn.GetAnnotations()[stateAnnotation]
+	owner := ownerPrefix + "vm-id/" + testBoot + "/azure/sandbox/eth0"
+	if setErr := unstructured.SetNestedMap(cn.Object, map[string]any{testIP: map[string]any{ownerField: owner, resourceField: cfg.NICID}}, statusField, ipamField, "used"); setErr != nil {
+		t.Fatal(setErr)
+	}
+	if _, updateErr := client.Resource(CiliumNodes).UpdateStatus(ctx, cn, metav1.UpdateOptions{}); updateErr != nil {
+		t.Fatal(updateErr)
+	}
 	if callErr := Provision(ctx, cfg, g, client); callErr != nil {
 		t.Fatal(callErr)
 	}
@@ -67,16 +73,17 @@ func TestProvisionIsExplicitAndNeverOverwritesExistingLedger(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cn.GetAnnotations()[stateAnnotation] != before {
-		t.Fatal("registration rewrote existing ledger")
+	used, _, err := unstructured.NestedMap(cn.Object, statusField, ipamField, "used")
+	if err != nil || len(used) != 1 {
+		t.Fatal("registration rewrote existing usage")
 	}
-	annotations := cn.GetAnnotations()
-	annotations[stateAnnotation] = "corrupt"
-	cn.SetAnnotations(annotations)
+	if err := unstructured.SetNestedField(cn.Object, "corrupt", statusField, ipamField, "used"); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := client.Resource(CiliumNodes).Update(ctx, cn, metav1.UpdateOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := Provision(ctx, cfg, g, client); err == nil {
-		t.Fatal("registration silently repaired corrupt ownership")
+		t.Fatal("registration silently repaired corrupt usage")
 	}
 }

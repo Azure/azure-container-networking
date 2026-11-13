@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"slices"
 	"strings"
 	"time"
 
@@ -74,39 +73,32 @@ func (a *Allocator) update(ctx context.Context, owner Owner, address string, com
 		if err != nil || !found || spare != int64(a.PreAllocate) {
 			return "", fmt.Errorf("%w: preallocation differs from operator policy", ErrConfig)
 		}
-		state, retained, err := readState(node, a.Binding)
+		state, err := readState(node, a.Binding)
 		if err != nil {
 			return "", err
 		}
 		if callErr := state.RetireBoot(a.BootID); callErr != nil {
 			return "", callErr
 		}
-		state.ExpirePending(time.Now())
 		var supply []string
 		if command != deleteOperation {
 			supply, err = eligibleSupply(node, a.Binding, a.Supply)
 			if err != nil {
 				return "", err
 			}
-			supply = slices.DeleteFunc(supply, func(ip string) bool { return state.Withdrawn[ip] })
-			for _, ip := range supply {
-				retained = append(retained, ip+"/32")
-			}
 		}
-		slices.Sort(retained)
-		retained = slices.Compact(retained)
 		ip, resultErr := a.changeReservation(&state, owner, address, command, supply)
 		if resultErr != nil && !errors.Is(resultErr, ErrNoSupply) {
 			return "", resultErr
 		}
-		patch, err := consumerPatch(node, state, retained, a.PreAllocate)
+		patch, err := usagePatch(node, state, a.Binding.VMID)
 		if err != nil {
 			return "", err
 		}
 		if patch == nil {
 			return ip, resultErr
 		}
-		_, err = a.Nodes.Patch(ctx, a.NodeName, types.JSONPatchType, patch, metav1.PatchOptions{})
+		_, err = a.Nodes.Patch(ctx, a.NodeName, types.JSONPatchType, patch, metav1.PatchOptions{}, statusField)
 		if err == nil {
 			return ip, resultErr
 		}
@@ -137,13 +129,7 @@ func (a *Allocator) update(ctx context.Context, owner Owner, address string, com
 func (a *Allocator) changeReservation(state *State, owner Owner, address string, command operation, supply []string) (string, error) {
 	switch command {
 	case addOperation:
-		ip, err := state.Reserve(owner, a.BootID, a.Binding.Resource, supply)
-		if errors.Is(err, ErrNoSupply) {
-			if queueErr := state.Queue(owner, a.BootID, time.Now()); queueErr != nil {
-				return "", queueErr
-			}
-		}
-		return ip, err
+		return state.Reserve(owner, a.BootID, a.Binding.Resource, supply)
 	case deleteOperation:
 		return "", state.Release(owner, address)
 	case reconcileOperation:
@@ -153,7 +139,29 @@ func (a *Allocator) changeReservation(state *State, owner Owner, address string,
 	}
 }
 
+func publishedPool(node *unstructured.Unstructured, binding Binding) (map[string]any, error) {
+	pool, _, poolErr := unstructured.NestedMap(node.Object, specField, ipamField, poolField)
+	if poolErr != nil {
+		return nil, fmt.Errorf("reading operator pool: %w", poolErr)
+	}
+	for raw, entry := range pool {
+		ip, err := netip.ParseAddr(raw)
+		allocation, ok := entry.(map[string]any)
+		resource, resourceOK := allocation[resourceField].(string)
+		subnet, subnetErr := netip.ParsePrefix(binding.Subnet)
+		if err != nil || !ip.Is4() || subnetErr != nil || !subnet.Contains(ip) || raw == binding.Primary ||
+			!ok || !resourceOK || !strings.EqualFold(resource, binding.Resource) {
+			return nil, fmt.Errorf("%w: invalid operator pool entry", ErrOwnership)
+		}
+	}
+	return pool, nil
+}
+
 func eligibleSupply(node *unstructured.Unstructured, binding Binding, guest map[string]bool) ([]string, error) {
+	pool, poolErr := publishedPool(node, binding)
+	if poolErr != nil {
+		return nil, poolErr
+	}
 	interfaces, _, err := unstructured.NestedSlice(node.Object, statusField, "azure", "interfaces")
 	if err != nil {
 		return nil, fmt.Errorf("reading Azure interfaces: %w", err)
@@ -200,7 +208,8 @@ func eligibleSupply(node *unstructured.Unstructured, binding Binding, guest map[
 			if parseErr != nil || !parsed.Is4() || !prefix.Contains(parsed) || ip == binding.Primary {
 				return nil, fmt.Errorf("%w: invalid secondary address", ErrOwnership)
 			}
-			if address[stateField] == stateSucceeded && guest[ip] {
+			_, published := pool[ip]
+			if address[stateField] == stateSucceeded && guest[ip] && published {
 				result = append(result, ip)
 			}
 		}

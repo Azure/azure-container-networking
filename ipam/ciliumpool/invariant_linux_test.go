@@ -11,14 +11,14 @@ import (
 )
 
 func TestMutationsRejectInvalidIdentityAndReservationOverflow(t *testing.T) {
-	state := newState(testNodeName, "vm")
+	state := newState()
 	for i := range 255 {
 		state.Reservations[fmt.Sprintf("10.0.0.%d", i)] = Reservation{Owner: Owner{Network: testNetwork, Sandbox: strconv.Itoa(i), Interface: testIfName}, BootID: testBoot, Resource: testNIC}
 	}
 	if _, err := state.Reserve(Owner{Network: testNetwork, Sandbox: "overflow", Interface: testIfName}, testBoot, testNIC, []string{"10.0.1.1"}); err == nil {
 		t.Fatal("reservation limit exceeded")
 	}
-	empty := newState(testNodeName, "vm")
+	empty := newState()
 	if err := empty.Release(Owner{Network: testNetwork, Sandbox: testSandbox, Interface: testIfName}, "not-an-ip"); err == nil {
 		t.Fatal("malformed release address reported success")
 	}

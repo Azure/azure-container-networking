@@ -27,13 +27,10 @@ type Reservation struct {
 }
 
 type State struct {
-	Version      int                    `json:"version"`
-	NodeUID      string                 `json:"nodeUID"`
-	VMID         string                 `json:"vmID"`
-	Reservations map[string]Reservation `json:"reservations"`
-	Pending      map[string]Pending     `json:"pending"`
-	Withdrawn    map[string]bool        `json:"withdrawn"`
+	Reservations map[string]Reservation
 }
+
+func newState() State { return State{Reservations: map[string]Reservation{}} }
 
 func (s *State) Reserve(owner Owner, bootID, resource string, supply []string) (string, error) {
 	if !owner.valid() || bootID == "" || resource == "" || s.Reservations == nil {
@@ -60,9 +57,8 @@ func (s *State) Reserve(owner Owner, bootID, resource string, supply []string) (
 	candidates := slices.Clone(supply)
 	slices.Sort(candidates)
 	for _, ip := range candidates {
-		if _, used := s.Reservations[ip]; !used && !s.Withdrawn[ip] {
+		if _, used := s.Reservations[ip]; !used {
 			s.Reservations[ip] = Reservation{Owner: owner, BootID: bootID, Resource: resource}
-			delete(s.Pending, owner.key())
 			return ip, nil
 		}
 	}

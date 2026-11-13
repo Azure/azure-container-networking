@@ -91,6 +91,9 @@ is removed before IP release; the saved endpoint record is retired afterward.
 it available for another allocation, provided it still passes eligibility
 checks. Pod DEL does not remove the Azure NIC secondary configuration.
 
+The consumer does not implement excess-IP release or cross-node capacity
+rebalancing. Free secondary addresses remain on the node for reuse.
+
 Ordinary reboot and transient release failures must recover without manual
 reconciliation or node replacement. Section 8 defines automatic reboot
 reconciliation using the kernel boot ID.

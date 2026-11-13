@@ -3,6 +3,7 @@ package ciliumpool
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"reflect"
 	"strings"
 
@@ -10,20 +11,28 @@ import (
 )
 
 const (
-	stateAnnotation = "azure-container-networking.io/ipam-state"
-	defaultPool     = "default"
-	jsonPatchAdd    = "add"
-	ipamField       = "ipam"
-	statusField     = "status"
-	macField        = "mac"
-	cidrField       = "cidr"
-	gatewayField    = "gateway"
-	stateField      = "state"
-	poolField       = "pool"
-	specField       = "spec"
-	poolsField      = "pools"
-	subnetField     = "subnet"
-	stateSucceeded  = "succeeded"
+	apiVersionField      = "apiVersion"
+	kindField            = "kind"
+	ciliumAPIVersion     = "cilium.io/v2"
+	annotationsField     = "annotations"
+	uidField             = "uid"
+	resourceVersionField = "resourceVersion"
+	ownerField           = "owner"
+	resourceField        = "resource"
+	ciliumNodeKind       = "CiliumNode"
+	metadataField        = "metadata"
+	ownerPrefix          = "azure-cilium-ipam/v1/"
+	ipamField            = "ipam"
+	statusField          = "status"
+	specField            = "spec"
+	macField             = "mac"
+	cidrField            = "cidr"
+	gatewayField         = "gateway"
+	stateField           = "state"
+	poolField            = "pool"
+	subnetField          = "subnet"
+	stateSucceeded       = "succeeded"
+	jsonPatchAdd         = "add"
 )
 
 type patchOperation struct {
@@ -32,48 +41,74 @@ type patchOperation struct {
 	Value any    `json:"value"`
 }
 
-func consumerPatch(node *unstructured.Unstructured, state State, retained []string, spare int) ([]byte, error) {
-	ledger, err := json.Marshal(state)
-	if err != nil {
-		return nil, fmt.Errorf("encoding reservation ledger: %w", err)
+func encodeOwner(vmID string, r Reservation) (string, error) {
+	boot, err := parseBootID([]byte(r.BootID))
+	if err != nil || boot != r.BootID || !r.Owner.valid() || vmID == "" {
+		return "", ErrOwnership
 	}
-	size := len(stateAnnotation) + len(ledger)
-	for key, value := range node.GetAnnotations() {
-		if key != stateAnnotation {
-			size += len(key) + len(value)
+	parts := []string{vmID, boot, r.Owner.Network, r.Owner.Sandbox, r.Owner.Interface}
+	for i := range parts {
+		parts[i] = url.PathEscape(parts[i])
+	}
+	return ownerPrefix + strings.Join(parts, "/"), nil
+}
+
+func decodeOwner(raw, vmID string) (Reservation, error) {
+	if !strings.HasPrefix(raw, ownerPrefix) {
+		return Reservation{}, ErrOwnership
+	}
+	parts := strings.Split(strings.TrimPrefix(raw, ownerPrefix), "/")
+	if len(parts) != 5 {
+		return Reservation{}, ErrOwnership
+	}
+	for i := range parts {
+		value, err := url.PathUnescape(parts[i])
+		if err != nil {
+			return Reservation{}, fmt.Errorf("decoding reservation owner: %w", err)
 		}
+		parts[i] = value
 	}
-	if size > 256*1024 {
-		return nil, fmt.Errorf("%w: annotations exceed Kubernetes size limit", ErrOwnership)
+	r := Reservation{Owner: Owner{Network: parts[2], Sandbox: parts[3], Interface: parts[4]}, BootID: parts[1]}
+	canonical, err := encodeOwner(vmID, r)
+	if err != nil || parts[0] != vmID || canonical != raw {
+		return Reservation{}, ErrOwnership
 	}
-	cidrs := make([]any, len(retained))
-	for i, cidr := range retained {
-		cidrs[i] = cidr
+	return r, nil
+}
+
+func usagePatch(node *unstructured.Unstructured, state State, vmID string) ([]byte, error) {
+	used := make(map[string]any, len(state.Reservations))
+	for ip, entry := range state.Reservations {
+		owner, err := encodeOwner(vmID, entry)
+		if err != nil {
+			return nil, err
+		}
+		used[ip] = map[string]any{ownerField: owner, resourceField: entry.Resource}
 	}
-	requested := []any{map[string]any{poolField: defaultPool, "needed": map[string]any{"ipv4-addrs": int64(len(state.Reservations) + len(state.Pending) + spare)}}}
-	allocated := []any{map[string]any{poolField: defaultPool, "cidrs": cidrs}}
-	oldRequested, _, err := unstructured.NestedSlice(node.Object, specField, ipamField, poolsField, "requested")
+	current, _, err := unstructured.NestedMap(node.Object, statusField, ipamField, "used")
 	if err != nil {
-		return nil, fmt.Errorf("reading existing demand: %w", err)
+		return nil, fmt.Errorf("reading current usage: %w", err)
 	}
-	oldAllocated, _, err := unstructured.NestedSlice(node.Object, specField, ipamField, poolsField, "allocated")
-	if err != nil {
-		return nil, fmt.Errorf("reading existing retention: %w", err)
-	}
-	if node.GetAnnotations()[stateAnnotation] == string(ledger) &&
-		reflect.DeepEqual(oldRequested, requested) && reflect.DeepEqual(oldAllocated, allocated) {
+	if reflect.DeepEqual(current, used) || len(current) == 0 && len(used) == 0 {
 		return nil, nil
 	}
 	ops := []patchOperation{
 		{"test", "/metadata/uid", string(node.GetUID())},
 		{"test", "/metadata/resourceVersion", node.GetResourceVersion()},
-		{jsonPatchAdd, "/metadata/annotations/" + strings.ReplaceAll(stateAnnotation, "/", "~1"), string(ledger)},
-		{jsonPatchAdd, "/spec/ipam/pools/requested", requested},
-		{jsonPatchAdd, "/spec/ipam/pools/allocated", allocated},
 	}
-	result, err := json.Marshal(ops)
+	for _, parent := range [][]string{{statusField}, {statusField, ipamField}} {
+		_, found, parentErr := unstructured.NestedMap(node.Object, parent...)
+		if parentErr != nil {
+			return nil, fmt.Errorf("reading usage parent: %w", parentErr)
+		}
+		if !found {
+			ops = append(ops, patchOperation{jsonPatchAdd, "/" + strings.Join(parent, "/"), map[string]any{}})
+		}
+	}
+	ops = append(ops, patchOperation{jsonPatchAdd, "/status/ipam/used", used})
+	data, err := json.Marshal(ops)
 	if err != nil {
-		return nil, fmt.Errorf("encoding consumer update: %w", err)
+		return nil, fmt.Errorf("encoding usage update: %w", err)
 	}
-	return result, nil
+	return data, nil
 }

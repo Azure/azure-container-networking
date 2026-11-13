@@ -64,6 +64,6 @@ func Provision(ctx context.Context, cfg Config, g Guest, client dynamic.Interfac
 	if callErr := validateCiliumNode(current, binding); callErr != nil {
 		return callErr
 	}
-	_, _, err = readState(current, binding)
+	_, err = readState(current, binding)
 	return err
 }

@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func TestRegistrationBindsNodeVMAndInitialMultiPoolState(t *testing.T) {
+func TestRegistrationBindsNodeVMWithoutConsumerPoolState(t *testing.T) {
 	_, cfg, err := ParseConfig([]byte(testConfig))
 	if err != nil {
 		t.Fatal(err)
@@ -32,9 +32,15 @@ func TestRegistrationBindsNodeVMAndInitialMultiPoolState(t *testing.T) {
 	if callErr := validateCiliumNode(cn, binding); callErr != nil {
 		t.Fatal(callErr)
 	}
-	state, retained, err := readState(cn, binding)
-	if err != nil || len(state.Reservations) != 0 || len(retained) != 0 {
-		t.Fatalf("initial contract = %+v, %v, %v", state, retained, err)
+	state, err := readState(cn, binding)
+	if err != nil || len(state.Reservations) != 0 {
+		t.Fatalf("initial contract = %+v, %v", state, err)
+	}
+	if _, found, _ := unstructured.NestedMap(cn.Object, specField, ipamField, "pools"); found {
+		t.Fatal("registration created multi-pool state")
+	}
+	if _, found, _ := unstructured.NestedMap(cn.Object, specField, ipamField, poolField); found {
+		t.Fatal("registration wrote operator inventory")
 	}
 	for _, tt := range []struct {
 		name   string

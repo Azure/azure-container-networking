@@ -8,12 +8,12 @@ import (
 
 func TestMalformedBootCannotBeTreatedAsPreviousBoot(t *testing.T) {
 	binding := Binding{NodeUID: testNodeUID, VMID: "vm", Resource: testNIC, Subnet: testSubnet}
-	state := newState(binding.NodeUID, binding.VMID)
+	state := newState()
 	state.Reservations[testIP] = Reservation{
 		Owner:  Owner{Network: testNetwork, Sandbox: testSandbox, Interface: testIfName},
 		BootID: "malformed", Resource: testNIC,
 	}
-	if _, _, err := readState(testNode(t, state), binding); err == nil {
+	if _, err := readState(testNode(t, state), binding); err == nil {
 		t.Fatal("unrecognized remote boot identity accepted for automatic retirement")
 	}
 	a, _ := testAllocator(t)

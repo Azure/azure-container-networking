@@ -16,7 +16,11 @@ rules:
   - apiGroups: ["cilium.io"]
     resources: ["ciliumnodes"]
     resourceNames: ["worker-1"]
-    verbs: ["get", "patch"]
+    verbs: ["get"]
+  - apiGroups: ["cilium.io"]
+    resources: ["ciliumnodes/status"]
+    resourceNames: ["worker-1"]
+    verbs: ["patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

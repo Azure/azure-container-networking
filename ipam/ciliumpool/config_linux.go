@@ -16,10 +16,7 @@ import (
 
 const PluginName = cni.AzureCiliumIPAM
 
-var (
-	ErrConfig              = errors.New("invalid Azure Cilium IPAM configuration")
-	ErrReleaseNotQualified = errors.New("excess release and peer coordination require release/cancellation qualification; disable operator excess release")
-)
+var ErrConfig = errors.New("invalid Azure Cilium IPAM configuration")
 
 type Config struct {
 	NodeName          string `json:"nodeName"`
@@ -30,8 +27,6 @@ type Config struct {
 	PreAllocate       int    `json:"preAllocate"`
 	MinAllocate       int    `json:"minAllocate"`
 	MaxAboveWatermark int    `json:"maxAboveWatermark"`
-	ReleaseExcessIPs  bool   `json:"releaseExcessIPs"`
-	CoordinatePeers   bool   `json:"coordinatePeers"`
 }
 
 func ParseConfig(data []byte) (*cni.NetworkConfig, Config, error) {
@@ -98,9 +93,6 @@ func (cfg Config) validate() error {
 		cfg.PreAllocate < 1 || cfg.PreAllocate > 255 || cfg.MinAllocate < 0 || cfg.MinAllocate > 255 ||
 		cfg.MaxAboveWatermark < 0 || cfg.MaxAboveWatermark > 255 || cfg.MinAllocate+cfg.MaxAboveWatermark > 255 {
 		return ErrConfig
-	}
-	if cfg.ReleaseExcessIPs || cfg.CoordinatePeers {
-		return ErrReleaseNotQualified
 	}
 	return nil
 }

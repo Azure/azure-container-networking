@@ -1,7 +1,6 @@
 package ciliumpool
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -65,24 +64,16 @@ func registration(cfg Config, node *corev1.Node, guest Guest) (*unstructured.Uns
 	if !guest.Primary.IsValid() {
 		return nil, Binding{}, fmt.Errorf("%w: registration needs primary guest address", ErrOwnership)
 	}
-	state, err := json.Marshal(newState(binding.NodeUID, binding.VMID))
-	if err != nil {
-		return nil, Binding{}, fmt.Errorf("encoding initial ledger: %w", err)
-	}
 	cn := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "cilium.io/v2", "kind": "CiliumNode",
-		"metadata": map[string]any{
+		apiVersionField: ciliumAPIVersion, kindField: ciliumNodeKind, metadataField: map[string]any{
 			"name":            node.Name,
-			"annotations":     map[string]any{consumerAnnotation: PluginName, vmAnnotation: guest.VMID, stateAnnotation: string(state)},
-			"ownerReferences": []any{map[string]any{"apiVersion": "v1", "kind": "Node", "name": node.Name, "uid": string(node.UID)}},
+			annotationsField:  map[string]any{consumerAnnotation: PluginName, vmAnnotation: guest.VMID},
+			"ownerReferences": []any{map[string]any{apiVersionField: "v1", kindField: "Node", "name": node.Name, uidField: string(node.UID)}},
 		}, specField: map[string]any{
 			"instance-id": binding.InstanceID,
 			"addresses":   []any{map[string]any{"type": "InternalIP", "ip": guest.Primary.String()}},
 			"azure":       map[string]any{"interface-name": cfg.NICID[strings.LastIndex(cfg.NICID, "/")+1:]}, ipamField: map[string]any{
-				"min-allocate": int64(cfg.MinAllocate), "pre-allocate": int64(cfg.PreAllocate), "max-above-watermark": int64(cfg.MaxAboveWatermark), poolsField: map[string]any{
-					"requested": []any{map[string]any{poolField: defaultPool, "needed": map[string]any{"ipv4-addrs": int64(cfg.PreAllocate)}}},
-					"allocated": []any{map[string]any{poolField: defaultPool, "cidrs": []any{}}},
-				},
+				"min-allocate": int64(cfg.MinAllocate), "pre-allocate": int64(cfg.PreAllocate), "max-above-watermark": int64(cfg.MaxAboveWatermark),
 			},
 		},
 	}}

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 
@@ -29,7 +30,7 @@ type testAPI struct {
 
 func testAllocator(t *testing.T) (*Allocator, *testAPI) {
 	t.Helper()
-	api := &testAPI{node: testNode(t, newState(testNodeUID, "vm"))}
+	api := &testAPI{node: testNode(t, newState())}
 	api.node.SetOwnerReferences([]metav1.OwnerReference{{APIVersion: "v1", Kind: "Node", Name: testNodeName, UID: testNodeUID}})
 	annotations := api.node.GetAnnotations()
 	annotations[vmAnnotation] = "vm"
@@ -53,7 +54,11 @@ func testAllocator(t *testing.T) (*Allocator, *testAPI) {
 		api.mu.Lock()
 		defer api.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
-		if r.URL.Path != "/apis/cilium.io/v2/ciliumnodes/node" {
+		wantPath := "/apis/cilium.io/v2/ciliumnodes/node"
+		if r.Method == http.MethodPatch {
+			wantPath += "/status"
+		}
+		if r.URL.Path != wantPath {
 			t.Errorf("unexpected resource endpoint: %s", r.URL.Path)
 			http.NotFound(w, r)
 			return
@@ -73,6 +78,18 @@ func testAllocator(t *testing.T) (*Allocator, *testAPI) {
 			if err != nil {
 				t.Error(err)
 				return
+			}
+			var ops []patchOperation
+			if err := json.Unmarshal(data, &ops); err != nil {
+				t.Error(err)
+				return
+			}
+			for _, op := range ops {
+				if op.Op != "test" && !strings.HasPrefix(op.Path, "/status") {
+					t.Errorf("consumer attempted non-status write: %+v", op)
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
 			}
 			updated, applyErr := patch.Apply(old)
 			if api.conflicts > 0 {
@@ -138,7 +155,7 @@ func TestAPIClaimsRetryConflictAndPreserveOperatorStatus(t *testing.T) {
 	}
 	api.mu.Lock()
 	defer api.mu.Unlock()
-	state, _, err := readState(api.node, a.Binding)
+	state, err := readState(api.node, a.Binding)
 	if err != nil || state.Reservations[ip].Owner != owner {
 		t.Fatalf("reservation not committed: %+v, %v", state, err)
 	}
@@ -161,7 +178,7 @@ func TestAPILostResponseReplaysWithoutSecondReservation(t *testing.T) {
 	}
 	api.mu.Lock()
 	defer api.mu.Unlock()
-	state, _, err := readState(api.node, a.Binding)
+	state, err := readState(api.node, a.Binding)
 	if err != nil || len(state.Reservations) != 1 {
 		t.Fatalf("duplicate allocation: %+v, %v", state, err)
 	}

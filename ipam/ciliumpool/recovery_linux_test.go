@@ -9,7 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func TestAPIExhaustionRecordsDemandAndOwnerOnlyDeleteReleases(t *testing.T) {
+func TestAPIExhaustionPreservesUsageAndOwnerOnlyDeleteReleases(t *testing.T) {
 	a, _ := testAllocator(t)
 	ctx := context.Background()
 	owners := []Owner{
@@ -31,9 +31,9 @@ func TestAPIExhaustionRecordsDemandAndOwnerOnlyDeleteReleases(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, _, err := readState(node, a.Binding)
-	if err != nil || len(state.Pending) != 1 || len(state.Reservations) != 2 {
-		t.Fatalf("demand state = %+v, %v", state, err)
+	state, err := readState(node, a.Binding)
+	if err != nil || len(state.Reservations) != 2 {
+		t.Fatalf("usage state = %+v, %v", state, err)
 	}
 	if callErr := a.Delete(ctx, owners[0], ""); callErr != nil {
 		t.Fatal(callErr)
@@ -48,8 +48,8 @@ func TestAPIExhaustionRecordsDemandAndOwnerOnlyDeleteReleases(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, _, err = readState(node, a.Binding)
-	if err != nil || len(state.Pending) != 0 || state.Reservations[testIP].Owner != owners[2] {
+	state, err = readState(node, a.Binding)
+	if err != nil || state.Reservations[testIP].Owner != owners[2] {
 		t.Fatalf("release/reuse changed ownership: %+v, %v", state, err)
 	}
 }
@@ -68,13 +68,14 @@ func TestAPIReconcileRetiresPreviousBootWithoutNewAllocation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, retained, err := readState(node, a.Binding)
-	if err != nil || len(state.Reservations) != 0 || len(retained) != 2 {
-		t.Fatalf("reboot reset changed pool or kept ownership: %+v, %v, %v", state, retained, err)
+	state, err := readState(node, a.Binding)
+	pool, _, poolErr := unstructured.NestedMap(node.Object, specField, ipamField, poolField)
+	if err != nil || poolErr != nil || len(state.Reservations) != 0 || len(pool) != 2 {
+		t.Fatalf("reboot reset changed pool or kept ownership: %+v, %v, %v", state, pool, err)
 	}
 }
 
-func TestAPIWithdrawnReservationDoesNotBecomePendingOrGetAnotherIP(t *testing.T) {
+func TestAPIWithdrawnReservationDoesNotGetAnotherIP(t *testing.T) {
 	a, api := testAllocator(t)
 	ctx := context.Background()
 	owner := Owner{Network: testNetwork, Sandbox: testSandbox, Interface: testIfName}
@@ -97,9 +98,9 @@ func TestAPIWithdrawnReservationDoesNotBecomePendingOrGetAnotherIP(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, _, err := readState(node, a.Binding)
-	if err != nil || len(state.Pending) != 0 || len(state.Reservations) != 1 {
-		t.Fatalf("withdrawn claim changed demand: %+v, %v", state, err)
+	state, err := readState(node, a.Binding)
+	if err != nil || len(state.Reservations) != 1 {
+		t.Fatalf("withdrawn claim changed usage: %+v, %v", state, err)
 	}
 	a.Supply = nil
 	if err := a.Delete(ctx, owner, ""); err != nil {
