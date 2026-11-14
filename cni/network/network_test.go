@@ -39,15 +39,7 @@ func TestMain(m *testing.M) {
 		Mode:              "bridge",
 		Master:            eth0IfName,
 		IPsToRouteViaHost: []string{"169.254.20.10"},
-		IPAM: struct {
-			Mode          string `json:"mode,omitempty"`
-			Type          string `json:"type"`
-			Environment   string `json:"environment,omitempty"`
-			AddrSpace     string `json:"addressSpace,omitempty"`
-			Subnet        string `json:"subnet,omitempty"`
-			Address       string `json:"ipAddress,omitempty"`
-			QueryInterval string `json:"queryInterval,omitempty"`
-		}{
+		IPAM: cni.IPAM{
 			Type: "azure-cns",
 		},
 	}

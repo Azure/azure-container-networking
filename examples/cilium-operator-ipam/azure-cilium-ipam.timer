@@ -1,0 +1,11 @@
+[Unit]
+Description=Periodically reconcile Azure Cilium IPAM
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=30s
+RandomizedDelaySec=5s
+Unit=azure-cilium-ipam.service
+
+[Install]
+WantedBy=timers.target

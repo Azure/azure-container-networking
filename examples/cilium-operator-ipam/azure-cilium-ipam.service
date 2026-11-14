@@ -1,0 +1,14 @@
+[Unit]
+Description=Reconcile Azure Cilium IPAM remote state
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/cni/bin/azure-cilium-ipam --config /etc/cni/net.d/10-azure.conflist --reconcile
+TimeoutStartSec=40s
+User=root
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log

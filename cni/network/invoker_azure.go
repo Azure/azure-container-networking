@@ -63,7 +63,8 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 
 	// Call into IPAM plugin to allocate an address pool for the network.
 	result, err := invoker.plugin.DelegateAdd(addConfig.nwCfg.IPAM.Type, addConfig.nwCfg)
-	if err != nil && strings.Contains(err.Error(), ipam.ErrNoAvailableAddressPools.Error()) {
+	if err != nil && addConfig.nwCfg.IPAM.Type != cni.AzureCiliumIPAM &&
+		strings.Contains(err.Error(), ipam.ErrNoAvailableAddressPools.Error()) {
 		invoker.deleteIpamState()
 		logger.Info("Retry pool allocation after deleting IPAM state")
 		result, err = invoker.plugin.DelegateAdd(addConfig.nwCfg.IPAM.Type, addConfig.nwCfg)
@@ -122,7 +123,13 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 	if len(result.IPs) > 0 {
 		hostSubnetPrefix = result.IPs[0].Address
 	}
+	var hostInterface string
+	if addConfig.nwCfg.IPAM.Type == cni.AzureCiliumIPAM && len(result.Interfaces) == 1 &&
+		result.Interfaces[0] != nil && result.Interfaces[0].Sandbox == "" {
+		hostInterface = result.Interfaces[0].Name
+	}
 	addResult.interfaceInfo[invoker.getInterfaceInfoKey(cns.InfraNIC)] = network.InterfaceInfo{
+		Name:      hostInterface,
 		IPConfigs: ipconfigs,
 		Routes:    routes,
 		DNS: network.DNSInfo{
@@ -131,6 +138,10 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 		},
 		NICType:          cns.InfraNIC,
 		HostSubnetPrefix: hostSubnetPrefix,
+	}
+	if addConfig.nwCfg.IPAM.Type == cni.AzureCiliumIPAM && hostInterface == "" {
+		err = invoker.plugin.Errorf("Cilium IPAM result is missing the selected host interface")
+		return addResult, err
 	}
 
 	return addResult, err

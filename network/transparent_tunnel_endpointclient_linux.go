@@ -79,6 +79,7 @@ func (defaultTunnelPolicyRouteClient) RouteReplace(route *vishnetlink.Route) err
 // tunnel rules that send same-node pod traffic through VFP.
 type TransparentTunnelEndpointClient struct {
 	*TransparentEndpointClient
+	endpoints      map[string]*endpoint
 	iptablesClient ipTablesClient
 	nlPolicyRoute  tunnelPolicyRouteClient
 	ipsetClient    transparentTunnelIpsetClient
@@ -98,6 +99,7 @@ func NewTransparentTunnelEndpointClient(
 
 	return &TransparentTunnelEndpointClient{
 		TransparentEndpointClient: base,
+		endpoints:                 nw.Endpoints,
 		iptablesClient:            iptc,
 		nlPolicyRoute:             defaultTunnelPolicyRouteClient{},
 		ipsetClient:               newDefaultTransparentTunnelIpsetClient(plc),
@@ -345,6 +347,19 @@ func (client *TransparentTunnelEndpointClient) deleteTransparentTunnelRules(ep *
 
 	for _, ipAddr := range ep.IPAddresses {
 		if ipAddr.IP.To4() == nil {
+			continue
+		}
+		// A replay after IP reuse must preserve the new endpoint's shared membership.
+		shared := false
+		for _, other := range client.endpoints {
+			if other.Id == ep.Id {
+				continue
+			}
+			for _, address := range other.IPAddresses {
+				shared = shared || address.IP.Equal(ipAddr.IP)
+			}
+		}
+		if shared {
 			continue
 		}
 		entry := ipAddr.IP.String()
