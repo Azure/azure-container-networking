@@ -1,0 +1,28 @@
+{
+  "ResyncPeriodInMinutes": 15,
+  "ListeningAddress": "0.0.0.0",
+  "ListeningPort": 10091,
+  "Transport": {
+    "Address": "0.0.0.0",
+    "Port": 10092,
+    "ServicePort": 9002
+  },
+  "WindowsNetworkName": "azure",
+  "ApplyMaxBatches": 100,
+  "ApplyIntervalInMilliseconds": 500,
+  "MaxBatchedACLsPerPod": 30,
+  "MaxPendingNetPols": 100,
+  "NetPolInvervalInMilliseconds": 500,
+  "LogLevel": "info",
+  "Toggles": {
+    "EnablePrometheusMetrics": true,
+    "EnablePprof": true,
+    "EnableHTTPDebugAPI": true,
+    "EnableV2NPM": true,
+    "PlaceAzureChainFirst": false,
+    "ApplyIPSetsOnNeed": false,
+    "ApplyInBackground": true,
+    "NetPolInBackground": true,
+    "EnableNPMLite": false
+  }
+}

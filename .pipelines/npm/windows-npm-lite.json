@@ -1,0 +1,145 @@
+{
+  "apiVersion": "v1",
+  "kind": "List",
+  "items": [
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "name": "azure-npm-lite-win",
+        "namespace": "kube-system"
+      }
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "ClusterRole",
+      "metadata": {
+        "name": "azure-npm-lite-win"
+      },
+      "rules": [
+        {
+          "apiGroups": [""],
+          "resources": ["pods", "nodes", "namespaces"],
+          "verbs": ["get", "list", "watch"]
+        },
+        {
+          "apiGroups": ["networking.k8s.io"],
+          "resources": ["networkpolicies"],
+          "verbs": ["get", "list", "watch"]
+        }
+      ]
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "ClusterRoleBinding",
+      "metadata": {
+        "name": "azure-npm-lite-win"
+      },
+      "subjects": [
+        {
+          "kind": "ServiceAccount",
+          "name": "azure-npm-lite-win",
+          "namespace": "kube-system"
+        }
+      ],
+      "roleRef": {
+        "apiGroup": "rbac.authorization.k8s.io",
+        "kind": "ClusterRole",
+        "name": "azure-npm-lite-win"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ConfigMap",
+      "metadata": {
+        "name": "azure-npm-lite-win-config",
+        "namespace": "kube-system"
+      },
+      "data": {
+        "azure-npm.json": ""
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "DaemonSet",
+      "metadata": {
+        "name": "azure-npm-win",
+        "namespace": "kube-system"
+      },
+      "spec": {
+        "selector": {
+          "matchLabels": {
+            "k8s-app": "azure-npm-win"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "k8s-app": "azure-npm-win"
+            }
+          },
+          "spec": {
+            "priorityClassName": "system-node-critical",
+            "serviceAccountName": "azure-npm-lite-win",
+            "tolerations": [{"operator": "Exists"}],
+            "nodeSelector": {
+              "kubernetes.io/os": "windows",
+              "kubernetes.io/arch": "amd64",
+              "node.kubernetes.io/windows-build": "10.0.20348"
+            },
+            "securityContext": {
+              "windowsOptions": {
+                "hostProcess": true,
+                "runAsUserName": "NT AUTHORITY\\SYSTEM"
+              }
+            },
+            "hostNetwork": true,
+            "containers": [
+              {
+                "name": "azure-npm-win",
+                "image": "__prebuilt-image-required__",
+                "imagePullPolicy": "Always",
+                "command": ["powershell.exe"],
+                "args": [
+                  "-NoLogo",
+                  "-NoProfile",
+                  "-NonInteractive",
+                  "-Command",
+                  "$ErrorActionPreference = 'Stop'; $env:NPM_CONFIG = Join-Path $env:CONTAINER_SANDBOX_MOUNT_POINT 'etc\\azure-npm\\azure-npm.json'; & (Join-Path $env:CONTAINER_SANDBOX_MOUNT_POINT 'npm.exe') start; exit $LASTEXITCODE"
+                ],
+                "env": [
+                  {
+                    "name": "HOSTNAME",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "apiVersion": "v1",
+                        "fieldPath": "spec.nodeName"
+                      }
+                    }
+                  }
+                ],
+                "resources": {
+                  "requests": {"cpu": "250m"},
+                  "limits": {"cpu": "250m", "memory": "300Mi"}
+                },
+                "volumeMounts": [
+                  {
+                    "name": "azure-npm-config",
+                    "mountPath": ".\\etc\\azure-npm",
+                    "readOnly": true
+                  }
+                ]
+              }
+            ],
+            "volumes": [
+              {
+                "name": "azure-npm-config",
+                "configMap": {"name": "azure-npm-lite-win-config"}
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
