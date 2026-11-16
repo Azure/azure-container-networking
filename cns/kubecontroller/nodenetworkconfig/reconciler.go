@@ -2,7 +2,6 @@ package nodenetworkconfig
 
 import (
 	"context"
-	"net/netip"
 	"sync"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -30,11 +29,6 @@ type cnsClient interface {
 
 type nodenetworkconfigSink func(*v1alpha.NodeNetworkConfig) error
 
-// RouteClient ensures node-owned prefixes have terminal routes for unused pod IPs.
-type RouteClient interface {
-	EnsureBlackholeRoute(netip.Prefix) error
-}
-
 // Deprecated: use nodenetworkconfigSink instead
 type nodeNetworkConfigListener interface {
 	// Deprecated: use nodenetworkconfigSink instead
@@ -56,27 +50,25 @@ type Reconciler struct {
 	isSwiftV2          bool
 	initializer        nodenetworkconfigSink
 	ipv6PrefixClamp    int
-	routes             RouteClient // nil when disabled or route initialization has completed
+	platformSink       func([]string) error
 }
 
 // NewReconciler creates a NodeNetworkConfig Reconciler which will get updates from the Kubernetes
 // apiserver for NNC events.
 // Provided nncListeners are passed the NNC after the Reconcile preprocesses it. Note: order matters! The
 // passed Listeners are notified in the order provided.
-func NewReconciler(
-	cnscli cnsClient, initializer nodenetworkconfigSink, ipampoolmonitorcli nodeNetworkConfigListener,
-	nodeIP string, isSwiftV2 bool, ipv6PrefixClamp int, routes RouteClient,
-) *Reconciler {
-	return &Reconciler{
+func NewReconciler(cnscli cnsClient, initializer nodenetworkconfigSink, monitor nodeNetworkConfigListener, nodeIP string, isSwiftV2 bool, ipv6PrefixClamp int, enableBlackholeRoutes bool) *Reconciler {
+	r := &Reconciler{
 		cnscli:             cnscli,
-		ipampoolmonitorcli: ipampoolmonitorcli.Update,
+		ipampoolmonitorcli: monitor.Update,
 		started:            make(chan any),
 		nodeIP:             nodeIP,
 		isSwiftV2:          isSwiftV2,
 		initializer:        initializer,
 		ipv6PrefixClamp:    ipv6PrefixClamp,
-		routes:             routes,
 	}
+	r.configurePlatformSink(enableBlackholeRoutes)
+	return r
 }
 
 // Reconcile is called on CRD status changes
@@ -117,16 +109,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		r.initializer = nil
 	}
 
-	if r.routes != nil {
-		if err := r.initializeRoutes(nnc); err != nil {
-			logger.Errorf("[cns-rc] failed to initialize overlay blackhole routes: %v", err) //nolint:staticcheck // legacy reconciler logger
-			return reconcile.Result{}, errors.Wrap(err, "failed to initialize overlay blackhole routes")
-		}
-		r.routes = nil
-	}
-
 	// for each NC, parse it in to a CreateNCRequest and forward it to the appropriate Listener
 	goals := make([]restserver.NetworkContainerGoal, 0, ncCount)
+	// Dual-stack overlay uses separate IPv4 and IPv6 network containers.
+	var prefixes []string
 	for i := range nnc.Status.NetworkContainers {
 		// check if this NC matches the Node IP if we have one to check against
 		if r.nodeIP != "" {
@@ -145,6 +131,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		// For Overlay and Vnet Scale Scenarios
 		case v1alpha.Static:
 			req, err = CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i], r.isSwiftV2, r.ipv6PrefixClamp)
+			if nnc.Status.NetworkContainers[i].Type == v1alpha.Overlay {
+				prefixes = append(prefixes, nnc.Status.NetworkContainers[i].PrimaryIP)
+			}
 		// For Pod Subnet scenario
 		default: // For backward compatibility, default will be treated as Dynamic too.
 			req, err = CreateNCRequestFromDynamicNC(nnc.Status.NetworkContainers[i])
@@ -162,6 +151,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 
 		goals = append(goals, restserver.NetworkContainerGoal{Request: req, ValidateVersion: validateVersion})
 		ipAssignments += len(req.SecondaryIPConfigs)
+	}
+
+	if r.platformSink != nil {
+		listenersToNotify = append(listenersToNotify, func(*v1alpha.NodeNetworkConfig) error {
+			return r.platformSink(prefixes)
+		})
 	}
 
 	// apply all NCs of the NNC together, so that a failure leaves CNS state unchanged
