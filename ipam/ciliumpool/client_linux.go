@@ -181,15 +181,9 @@ func eligibleSupply(node *unstructured.Unstructured, binding Binding, guest map[
 			return nil, fmt.Errorf("%w: duplicate Azure interface", ErrOwnership)
 		}
 		selected = true
-		macText, _ := iface[macField].(string)
-		mac, macErr := net.ParseMAC(macText)
-		subnet, _, subnetErr := unstructured.NestedString(iface, subnetField, cidrField)
-		prefix, prefixErr := netip.ParsePrefix(binding.Subnet)
-		if macErr != nil || mac.String() != binding.MAC || iface["ip"] != binding.Primary ||
-			subnetErr != nil || subnet != binding.Subnet || prefixErr != nil ||
-			iface[gatewayField] != prefix.Addr().Next().String() ||
-			(iface[stateField] != nil && iface[stateField] != "" && iface[stateField] != stateSucceeded) {
-			return nil, fmt.Errorf("%w: operator metadata differs from guest", ErrOwnership)
+		prefix, err := validateInterface(iface, binding)
+		if err != nil {
+			return nil, err
 		}
 		addresses, _, err := unstructured.NestedSlice(iface, "addresses")
 		if err != nil {
@@ -215,4 +209,32 @@ func eligibleSupply(node *unstructured.Unstructured, binding Binding, guest map[
 		}
 	}
 	return result, nil
+}
+
+func validateInterface(iface map[string]any, binding Binding) (netip.Prefix, error) {
+	macText, _ := iface[macField].(string)
+	mac, err := net.ParseMAC(macText)
+	if err != nil || mac.String() != binding.MAC {
+		return netip.Prefix{}, fmt.Errorf("%w: operator MAC differs from guest", ErrOwnership)
+	}
+	if iface["ip"] != binding.Primary {
+		return netip.Prefix{}, fmt.Errorf("%w: operator primary IP differs from guest", ErrOwnership)
+	}
+	subnet, _, err := unstructured.NestedString(iface, subnetField, cidrField)
+	if err != nil || subnet != binding.Subnet {
+		return netip.Prefix{}, fmt.Errorf("%w: operator subnet differs from guest", ErrOwnership)
+	}
+	prefix, err := netip.ParsePrefix(binding.Subnet)
+	if err != nil {
+		return netip.Prefix{}, fmt.Errorf("%w: invalid bound subnet", ErrOwnership)
+	}
+	if iface[gatewayField] != prefix.Addr().Next().String() {
+		return netip.Prefix{}, fmt.Errorf("%w: operator gateway differs from guest", ErrOwnership)
+	}
+	switch iface[stateField] {
+	case nil, "", stateSucceeded:
+		return prefix, nil
+	default:
+		return netip.Prefix{}, fmt.Errorf("%w: operator interface provisioning is not successful", ErrOwnership)
+	}
 }
