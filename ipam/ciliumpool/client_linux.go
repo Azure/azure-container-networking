@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/avast/retry-go/v4"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -57,7 +58,7 @@ func (a *Allocator) update(ctx context.Context, owner Owner, address string, com
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 	var uid types.UID
-	for attempt := 0; attempt < 8; attempt++ {
+	ip, err := retry.DoWithData(func() (string, error) {
 		node, err := a.Nodes.Get(ctx, a.NodeName, metav1.GetOptions{})
 		if err != nil {
 			return "", fmt.Errorf("reading CiliumNode: %w", err)
@@ -115,15 +116,14 @@ func (a *Allocator) update(ctx context.Context, owner Owner, address string, com
 		if current.GetResourceVersion() == node.GetResourceVersion() {
 			return "", fmt.Errorf("conditional update failed without concurrent change: %w", err)
 		}
-		timer := time.NewTimer(time.Duration(attempt+1) * 10 * time.Millisecond)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return "", fmt.Errorf("updating IPAM state: %w", ctx.Err())
-		case <-timer.C:
-		}
+		return "", errConflictRetries
+	}, retry.Context(ctx), retry.Attempts(8), retry.LastErrorOnly(true),
+		retry.RetryIf(func(err error) bool { return errors.Is(err, errConflictRetries) }),
+		retry.Delay(10*time.Millisecond), retry.MaxDelay(80*time.Millisecond), retry.DelayType(retry.BackOffDelay))
+	if err != nil {
+		return "", fmt.Errorf("updating IPAM state: %w", err)
 	}
-	return "", errConflictRetries
+	return ip, nil
 }
 
 func (a *Allocator) changeReservation(state *State, owner Owner, address string, command operation, supply []string) (string, error) {
