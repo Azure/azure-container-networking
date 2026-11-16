@@ -20,7 +20,11 @@ func TestAPIRejectsOperatorMetadataDriftBeforeReservation(t *testing.T) {
 		{"provisioning", []string{stateField}, "failed"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			a, api := testAllocator(t)
+			a, api, factoryErr := testAllocator()
+			if factoryErr != nil {
+				t.Fatal(factoryErr)
+			}
+			t.Cleanup(api.server.Close)
 			interfaces, _, err := unstructured.NestedSlice(api.node.Object, statusField, testNetwork, "interfaces")
 			if err != nil {
 				t.Fatal(err)

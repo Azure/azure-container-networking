@@ -13,10 +13,14 @@ func TestMalformedBootCannotBeTreatedAsPreviousBoot(t *testing.T) {
 		Owner:  Owner{Network: testNetwork, Sandbox: testSandbox, Interface: testIfName},
 		BootID: "malformed", Resource: testNIC,
 	}
-	if _, err := readState(testNode(t, state), binding); err == nil {
+	if _, err := readState(testNode(state), binding); err == nil {
 		t.Fatal("unrecognized remote boot identity accepted for automatic retirement")
 	}
-	a, _ := testAllocator(t)
+	a, api, factoryErr := testAllocator()
+	if factoryErr != nil {
+		t.Fatal(factoryErr)
+	}
+	t.Cleanup(api.server.Close)
 	a.BootID = "malformed"
 	if err := a.Reconcile(context.Background()); err == nil {
 		t.Fatal("unrecognized current boot identity accepted for reconciliation")

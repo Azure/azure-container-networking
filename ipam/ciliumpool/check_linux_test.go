@@ -8,7 +8,11 @@ import (
 )
 
 func TestCheckValidatesReservationWithoutMutatingState(t *testing.T) {
-	a, _ := testAllocator(t)
+	a, api, factoryErr := testAllocator()
+	if factoryErr != nil {
+		t.Fatal(factoryErr)
+	}
+	t.Cleanup(api.server.Close)
 	ctx := context.Background()
 	owner := Owner{Network: testNetwork, Sandbox: testSandbox, Interface: testIfName}
 	if _, err := a.Add(ctx, owner); err != nil {

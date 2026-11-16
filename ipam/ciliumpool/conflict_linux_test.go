@@ -8,7 +8,11 @@ import (
 func TestAPIInvalidVersionTestRetriesButReplacementDoesNot(t *testing.T) {
 	owner := Owner{Network: testNetwork, Sandbox: testSandbox, Interface: testIfName}
 	t.Run("invalid version", func(t *testing.T) {
-		a, api := testAllocator(t)
+		a, api, factoryErr := testAllocator()
+		if factoryErr != nil {
+			t.Fatal(factoryErr)
+		}
+		t.Cleanup(api.server.Close)
 		api.conflicts = 1
 		api.invalidConflict = true
 		if _, err := a.Add(context.Background(), owner); err != nil {
@@ -16,7 +20,11 @@ func TestAPIInvalidVersionTestRetriesButReplacementDoesNot(t *testing.T) {
 		}
 	})
 	t.Run("object replacement", func(t *testing.T) {
-		a, api := testAllocator(t)
+		a, api, factoryErr := testAllocator()
+		if factoryErr != nil {
+			t.Fatal(factoryErr)
+		}
+		t.Cleanup(api.server.Close)
 		api.conflicts = 1
 		api.replaceOnConflict = true
 		if _, err := a.Add(context.Background(), owner); err == nil {
@@ -24,7 +32,11 @@ func TestAPIInvalidVersionTestRetriesButReplacementDoesNot(t *testing.T) {
 		}
 	})
 	t.Run("binding drift", func(t *testing.T) {
-		a, api := testAllocator(t)
+		a, api, factoryErr := testAllocator()
+		if factoryErr != nil {
+			t.Fatal(factoryErr)
+		}
+		t.Cleanup(api.server.Close)
 		annotations := api.node.GetAnnotations()
 		annotations[vmAnnotation] = testForeign
 		api.node.SetAnnotations(annotations)

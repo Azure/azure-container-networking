@@ -3,6 +3,7 @@ package ciliumpool
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -20,6 +21,7 @@ import (
 )
 
 type testAPI struct {
+	server            *httptest.Server
 	mu                sync.Mutex
 	node              *unstructured.Unstructured
 	conflicts         int
@@ -28,19 +30,18 @@ type testAPI struct {
 	replaceOnConflict bool
 }
 
-func testOperatorNode(t *testing.T) *unstructured.Unstructured {
-	t.Helper()
-	api := &testAPI{node: testNode(t, newState())}
+func testOperatorNode() (*unstructured.Unstructured, error) {
+	api := &testAPI{node: testNode(newState())}
 	api.node.SetOwnerReferences([]metav1.OwnerReference{{APIVersion: "v1", Kind: "Node", Name: testNodeName, UID: testNodeUID}})
 	annotations := api.node.GetAnnotations()
 	annotations[vmAnnotation] = "vm"
 	annotations[consumerAnnotation] = PluginName
 	api.node.SetAnnotations(annotations)
 	if err := unstructured.SetNestedField(api.node.Object, int64(2), specField, ipamField, "pre-allocate"); err != nil {
-		t.Fatal(err)
+		return nil, fmt.Errorf("setting preallocation: %w", err)
 	}
 	if err := unstructured.SetNestedField(api.node.Object, testInstanceID, specField, "instance-id"); err != nil {
-		t.Fatal(err)
+		return nil, fmt.Errorf("setting instance identity: %w", err)
 	}
 	if err := unstructured.SetNestedSlice(api.node.Object, []any{map[string]any{
 		"id": testNIC, "ip": testPrimary, macField: testMAC, gatewayField: "10.0.0.1", subnetField: map[string]any{"id": subnetField, cidrField: testSubnet}, "addresses": []any{
@@ -48,14 +49,17 @@ func testOperatorNode(t *testing.T) *unstructured.Unstructured {
 			map[string]any{"ip": testOtherIP, stateField: stateSucceeded},
 		},
 	}}, statusField, testNetwork, "interfaces"); err != nil {
-		t.Fatal(err)
+		return nil, fmt.Errorf("setting Azure interfaces: %w", err)
 	}
-	return api.node
+	return api.node, nil
 }
 
-func testAllocator(t *testing.T) (*Allocator, *testAPI) {
-	t.Helper()
-	api := &testAPI{node: testOperatorNode(t)}
+func testAllocator() (*Allocator, *testAPI, error) {
+	node, nodeErr := testOperatorNode()
+	if nodeErr != nil {
+		return nil, nil, nodeErr
+	}
+	api := &testAPI{node: node}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		api.mu.Lock()
 		defer api.mu.Unlock()
@@ -65,34 +69,32 @@ func testAllocator(t *testing.T) (*Allocator, *testAPI) {
 			wantPath += "/status"
 		}
 		if r.URL.Path != wantPath {
-			t.Errorf("unexpected resource endpoint: %s", r.URL.Path)
 			http.NotFound(w, r)
 			return
 		}
 		if r.Method == http.MethodPatch {
 			old, err := api.node.MarshalJSON()
 			if err != nil {
-				t.Error(err)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			data, err := io.ReadAll(r.Body)
 			if err != nil {
-				t.Error(err)
+				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 			patch, err := jsonpatch.DecodePatch(data)
 			if err != nil {
-				t.Error(err)
+				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 			var ops []patchOperation
 			if err := json.Unmarshal(data, &ops); err != nil {
-				t.Error(err)
+				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 			for _, op := range ops {
 				if op.Op != "test" && !strings.HasPrefix(op.Path, "/status") {
-					t.Errorf("consumer attempted non-status write: %+v", op)
 					w.WriteHeader(http.StatusBadRequest)
 					return
 				}
@@ -121,7 +123,7 @@ func testAllocator(t *testing.T) (*Allocator, *testAPI) {
 				return
 			}
 			if err := api.node.UnmarshalJSON(updated); err != nil {
-				t.Error(err)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			rv, _ := strconv.Atoi(api.node.GetResourceVersion())
@@ -132,16 +134,16 @@ func testAllocator(t *testing.T) (*Allocator, *testAPI) {
 				return
 			}
 		} else if r.Method != http.MethodGet {
-			t.Errorf("unexpected HTTP method: %s", r.Method)
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
 		_ = json.NewEncoder(w).Encode(api.node.Object)
 	}))
-	t.Cleanup(server.Close)
+	api.server = server
 	client, err := dynamic.NewForConfig(&rest.Config{Host: server.URL})
 	if err != nil {
-		t.Fatal(err)
+		server.Close()
+		return nil, nil, fmt.Errorf("creating test client: %w", err)
 	}
 	allocator := &Allocator{
 		Nodes:    client.Resource(schema.GroupVersionResource{Group: "cilium.io", Version: "v2", Resource: "ciliumnodes"}),
@@ -152,11 +154,15 @@ func testAllocator(t *testing.T) (*Allocator, *testAPI) {
 		},
 		BootID: testBoot, PreAllocate: 2, Supply: map[string]bool{testIP: true, testOtherIP: true},
 	}
-	return allocator, api
+	return allocator, api, nil
 }
 
 func TestAPIClaimsRetryConflictAndPreserveOperatorStatus(t *testing.T) {
-	a, api := testAllocator(t)
+	a, api, factoryErr := testAllocator()
+	if factoryErr != nil {
+		t.Fatal(factoryErr)
+	}
+	t.Cleanup(api.server.Close)
 	api.conflicts = 1
 	owner := Owner{Network: testNetwork, Sandbox: testSandbox, Interface: testIfName}
 	ip, err := a.Add(context.Background(), owner)
@@ -176,7 +182,11 @@ func TestAPIClaimsRetryConflictAndPreserveOperatorStatus(t *testing.T) {
 }
 
 func TestAPILostResponseReplaysWithoutSecondReservation(t *testing.T) {
-	a, api := testAllocator(t)
+	a, api, factoryErr := testAllocator()
+	if factoryErr != nil {
+		t.Fatal(factoryErr)
+	}
+	t.Cleanup(api.server.Close)
 	api.loseResponse = true
 	owner := Owner{Network: testNetwork, Sandbox: testSandbox, Interface: testIfName}
 	if _, err := a.Add(context.Background(), owner); err == nil {
@@ -195,7 +205,11 @@ func TestAPILostResponseReplaysWithoutSecondReservation(t *testing.T) {
 }
 
 func TestAPIConcurrentClaimsAreUnique(t *testing.T) {
-	a, _ := testAllocator(t)
+	a, api, factoryErr := testAllocator()
+	if factoryErr != nil {
+		t.Fatal(factoryErr)
+	}
+	t.Cleanup(api.server.Close)
 	results := make(chan string, 2)
 	var wg sync.WaitGroup
 	for _, sandbox := range []string{"a", "b"} {

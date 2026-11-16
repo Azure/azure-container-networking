@@ -9,7 +9,11 @@ import (
 )
 
 func TestAllocationRequiresOperatorPoolNotJustNICInventory(t *testing.T) {
-	a, api := testAllocator(t)
+	a, api, factoryErr := testAllocator()
+	if factoryErr != nil {
+		t.Fatal(factoryErr)
+	}
+	t.Cleanup(api.server.Close)
 	if err := unstructured.SetNestedMap(api.node.Object, map[string]any{
 		testOtherIP: map[string]any{resourceField: testNIC},
 	}, specField, ipamField, poolField); err != nil {

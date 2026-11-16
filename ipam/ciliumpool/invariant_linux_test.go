@@ -28,7 +28,11 @@ func TestMutationsRejectInvalidIdentityAndReservationOverflow(t *testing.T) {
 }
 
 func TestAPIRejectsSparePolicyDrift(t *testing.T) {
-	a, api := testAllocator(t)
+	a, api, factoryErr := testAllocator()
+	if factoryErr != nil {
+		t.Fatal(factoryErr)
+	}
+	t.Cleanup(api.server.Close)
 	if err := unstructured.SetNestedField(api.node.Object, int64(9), specField, ipamField, "pre-allocate"); err != nil {
 		t.Fatal(err)
 	}

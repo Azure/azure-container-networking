@@ -8,7 +8,11 @@ import (
 
 func TestAPIConflictRetryLimitAndCancellation(t *testing.T) {
 	for _, canceled := range []bool{false, true} {
-		a, api := testAllocator(t)
+		a, api, factoryErr := testAllocator()
+		if factoryErr != nil {
+			t.Fatal(factoryErr)
+		}
+		t.Cleanup(api.server.Close)
 		api.conflicts = 10
 		ctx, cancel := context.WithCancel(t.Context())
 		wantErr, remaining := errConflictRetries, 2

@@ -40,7 +40,10 @@ func TestCiliumNodeAPIContract(t *testing.T) {
 	}
 	nodes := client.Resource(CiliumNodes)
 	ctx := t.Context()
-	fixture := testOperatorNode(t)
+	fixture, err := testOperatorNode()
+	if err != nil {
+		t.Fatal(err)
+	}
 	node := fixture.DeepCopy()
 	node.SetUID("")
 	node.SetResourceVersion("")
@@ -70,7 +73,10 @@ func TestCiliumNodeAPIContract(t *testing.T) {
 	if _, updateErr := nodes.UpdateStatus(ctx, node, metav1.UpdateOptions{}); !apierrors.IsConflict(updateErr) {
 		t.Fatalf("stale operator update was not rejected: %v", updateErr)
 	}
-	node = readAPINode(t, nodes)
+	node, err = nodes.Get(ctx, testNodeName, metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	state, err := readState(node, a.Binding)
 	if err != nil || state.Reservations[ip].Owner != owner {
 		t.Fatalf("committed owner did not survive the CRD: %+v, %v", state, err)
@@ -94,11 +100,36 @@ func TestCiliumNodeAPIContract(t *testing.T) {
 	if deleteErr := a.Delete(ctx, owner, ip); deleteErr != nil {
 		t.Fatal(deleteErr)
 	}
-	node = readAPINode(t, nodes)
+	node, err = nodes.Get(ctx, testNodeName, metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	state, err = readState(node, a.Binding)
 	if err != nil || len(state.Reservations) != 1 || state.Reservations[otherIP].Owner != other {
 		t.Fatalf("DEL lost another owner: %+v, %v", state, err)
 	}
+	assertOperatorState(t, fixture, node)
+	node.SetUID(types.UID("replaced-object"))
+	stalePatch, err = usagePatch(node, newState(), a.Binding.VMID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertAPIRejectsPatch(t, nodes, stalePatch)
+	if deleteErr := a.Delete(ctx, other, otherIP); deleteErr != nil {
+		t.Fatal(deleteErr)
+	}
+	node, err = nodes.Get(ctx, testNodeName, metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err = readState(node, a.Binding)
+	if err != nil || len(state.Reservations) != 0 {
+		t.Fatalf("DEL did not persist: %+v, %v", state, err)
+	}
+}
+
+func assertOperatorState(t *testing.T, fixture, node *unstructured.Unstructured) {
+	t.Helper()
 	if diff := cmp.Diff(fixture.Object[specField], node.Object[specField]); diff != "" {
 		t.Fatalf("operator pool/spec changed (-want +got): %s", diff)
 	}
@@ -111,37 +142,22 @@ func TestCiliumNodeAPIContract(t *testing.T) {
 	if err != nil || diagnostic != "operator diagnostic" {
 		t.Fatalf("operator status lost: %q, %v", diagnostic, err)
 	}
-	node.SetUID(types.UID("replaced-object"))
-	stalePatch, err = usagePatch(node, newState(), a.Binding.VMID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assertAPIRejectsPatch(t, nodes, stalePatch)
-	if deleteErr := a.Delete(ctx, other, otherIP); deleteErr != nil {
-		t.Fatal(deleteErr)
-	}
-	state, err = readState(readAPINode(t, nodes), a.Binding)
-	if err != nil || len(state.Reservations) != 0 {
-		t.Fatalf("DEL did not persist: %+v, %v", state, err)
-	}
-}
-
-func readAPINode(t *testing.T, nodes dynamic.ResourceInterface) *unstructured.Unstructured {
-	t.Helper()
-	node, err := nodes.Get(t.Context(), testNodeName, metav1.GetOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return node
 }
 
 func assertAPIRejectsPatch(t *testing.T, nodes dynamic.ResourceInterface, patch []byte) {
 	t.Helper()
-	before := readAPINode(t, nodes)
-	if _, err := nodes.Patch(t.Context(), testNodeName, types.JSONPatchType, patch, metav1.PatchOptions{}, statusField); !apierrors.IsInvalid(err) && !apierrors.IsConflict(err) {
-		t.Fatalf("stale conditional patch was not rejected: %v", err)
+	before, err := nodes.Get(t.Context(), testNodeName, metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
 	}
-	if diff := cmp.Diff(before.Object, readAPINode(t, nodes).Object); diff != "" {
+	if _, patchErr := nodes.Patch(t.Context(), testNodeName, types.JSONPatchType, patch, metav1.PatchOptions{}, statusField); !apierrors.IsInvalid(patchErr) && !apierrors.IsConflict(patchErr) {
+		t.Fatalf("stale conditional patch was not rejected: %v", patchErr)
+	}
+	after, err := nodes.Get(t.Context(), testNodeName, metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(before.Object, after.Object); diff != "" {
 		t.Fatalf("rejected patch changed the resource: %s", diff)
 	}
 }

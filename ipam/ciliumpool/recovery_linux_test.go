@@ -10,7 +10,11 @@ import (
 )
 
 func TestAPIPolicyDriftBlocksAdmissionButNotDelete(t *testing.T) {
-	a, api := testAllocator(t)
+	a, api, factoryErr := testAllocator()
+	if factoryErr != nil {
+		t.Fatal(factoryErr)
+	}
+	t.Cleanup(api.server.Close)
 	owner := Owner{Network: testNetwork, Sandbox: testSandbox, Interface: testIfName}
 	ip, err := a.Add(context.Background(), owner)
 	if err != nil {
@@ -33,7 +37,11 @@ func TestAPIPolicyDriftBlocksAdmissionButNotDelete(t *testing.T) {
 }
 
 func TestAPIExhaustionPreservesUsageAndOwnerOnlyDeleteReleases(t *testing.T) {
-	a, _ := testAllocator(t)
+	a, api, factoryErr := testAllocator()
+	if factoryErr != nil {
+		t.Fatal(factoryErr)
+	}
+	t.Cleanup(api.server.Close)
 	ctx := context.Background()
 	owners := []Owner{
 		{Network: testNetwork, Sandbox: "a", Interface: testIfName},
@@ -78,7 +86,11 @@ func TestAPIExhaustionPreservesUsageAndOwnerOnlyDeleteReleases(t *testing.T) {
 }
 
 func TestAPIReconcileRetiresPreviousBootWithoutNewAllocation(t *testing.T) {
-	a, _ := testAllocator(t)
+	a, api, factoryErr := testAllocator()
+	if factoryErr != nil {
+		t.Fatal(factoryErr)
+	}
+	t.Cleanup(api.server.Close)
 	ctx := context.Background()
 	if _, err := a.Add(ctx, Owner{Network: testNetwork, Sandbox: testOld, Interface: testIfName}); err != nil {
 		t.Fatal(err)
@@ -99,7 +111,11 @@ func TestAPIReconcileRetiresPreviousBootWithoutNewAllocation(t *testing.T) {
 }
 
 func TestAPIWithdrawnReservationDoesNotGetAnotherIP(t *testing.T) {
-	a, api := testAllocator(t)
+	a, api, factoryErr := testAllocator()
+	if factoryErr != nil {
+		t.Fatal(factoryErr)
+	}
+	t.Cleanup(api.server.Close)
 	ctx := context.Background()
 	owner := Owner{Network: testNetwork, Sandbox: testSandbox, Interface: testIfName}
 	if _, err := a.Add(ctx, owner); err != nil {

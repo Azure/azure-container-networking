@@ -8,8 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func testNode(t *testing.T, state State) *unstructured.Unstructured {
-	t.Helper()
+func testNode(state State) *unstructured.Unstructured {
 	used := map[string]any{}
 	for ip, entry := range state.Reservations {
 		parts := []string{"vm", entry.BootID, entry.Owner.Network, entry.Owner.Sandbox, entry.Owner.Interface}
@@ -39,7 +38,7 @@ func TestStableStateRejectsForeignOrMalformedUsage(t *testing.T) {
 		{"malformed boot", strings.Replace(validOwner, testBoot, "malformed", 1), testNIC, testIP},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			n := testNode(t, newState())
+			n := testNode(newState())
 			if err := unstructured.SetNestedMap(n.Object, map[string]any{tt.ip: map[string]any{ownerField: tt.owner, resourceField: tt.resource}}, statusField, ipamField, "used"); err != nil {
 				t.Fatal(err)
 			}
@@ -53,7 +52,7 @@ func TestStableStateRejectsForeignOrMalformedUsage(t *testing.T) {
 func TestStableStateRejectsActiveMultiPoolContract(t *testing.T) {
 	binding := Binding{VMID: "vm", Resource: testNIC, Subnet: testSubnet}
 	for _, annotation := range []bool{false, true} {
-		n := testNode(t, newState())
+		n := testNode(newState())
 		if annotation {
 			n.SetAnnotations(map[string]string{"azure-container-networking.io/ipam-state": "{}"})
 		} else if err := unstructured.SetNestedMap(n.Object, map[string]any{"requested": []any{}}, specField, ipamField, "pools"); err != nil {
@@ -70,7 +69,7 @@ func TestStableOwnerEscapingAndWithdrawnClaimRelease(t *testing.T) {
 	owner := Owner{Network: "azure/network", Sandbox: "sandbox/with%escape", Interface: testIfName}
 	state := newState()
 	state.Reservations[testIP] = Reservation{Owner: owner, BootID: testBoot, Resource: testNIC}
-	n := testNode(t, state)
+	n := testNode(state)
 	if err := unstructured.SetNestedMap(n.Object, map[string]any{}, specField, ipamField, poolField); err != nil {
 		t.Fatal(err)
 	}
