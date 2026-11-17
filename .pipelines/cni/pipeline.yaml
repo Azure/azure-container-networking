@@ -2,66 +2,14 @@ trigger: none
 pr: none
 
 stages:
-- stage: arm_pool_diagnostics
-  displayName: Read-only ARM pool diagnostics
-  jobs:
-  - job: inspect_docker_access
-    displayName: Inspect agent groups and Docker socket
-    timeoutInMinutes: 10
-    cancelTimeoutInMinutes: 1
-    pool:
-      name: Networking-ContainerNetworking-linux-arm
-    steps:
-    - checkout: none
-    - bash: |
-        set -uo pipefail
-
-        LAST_RC=0
-        run() {
-          printf '\n=== '
-          printf '%q ' "$@"
-          printf '===\n'
-          "$@"
-          LAST_RC=$?
-          printf '\nexit_code=%s\n' "$LAST_RC"
-        }
-
-        run date -u
-        run uname -a
-        run cat /etc/os-release
-        run whoami
-        run id
-        run id cloudtest
-        run getent passwd cloudtest
-        run getent group docker
-        run grep -E '^(Name|Pid|PPid|Uid|Gid|Groups):' /proc/self/status
-        for pid in "$$" "$PPID"; do
-          run grep -E '^(Name|Pid|PPid|Uid|Gid|Groups):' "/proc/$pid/status"
-        done
-        run ps -C Agent.Listener,Agent.Worker -o pid,ppid,user,group,supgrp,comm
-
-        run stat -c '%A %a %U:%G %u:%g %n' /var/run/docker.sock
-        run namei -l /var/run/docker.sock
-        run readlink -f /var/run/docker.sock
-        run getfacl --absolute-names /var/run/docker.sock
-        run docker version
-        run docker info
-        USER_DOCKER_RC=$LAST_RC
-        run sudo -n docker info
-        ROOT_DOCKER_RC=$LAST_RC
-
-        run systemctl cat docker.service docker.socket
-        run systemctl show docker.service -p MainPID -p FragmentPath -p DropInPaths -p ExecMainStartTimestamp
-        run sudo -n journalctl -b -u docker.service -u docker.socket --no-pager -n 100
-        run dpkg-query -W docker-ce docker-ce-cli containerd.io
-
-        printf '\n=== DIAGNOSTIC RESULT ===\n'
-        printf 'agent_user_docker_info_exit_code=%s\n' "$USER_DOCKER_RC"
-        printf 'root_docker_info_exit_code=%s\n' "$ROOT_DOCKER_RC"
-        if [ "$USER_DOCKER_RC" -ne 0 ]; then
-          printf 'FAIL: Docker access fails as the agent user; preceding output preserves the evidence.\n'
-          exit 1
-        fi
-        printf 'PASS: Docker access succeeds as the agent user on this allocation.\n'
-      displayName: Collect read-only Docker access diagnostics
-      timeoutInMinutes: 5
+  - stage: arm_pool_diagnostics
+    displayName: Read-only ARM pool diagnostics
+    jobs:
+      - job: inspect_docker_access
+        displayName: Inspect full cloudtest provisioning and Docker access
+        timeoutInMinutes: 15
+        cancelTimeoutInMinutes: 1
+        pool:
+          name: Networking-ContainerNetworking-linux-arm
+        steps:
+          - template: ../templates/arm-pool-diagnostics.yaml

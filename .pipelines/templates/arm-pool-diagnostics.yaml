@@ -1,0 +1,299 @@
+steps:
+  - checkout: none
+  - bash: |
+      set -eu
+      python3 - <<'PY'
+      import gzip
+      import hashlib
+      import io
+      import json
+      import os
+      from pathlib import Path
+      import pickle
+      import re
+      import subprocess
+      import sys
+      import urllib.request
+      import yaml
+
+      marker = "[REDACTED]"
+      secret_key = re.compile(
+          r"password|passwd|passphrase|hashed_pass|secret|token|credential|"
+          r"private.?key|client.?key|account.?key|authorization|custom.?data|"
+          r"user.?data|vendor.?data|protected.?settings", re.I
+      )
+      secrets = set()
+      records = []
+      failures = []
+
+      def remember(value):
+          if isinstance(value, str) and len(value) >= 4:
+              secrets.add(value)
+          elif isinstance(value, (dict, list)):
+              for item in (value.values() if isinstance(value, dict) else value):
+                  remember(item)
+
+      def redact_document(text):
+          spans = []
+          def remember_node(node):
+              if isinstance(node, yaml.ScalarNode):
+                  if node.tag.endswith(":str"):
+                      remember(node.value)
+              elif isinstance(node, yaml.SequenceNode):
+                  for child in node.value:
+                      remember_node(child)
+              elif isinstance(node, yaml.MappingNode):
+                  for key, value in node.value:
+                      remember_node(value)
+          def walk(node):
+              if isinstance(node, yaml.MappingNode):
+                  for key, value in node.value:
+                      if secret_key.search(str(key.value)) and not isinstance(value, yaml.ScalarNode):
+                          remember_node(value)
+                          spans.append((value.start_mark.index, value.end_mark.index))
+                      elif secret_key.search(str(key.value)) and value.tag.endswith(":str"):
+                          remember(value.value)
+                          spans.append((value.start_mark.index, value.end_mark.index))
+                      else:
+                          walk(value)
+              elif isinstance(node, yaml.SequenceNode):
+                  for value in node.value:
+                      walk(value)
+          for node in yaml.compose_all(text):
+              if node is not None:
+                  walk(node)
+          for start, end in sorted(spans, reverse=True):
+              text = text[:start] + json.dumps(marker) + text[end:]
+          return text, len(spans)
+
+      def scrub(text):
+          count = 0
+          patterns = [
+              (r"-----BEGIN [^-]*PRIVATE KEY-----.*?-----END [^-]*PRIVATE KEY-----", re.S),
+              (r"(?i)(?:Bearer|Basic)\s+[A-Za-z0-9+/_.=-]+", 0),
+              (r"\$[1256y]\$[^\s'\"\\,;]+", 0),
+              (r"(?i)(?<=[?&])sig=[^&\s'\"<>]+", 0),
+              (r"(?i)(?:[\w-]*(?:password|passwd|passphrase|secret|token|credential|"
+               r"accountkey|sharedaccesskey|authorization)[\w-]*)"
+               r"[\"']?\s*[:=]\s*(?:\"[^\"]*\"|'[^']*'|[^\s,;<>]+)", 0),
+              (r"(?i)(?:--password|--token|--client-secret|-p)\s+"
+               r"(?:\"[^\"]*\"|'[^']*'|[^\s,;<>]+)", 0),
+          ]
+          for pattern, flags in patterns:
+              text, n = re.subn(pattern, marker, text, flags=flags)
+              count += n
+          for value in sorted(secrets, key=len, reverse=True):
+              count += text.count(value)
+              text = text.replace(value, marker)
+          return text, count
+
+      def command(args, timeout=45):
+          try:
+              result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout)
+              return result.stdout, result.returncode
+          except subprocess.TimeoutExpired as error:
+              return (error.stdout or b"") + b"\n[COLLECTION ERROR: command timed out]\n", 124
+          except OSError as error:
+              return str(error).encode(), 127
+
+      def record(title, data, rc=0, kind="text"):
+          records.append((title, data, rc, kind))
+          if rc:
+              failures.append({"item": title, "exit_code": rc})
+
+      def run(*args):
+          data, rc = command(list(args))
+          record("COMMAND " + json.dumps(args), data, rc)
+          return rc
+
+      def read_file(path, kind="text"):
+          data, rc = command(["sudo", "-n", "cat", "--", path])
+          if rc == 0 and path.endswith(".gz"):
+              try:
+                  data = gzip.decompress(data)
+              except (OSError, EOFError) as error:
+                  record("DECOMPRESSION ERROR " + path, str(error).encode(), 1)
+                  return
+          record("FILE " + path, data, rc, kind)
+          return data if rc == 0 else None
+
+      run("date", "-u")
+      run("uname", "-a")
+      run("id")
+      run("id", "cloudtest")
+      run("getent", "passwd", "cloudtest")
+      run("getent", "group")
+      for pid in {os.getpid(), os.getppid()}:
+          read_file(f"/proc/{pid}/status")
+      run("ps", "-C", "Agent.Listener,Agent.Worker", "-o", "pid,ppid,user:32,group:32,supgrp:256,comm")
+      run("stat", "-c", "%A %a %U:%G %u:%g %y %n", "/var/run/docker.sock", "/etc/passwd", "/etc/group")
+      run("namei", "-l", "/var/run/docker.sock")
+      run("getfacl", "--absolute-names", "/var/run/docker.sock")
+      run("docker", "version")
+      user_rc = run("docker", "info")
+      root_rc = run("sudo", "-n", "docker", "info")
+
+      units = ["cloud-init-local.service", "cloud-init.service", "cloud-init-network.service",
+               "cloud-config.service", "cloud-final.service", "waagent.service",
+               "walinuxagent.service", "docker.service", "docker.socket", "vsts.agent*"]
+      run("systemctl", "cat", *units)
+      run("systemctl", "show", *units, "-p", "Id", "-p", "FragmentPath", "-p", "DropInPaths",
+          "-p", "User", "-p", "Group", "-p", "SupplementaryGroups",
+          "-p", "ExecStart", "-p", "ExecMainStartTimestamp", "-p", "ActiveState")
+      run("sudo", "-n", "journalctl", "-b", "--no-pager", "--all", "-o", "short-precise",
+          *[arg for unit in units for arg in ("-u", unit)])
+      run("sudo", "-n", "journalctl", "-b", "--no-pager", "--all", "-o", "json",
+          "-t", "useradd", "-t", "usermod", "-t", "groupadd", "-t", "groupmod", "-t", "gpasswd")
+      run("cloud-init", "--version")
+      run("sudo", "-n", "cloud-init", "status", "--long")
+
+      files = {
+          "/etc/os-release": "text", "/etc/cloud/cloud.cfg": "yaml",
+          "/etc/cloud/build.info": "yaml", "/etc/waagent.conf": "text",
+          "/etc/default/useradd": "text", "/etc/login.defs": "text",
+          "/etc/group": "text", "/etc/passwd": "text",
+          "/var/lib/cloud/instance/cloud-config.txt": "yaml",
+          "/var/lib/cloud/instance/user-data.txt": "userdata",
+          "/var/lib/cloud/instance/user-data.txt.i": "userdata",
+          "/var/lib/cloud/instance/vendor-data.txt": "userdata",
+          "/var/lib/cloud/instance/vendor-data.txt.i": "userdata",
+          "/var/lib/cloud/instance/vendor-data2.txt": "userdata",
+          "/var/lib/cloud/instance/vendor-data2.txt.i": "userdata",
+          "/var/lib/cloud/instance/datasource": "text",
+          "/run/cloud-init/instance-data.json": "yaml",
+          "/run/cloud-init/instance-data-sensitive.json": "yaml",
+          "/run/cloud-init/ds-identify.log": "text",
+          "/var/lib/cloud/data/status.json": "yaml",
+          "/var/lib/cloud/data/result.json": "yaml",
+          "/var/lib/waagent/ovf-env.xml": "xml",
+          "/var/lib/cloud/seed/azure/ovf-env.xml": "xml",
+      }
+      for directory, pattern, kind in [
+          ("/etc/cloud/cloud.cfg.d", "*.cfg", "yaml"),
+          ("/var/log", "cloud-init*", "text"),
+          ("/var/log", "waagent.log*", "text"),
+          ("/var/log", "auth.log*", "text"),
+          ("/var/lib/cloud/instance/scripts", "*", "text"),
+          ("/var/lib/cloud/scripts/per-boot", "*", "text"),
+          ("/var/lib/cloud/scripts/per-instance", "*", "text"),
+          ("/var/lib/cloud/scripts/per-once", "*", "text"),
+      ]:
+          data, rc = command(["sudo", "-n", "find", directory, "-maxdepth", "1", "-type", "f", "-name", pattern, "-print"])
+          record("FILE INVENTORY " + directory + "/" + pattern, data, rc)
+          if rc == 0:
+              files.update({path: kind for path in data.decode().splitlines()})
+      for path, kind in files.items():
+          read_file(path, kind)
+
+      # Read only the OS profile, never an identity-token endpoint.
+      try:
+          request = urllib.request.Request(
+              "http://169.254.169.254/metadata/instance/compute/osProfile?api-version=2021-02-01",
+              headers={"Metadata": "true"})
+          opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+          with opener.open(request, timeout=10) as response:
+              record("LIVE IMDS compute/osProfile", response.read(), kind="yaml")
+      except (OSError, urllib.error.URLError) as error:
+          record("LIVE IMDS compute/osProfile ERROR", str(error).encode(), 1)
+
+      # Never execute constructors or functions embedded in the cached pickle.
+      class Inert:
+          def __new__(cls, *args, **kwargs):
+              return object.__new__(cls)
+          def __init__(self, *args, **kwargs):
+              pass
+          def __setstate__(self, state):
+              self.state = state
+
+      class CacheReader(pickle.Unpickler):
+          def find_class(self, module, name):
+              return Inert
+          def persistent_load(self, pid):
+              raise pickle.UnpicklingError("Persistent references are not permitted")
+
+      cache, rc = command(["sudo", "-n", "cat", "/var/lib/cloud/instance/obj.pkl"])
+      if rc:
+          record("CACHED DATASOURCE ERROR", cache, rc)
+      else:
+          try:
+              state = CacheReader(io.BytesIO(cache)).load().state
+              if not isinstance(state, dict):
+                  raise ValueError("Unexpected cached datasource state")
+              selected = {key: state[key] for key in
+                          ("cfg", "sys_cfg", "metadata", "_metadata_imds", "ds_cfg") if key in state}
+              def inert_json(value):
+                  if isinstance(value, Inert):
+                      return {"inert_cached_object_state": getattr(value, "state", None)}
+                  if isinstance(value, bytes):
+                      return value.decode("utf-8")
+                  raise TypeError(type(value).__name__)
+              record("CACHED DATASOURCE CONFIGURATION (decoded, not executed; not a fresh merge)",
+                     json.dumps(selected, default=inert_json, indent=2).encode(), kind="yaml")
+              record("CACHED DATASOURCE FIELD INVENTORY", json.dumps(sorted(state)).encode())
+          except (pickle.UnpicklingError, AttributeError, TypeError, ValueError, EOFError) as error:
+              record("CACHED DATASOURCE DECODE ERROR", str(error).encode(), 1)
+
+      for package_command in [
+          ["rpm", "-q", "cloud-init", "WALinuxAgent", "moby-engine", "shadow-utils"],
+          ["rpm", "-qf", "/etc/cloud/cloud.cfg"],
+          ["rpm", "-V", "cloud-init"],
+          ["rpm", "-q", "--scripts", "moby-engine"],
+          ["dpkg-query", "-W", "cloud-init", "walinuxagent", "docker-ce", "docker-ce-cli", "passwd"],
+          ["dpkg", "-V", "cloud-init"],
+      ]:
+          if any((Path(folder) / package_command[0]).exists() for folder in ("/usr/bin", "/bin")):
+              run(*package_command)
+
+      # Full installed source fixes the interpretation to each VM's actual version.
+      data, rc = command(["python3", "-c", "import cloudinit; print(cloudinit.__path__[0])"])
+      if rc == 0:
+          source_root = data.decode().strip()
+          for relative in ["stages.py", "helpers.py", "sources/DataSourceAzure.py",
+                           "config/cc_users_groups.py", "distros/__init__.py",
+                           "distros/ubuntu.py", "distros/azurelinux.py"]:
+              read_file(source_root + "/" + relative)
+      else:
+          record("CLOUD-INIT SOURCE LOCATION ERROR", data, rc)
+
+      prepared = []
+      for title, data, rc, kind in records:
+          text = data.decode("utf-8", errors="replace")
+          redactions = 0
+          if rc == 0:
+              try:
+                  if kind == "yaml" or (kind == "userdata" and text.lstrip().startswith("#cloud-config")):
+                      text, redactions = redact_document(text)
+                  elif kind == "xml":
+                      pattern = r"(<(?:\w+:)?(UserPassword|CustomData|UserData)\b[^>]*>)(.*?)(</(?:\w+:)?\2>)"
+                      def hide_xml(match):
+                          remember(match[3])
+                          return match[1] + marker + match[4]
+                      text, redactions = re.subn(pattern, hide_xml, text, flags=re.S | re.I)
+              except yaml.YAMLError as error:
+                  text = "[WITHHELD: configuration could not be parsed safely; " + type(error).__name__ + "]"
+                  failures.append({"item": title, "error": "redaction parse failure"})
+          if "\ufffd" in text:
+              failures.append({"item": title, "error": "invalid UTF-8 replaced in text output"})
+          prepared.append((title, text, rc, redactions, len(data)))
+
+      output = Path(os.environ["DIAGNOSTICS_DIR"]) / "arm-cloudtest-provenance.txt"
+      with output.open("w", encoding="utf-8") as report:
+          for title, text, rc, redactions, size in prepared:
+              clean, additional = scrub(text)
+              section = (f"\n=== {title} ===\nexit_code={rc}; input_bytes={size}; "
+                         f"redactions={redactions + additional}; truncation=none\n{clean}\n")
+              report.write(section)
+              print(section.replace("##vso[", "[ESCAPED ADO COMMAND]"), flush=True)
+          summary = json.dumps({"agent_docker_info_exit_code": user_rc,
+                                "root_docker_info_exit_code": root_rc,
+                                "collection_errors": failures}, indent=2)
+          report.write("\n=== RESULT ===\n" + summary + "\n")
+          print("\n=== RESULT ===\n" + summary, flush=True)
+      print("##vso[task.uploadfile]" + str(output), flush=True)
+      print("report_sha256=" + hashlib.sha256(output.read_bytes()).hexdigest(), flush=True)
+      sys.exit(1 if user_rc else 0)
+      PY
+    displayName: Collect full cloudtest provisioning and Docker evidence
+    timeoutInMinutes: 10
+    env:
+      DIAGNOSTICS_DIR: $(Agent.TempDirectory)
