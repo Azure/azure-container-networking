@@ -126,7 +126,7 @@ ipv6:
 
 
 set-kubeconf: ## Adds the kubeconf for $CLUSTER
-	$(AZCLI) aks get-credentials -n $(CLUSTER) -g $(GROUP)
+	$(AZCLI) aks get-credentials -n $(CLUSTER) -g $(GROUP) --overwrite-existing
 
 unset-kubeconf: ## Deletes the kubeconf for $CLUSTER
 	@kubectl config unset current-context
