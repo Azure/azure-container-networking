@@ -83,10 +83,45 @@ extends:
                   run systemctl show 'vsts.agent*' -p Id -p User -p Group -p SupplementaryGroups -p FragmentPath -p DropInPaths
                   run sudo -n journalctl -b -u docker.service -u docker.socket --no-pager -n 100
                   run sudo -n journalctl -b -t usermod -t groupadd -t gpasswd -t useradd --no-pager -n 100
+                  run sudo -n journalctl -b -t usermod -t groupadd -t gpasswd -t useradd --no-pager -n 100 -o json --output-fields=__REALTIME_TIMESTAMP,_SYSTEMD_UNIT,_SYSTEMD_CGROUP,_EXE,_COMM,_PID,_UID,_AUDIT_LOGINUID,_AUDIT_SESSION,SYSLOG_IDENTIFIER,MESSAGE
+                  run systemctl show cloud-init.service cloud-config.service cloud-final.service waagent.service walinuxagent.service -p Id -p FragmentPath -p DropInPaths -p User -p Group
+                  run sudo -n cloud-init query merged_cfg.system_info.distro
+                  run sudo -n cloud-init query merged_cfg.system_info.default_user.name
+                  run sudo -n cloud-init query merged_cfg.system_info.default_user.groups
+                  run sudo -n python3 - <<'PY'
+                  import glob
+                  import json
+                  from pathlib import Path
+                  import yaml
+
+                  for name in ["/etc/cloud/cloud.cfg"] + sorted(glob.glob("/etc/cloud/cloud.cfg.d/*.cfg")):
+                      path = Path(name)
+                      if not path.exists():
+                          print(json.dumps({"file": name, "status": "missing"}))
+                          continue
+                      config = yaml.safe_load(path.read_text())
+                      if not isinstance(config, dict):
+                          print(json.dumps({"file": name, "status": "no mapping"}))
+                          continue
+                      default_user = config.get("system_info", {}).get("default_user", {})
+                      users = config.get("users", [])
+                      print(json.dumps({
+                          "file": name,
+                          "default_user": {k: default_user[k] for k in ("name", "groups", "primary_group") if k in default_user},
+                          "users": [
+                              {k: user[k] for k in ("name", "groups", "primary_group") if k in user}
+                              if isinstance(user, dict) else user
+                              for user in users
+                          ],
+                          "groups": config.get("groups"),
+                      }))
+                  PY
+                  run grep -n -E '^(GROUP|GROUPS|USERGROUPS_ENAB)' /etc/default/useradd /etc/login.defs
                   run sudo -n grep -R -n -E 'cloudtest|docker' /etc/sysusers.d /usr/lib/sysusers.d /etc/tmpfiles.d /usr/lib/tmpfiles.d
 
                   if command -v rpm >/dev/null 2>&1; then
                     run rpm -q moby-engine moby-cli docker-ce docker-ce-cli
+                    run rpm -q cloud-init WALinuxAgent waagent shadow-utils
                     run rpm -q --scripts moby-engine
                     run rpm -qf /usr/lib/systemd/system/docker.service /usr/lib/systemd/system/docker.socket
                   else
