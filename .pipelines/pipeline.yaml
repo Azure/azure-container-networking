@@ -4,7 +4,7 @@ pr: none
 variables:
   BUILD_POOL_NAME_DEFAULT: $(BUILD_POOL_1ESPT_AMD)
   smokeCluster: acn-aad-$(Build.BuildId)-$(System.JobAttempt)
-  smokeRegion: $(REGION_OVERLAY_CLUSTER_TEST)
+  smokeRegion: $(REGION_AKS_CLUSTER_TEST)
 
 resources:
   repositories:
@@ -48,14 +48,6 @@ extends:
                     az account show --query '{subscription:id,identity:user.name,identityType:user.type}' -o json
                     mkdir -p "$SMOKE_DIR"
                     export KUBECONFIG="$SMOKE_DIR/config"
-                    if ! command -v kubectl >/dev/null || ! command -v kubelogin >/dev/null; then
-                      mkdir -p "$SMOKE_DIR/bin"
-                      az aks install-cli --install-location "$SMOKE_DIR/bin/kubectl" \
-                        --kubelogin-install-location "$SMOKE_DIR/bin/kubelogin"
-                      export PATH="$SMOKE_DIR/bin:$PATH"
-                    fi
-                    kubectl version --client
-                    kubelogin --version
                     make -C hack/aks azcfg AZCLI=az REGION="$REGION"
                     az extension show --name aks-preview --query version -o tsv
                     version="${K8S_VERSION:-}"
@@ -83,6 +75,19 @@ extends:
                       CLUSTER="$CLUSTER" NODE_COUNT=1 VM_SIZE=Standard_B2ms
                     az aks show --subscription "$SUB" --resource-group "$CLUSTER" --name "$CLUSTER" \
                       --query '{state:provisioningState,aadProfile:aadProfile,nodeResourceGroup:nodeResourceGroup}' -o json
+                    server_version="$(az aks show --subscription "$SUB" --resource-group "$CLUSTER" \
+                      --name "$CLUSTER" --query currentKubernetesVersion -o tsv)"
+                    if [[ ! "$server_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                      echo "Invalid server Kubernetes version: $server_version" >&2
+                      exit 1
+                    fi
+                    mkdir -p "$SMOKE_DIR/bin"
+                    az aks install-cli --client-version "v${server_version}" \
+                      --install-location "$SMOKE_DIR/bin/kubectl" \
+                      --kubelogin-install-location "$SMOKE_DIR/bin/kubelogin"
+                    export PATH="$SMOKE_DIR/bin:$PATH"
+                    kubectl version --client
+                    kubelogin --version
                     az aks get-credentials --subscription "$SUB" --resource-group "$CLUSTER" \
                       --name "$CLUSTER" --file "$KUBECONFIG" --overwrite-existing
                     kubelogin convert-kubeconfig -l azurecli
