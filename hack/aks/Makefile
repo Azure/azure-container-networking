@@ -79,6 +79,7 @@ COMMON_AKS_FIELDS = $(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 	--node-vm-size $(VM_SIZE) \
 	--no-ssh-key \
 	--os-sku $(OS_SKU) \
+	--enable-aad \
 	--kms-infrastructure-encryption Enabled \
 	$(LTS_ARGS) $(ACNS_ARGS) $(GATEWAYAPI_ARGS)
 POD_CIDR = 192.168.0.0/16
