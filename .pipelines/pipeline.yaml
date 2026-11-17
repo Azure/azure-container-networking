@@ -35,4 +35,4 @@ extends:
               name: $(BUILD_POOL_NAME_LINUX_ARM64)
               os: linux
             steps:
-              - template: templates/arm-pool-diagnostics.yaml
+              - template: /.pipelines/templates/arm-pool-diagnostics.yaml@self
