@@ -80,6 +80,7 @@ COMMON_AKS_FIELDS = $(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 	--no-ssh-key \
 	--os-sku $(OS_SKU) \
 	--enable-aad \
+	--enable-azure-rbac \
 	--kms-infrastructure-encryption Enabled \
 	$(LTS_ARGS) $(ACNS_ARGS) $(GATEWAYAPI_ARGS)
 POD_CIDR = 192.168.0.0/16
