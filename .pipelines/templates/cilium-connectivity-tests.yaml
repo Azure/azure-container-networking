@@ -2,17 +2,22 @@ parameters:
   skipTests: '!pod-to-pod-encryption,!node-to-node-encryption,!check-log-errors,!no-unexpected-packet-drops,!to-fqdns'
 
 steps:
-  - script: |
-      CONCURRENCY_FLAG=""
-      if [[ "$(SUPPORTS_TEST_CONCURRENCY)" == "true" ]]; then
-        CONCURRENCY_FLAG="--test-concurrency 5"
-      fi
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: |
+        CONCURRENCY_FLAG=""
+        if [[ "$(SUPPORTS_TEST_CONCURRENCY)" == "true" ]]; then
+          CONCURRENCY_FLAG="--test-concurrency 5"
+        fi
 
-      if ! cilium connectivity test --connect-timeout 4s --request-timeout 30s --test ${{ parameters.skipTests }} --force-deploy ${CONCURRENCY_FLAG}
-      then
-        echo "--- Connectivity Tests failed! ---"
-        echo "--- Running Connectivity Tests with --debug ---"
-        cilium connectivity test --debug --connect-timeout 4s --request-timeout 30s --test ${{ parameters.skipTests }} --force-deploy ${CONCURRENCY_FLAG}
-      fi
+        if ! cilium connectivity test --connect-timeout 4s --request-timeout 30s --test ${{ parameters.skipTests }} --force-deploy ${CONCURRENCY_FLAG}
+        then
+          echo "--- Connectivity Tests failed! ---"
+          echo "--- Running Connectivity Tests with --debug ---"
+          cilium connectivity test --debug --connect-timeout 4s --request-timeout 30s --test ${{ parameters.skipTests }} --force-deploy ${CONCURRENCY_FLAG}
+        fi
     name: "CiliumConnectivityTests"
     displayName: "Run Cilium Connectivity Tests"
