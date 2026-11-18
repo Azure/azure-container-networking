@@ -90,6 +90,7 @@ jobs:
     variables:
       RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
       TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
+      KUBECONFIG: $(Agent.TempDirectory)/npm-$(Build.BuildId)-$(System.JobId).kubeconfig
       FQDN: empty
     strategy:
       matrix:
@@ -153,7 +154,7 @@ jobs:
 
             export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
             echo "Creating cluster named $CLUSTER_NAME"
-            az aks create \
+            az aks create --enable-aad --enable-azure-rbac \
                 --resource-group $(RESOURCE_GROUP) \
                 --name $CLUSTER_NAME \
                 --generate-ssh-keys \
@@ -168,9 +169,7 @@ jobs:
                 --load-balancer-outbound-ips $PUBLIC_IP_ID
 
             echo "Getting credentials to $CLUSTER_NAME"
-            az aks get-credentials -g $(RESOURCE_GROUP) -n $CLUSTER_NAME --overwrite-existing --file ./kubeconfig
-            mkdir -p ~/.kube/
-            cp ./kubeconfig ~/.kube/config
+            az aks get-credentials -g $(RESOURCE_GROUP) -n $CLUSTER_NAME --overwrite-existing --file "$KUBECONFIG"
 
             # install kwok on linux node
             cd $(Pipeline.Workspace)/s/test/scale/
@@ -435,25 +434,29 @@ jobs:
                 exit 1
             }
 
-      - bash: |
-          export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
-          echo "Getting cluster state for $CLUSTER_NAME"
-          mkdir -p $(System.DefaultWorkingDirectory)/$CLUSTER_NAME
-          kubectl get pods -n kube-system -owide | grep npm | grep -v kwok
-          npmPodList=`kubectl get pods -n kube-system -owide | grep npm | grep -v kwok | awk '{print $1}'`
-          for npmPod in $npmPodList; do
-              logFile=$(System.DefaultWorkingDirectory)/$CLUSTER_NAME/npm-logs_$(PROFILE)-$npmPod.txt
-              kubectl logs -n kube-system $npmPod > $logFile
+      - task: AzureCLI@2
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: |
+              export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
+              echo "Getting cluster state for $CLUSTER_NAME"
+              mkdir -p $(System.DefaultWorkingDirectory)/$CLUSTER_NAME
+              kubectl get pods -n kube-system -owide | grep npm | grep -v kwok
+              npmPodList=`kubectl get pods -n kube-system -owide | grep npm | grep -v kwok | awk '{print $1}'`
+              for npmPod in $npmPodList; do
+                  logFile=$(System.DefaultWorkingDirectory)/$CLUSTER_NAME/npm-logs_$(PROFILE)-$npmPod.txt
+                  kubectl logs -n kube-system $npmPod > $logFile
 
-              # capture any previous logs in case there was a crash
-              previousLogFile=$(System.DefaultWorkingDirectory)/$CLUSTER_NAME/previous-npm-logs_$(PROFILE).txt
-              kubectl logs -n kube-system $npmPod -p > $previousLogFile
-              if [[ $? -ne 0 ]]; then
-                  # remove the empty file if kubectl logs failed (e.g. there was no previous terminated container)
-                  rm $previousLogFile
-              fi
-          done
-          cp ./kubeconfig $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/.kubeconfig
+                  # capture any previous logs in case there was a crash
+                  previousLogFile=$(System.DefaultWorkingDirectory)/$CLUSTER_NAME/previous-npm-logs_$(PROFILE).txt
+                  kubectl logs -n kube-system $npmPod -p > $previousLogFile
+                  if [[ $? -ne 0 ]]; then
+                      # remove the empty file if kubectl logs failed (e.g. there was no previous terminated container)
+                      rm $previousLogFile
+                  fi
+              done
         condition: always()
         displayName: "Get Logs"
 
