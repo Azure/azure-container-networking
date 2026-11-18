@@ -33,6 +33,9 @@ stages:
     jobs:
       - job: create_aks_cluster_with_${{ parameters.name }}
         steps:
+          - task: KubeloginInstaller@0
+            inputs:
+              kubeloginVersion: $(LSG_KUBELOGIN_VERSION)
           - task: AzureCLI@2
             inputs:
               azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -152,6 +155,9 @@ stages:
       - job: kernel_upgrade
         displayName: "Kernel Node Upgrade"
         steps:
+          - task: KubeloginInstaller@0
+            inputs:
+              kubeloginVersion: $(LSG_KUBELOGIN_VERSION)
           - template: kernel-upgrade-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -159,6 +165,9 @@ stages:
         displayName: "Scale Test"
         dependsOn: kernel_upgrade
         steps:
+          - task: KubeloginInstaller@0
+            inputs:
+              kubeloginVersion: $(LSG_KUBELOGIN_VERSION)
           - template: ../load-test-templates/pod-deployment-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -176,6 +185,9 @@ stages:
         displayName: "Restart Test"
         dependsOn: deploy_pods
         steps:
+          - task: KubeloginInstaller@0
+            inputs:
+              kubeloginVersion: $(LSG_KUBELOGIN_VERSION)
           - template: ../load-test-templates/restart-node-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -192,6 +204,9 @@ stages:
         displayName: "Restart and Validate CNS"
         dependsOn: restart_nodes
         steps:
+          - task: KubeloginInstaller@0
+            inputs:
+              kubeloginVersion: $(LSG_KUBELOGIN_VERSION)
           - template: ../load-test-templates/restart-cns-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -203,6 +218,9 @@ stages:
         displayName: "Recover Resources"
         dependsOn: restart_cns
         steps:
+          - task: KubeloginInstaller@0
+            inputs:
+              kubeloginVersion: $(LSG_KUBELOGIN_VERSION)
           - task: AzureCLI@2
             inputs:
               azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -224,6 +242,9 @@ stages:
         dependsOn: recover
         condition: and( succeeded(), ${{ contains(parameters.cni, 'cilium') }} )
         steps:
+          - task: KubeloginInstaller@0
+            inputs:
+              kubeloginVersion: $(LSG_KUBELOGIN_VERSION)
           - template: ../../templates/cilium-cli.yaml
           - task: AzureCLI@2
             inputs:
@@ -242,6 +263,7 @@ stages:
       - ${{ if contains(parameters.cni, 'cilium') }}:
         - template: ../k8s-e2e/k8s-e2e-job-template.yaml
           parameters:
+            kubeloginVersion: $(LSG_KUBELOGIN_VERSION)
             sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
             clusterName: ${{ parameters.clusterName }}-$(commitID)
             os: ${{ parameters.os }}
@@ -257,6 +279,7 @@ stages:
       - ${{ if contains(parameters.name, 'linux') }}:
         - template: ../k8s-e2e/k8s-e2e-job-template.yaml
           parameters:
+            kubeloginVersion: $(LSG_KUBELOGIN_VERSION)
             sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
             clusterName: ${{ parameters.clusterName }}-$(commitID)
             os: ${{ parameters.os }}
@@ -283,6 +306,9 @@ stages:
           - cni_${{ parameters.os }}
         condition: failed()
         steps:
+          - task: KubeloginInstaller@0
+            inputs:
+              kubeloginVersion: $(LSG_KUBELOGIN_VERSION)
           - template: ../../templates/log-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)

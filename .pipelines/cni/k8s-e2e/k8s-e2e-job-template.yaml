@@ -1,4 +1,5 @@
 parameters:
+  kubeloginVersion: ""
   clusterName: ""
   os: ""
   dependsOn: ""
@@ -13,6 +14,10 @@ jobs:
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     steps:
+      - ${{ if ne(parameters.kubeloginVersion, '') }}:
+        - task: KubeloginInstaller@0
+          inputs:
+            kubeloginVersion: ${{ parameters.kubeloginVersion }}
       - task: AzureCLI@2
         inputs:
           azureSubscription: ${{ parameters.sub }}
