@@ -277,6 +277,7 @@ stages:
         steps:
           - template: ../load-test-templates/pod-deployment-template.yaml
             parameters:
+              use1ESPublishTask: true
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               scaleup: ${{ parameters.scaleup }}
               os: ${{ parameters.os }}
@@ -301,6 +302,7 @@ stages:
         steps:
           - template: ../load-test-templates/restart-node-template.yaml
             parameters:
+              use1ESPublishTask: true
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               ${{ if contains(parameters.clusterType, 'swift') }}:
@@ -326,6 +328,7 @@ stages:
         steps:
           - template: ../load-test-templates/restart-cns-template.yaml
             parameters:
+              use1ESPublishTask: true
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               ${{ if contains(parameters.clusterType, 'swift') }}:
@@ -434,6 +437,7 @@ stages:
           steps:
             - template: ../load-test-templates/pod-deployment-template.yaml
               parameters:
+                use1ESPublishTask: true
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
                 scaleup: ${{ parameters.scaleup }}
                 os: ${{ parameters.os }}
@@ -454,6 +458,7 @@ stages:
           steps:
             - template: ../load-test-templates/restart-node-template.yaml
               parameters:
+                use1ESPublishTask: true
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
                 os: ${{ parameters.os }}
                 nodeCount: ${{ parameters.nodeCountWin }}
@@ -475,6 +480,7 @@ stages:
           steps:
             - template: ../load-test-templates/restart-cns-template.yaml
               parameters:
+                use1ESPublishTask: true
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
                 os: ${{ parameters.os }}
                 ${{ if contains(parameters.clusterType, 'swift') }}:

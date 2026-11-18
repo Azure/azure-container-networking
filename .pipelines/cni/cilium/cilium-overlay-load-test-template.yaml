@@ -235,6 +235,7 @@ stages:
         steps:
           - template: ../load-test-templates/pod-deployment-template.yaml
             parameters:
+              use1ESPublishTask: true
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               scaleup: ${SCALEUP_CILIUM}
               os: linux
@@ -254,6 +255,7 @@ stages:
         steps:
           - template: ../load-test-templates/restart-node-template.yaml
             parameters:
+              use1ESPublishTask: true
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: cilium
@@ -272,6 +274,7 @@ stages:
         steps:
           - template: ../load-test-templates/restart-cns-template.yaml
             parameters:
+              use1ESPublishTask: true
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               scaleup: ${SCALEUP_CILIUM}
