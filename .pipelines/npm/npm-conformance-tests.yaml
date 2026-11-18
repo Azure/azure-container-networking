@@ -278,7 +278,7 @@ extends:
                   if [ $(PROFILE) == "v2-place-first" ]; then
                     git clone --depth=1 --branch=huntergregory/service-types https://github.com/huntergregory/network-policy-api.git
                     cd network-policy-api/cmd/policy-assistant
-                    make policy-assistant
+                    GOEXPERIMENT=ms_nocgo_opensslcrypto make policy-assistant
                     cd ../../..
                     mv network-policy-api/cmd/policy-assistant/cmd/policy-assistant/policy-assistant .
 
