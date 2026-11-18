@@ -34,27 +34,37 @@ steps:
     displayName: "Set Kubeconfig"
 
   - ${{ if eq(parameters.os, 'linux') }}:
-    - script: |
-        kubectl cluster-info
-        kubectl get node
-        kubectl get po -owide -A
-        sudo -E env "PATH=$PATH" make test-load \
-          SCALE_UP=32 OS_TYPE=linux CNI_TYPE=dualstack VALIDATE_STATEFILE=true INSTALL_DUALSTACK_OVERLAY=true \
-          VALIDATE_DUALSTACK=true CLEANUP=true \
-          CNS_VERSION=$(CNS_VERSION) CNI_VERSION=$(CNI_VERSION) \
-          CNS_IMAGE_NAME_OVERRIDE=$(CNS_IMAGE_NAME_OVERRIDE) CNI_IMAGE_NAME_OVERRIDE=$(CNI_IMAGE_NAME_OVERRIDE)
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: inlineScript
+        scriptType: bash
+        inlineScript: |
+          kubectl cluster-info
+          kubectl get node
+          kubectl get po -owide -A
+          sudo -E env "PATH=$PATH" make test-load \
+            SCALE_UP=32 OS_TYPE=linux CNI_TYPE=dualstack VALIDATE_STATEFILE=true INSTALL_DUALSTACK_OVERLAY=true \
+            VALIDATE_DUALSTACK=true CLEANUP=true \
+            CNS_VERSION=$(CNS_VERSION) CNI_VERSION=$(CNI_VERSION) \
+            CNS_IMAGE_NAME_OVERRIDE=$(CNS_IMAGE_NAME_OVERRIDE) CNI_IMAGE_NAME_OVERRIDE=$(CNI_IMAGE_NAME_OVERRIDE)
       retryCountOnTaskFailure: 3
       name: "integrationTest"
       displayName: "Run CNS Integration Tests on AKS DualStack Overlay"
 
-    - script: |
-        set -e
-        kubectl get po -owide -A
-        cd test/integration/datapath
-        echo "Dualstack Overlay Linux datapath IPv6 test"
-        go test -count=1 datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration -isDualStack=true
-        echo "Dualstack Overlay Linux datapath IPv4 test"
-        go test -count=1 datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: inlineScript
+        scriptType: bash
+        inlineScript: |
+          set -e
+          kubectl get po -owide -A
+          cd test/integration/datapath
+          echo "Dualstack Overlay Linux datapath IPv6 test"
+          go test -count=1 datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration -isDualStack=true
+          echo "Dualstack Overlay Linux datapath IPv4 test"
+          go test -count=1 datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration
       retryCountOnTaskFailure: 3
       name: "DualStack_Overlay_Linux_Tests"
       displayName: "DualStack Overlay Linux Tests"
@@ -96,27 +106,37 @@ steps:
       retryCountOnTaskFailure: 3
 
   - ${{ if eq(parameters.os, 'windows') }}:
-    - script: |
-        nodeList=`kubectl get node -owide | grep Windows | awk '{print $1}'`
-        for node in $nodeList; do
-            taint=`kubectl describe node $node | grep Taints | awk '{print $2}'`
-            if [ $taint == "node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule" ]; then
-                kubectl taint nodes $node node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule-
-            fi
-        done
-        sudo -E env "PATH=$PATH" make test-load \
-        SCALE_UP=32 OS_TYPE=windows CNI_TYPE=dualstack VALIDATE_STATEFILE=true INSTALL_DUALSTACK_OVERLAY=true \
-        VALIDATE_DUALSTACK=true CLEANUP=true \
-        CNS_VERSION=$(CNS_VERSION) CNI_VERSION=$(CNI_VERSION) \
-        CNS_IMAGE_NAME_OVERRIDE=$(CNS_IMAGE_NAME_OVERRIDE) CNI_IMAGE_NAME_OVERRIDE=$(CNI_IMAGE_NAME_OVERRIDE)
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: inlineScript
+        scriptType: bash
+        inlineScript: |
+          nodeList=`kubectl get node -owide | grep Windows | awk '{print $1}'`
+          for node in $nodeList; do
+              taint=`kubectl describe node $node | grep Taints | awk '{print $2}'`
+              if [ $taint == "node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule" ]; then
+                  kubectl taint nodes $node node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule-
+              fi
+          done
+          sudo -E env "PATH=$PATH" make test-load \
+          SCALE_UP=32 OS_TYPE=windows CNI_TYPE=dualstack VALIDATE_STATEFILE=true INSTALL_DUALSTACK_OVERLAY=true \
+          VALIDATE_DUALSTACK=true CLEANUP=true \
+          CNS_VERSION=$(CNS_VERSION) CNI_VERSION=$(CNI_VERSION) \
+          CNS_IMAGE_NAME_OVERRIDE=$(CNS_IMAGE_NAME_OVERRIDE) CNI_IMAGE_NAME_OVERRIDE=$(CNI_IMAGE_NAME_OVERRIDE)
       name: "WindowsDualStackOverlayControlPlaneScaleTests"
       displayName: "Windows DualStack Overlay ControlPlane Scale Tests"
       retryCountOnTaskFailure: 3
 
-    - script: |
-        echo "DualStack Overlay DataPath Test"
-        cd test/integration/datapath
-        sudo -E env "PATH=$PATH" go test -count=1 datapath_windows_test.go -timeout 3m -tags connection -restartKubeproxy true -run ^TestDatapathWin$
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: inlineScript
+        scriptType: bash
+        inlineScript: |
+          echo "DualStack Overlay DataPath Test"
+          cd test/integration/datapath
+          sudo -E env "PATH=$PATH" go test -count=1 datapath_windows_test.go -timeout 3m -tags connection -restartKubeproxy true -run ^TestDatapathWin$
       name: "WindowsDualStackOverlayDatapathTests"
       displayName: "Windows DualStack Overlay Datapath Tests"
       retryCountOnTaskFailure: 3

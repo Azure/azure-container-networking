@@ -46,6 +46,8 @@ stages:
               version: '$(GO_TOOLCHAIN_VERSION)'
             displayName: "Install Go"
           - template: ../../templates/cilium-cli.yaml
+            parameters:
+              sub: $(TEST_SUB_SERVICE_CONNECTION)
           - task: AzureCLI@2
             inputs:
               azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
