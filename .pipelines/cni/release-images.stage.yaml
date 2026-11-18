@@ -1,0 +1,107 @@
+parameters:
+  - name: canary
+    type: boolean
+    default: false
+
+stages:
+  - stage: build_images
+    ${{ if not(parameters.canary) }}:
+      dependsOn: setup
+    displayName: "Build Images"
+    variables:
+      CONTAINER_BUILDER: docker
+      ${{ if parameters.canary }}:
+        CNI_PLATFORM_TAG: linux-$(arch)-canary-$(Build.BuildId)
+    jobs:
+      - job: containerize_amd64
+        displayName: Build Images
+        pool:
+          name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
+          os: linux
+        strategy:
+          matrix:
+            cni_linux_amd64:
+              arch: amd64
+              name: cni
+              os: linux
+            ${{ if not(parameters.canary) }}:
+              azure_ipam_linux_amd64:
+                arch: amd64
+                name: azure-ipam
+                os: linux
+              azure_ipam_windows_amd64:
+                arch: amd64
+                name: azure-ipam
+                os: windows
+              cni_windows_amd64:
+                arch: amd64
+                name: cni
+                os: windows
+              cns_linux_amd64:
+                arch: amd64
+                name: cns
+                os: linux
+              cns_windows_amd64:
+                arch: amd64
+                name: cns
+                os: windows
+              ipv6_hp_bpf_linux_amd64:
+                arch: amd64
+                name: ipv6-hp-bpf
+                os: linux
+              npm_linux_amd64:
+                arch: amd64
+                name: npm
+                os: linux
+              npm_windows_amd64:
+                arch: amd64
+                name: npm
+                os: windows
+              cilium_log_collector_amd64:
+                  arch: amd64
+                  name: cilium-log-collector
+                  os: linux
+        steps:
+          - template: ../containers/container-template.yaml
+            parameters:
+              arch: $(arch)
+              name: $(name)
+              os: $(os)
+      - job: containerize_linux_arm64
+        displayName: Build Images
+        pool:
+          name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
+          os: linux
+        strategy:
+          matrix:
+              cni_linux_arm64:
+                arch: arm64
+                name: cni
+                os: linux
+              ${{ if not(parameters.canary) }}:
+                azure_ipam_linux_arm64:
+                  arch: arm64
+                  name: azure-ipam
+                  os: linux
+                cns_linux_arm64:
+                  arch: arm64
+                  name: cns
+                  os: linux
+                ipv6_hp_bpf_linux_arm64:
+                  arch: arm64
+                  name: ipv6-hp-bpf
+                  os: linux
+                npm_linux_arm64:
+                  arch: arm64
+                  name: npm
+                  os: linux
+                cilium_log_collector_arm64:
+                  arch: arm64
+                  name: cilium-log-collector
+                  os: linux
+        steps:
+          - template: ../containers/container-template.yaml
+            parameters:
+              arch: $(arch)
+              name: $(name)
+              os: $(os)

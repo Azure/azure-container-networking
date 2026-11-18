@@ -17,6 +17,10 @@ trigger:
     - azure-ipam/*
     - v*
 parameters:
+  - name: imageBuildCanary
+    displayName: Build only Linux CNI images with run-specific tags
+    type: boolean
+    default: false
   - name: upgradeScenario
     type: boolean
     default: false
@@ -47,7 +51,12 @@ extends:
         name: Networking-ContainerNetworking-VMSS-Windows
         os: windows
     stages:
-      - template: /.pipelines/cni/release-test.stages.yaml@self
-        parameters:
-          upgradeScenario: ${{ parameters.upgradeScenario }}
-          ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}
+      - ${{ if parameters.imageBuildCanary }}:
+        - template: /.pipelines/cni/release-images.stage.yaml@self
+          parameters:
+            canary: true
+      - ${{ else }}:
+        - template: /.pipelines/cni/release-test.stages.yaml@self
+          parameters:
+            upgradeScenario: ${{ parameters.upgradeScenario }}
+            ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}
