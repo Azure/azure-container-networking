@@ -15,6 +15,7 @@ parameters:
 stages:
   - stage: create_${{ parameters.name }}
     variables:
+      BUILD_POOL_NAME_DEFAULT: $(BUILD_POOL_1ESPT_AMD)
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
       cnsVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.cnsVersion'] ]
       cniVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.cniVersion'] ]
@@ -137,6 +138,7 @@ stages:
 
   - stage: ${{ parameters.name }}
     variables:
+      BUILD_POOL_NAME_DEFAULT: $(BUILD_POOL_1ESPT_AMD)
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
       cnsVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.cnsVersion'] ]
       cniVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.cniVersion'] ]

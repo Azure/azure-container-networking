@@ -10,6 +10,10 @@ trigger: none
 #     trigger: true # Run CNI | LSG Integration pipeline when any run of LSG defined pipeline completes
 
 
+variables:
+  # Match ACN PR's Kubernetes client environment, not the kernel under test on AKS.
+  BUILD_POOL_1ESPT_AMD: acn-ado-azure-linux-3-amd64-pt-pool
+
 stages:
   - stage: setup
     displayName: Setup
