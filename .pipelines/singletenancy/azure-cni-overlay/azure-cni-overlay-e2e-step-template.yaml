@@ -32,15 +32,20 @@ steps:
     name: "kubeconfig"
     displayName: "Set Kubeconfig"
 
-  - script: |
-      echo "Start Integration Tests on Overlay Cluster"
-      kubectl get po -owide -A
-      # These vars may be set by the job template via setup stage outputs and are available here as environment variables in child scripts.
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: |
+        echo "Start Integration Tests on Overlay Cluster"
+        kubectl get po -owide -A
+        # These vars may be set by the job template via setup stage outputs and are available here as environment variables in child scripts.
 
-      IPAM=${AZURE_IPAM_VERSION:-$(make azure-ipam-version)}
-      CNS=${CNS_VERSION:-$(make cns-version)}
-      CNI=${CNI_VERSION:-$(make cni-version)}
-      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_AZURE_CNI_OVERLAY=true VALIDATE_V4OVERLAY=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CNI_VERSION=${CNI} CLEANUP=true
+        IPAM=${AZURE_IPAM_VERSION:-$(make azure-ipam-version)}
+        CNS=${CNS_VERSION:-$(make cns-version)}
+        CNI=${CNI_VERSION:-$(make cni-version)}
+        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_AZURE_CNI_OVERLAY=true VALIDATE_V4OVERLAY=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CNI_VERSION=${CNI} CLEANUP=true
     retryCountOnTaskFailure: 2
     name: "integrationTest"
     displayName: "Run CNS Integration Tests on AKS Overlay"
@@ -82,9 +87,14 @@ steps:
     displayName: "Validate Node Restart"
     retryCountOnTaskFailure: 3
 
-  - script: |
-      echo "Run wireserver and metadata connectivity Tests"
-      bash test/network/wireserver_metadata_test.sh
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: |
+        echo "Run wireserver and metadata connectivity Tests"
+        bash test/network/wireserver_metadata_test.sh
     retryCountOnTaskFailure: 3
     name: "WireserverMetadataConnectivityTests"
     displayName: "Run Wireserver and Metadata Connectivity Tests"

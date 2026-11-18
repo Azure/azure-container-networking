@@ -40,16 +40,21 @@ steps:
     name: "kubeconfig"
     displayName: "Set Kubeconfig"
 
-  - script: |
-      ls -lah
-      pwd
-      kubectl cluster-info
-      kubectl get po -owide -A
-      # These vars may be set by the job template via setup stage outputs and are available here as environment variables in child scripts.
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: |
+        ls -lah
+        pwd
+        kubectl cluster-info
+        kubectl get po -owide -A
+        # These vars may be set by the job template via setup stage outputs and are available here as environment variables in child scripts.
 
-      CNS=${CNS_VERSION:-$(make cns-version)}
-      CNI=${CNI_VERSION:-$(make cni-version)}
-      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=${{ parameters.cniType }} VALIDATE_STATEFILE=true ${{ parameters.installFlag }}=true CNS_VERSION=${CNS} CNI_VERSION=${CNI} CLEANUP=true
+        CNS=${CNS_VERSION:-$(make cns-version)}
+        CNI=${CNI_VERSION:-$(make cni-version)}
+        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=${{ parameters.cniType }} VALIDATE_STATEFILE=true ${{ parameters.installFlag }}=true CNS_VERSION=${CNS} CNI_VERSION=${CNI} CLEANUP=true
     retryCountOnTaskFailure: 3
     name: "aksswifte2e"
     displayName: "Run AKS Swift E2E"
@@ -91,19 +96,29 @@ steps:
     displayName: "Validate Node Restart"
     retryCountOnTaskFailure: 3
 
-  - script: |
-      echo "Run wireserver and metadata connectivity Tests"
-      bash test/network/wireserver_metadata_test.sh
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: |
+        echo "Run wireserver and metadata connectivity Tests"
+        bash test/network/wireserver_metadata_test.sh
     retryCountOnTaskFailure: 3
     name: "WireserverMetadataConnectivityTests"
     displayName: "Run Wireserver and Metadata Connectivity Tests"
 
-  - script: |
-      cd hack/scripts
-      chmod +x async-delete-test.sh
-      ./async-delete-test.sh
-      if ! [ -z $(kubectl -n kube-system get ds  azure-cns | grep non-existing) ]; then
-        kubectl -n kube-system patch daemonset azure-cns --type json -p='[{"op": "remove", "path": "/spec/template/spec/nodeSelector/non-existing"}]'
-      fi
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: |
+        cd hack/scripts
+        chmod +x async-delete-test.sh
+        ./async-delete-test.sh
+        if ! [ -z $(kubectl -n kube-system get ds  azure-cns | grep non-existing) ]; then
+          kubectl -n kube-system patch daemonset azure-cns --type json -p='[{"op": "remove", "path": "/spec/template/spec/nodeSelector/non-existing"}]'
+        fi
     name: "testAsyncDelete"
     displayName: "Verify Async Delete when CNS is down"
