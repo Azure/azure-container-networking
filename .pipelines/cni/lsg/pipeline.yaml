@@ -11,8 +11,7 @@ trigger: none
 
 
 variables:
-  # Match ACN PR's Kubernetes client environment, not the kernel under test on AKS.
-  BUILD_POOL_1ESPT_AMD: acn-ado-azure-linux-3-amd64-pt-pool
+  BUILD_POOL_NAME_DEFAULT: acn-ado-azure-linux-3-amd64-pt-pool
 
 stages:
   - stage: setup
