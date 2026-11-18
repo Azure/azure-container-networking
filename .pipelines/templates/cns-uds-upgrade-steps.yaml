@@ -25,37 +25,52 @@ steps:
     name: "selectCNSUDS"
     displayName: "Select CNS IPAM Unix Socket E2E"
 
-  - script: |
-      set -e
-      cd test/integration/load
-      ITERATIONS=1 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=linux CNI_TYPE=${{ parameters.cniType }} go test -count 1 -timeout 30m -tags load -run ^TestLoad$
-      kubectl get pods -owide -n load-test
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: |
+        set -e
+        cd test/integration/load
+        ITERATIONS=1 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=linux CNI_TYPE=${{ parameters.cniType }} go test -count 1 -timeout 30m -tags load -run ^TestLoad$
+        kubectl get pods -owide -n load-test
     condition: and(succeeded(), eq(variables['cnsUdsE2E'], 'true'))
     retryCountOnTaskFailure: 3
     name: "createPodsOverTCP"
     displayName: "Create Pods With CNS IPAM On TCP"
 
-  - script: |
-      set -e
-      CNS=${CNS_VERSION:-$(make cns-version)}
-      CNI=${CNI_VERSION:-$(make cni-version)}
-      IPAM=${AZURE_IPAM_VERSION:-$(make azure-ipam-version)}
-      sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true INSTALL_CNS=true ${{ parameters.installFlag }}=true CNS_IPAM_UNIX_SOCKET_ENABLED=true OS_TYPE=linux CNI_TYPE=${{ parameters.cniType }} AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CNI_VERSION=${CNI}
-      bash hack/scripts/validate-cns-uds.sh
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: |
+        set -e
+        CNS=${CNS_VERSION:-$(make cns-version)}
+        CNI=${CNI_VERSION:-$(make cni-version)}
+        IPAM=${AZURE_IPAM_VERSION:-$(make azure-ipam-version)}
+        sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true INSTALL_CNS=true ${{ parameters.installFlag }}=true CNS_IPAM_UNIX_SOCKET_ENABLED=true OS_TYPE=linux CNI_TYPE=${{ parameters.cniType }} AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CNI_VERSION=${CNI}
+        bash hack/scripts/validate-cns-uds.sh
     condition: and(succeeded(), eq(variables['cnsUdsE2E'], 'true'))
     name: "enableCNSUDS"
     displayName: "Enable CNS IPAM Unix Socket"
 
-  - script: |
-      set -e
-      echo "validate pods that were created over TCP"
-      make test-validate-state OS_TYPE=linux CNI_TYPE=${{ parameters.cniType }}
-      echo "replace the pods over the Unix socket"
-      cd test/integration/load
-      ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=linux CNI_TYPE=${{ parameters.cniType }} go test -count 1 -timeout 30m -tags load -run ^TestLoad$
-      cd ../../..
-      make test-validate-state OS_TYPE=linux CNI_TYPE=${{ parameters.cniType }}
-      kubectl delete ns load-test
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: |
+        set -e
+        echo "validate pods that were created over TCP"
+        make test-validate-state OS_TYPE=linux CNI_TYPE=${{ parameters.cniType }}
+        echo "replace the pods over the Unix socket"
+        cd test/integration/load
+        ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=linux CNI_TYPE=${{ parameters.cniType }} go test -count 1 -timeout 30m -tags load -run ^TestLoad$
+        cd ../../..
+        make test-validate-state OS_TYPE=linux CNI_TYPE=${{ parameters.cniType }}
+        kubectl delete ns load-test
     condition: and(succeeded(), eq(variables['cnsUdsE2E'], 'true'))
     retryCountOnTaskFailure: 3
     name: "validatePodsOverUDS"
