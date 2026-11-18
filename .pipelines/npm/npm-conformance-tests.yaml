@@ -205,14 +205,14 @@ stages:
               echo Public IP ID $PUBLIC_IP_ID
 
               echo "Creating Linux Cluster";
-              az aks create --no-ssh-key \
+              az aks create --no-ssh-key --enable-aad --enable-azure-rbac \
               --resource-group $(RESOURCE_GROUP) \
               --name $(AZURE_CLUSTER) \
               --network-plugin azure \
               --load-balancer-outbound-ips "$PUBLIC_IP_ID" \
               ${NODE_VM_SIZE:+--node-vm-size "$NODE_VM_SIZE"}
 
-              az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file "$KUBECONFIG"
+              az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --overwrite-existing --file "$KUBECONFIG"
 
               if [[ -n "${EXPECTED_NODE_ARCH:-}" ]]; then
                 ./kubectl --kubeconfig="$KUBECONFIG" get nodes -L kubernetes.io/arch
@@ -303,88 +303,90 @@ stages:
 
           displayName: "Setup Environment"
 
-        - bash: |
-            set -o pipefail
+        - task: AzureCLI@2
+          inputs:
+            azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+            scriptType: bash
+            scriptLocation: inlineScript
+            inlineScript: |
+                set -o pipefail
 
-            ## create the output folder and include the kubeconfig there
-            npmLogsFolder=$(System.DefaultWorkingDirectory)/npmLogs_$(AZURE_CLUSTER)
-            mkdir -p $npmLogsFolder
-            cp "$KUBECONFIG" "$npmLogsFolder/kubeconfig"
+                npmLogsFolder=$(System.DefaultWorkingDirectory)/npmLogs_$(AZURE_CLUSTER)
+                mkdir -p $npmLogsFolder
 
-            npmPodList=`kubectl --kubeconfig="$KUBECONFIG" get pods -n kube-system | grep npm | awk '{print $1}'`
-            echo "Found NPM pods: $npmPodList"
+                npmPodList=`kubectl --kubeconfig="$KUBECONFIG" get pods -n kube-system | grep npm | awk '{print $1}'`
+                echo "Found NPM pods: $npmPodList"
 
-            ## Run all Conformance tests in the background
-            echo $FQDN
+                ## Run all Conformance tests in the background
+                echo $FQDN
 
-            runConformance () {
-                local -a seedArgs=()
-                if [[ $# -gt 0 ]]; then
-                  seedArgs=(--ginkgo.seed="$1")
-                fi
-                if [ $(PROFILE) == "v2-place-first" ]; then
-                  # 15 minute timeout for creating LoadBalancer with Azure-internal "external IPs"
-                  # --namespace must match the namespaces pre-created in the "Setup Environment" step
-                  ./policy-assistant generate --noisy=true --namespace x,y,z --job-timeout-seconds=2 --pod-creation-timeout-seconds 900 --server-protocol TCP,UDP --ignore-loopback --include special-services --exclude cni-brings-source-pod-info-to-other-node
+                runConformance () {
+                    local -a seedArgs=()
+                    if [[ $# -gt 0 ]]; then
+                      seedArgs=(--ginkgo.seed="$1")
+                    fi
+                    if [ $(PROFILE) == "v2-place-first" ]; then
+                      # 15 minute timeout for creating LoadBalancer with Azure-internal "external IPs"
+                      # --namespace must match the namespaces pre-created in the "Setup Environment" step
+                      ./policy-assistant generate --noisy=true --namespace x,y,z --job-timeout-seconds=2 --pod-creation-timeout-seconds 900 --server-protocol TCP,UDP --ignore-loopback --include special-services --exclude cni-brings-source-pod-info-to-other-node
+                    else
+                      KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 ./e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig="$KUBECONFIG" "${seedArgs[@]}"
+                    fi
+                    # there can't be a command after e2e.test/policy-assistant because the exit code is important
+                }
+
+                exitCode=0
+                if [ $(IS_STRESS_TEST) == "true" ]; then
+                    echo "Running $NUM_PARALLEL_JOBS_FOR_STRESS_TEST conformance tests at once and writing outputs to files"
+                    declare -a conformancePIDs
+                    baseSeed=$(date +%s)
+                    for round in $(seq 1 $NUM_PARALLEL_JOBS_FOR_STRESS_TEST); do
+                        # for each iteration, run the conformance test and echos in the background, and write the output of the conformance test to a file
+
+                        # run the conformance test in the foreground and write the output to stdout and a file
+                        echo "starting conformance test #$round" && \
+                            runConformance $((baseSeed + round)) > $npmLogsFolder/conformance-results-$round && \
+                            echo "finished conformance test #$round" &
+                        pidOfConformanceTest=$!
+                        conformancePIDs+=($pidOfConformanceTest)
+                    done
+
+                    # wait until all conformance tests finish and take note of any failed tests
+                    for round in $(seq 1 $NUM_PARALLEL_JOBS_FOR_STRESS_TEST); do
+                        i=$((round-1))
+                        wait ${conformancePIDs[$i]}
+                        exitCode=$?
+                        if [ $exitCode != 0 ]; then
+                            echo "conformance test #$round failed"
+                            break
+                        fi
+                    done
                 else
-                  KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 ./e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig="$KUBECONFIG" "${seedArgs[@]}"
+                  # run the conformance test in the foreground and write the output to stdout and a file
+                  runConformance | tee $npmLogsFolder/conformance-results
+                  exitCode=$?
                 fi
-                # there can't be a command after e2e.test/policy-assistant because the exit code is important
-            }
 
-            exitCode=0
-            if [ $(IS_STRESS_TEST) == "true" ]; then
-                echo "Running $NUM_PARALLEL_JOBS_FOR_STRESS_TEST conformance tests at once and writing outputs to files"
-                declare -a conformancePIDs
-                baseSeed=$(date +%s)
-                for round in $(seq 1 $NUM_PARALLEL_JOBS_FOR_STRESS_TEST); do
-                    # for each iteration, run the conformance test and echos in the background, and write the output of the conformance test to a file
-
-                    # run the conformance test in the foreground and write the output to stdout and a file
-                    echo "starting conformance test #$round" && \
-                        runConformance $((baseSeed + round)) > $npmLogsFolder/conformance-results-$round && \
-                        echo "finished conformance test #$round" &
-                    pidOfConformanceTest=$!
-                    conformancePIDs+=($pidOfConformanceTest)
+                # get all current npm pods
+                kubectl --kubeconfig="$KUBECONFIG" get pods -n kube-system | grep npm
+                npmPodList=`kubectl --kubeconfig="$KUBECONFIG" get pods -n kube-system | grep npm | awk '{print $1}'`
+                # capture all logs
+                for npmPod in $npmPodList; do
+                    ./kubectl --kubeconfig="$KUBECONFIG" logs -n kube-system $npmPod > $npmLogsFolder/$npmPod-logs.txt
                 done
 
-                # wait until all conformance tests finish and take note of any failed tests
-                for round in $(seq 1 $NUM_PARALLEL_JOBS_FOR_STRESS_TEST); do
-                    i=$((round-1))
-                    wait ${conformancePIDs[$i]}
-                    exitCode=$?
-                    if [ $exitCode != 0 ]; then
-                        echo "conformance test #$round failed"
-                        break
+                # capture any previous logs in case there was a crash
+                for npmPod in $npmPodList; do
+                    previousLogFile=$npmLogsFolder/previous-$npmPod-logs.txt
+                    ./kubectl --kubeconfig="$KUBECONFIG" logs -n kube-system $npmPod -p > $previousLogFile
+                    if [[ $? -ne 0 ]]; then
+                        # remove the empty file if kubectl logs failed (e.g. there was no previous terminated container)
+                        rm $previousLogFile
                     fi
                 done
-            else
-              # run the conformance test in the foreground and write the output to stdout and a file
-              runConformance | tee $npmLogsFolder/conformance-results
-              exitCode=$?
-            fi
 
-            # get all current npm pods
-            kubectl --kubeconfig="$KUBECONFIG" get pods -n kube-system | grep npm
-            npmPodList=`kubectl --kubeconfig="$KUBECONFIG" get pods -n kube-system | grep npm | awk '{print $1}'`
-            # capture all logs
-            for npmPod in $npmPodList; do
-                ./kubectl --kubeconfig="$KUBECONFIG" logs -n kube-system $npmPod > $npmLogsFolder/$npmPod-logs.txt
-            done
-
-            # capture any previous logs in case there was a crash
-            for npmPod in $npmPodList; do
-                previousLogFile=$npmLogsFolder/previous-$npmPod-logs.txt
-                ./kubectl --kubeconfig="$KUBECONFIG" logs -n kube-system $npmPod -p > $previousLogFile
-                if [[ $? -ne 0 ]]; then
-                    # remove the empty file if kubectl logs failed (e.g. there was no previous terminated container)
-                    rm $previousLogFile
-                fi
-            done
-
-            exit $exitCode
+                exit $exitCode
           displayName: "Run Test Suite and Get Logs ($(PROFILE))"
-          failOnStderr: false
 
         - publish: $(System.DefaultWorkingDirectory)/npmLogs_$(AZURE_CLUSTER)
           condition: always()
