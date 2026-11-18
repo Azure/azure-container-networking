@@ -42,6 +42,7 @@ stages:
           location: $(LOCATION_AMD64)
       pool:
         name: $(BUILD_POOL_NAME_DEFAULT)
+        os: linux
       dependsOn:
         - setup
         - build_images
@@ -75,6 +76,7 @@ stages:
           location: $(LOCATION_AMD64)
       pool:
         name: $(BUILD_POOL_NAME_DEFAULT)
+        os: linux
       dependsOn:
         - setup
         - build_images
@@ -116,6 +118,7 @@ stages:
         location: $(LOCATION_AMD64)
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
+      os: linux
     dependsOn:
       - ${{ if and(eq(parameters.upgradeScenario, true), ne(parameters.dependsOn, '')) }}:
         - ${{ parameters.dependsOn }}
@@ -356,6 +359,7 @@ stages:
             displayName: "Delete test Namespaces"
       - template: ../k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
+          use1ESPool: true
           sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
@@ -380,12 +384,14 @@ stages:
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
+              use1ESPublishTask: true
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: cniv2
 
       - template: ../../templates/failure-analysis.job.yaml
         parameters:
+          use1ESPublishTask: true
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
           cni: cniv2
@@ -402,6 +408,7 @@ stages:
           location: $(LOCATION_AMD64)
       pool:
         name: $(BUILD_POOL_NAME_DEFAULT)
+        os: linux
       dependsOn:
         - ${{ parameters.name }}
         - setup
@@ -498,6 +505,7 @@ stages:
               displayName: "Delete test Namespaces"
         - template: ../k8s-e2e/k8s-e2e-job-template.yaml
           parameters:
+            use1ESPool: true
             sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
             clusterName: ${{ parameters.clusterName }}-$(commitID)
             os: ${{ parameters.os }}
@@ -521,6 +529,7 @@ stages:
           steps:
             - template: ../../templates/log-template.yaml
               parameters:
+                use1ESPublishTask: true
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
                 os: ${{ parameters.os }}
                 cni: cniv2
@@ -528,6 +537,7 @@ stages:
 
         - template: ../../templates/failure-analysis.job.yaml
           parameters:
+            use1ESPublishTask: true
             clusterName: ${{ parameters.clusterName }}-$(commitID)
             os: ${{ parameters.os }}
             cni: cniv2
