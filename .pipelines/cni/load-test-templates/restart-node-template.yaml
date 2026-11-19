@@ -1,4 +1,5 @@
 parameters:
+  use1ESPublishTask: false
   clusterName: ""
   os: "linux"
   cni: ""
@@ -60,6 +61,7 @@ steps:
 
   - template: ../../templates/log-template.yaml
     parameters:
+      use1ESPublishTask: ${{ parameters.use1ESPublishTask }}
       clusterName: ${{ parameters.clusterName }}
       logType: restartNode
       os: ${{ parameters.os }}

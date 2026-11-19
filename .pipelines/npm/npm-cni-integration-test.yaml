@@ -19,9 +19,9 @@ jobs:
     timeoutInMinutes: 180 # This is for testing windows, due to the 3m between the 14 tests -> results in 42m of wasted time
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
+      os: linux
       demands:
         - agent.os -equals Linux
-        - Role -equals Build
     steps:
       - ${{ if eq(parameters.os, 'linux') }}:
           - task: AzureCLI@2
@@ -51,8 +51,10 @@ jobs:
                 echo $artifact/e2e.test
                 echo "##vso[task.setvariable variable=artifact]$artifact"
 
-          - download: current
-            artifact: npm_k8s
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              artifact: npm_k8s
+              targetPath: $(Pipeline.Workspace)/npm_k8s
 
       - ${{ if eq(parameters.os, 'windows') }}:
           - task: AzureCLI@2
@@ -88,8 +90,10 @@ jobs:
                 echo $artifact/e2e.test
                 echo "##vso[task.setvariable variable=artifact]$artifact"
 
-          - download: current
-            artifact: npm_k8s_windows
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              artifact: npm_k8s_windows
+              targetPath: $(Pipeline.Workspace)/npm_k8s_windows
 
       - task: AzureCLI@2
         inputs:
@@ -162,8 +166,11 @@ jobs:
         retryCountOnTaskFailure: 3
         condition: always()
 
-      - publish: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_npmLogs_Attempt_#$(System.StageAttempt)
+      - task: 1ES.PublishPipelineArtifact@1
         condition: always()
-        artifact: ${{ parameters.clusterName }}_npmLogs_Attempt_#$(System.StageAttempt)
+        inputs:
+          targetPath: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_npmLogs_Attempt_#$(System.StageAttempt)
+          artifactName: ${{ parameters.clusterName }}_npmLogs_Attempt_#$(System.StageAttempt)
+          sbomEnabled: false
         name: npmLogs
         displayName: Publish NPM pod logs
