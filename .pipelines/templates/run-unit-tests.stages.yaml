@@ -4,8 +4,13 @@ stages:
   dependsOn:
   - setup
   variables:
-    STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
-    ACN_DIR: azure-container-networking
+    - template: npm-test-scope.variables.yaml
+      parameters:
+        official: true
+    - name: STORAGE_ID
+      value: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
+    - name: ACN_DIR
+      value: azure-container-networking
   jobs:
   - job: linux
     displayName: "Run All"
@@ -53,7 +58,7 @@ stages:
         # stdout from tee is redirected to fd 4. Take output written to fd 3 (which is the exit code of test), redirect to stdout, pipe to read from stdout then exit with that status code.
         # Read all output from fd 4 (output from tee) and write to to stdout
         { { { {
-              sudo -E env "PATH=$PATH" make test-all;
+              sudo -E env "PATH=$PATH" make test-all CI_RUN_NPM_TESTS="$RUN_NPM_TESTS";
               echo $? >&3;
               } | tee >($JUNIT_REPORT_BIN > "$REPORT_XML") >&4;
             } 3>&1;
@@ -163,7 +168,7 @@ stages:
       retryCountOnTaskFailure: 3
       inputs:
         scriptSource: 'inline'
-        arguments: $(Build.SourcesDirectory) $(INPUT_TEST_MODULES)
+        arguments: '"$(Build.SourcesDirectory)" $(INPUT_TEST_MODULES)'
         script: |
           import os
           import subprocess
@@ -172,7 +177,9 @@ stages:
           # Set environment variables and directories
           cwd = sys.argv[1]
           cwd = os.path.realpath(cwd)
-          gotest_packages = sys.argv[2]
+          gotest_packages = sys.argv[2:]
+          if os.environ['RUN_NPM_TESTS'].lower() == 'false':
+              gotest_packages = [p for p in gotest_packages if p != './npm/...']
           bin_install_dir = os.path.join(cwd, 'bin')
           os.environ['GOBIN'] = bin_install_dir
 
