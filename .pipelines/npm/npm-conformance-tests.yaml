@@ -7,6 +7,7 @@ pr:
     include:
       - npm/*
       - .pipelines/npm/*
+      - test/npm/windows-lite/*
 
 trigger:
   branches:
@@ -19,6 +20,10 @@ trigger:
 parameters:
   - name: npmImage
     displayName: "NPM image override"
+    type: string
+    default: "__use-default__"
+  - name: windowsNpmImage
+    displayName: "Optional Windows NPM Lite child image"
     type: string
     default: "__use-default__"
 
@@ -318,22 +323,63 @@ stages:
             echo $FQDN
 
             runConformance () {
-                local -a seedArgs=()
+                local -a seedArgs=() reportArgs=()
+                local report="" result
                 if [[ $# -gt 0 ]]; then
                   seedArgs=(--ginkgo.seed="$1")
+                fi
+                if [[ "$REQUIRE_TEST_EXECUTION" == true ]]; then
+                  report="$(mktemp "$npmLogsFolder/native-results.XXXXXXXX")" || return 1
+                  if [ $(PROFILE) == "v2-place-first" ]; then
+                    reportArgs=(--junit-results-file "$report")
+                  else
+                    reportArgs=(--ginkgo.json-report="$report")
+                  fi
                 fi
                 if [ $(PROFILE) == "v2-place-first" ]; then
                   # 15 minute timeout for creating LoadBalancer with Azure-internal "external IPs"
                   # --namespace must match the namespaces pre-created in the "Setup Environment" step
-                  ./policy-assistant generate --noisy=true --namespace x,y,z --job-timeout-seconds=2 --pod-creation-timeout-seconds 900 --server-protocol TCP,UDP --ignore-loopback --include special-services --exclude cni-brings-source-pod-info-to-other-node
+                  ./policy-assistant generate --noisy=true --namespace x,y,z --job-timeout-seconds=2 --pod-creation-timeout-seconds 900 --server-protocol TCP,UDP --ignore-loopback --include special-services --exclude cni-brings-source-pod-info-to-other-node "${reportArgs[@]}"
                 else
-                  KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 ./e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig="$KUBECONFIG" "${seedArgs[@]}"
+                  KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 ./e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig="$KUBECONFIG" "${seedArgs[@]}" "${reportArgs[@]}"
                 fi
-                # there can't be a command after e2e.test/policy-assistant because the exit code is important
+                result=$?
+                if (( result != 0 )) || [[ "$REQUIRE_TEST_EXECUTION" != true ]]; then
+                  return "$result"
+                fi
+                # Mixed runs require actual passing tests, not just a successful engine exit.
+                python3 - "$report" "$(PROFILE)" <<'PY'
+            import json
+            import sys
+            import xml.etree.ElementTree as ET
+
+            if sys.argv[2] == "v2-place-first":
+                cases = list(ET.parse(sys.argv[1]).getroot().iter("testcase"))
+                valid = any(case.find("skipped") is None for case in cases) and all(
+                    case.find("failure") is None and case.find("error") is None for case in cases
+                )
+            else:
+                with open(sys.argv[1], encoding="utf-8") as source:
+                    reports = json.load(source)
+                valid = bool(reports) and all(
+                    report["SuiteSucceeded"] is True and any(
+                        spec["LeafNodeType"] == "It" and spec["State"] == "passed"
+                        for spec in report["SpecReports"]
+                    ) for report in reports
+                )
+            if not valid:
+                sys.exit("conformance produced no passing tests or reported a failure")
+            PY
             }
 
             exitCode=0
             if [ $(IS_STRESS_TEST) == "true" ]; then
+                if [[ "$REQUIRE_TEST_EXECUTION" == true ]] &&
+                    { [[ ! "$NUM_PARALLEL_JOBS_FOR_STRESS_TEST" =~ ^[1-9][0-9]*$ ]] ||
+                      [[ "$((NUM_PARALLEL_JOBS_FOR_STRESS_TEST))" != "$NUM_PARALLEL_JOBS_FOR_STRESS_TEST" ]]; }; then
+                    echo "mixed conformance requires a positive integer stress count" >&2
+                    exit 1
+                fi
                 echo "Running $NUM_PARALLEL_JOBS_FOR_STRESS_TEST conformance tests at once and writing outputs to files"
                 declare -a conformancePIDs
                 baseSeed=$(date +%s)
@@ -347,6 +393,12 @@ stages:
                     pidOfConformanceTest=$!
                     conformancePIDs+=($pidOfConformanceTest)
                 done
+
+                if [[ "$REQUIRE_TEST_EXECUTION" == true &&
+                      "${#conformancePIDs[@]}" != "$NUM_PARALLEL_JOBS_FOR_STRESS_TEST" ]]; then
+                    echo "mixed conformance did not start every requested stress worker" >&2
+                    exit 1
+                fi
 
                 # wait until all conformance tests finish and take note of any failed tests
                 for round in $(seq 1 $NUM_PARALLEL_JOBS_FOR_STRESS_TEST); do
@@ -385,6 +437,8 @@ stages:
             exit $exitCode
           displayName: "Run Test Suite and Get Logs ($(PROFILE))"
           failOnStderr: false
+          env:
+            REQUIRE_TEST_EXECUTION: ${{ iif(or(eq(parameters.windowsNpmImage, '__use-default__'), eq(parameters.windowsNpmImage, '')), 'false', 'true') }}
 
         - publish: $(System.DefaultWorkingDirectory)/npmLogs_$(AZURE_CLUSTER)
           condition: always()
@@ -415,3 +469,89 @@ stages:
             inlineScript: |
               echo Deleting $(RESOURCE_GROUP)
               az group delete -n $(RESOURCE_GROUP) --yes
+
+  - ${{ if not(or(eq(parameters.windowsNpmImage, '__use-default__'), eq(parameters.windowsNpmImage, ''))) }}:
+    - stage: WindowsNPMLite
+      displayName: Windows NPM Lite conformance
+      dependsOn: []
+      jobs:
+      - job: WindowsNPMLite
+        displayName: Validate the prebuilt Windows NPM Lite image
+        timeoutInMinutes: 210
+        cancelTimeoutInMinutes: 35
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          demands:
+            - agent.os -equals Linux
+            - Role -equals Build
+        variables:
+          WINDOWS_NPM_IMAGE: ${{ parameters.windowsNpmImage }}
+          NPM_LITE_LOCATION: $(LOCATION)
+          NPM_LITE_WORK_DIR: $(Agent.TempDirectory)/windows-npm-lite-$(Build.BuildId)-$(System.JobId)-$(System.JobAttempt)
+        steps:
+          - checkout: self
+            clean: true
+
+          - task: KubectlInstaller@0
+            timeoutInMinutes: 5
+            inputs:
+              kubectlVersion: "1.34.11"
+
+          - bash: .pipelines/build/scripts/install-crane.sh
+            displayName: Install the existing registry inspection tool
+            timeoutInMinutes: 10
+
+          - task: Bash@3
+            displayName: Verify the candidate and build the shared executor
+            timeoutInMinutes: 10
+            inputs:
+              targetType: filePath
+              filePath: .pipelines/npm/windows-npm-lite.sh
+              arguments: prepare
+
+          - task: AzureCLI@2
+            displayName: Provision the legacy Windows test topology and run Lite cases
+            timeoutInMinutes: 150
+            inputs:
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: .pipelines/npm/windows-npm-lite.sh
+              arguments: run
+
+          - task: AzureCLI@2
+            displayName: Delete the owned Windows test resource group
+            condition: always()
+            timeoutInMinutes: 30
+            inputs:
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: .pipelines/npm/windows-npm-lite.sh
+              arguments: cleanup
+
+          - task: Bash@3
+            displayName: Remove the private kubeconfig
+            condition: always()
+            inputs:
+              targetType: filePath
+              filePath: .pipelines/npm/windows-npm-lite.sh
+              arguments: cleanup-kubeconfig
+
+    - stage: RejectIncompleteConformance
+      displayName: Reject incomplete mixed conformance
+      dependsOn: [Create_Cluster_and_Run_Test, clean_up_Create_Cluster_and_Run_Test, WindowsNPMLite]
+      isSkippable: false
+      condition: and(always(), not(and(eq(dependencies.Create_Cluster_and_Run_Test.result, 'Succeeded'), eq(dependencies.clean_up_Create_Cluster_and_Run_Test.result, 'Succeeded'), eq(dependencies.WindowsNPMLite.result, 'Succeeded'))))
+      jobs:
+      - job: RejectIncompleteConformance
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          demands:
+            - agent.os -equals Linux
+            - Role -equals Build
+        steps:
+        - checkout: none
+        - bash: |
+            echo "Required Linux and Windows Lite conformance and cleanup must all succeed." >&2
+            exit 1
