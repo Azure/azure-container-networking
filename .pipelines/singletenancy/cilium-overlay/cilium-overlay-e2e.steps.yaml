@@ -32,31 +32,41 @@ steps:
 
   - template: ../../templates/cilium-cli.yaml
 
-  - script: |
-      echo "Start Azilium E2E Tests on Overlay Cluster"
-      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]
-      then
-          CNS=$(CNS_VERSION) IPAM=$(AZURE_IPAM_VERSION) && echo "Running nightly"
-      else
-          CNS=$(make cns-version) IPAM=$(make azure-ipam-version)
-      fi
-      kubectl get po -owide -A
-      sudo -E env "PATH=$PATH" make test-load \
-        SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true \
-        INSTALL_OVERLAY=true CLEANUP=true \
-        AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION) CNS_VERSION=$(CNS_VERSION) \
-        IPAM_IMAGE_NAME_OVERRIDE=$(IPAM_IMAGE_NAME_OVERRIDE) CNS_IMAGE_NAME_OVERRIDE=$(CNS_IMAGE_NAME_OVERRIDE)
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+          echo "Start Azilium E2E Tests on Overlay Cluster"
+          if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]
+          then
+              CNS=$(CNS_VERSION) IPAM=$(AZURE_IPAM_VERSION) && echo "Running nightly"
+          else
+              CNS=$(make cns-version) IPAM=$(make azure-ipam-version)
+          fi
+          kubectl get po -owide -A
+          sudo -E env "PATH=$PATH" make test-load \
+            SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true \
+            INSTALL_OVERLAY=true CLEANUP=true \
+            AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION) CNS_VERSION=$(CNS_VERSION) \
+            IPAM_IMAGE_NAME_OVERRIDE=$(IPAM_IMAGE_NAME_OVERRIDE) CNS_IMAGE_NAME_OVERRIDE=$(CNS_IMAGE_NAME_OVERRIDE)
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E on AKS Overlay"
 
   # Run LRP test after cns and config with lrp enabled config deployed
   - ${{ if eq( parameters['testLRP'], true) }}:
-      - script: |
-          set -e
-          cd test/integration/lrp/
-          go test ./lrp_test.go -v -tags "lrp" -count=1 -run ^TestLRP$
-          kubectl get pods -Aowide
+      - task: AzureCLI@2
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: |
+              set -e
+              cd test/integration/lrp/
+              go test ./lrp_test.go -v -tags "lrp" -count=1 -run ^TestLRP$
+              kubectl get pods -Aowide
         retryCountOnTaskFailure: 3
         name: "LRPTest"
         displayName: "Run Cilium Local Redirect Policy Test"
@@ -101,18 +111,23 @@ steps:
   - template: ../../templates/cilium-connectivity-tests.yaml
 
   - ${{ if eq( parameters['testHubble'], true) }}:
-      - script: |
-          echo "enable Hubble metrics server"
-          # makefile manages cilium version
-          unset DIR
-          unset CILIUM_VERSION_TAG
-          make -C ./hack/aks deploy-hubble
-          kubectl rollout restart ds cilium -n kube-system
-          echo "wait <3 minutes for pods to be ready after restart"
-          kubectl rollout status ds cilium -n kube-system --timeout=3m
-          kubectl get pods -Aowide
-          echo "verify Hubble metrics endpoint is usable"
-          go test ./test/integration/networkobservability -count=1 -v -tags=networkobservability
+      - task: AzureCLI@2
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: |
+              echo "enable Hubble metrics server"
+              # makefile manages cilium version
+              unset DIR
+              unset CILIUM_VERSION_TAG
+              make -C ./hack/aks deploy-hubble
+              kubectl rollout restart ds cilium -n kube-system
+              echo "wait <3 minutes for pods to be ready after restart"
+              kubectl rollout status ds cilium -n kube-system --timeout=3m
+              kubectl get pods -Aowide
+              echo "verify Hubble metrics endpoint is usable"
+              go test ./test/integration/networkobservability -count=1 -v -tags=networkobservability
         retryCountOnTaskFailure: 3
         name: "HubbleConnectivityTests"
         displayName: "Run Hubble Connectivity Tests"
@@ -120,53 +135,73 @@ steps:
   - ${{if eq( parameters['nightly'], true) }}:
       - template: ../../templates/cilium-nightly-checks.yaml
   - ${{else }}:
-      - script: |
-          set -e
-          echo "validate pod IP assignment and check systemd-networkd restart"
-          kubectl get pod -owide -A
-          ciliumNamespace=`kubectl get ns | grep cilium-test | awk '{print $1}'`
+      - task: AzureCLI@2
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: |
+              set -e
+              echo "validate pod IP assignment and check systemd-networkd restart"
+              kubectl get pod -owide -A
+              ciliumNamespace=`kubectl get ns | grep cilium-test | awk '{print $1}'`
 
-          make test-validate-state
+              make test-validate-state
 
-          echo "delete cilium connectivity test resources and re-validate state"
-          for namespace in ${ciliumNamespace}; do
-            kubectl delete ns ${namespace}
-          done
-          kubectl get pod -owide -A
+              echo "delete cilium connectivity test resources and re-validate state"
+              for namespace in ${ciliumNamespace}; do
+                kubectl delete ns ${namespace}
+              done
+              kubectl get pod -owide -A
 
-          make test-validate-state
+              make test-validate-state
         name: "validatePods"
         displayName: "Validate Pods"
 
-  - script: | # TODO REMOVE THIS STEP, make test-load covers this
-      set -e
-      echo "validate pod IP assignment before CNS restart"
-      kubectl get pod -owide -A
-      make test-validate-state
-      echo "restart CNS"
-      kubectl rollout restart ds azure-cns -n kube-system
-      kubectl rollout status ds azure-cns -n kube-system
-      kubectl get pod -owide -A
-      echo "validate pods after CNS restart"
-      make test-validate-state
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: | # TODO REMOVE THIS STEP, make test-load covers this
+        set -e
+        echo "validate pod IP assignment before CNS restart"
+        kubectl get pod -owide -A
+        make test-validate-state
+        echo "restart CNS"
+        kubectl rollout restart ds azure-cns -n kube-system
+        kubectl rollout status ds azure-cns -n kube-system
+        kubectl get pod -owide -A
+        echo "validate pods after CNS restart"
+        make test-validate-state
     name: "restartCNS"
     displayName: "Restart CNS and validate pods"
 
-  - script: |
-      echo "Run wireserver and metadata connectivity Tests"
-      bash test/network/wireserver_metadata_test.sh
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+          echo "Run wireserver and metadata connectivity Tests"
+          bash test/network/wireserver_metadata_test.sh
     retryCountOnTaskFailure: 3
     name: "WireserverMetadataConnectivityTests"
     displayName: "Run Wireserver and Metadata Connectivity Tests"
 
   - ${{if eq( parameters['nightly'], false) }}:
-      - script: |
-          cd hack/scripts
-          chmod +x async-delete-test.sh
-          ./async-delete-test.sh
-          if ! [ -z $(kubectl -n kube-system get ds azure-cns | grep non-existing) ]; then
-            kubectl -n kube-system patch daemonset azure-cns --type json -p='[{"op": "remove", "path": "/spec/template/spec/nodeSelector/non-existing"}]'
-          fi
+      - task: AzureCLI@2
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: |
+              cd hack/scripts
+              chmod +x async-delete-test.sh
+              ./async-delete-test.sh
+              if ! [ -z $(kubectl -n kube-system get ds azure-cns | grep non-existing) ]; then
+                kubectl -n kube-system patch daemonset azure-cns --type json -p='[{"op": "remove", "path": "/spec/template/spec/nodeSelector/non-existing"}]'
+              fi
         name: "testAsyncDelete"
         displayName: "Verify Async Delete when CNS is down"
 

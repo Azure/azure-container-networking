@@ -97,98 +97,108 @@ steps:
           CNI_IMAGE_NAME_OVERRIDE=$(CNI_IMAGE_NAME_OVERRIDE)
 
   - ${{ if startsWith(parameters.networkType, 'cilium') }}:
-    - bash: |
-        set -e
-        kubectl cluster-info
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+            set -e
+            kubectl cluster-info
 
-        CILIUM_DIR=""
-        CILIUM_ARGS=()
-        if [ -n "${{ parameters.ciliumVersionTag }}" ]; then
-          CILIUM_DIR=$(echo "${{ parameters.ciliumVersionTag }}" | sed 's/^v//' | cut -d. -f1,2)
-          CILIUM_ARGS+=(
-            "DIR=${CILIUM_DIR}"
-            "CILIUM_VERSION_TAG=${{ parameters.ciliumVersionTag }}"
-          )
-        fi
-        if [ -n "${{ parameters.ciliumImageRegistry }}" ]; then
-          CILIUM_ARGS+=("CILIUM_IMAGE_REGISTRY=${{ parameters.ciliumImageRegistry }}")
-        fi
-
-        . ./hack/scripts/parse_override_image.sh
-
-        configure_ebpf() {
-          export AZURE_IPTABLES_MONITOR_IMAGE=${AZURE_IPTABLES_MONITOR_IMAGE_OVERRIDE:-$(format_image acnpublic.azurecr.io azure-iptables-monitor "$(make azure-iptables-monitor-version)")}
-        }
-
-        configure_ebpf_overlay() {
-          configure_ebpf
-          export AZURE_IP_MASQ_MERGER_IMAGE=${AZURE_IP_MASQ_MERGER_IMAGE_OVERRIDE:-$(format_image acnpublic.azurecr.io azure-ip-masq-merger "$(make azure-ip-masq-merger-version)")}
-        }
-
-        configure_dualstack() {
-          export IPV6_HP_BPF_VERSION=${IPV6_HP_BPF_VERSION:-$(make ipv6-hp-bpf-version)}
-          export IPV6_IMAGE_REGISTRY=${IPV6_IMAGE_REGISTRY:-acnpublic.azurecr.io}
-        }
-
-        case "${{ parameters.networkType }}" in
-          cilium-podsubnet)
-            unset DIR CILIUM_VERSION_TAG
-            make -C ./hack/aks deploy-cilium WAIT_FOR_CILIUM=false "${CILIUM_ARGS[@]}"
-            ;;
-          cilium-nodesubnet)
-            unset DIR CILIUM_VERSION_TAG
-            make -C ./hack/aks deploy-cilium WAIT_FOR_CILIUM=false "${CILIUM_ARGS[@]}"
-            ;;
-          cilium-overlay)
-            NIGHTLY_TAG="$CILIUM_VERSION_TAG"
-            unset DIR CILIUM_VERSION_TAG
-            if [ "${{ parameters.testHubble }}" = "True" ]; then
-              make -C ./hack/aks deploy-cilium-hubble WAIT_FOR_CILIUM=false "${CILIUM_ARGS[@]}"
-            elif [ "$NIGHTLY_TAG" = "cilium-nightly-pipeline" ] || [ "${{ parameters.nightly }}" = "True" ]; then
-              make -C ./hack/aks deploy-cilium-nightly WAIT_FOR_CILIUM=false
-            else
-              make -C ./hack/aks deploy-cilium WAIT_FOR_CILIUM=false "${CILIUM_ARGS[@]}"
+            CILIUM_DIR=""
+            CILIUM_ARGS=()
+            if [ -n "${{ parameters.ciliumVersionTag }}" ]; then
+              CILIUM_DIR=$(echo "${{ parameters.ciliumVersionTag }}" | sed 's/^v//' | cut -d. -f1,2)
+              CILIUM_ARGS+=(
+                "DIR=${CILIUM_DIR}"
+                "CILIUM_VERSION_TAG=${{ parameters.ciliumVersionTag }}"
+              )
             fi
-            ;;
-          cilium-dualstack)
-            configure_dualstack
-            unset DIR CILIUM_VERSION_TAG
-            make -C ./hack/aks deploy-cilium-dualstack WAIT_FOR_CILIUM=false "${CILIUM_ARGS[@]}"
-            ;;
-          cilium-ebpf-podsubnet)
-            configure_ebpf
-            make -C ./hack/aks deploy-ebpf-podsubnet-cilium WAIT_FOR_CILIUM=false
-            ;;
-          cilium-ebpf-overlay)
-            configure_ebpf_overlay
-            make -C ./hack/aks deploy-ebpf-overlay-cilium WAIT_FOR_CILIUM=false
-            ;;
-          cilium-ebpf-dualstack)
-            configure_ebpf_overlay
-            configure_dualstack
-            make -C ./hack/aks deploy-ebpf-dualstack-cilium WAIT_FOR_CILIUM=false
-            ;;
-          *)
-            echo "Unsupported networkType: ${{ parameters.networkType }}"
-            exit 1
-            ;;
-        esac
+            if [ -n "${{ parameters.ciliumImageRegistry }}" ]; then
+              CILIUM_ARGS+=("CILIUM_IMAGE_REGISTRY=${{ parameters.ciliumImageRegistry }}")
+            fi
 
-        LOG_COLLECTOR_ARGS=()
-        if [ -n "$CILIUM_DIR" ]; then
-          LOG_COLLECTOR_ARGS+=("DIR=${CILIUM_DIR}")
-        fi
-        if [ "${{ parameters.useMakefileLogCollectorDefaults }}" != "True" ]; then
-          collector_registry=${CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY_OVERRIDE:-acnpublic.azurecr.io}
-          collector_version=${CILIUM_LOG_COLLECTOR_VERSION_TAG_OVERRIDE:-$(make cilium-log-collector-version)}
-          export CILIUM_LOG_COLLECTOR_IMAGE=${CILIUM_LOG_COLLECTOR_IMAGE_OVERRIDE:-$(format_image "$collector_registry" cilium-log-collector "$collector_version")}
-        fi
-        make -C ./hack/aks add-cilium-log-collector "${LOG_COLLECTOR_ARGS[@]}"
-        kubectl get pods -A -o wide
+            . ./hack/scripts/parse_override_image.sh
+
+            configure_ebpf() {
+              export AZURE_IPTABLES_MONITOR_IMAGE=${AZURE_IPTABLES_MONITOR_IMAGE_OVERRIDE:-$(format_image acnpublic.azurecr.io azure-iptables-monitor "$(make azure-iptables-monitor-version)")}
+            }
+
+            configure_ebpf_overlay() {
+              configure_ebpf
+              export AZURE_IP_MASQ_MERGER_IMAGE=${AZURE_IP_MASQ_MERGER_IMAGE_OVERRIDE:-$(format_image acnpublic.azurecr.io azure-ip-masq-merger "$(make azure-ip-masq-merger-version)")}
+            }
+
+            configure_dualstack() {
+              export IPV6_HP_BPF_VERSION=${IPV6_HP_BPF_VERSION:-$(make ipv6-hp-bpf-version)}
+              export IPV6_IMAGE_REGISTRY=${IPV6_IMAGE_REGISTRY:-acnpublic.azurecr.io}
+            }
+
+            case "${{ parameters.networkType }}" in
+              cilium-podsubnet)
+                unset DIR CILIUM_VERSION_TAG
+                make -C ./hack/aks deploy-cilium WAIT_FOR_CILIUM=false "${CILIUM_ARGS[@]}"
+                ;;
+              cilium-nodesubnet)
+                unset DIR CILIUM_VERSION_TAG
+                make -C ./hack/aks deploy-cilium WAIT_FOR_CILIUM=false "${CILIUM_ARGS[@]}"
+                ;;
+              cilium-overlay)
+                NIGHTLY_TAG="$CILIUM_VERSION_TAG"
+                unset DIR CILIUM_VERSION_TAG
+                if [ "${{ parameters.testHubble }}" = "True" ]; then
+                  make -C ./hack/aks deploy-cilium-hubble WAIT_FOR_CILIUM=false "${CILIUM_ARGS[@]}"
+                elif [ "$NIGHTLY_TAG" = "cilium-nightly-pipeline" ] || [ "${{ parameters.nightly }}" = "True" ]; then
+                  make -C ./hack/aks deploy-cilium-nightly WAIT_FOR_CILIUM=false
+                else
+                  make -C ./hack/aks deploy-cilium WAIT_FOR_CILIUM=false "${CILIUM_ARGS[@]}"
+                fi
+                ;;
+              cilium-dualstack)
+                configure_dualstack
+                unset DIR CILIUM_VERSION_TAG
+                make -C ./hack/aks deploy-cilium-dualstack WAIT_FOR_CILIUM=false "${CILIUM_ARGS[@]}"
+                ;;
+              cilium-ebpf-podsubnet)
+                configure_ebpf
+                make -C ./hack/aks deploy-ebpf-podsubnet-cilium WAIT_FOR_CILIUM=false
+                ;;
+              cilium-ebpf-overlay)
+                configure_ebpf_overlay
+                make -C ./hack/aks deploy-ebpf-overlay-cilium WAIT_FOR_CILIUM=false
+                ;;
+              cilium-ebpf-dualstack)
+                configure_ebpf_overlay
+                configure_dualstack
+                make -C ./hack/aks deploy-ebpf-dualstack-cilium WAIT_FOR_CILIUM=false
+                ;;
+              *)
+                echo "Unsupported networkType: ${{ parameters.networkType }}"
+                exit 1
+                ;;
+            esac
+
+            LOG_COLLECTOR_ARGS=()
+            if [ -n "$CILIUM_DIR" ]; then
+              LOG_COLLECTOR_ARGS+=("DIR=${CILIUM_DIR}")
+            fi
+            if [ "${{ parameters.useMakefileLogCollectorDefaults }}" != "True" ]; then
+              collector_registry=${CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY_OVERRIDE:-acnpublic.azurecr.io}
+              collector_version=${CILIUM_LOG_COLLECTOR_VERSION_TAG_OVERRIDE:-$(make cilium-log-collector-version)}
+              export CILIUM_LOG_COLLECTOR_IMAGE=${CILIUM_LOG_COLLECTOR_IMAGE_OVERRIDE:-$(format_image "$collector_registry" cilium-log-collector "$collector_version")}
+            fi
+            make -C ./hack/aks add-cilium-log-collector "${LOG_COLLECTOR_ARGS[@]}"
+            kubectl get pods -A -o wide
       displayName: Install Cilium networking
 
-    - bash: |
-        set -e
-        kubectl rollout status daemonset/azure-cns -n kube-system --timeout=20m
-        cilium status --wait --wait-duration 20m
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+            set -e
+            kubectl rollout status daemonset/azure-cns -n kube-system --timeout=20m
+            cilium status --wait --wait-duration 20m
       displayName: Wait for ACN and Cilium networking
