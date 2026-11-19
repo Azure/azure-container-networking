@@ -544,8 +544,8 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 				clusterRoleBindingPath: cnsClusterRoleBindingPath,
 				serviceAccountPath:     cnsServiceAccountPath,
 				initContainerArgs: []string{
-					"deploy",
-					"azure-vnet-stateless", "-o", "/k/azurecni/bin/azure-vnet.exe",
+					`New-Item -Path "C:/k/azurecni/bin" -ItemType Directory -Force | Out-Null;` +
+						` Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/Windows/System32/azure-vnet-stateless.exe" -Destination "C:/k/azurecni/bin/azure-vnet.exe" -Force`,
 				},
 				initContainerName:         initContainerNameCNI,
 				volumes:                   volumesForAzureCNIOverlayWindows(),
