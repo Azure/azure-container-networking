@@ -14,23 +14,11 @@ parameters:
 
 
 steps:
-  - bash: |
-      set -euo pipefail
-      sudo apt-get update
-      sudo apt-get install --yes --allow-downgrades "azure-cli=2.91.0-1~$(lsb_release -cs)"
-    displayName: Install Azure CLI 2.91.0
-
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-      scriptLocation: "inlineScript"
-      scriptType: "bash"
-      addSpnToEnvironment: true
-      inlineScript: |
-        set -e
-        echo "Check az version"
-        az version
-
+  - template: provision-cluster.steps.yaml
+    parameters:
+      displayName: Cluster - ${{ parameters.clusterType }}
+      continueOnError: ${{ contains(parameters.clusterType, 'dualstack') }}
+      script: |
         if ! [ -z ${{ parameters.k8sVersion }} ]; then
           echo "Set K8S_VER with ${{ parameters.k8sVersion }}"
           export K8S_VER=${{ parameters.k8sVersion }}
@@ -41,9 +29,6 @@ steps:
           export K8S_VER=${K8S_VERSION}
         fi
 
-        mkdir -p ~/.kube/
-        make -C ./hack/aks azcfg AZCLI=az REGION=${{ parameters.region }}
-
         make -C ./hack/aks ${{ parameters.clusterType }} \
         AZCLI=az REGION=${{ parameters.region }} SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \
         CLUSTER=${{ parameters.clusterName }} \
@@ -52,5 +37,3 @@ steps:
         LTS=${{ lower(parameters.LTS) }}
 
         echo "Cluster successfully created"
-    displayName: Cluster - ${{ parameters.clusterType }}
-    continueOnError: ${{ contains(parameters.clusterType, 'dualstack') }}

@@ -1,5 +1,12 @@
 Use this Makefile to swiftly provision/deprovision AKS clusters of different Networking flavors in Azure.
 
+On `release/v1.6`, pipeline cluster creates use
+[provision-cluster.steps.yaml](../../.pipelines/templates/provision-cluster.steps.yaml)
+instead of `make azcfg`. Before AzureCLI@2 logs in, the bootstrap extracts the
+matching Microsoft CLI package and verified `aks-preview` wheel into a private
+job directory. Keep both pins aligned with this Makefile: the Kubernetes 1.32
+LTS create request must omit `infrastructureEncryption`, not send `Disabled`.
+
 ---
 ```bash
 ➜  make help
