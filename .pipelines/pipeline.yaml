@@ -338,6 +338,7 @@ extends:
           displayName: Build NPM Images
           dependsOn:
             - setup
+          condition: and(eq(variables.RUN_NPM_TESTS, 'True'), succeeded())
           variables:
             # Buildah cannot preserve non-root ownership while unpacking image layers on 1ESPT image.
             CONTAINER_BUILDER: docker
@@ -454,6 +455,7 @@ extends:
           displayName: Publish NPM Multiarch Manifest
           dependsOn:
             - containerize_npm
+          condition: and(eq(variables.RUN_NPM_TESTS, 'True'), succeeded())
           jobs:
             - job: npm_manifest
               displayName: Compile NPM Manifest
@@ -480,6 +482,8 @@ extends:
             - binaries
             - publish
             - publish_npm
+          # Still run when publish_npm is skipped because the run doesn't target master.
+          condition: and(succeeded('binaries', 'publish'), or(ne(variables.RUN_NPM_TESTS, 'True'), succeeded('publish_npm')))
           variables:
             Packaging.EnableSBOMSigning: true
           jobs:
