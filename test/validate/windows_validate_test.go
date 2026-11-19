@@ -6,6 +6,14 @@ import (
 
 const testMACAddress = "00-11-22-33-44-55"
 
+const (
+	testCNITypeV1                 = "cniv1"
+	testCNITypeV2                 = "cniv2"
+	testCNITypeStateless          = "stateless"
+	testCNITypeStatelessDualStack = "stateless_dualstack"
+	testCNSCheckName              = "cns"
+)
+
 func TestHNSStateFileIPs(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -69,5 +77,95 @@ func TestHNSStateFileIPs(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// A CNS endpoint state file for a dual-stack pod, as read off a Windows node.
+const cnsManagedStateDualStackJSON = `{
+	"Endpoints": {
+		"endpoint-1": {
+			"PodName": "test-pod",
+			"PodNamespace": "default",
+			"IfnameToIPMap": {
+				"eth0": {
+					"IPv4": [{"IP": "10.0.0.5"}],
+					"IPv6": [{"IP": "fd00::5"}]
+				}
+			}
+		}
+	}
+}`
+
+// State validation compares the CNS endpoint state against every address in
+// Pod.Status.PodIPs, which includes IPv6 for dual-stack pods. A single-family parser
+// under-reports and fails validation, so the dual-stack scenario needs its own parser.
+func TestCNSManagedStateFileIPFamilies(t *testing.T) {
+	state := []byte(cnsManagedStateDualStackJSON)
+
+	tests := []struct {
+		name    string
+		parser  func([]byte) (map[string]string, error)
+		wantIPs []string
+	}{
+		{
+			name:    "single stack parser records only ipv4",
+			parser:  cnsManagedStateFileIps,
+			wantIPs: []string{"10.0.0.5"},
+		},
+		{
+			name:    "dualstack parser records both families",
+			parser:  cnsManagedStateFileDualStackIps,
+			wantIPs: []string{"10.0.0.5", "fd00::5"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.parser(state)
+			if err != nil {
+				t.Fatalf("parser error = %v", err)
+			}
+			if len(got) != len(tt.wantIPs) {
+				t.Fatalf("parser returned %v, want %v", got, tt.wantIPs)
+			}
+			for _, ip := range tt.wantIPs {
+				if _, ok := got[ip]; !ok {
+					t.Errorf("parser did not record %q, got %v", ip, got)
+				}
+			}
+		})
+	}
+}
+
+// Guards the CNI_TYPE values the Windows overlay pipeline templates pass to CreateValidator.
+// An unknown key yields no checks, so validation would silently pass without testing anything.
+func TestWindowsChecksMapPipelineKeys(t *testing.T) {
+	for _, cniType := range []string{testCNITypeV1, testCNITypeV2, testCNITypeStateless, testCNITypeStatelessDualStack} {
+		if len(windowsChecksMap[cniType]) == 0 {
+			t.Errorf("windowsChecksMap[%q] has no checks; a pipeline passing this CNI_TYPE would validate nothing", cniType)
+		}
+	}
+}
+
+// The dual-stack stateless scenario must not reuse the single-stack CNS endpoint parser.
+func TestStatelessDualStackUsesDualStackCNSParser(t *testing.T) {
+	state := []byte(cnsManagedStateDualStackJSON)
+
+	var found bool
+	for _, c := range windowsChecksMap[testCNITypeStatelessDualStack] {
+		if c.name != testCNSCheckName {
+			continue
+		}
+		found = true
+		got, err := c.stateFileIPs(state)
+		if err != nil {
+			t.Fatalf("cns check parser error = %v", err)
+		}
+		if _, ok := got["fd00::5"]; !ok {
+			t.Errorf("cns check does not record IPv6 addresses, got %v", got)
+		}
+	}
+	if !found {
+		t.Fatalf("no %q check found in windowsChecksMap[%q]", testCNSCheckName, testCNITypeStatelessDualStack)
 	}
 }
