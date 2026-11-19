@@ -1,4 +1,7 @@
 parameters:
+  - name: use1ESPublishTask
+    type: boolean
+    default: false
   - name: dependsOn
     type: object
     default: ""
@@ -143,6 +146,7 @@ stages:
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
+              use1ESPublishTask: ${{ parameters.use1ESPublishTask }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: cilium

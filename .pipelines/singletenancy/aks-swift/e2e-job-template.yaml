@@ -1,4 +1,5 @@
 parameters:
+  use1ESPublishTask: false
   name: ""
   displayName: ""
   clusterType: ""
@@ -108,6 +109,7 @@ stages:
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
+              use1ESPublishTask: ${{ parameters.use1ESPublishTask }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: cniv2
