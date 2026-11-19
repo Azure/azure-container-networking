@@ -1,4 +1,5 @@
 parameters:
+  aksPool: ""
   name: ""
   displayName: ""
   clusterType: ""
@@ -14,6 +15,8 @@ stages:
       - ${{ parameters.dependsOn }}
       - setup
     variables:
+      ${{ if ne(parameters.aksPool, '') }}:
+        BUILD_POOL_NAME_DEFAULT: ${{ parameters.aksPool }}
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
     jobs:
       - template: ../../templates/create-cluster.jobs.yaml
@@ -33,6 +36,8 @@ stages:
     - setup
     - ${{ parameters.clusterName }}
     variables:
+      ${{ if ne(parameters.aksPool, '') }}:
+        BUILD_POOL_NAME_DEFAULT: ${{ parameters.aksPool }}
       GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
@@ -54,9 +59,10 @@ stages:
         timeoutInMinutes: 120
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
-          demands:
-          - agent.os -equals Linux
-          - Role -equals $(CUSTOM_E2E_ROLE)
+          ${{ if eq(parameters.aksPool, '') }}:
+            demands:
+            - agent.os -equals Linux
+            - Role -equals $(CUSTOM_E2E_ROLE)
           isCustom: true
           type: linux
         steps:
@@ -87,6 +93,9 @@ stages:
         condition: failed()
         pool:
           type: linux
+          ${{ if ne(parameters.aksPool, '') }}:
+            isCustom: true
+            name: ${{ parameters.aksPool }}
         variables:
           ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
         steps:

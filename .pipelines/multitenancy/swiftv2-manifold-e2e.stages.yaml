@@ -35,8 +35,11 @@ stages:
         timeoutInMinutes: 240
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
-          isCustom: true
-          type: linux
+          ${{ if eq(parameters.dependsOn, 'publish') }}:
+            os: linux
+          ${{ else }}:
+            isCustom: true
+            type: linux
         steps:
           - task: TriggerBuild@3
             inputs:

@@ -1,4 +1,5 @@
 parameters:
+  aksPool: ""
   name: ""
   displayName: ""
   clusterType: ""
@@ -16,6 +17,8 @@ stages:
       - ${{ parameters.dependsOn }}
       - setup
     variables:
+      ${{ if ne(parameters.aksPool, '') }}:
+        BUILD_POOL_NAME_DEFAULT: ${{ parameters.aksPool }}
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
     jobs:
       - template: ../../templates/create-cluster.jobs.yaml
@@ -37,6 +40,8 @@ stages:
     - setup
     - ${{ parameters.clusterName }}
     variables:
+      ${{ if ne(parameters.aksPool, '') }}:
+        BUILD_POOL_NAME_DEFAULT: ${{ parameters.aksPool }}
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
       GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
       GOBIN: "$(GOPATH)/bin" # Go binaries path
@@ -57,9 +62,10 @@ stages:
           isCustom: true
           type: linux
           name: $(BUILD_POOL_NAME_DEFAULT)
-          demands:
-          - agent.os -equals Linux
-          - Role -equals $(CUSTOM_E2E_ROLE)
+          ${{ if eq(parameters.aksPool, '') }}:
+            demands:
+            - agent.os -equals Linux
+            - Role -equals $(CUSTOM_E2E_ROLE)
         steps:
           - checkout: azure-container-networking
           - template: azure-cni-overlay-e2e.steps.yaml
@@ -90,6 +96,9 @@ stages:
         condition: in(dependencies.${{ parameters.name }}_${{ parameters.os }}.result, 'Failed')
         pool:
           type: linux
+          ${{ if ne(parameters.aksPool, '') }}:
+            isCustom: true
+            name: ${{ parameters.aksPool }}
         variables:
           ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
         steps:

@@ -46,6 +46,9 @@ mkdir -p "$OUT_DIR"/lib
 
 # Package up Needed C Files
 if [[ -f /etc/debian_version ]];then
+  for source in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do
+    if [[ -f $source ]]; then sed -i 's|://archive\.ubuntu\.com|://azure.archive.ubuntu.com|g' "$source"; fi
+  done
   apt-get update -y
   apt-get install -y --no-install-recommends llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2
   if [[ $ARCH =~ amd64 ]]; then

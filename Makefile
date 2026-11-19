@@ -111,14 +111,16 @@ NPM_IMAGE_INFO_FILE			= azure-npm-$(NPM_VERSION).txt
 
 # Default target
 all-binaries-platforms: ## Make all platform binaries
-	@for goos in "$(GOOSES)"; do \
+	@set -e; \
+	for goos in "$(GOOSES)"; do \
 		for goarch in "$(GOARCHES)"; do \
-			make all-binaries GOOS=$$goos GOARCH=$$goarch; \
+			$(MAKE) all-binaries GOOS=$$goos GOARCH=$$goarch; \
 		done \
 	done
 
 # OS specific binaries/images
 ifeq ($(GOOS),linux)
+all-binaries: export MS_GO_NOSYSTEMCRYPTO := 1
 all-binaries: acncli azure-cni-plugin azure-cns azure-npm azure-ipam ipv6-hp-bpf
 all-images: npm-image cns-image cni-manager-image ipv6-hp-bpf-image
 else
@@ -191,11 +193,19 @@ ipv6-hp-bpf-binary:
 # Libraries for ipv6-hp-bpf
 ipv6-hp-bpf-lib:
 ifeq ($(GOARCH),amd64)
-	sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-multilib
-	for dir in /usr/include/x86_64-linux-gnu/*; do sudo ln -sfn "$$dir" /usr/include/$$(basename "$$dir"); done
+	if [ -f /etc/debian_version ]; then \
+		sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-multilib; \
+	else \
+		sudo tdnf install -y llvm clang libbpf-devel nftables gcc binutils iproute glibc; \
+	fi
+	for dir in /usr/include/x86_64-linux-gnu/*; do [ -e "$$dir" ] || continue; sudo ln -sfn "$$dir" /usr/include/$$(basename "$$dir"); done
 else ifeq ($(GOARCH),arm64)
-	sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu
-	for dir in /usr/include/aarch64-linux-gnu/*; do sudo ln -sfn "$$dir" /usr/include/$$(basename "$$dir"); done
+	if [ -f /etc/debian_version ]; then \
+		sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu; \
+	else \
+		sudo tdnf install -y llvm clang libbpf-devel nftables gcc binutils iproute glibc; \
+	fi
+	for dir in /usr/include/aarch64-linux-gnu/*; do [ -e "$$dir" ] || continue; sudo ln -sfn "$$dir" /usr/include/$$(basename "$$dir"); done
 endif
 
 # Build the Azure CNI network binary.

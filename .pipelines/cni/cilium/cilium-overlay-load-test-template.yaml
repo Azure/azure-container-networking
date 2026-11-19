@@ -271,19 +271,29 @@ stages:
                 make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
             name: "GetCluster"
             displayName: "Get AKS Cluster"
-          - script: |
-              kubectl delete ns load-test
-              cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption,!check-log-errors,!no-unexpected-packet-drops'
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              scriptLocation: inlineScript
+              scriptType: bash
+              inlineScript: |
+                kubectl delete ns load-test
+                cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption,!check-log-errors,!no-unexpected-packet-drops'
             retryCountOnTaskFailure: 6
             name: "CiliumConnectivityTests"
             displayName: "Run Cilium Connectivity Tests"
-          - script: |
-              cd hack/scripts
-              chmod +x async-delete-test.sh
-              ./async-delete-test.sh
-              if ! [ -z $(kubectl -n kube-system get ds azure-cns | grep non-existing) ]; then
-                kubectl -n kube-system patch daemonset azure-cns --type json -p='[{"op": "remove", "path": "/spec/template/spec/nodeSelector/non-existing"}]'
-              fi
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              scriptLocation: inlineScript
+              scriptType: bash
+              inlineScript: |
+                cd hack/scripts
+                chmod +x async-delete-test.sh
+                ./async-delete-test.sh
+                if ! [ -z $(kubectl -n kube-system get ds azure-cns | grep non-existing) ]; then
+                  kubectl -n kube-system patch daemonset azure-cns --type json -p='[{"op": "remove", "path": "/spec/template/spec/nodeSelector/non-existing"}]'
+                fi
             name: "testAsyncDelete"
             displayName: "Verify Async Delete when CNS is down"
           - template: ../../templates/cilium-mtu-check.yaml

@@ -173,26 +173,36 @@ stages:
               name: "swifte2e"
               displayName: "Swift Integration"
           - ${{ if contains(parameters.os, 'windows') }}: # This should be removed in the future, ongoing cloud-node-manager-windows issue
-            - script: |
-                kubectl get nodes -l kubernetes.io/os=windows
-                nodeList=`kubectl get nodes -l kubernetes.io/os=windows --no-headers | awk '{print $1}'`
-                for node in $nodeList; do
-                    taint=`kubectl describe node $node | grep Taints | awk '{print $2}'`
-                    if [ $taint == "node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule" ]; then
-                        kubectl taint nodes $node node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule-
-                    fi
-                done
+            - task: AzureCLI@2
+              inputs:
+                azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+                scriptLocation: inlineScript
+                scriptType: bash
+                inlineScript: |
+                  kubectl get nodes -l kubernetes.io/os=windows
+                  nodeList=`kubectl get nodes -l kubernetes.io/os=windows --no-headers | awk '{print $1}'`
+                  for node in $nodeList; do
+                      taint=`kubectl describe node $node | grep Taints | awk '{print $2}'`
+                      if [ $taint == "node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule" ]; then
+                          kubectl taint nodes $node node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule-
+                      fi
+                  done
               name: windows_taints
               displayName: Remove Windows Taints
-            - script: |
-                kubectl apply -f test/integration/manifests/load/privileged-daemonset-windows.yaml
-                kubectl rollout status ds -n kube-system privileged-daemonset
+            - task: AzureCLI@2
+              inputs:
+                azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+                scriptLocation: inlineScript
+                scriptType: bash
+                inlineScript: |
+                  kubectl apply -f test/integration/manifests/load/privileged-daemonset-windows.yaml
+                  kubectl rollout status ds -n kube-system privileged-daemonset
 
-                kubectl get pod -n kube-system -l app=privileged-daemonset,os=windows -n kube-system
-                pods=`kubectl get pod -n kube-system -l app=privileged-daemonset,os=windows -n kube-system --no-headers | awk '{print $1}'`
-                for pod in $pods; do
-                  kubectl exec -i -n kube-system $pod -- powershell "Restart-service kubeproxy"
-                done
+                  kubectl get pod -n kube-system -l app=privileged-daemonset,os=windows -n kube-system
+                  pods=`kubectl get pod -n kube-system -l app=privileged-daemonset,os=windows -n kube-system --no-headers | awk '{print $1}'`
+                  for pod in $pods; do
+                    kubectl exec -i -n kube-system $pod -- powershell "Restart-service kubeproxy"
+                  done
               name: kubeproxy
               displayName: Restart Kubeproxy on Windows nodes
 

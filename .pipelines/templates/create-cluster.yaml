@@ -17,8 +17,15 @@ jobs:
     steps:
       - bash: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install --yes --allow-downgrades "azure-cli=2.91.0-1~$(lsb_release -cs)"
+          if command -v apt-get >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install --yes --allow-downgrades "azure-cli=2.91.0-1~$(lsb_release -cs)"
+          else
+            cli="$(Agent.TempDirectory)/az-cli-2.91.0"
+            python3 -m venv "$cli"
+            "$cli/bin/python" -m pip install 'azure-cli==2.91.0'
+            echo "##vso[task.prependpath]$cli/bin"
+          fi
         displayName: Install Azure CLI 2.91.0
 
       - task: AzureCLI@2

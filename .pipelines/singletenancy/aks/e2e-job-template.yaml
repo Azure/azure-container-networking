@@ -1,4 +1,5 @@
 parameters:
+  use1ESPublishTask: false
   name: ""
   displayName: ""
   arch: ""
@@ -54,9 +55,10 @@ stages:
         timeoutInMinutes: 120
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
-          demands:
-          - agent.os -equals Linux
-          - Role -equals $(CUSTOM_E2E_ROLE)
+          ${{ if eq(parameters.use1ESPublishTask, false) }}:
+            demands:
+            - agent.os -equals Linux
+            - Role -equals $(CUSTOM_E2E_ROLE)
         steps:
           - template: e2e-step-template.yaml
             parameters:
@@ -89,6 +91,7 @@ stages:
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
+              use1ESPublishTask: ${{ parameters.use1ESPublishTask }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: cniv1
