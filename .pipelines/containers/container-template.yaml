@@ -29,6 +29,14 @@ steps:
     # Buildah pushes separately and ignores this Docker buildx setting.
     BUILDX_ACTION: --push --provenance=false
 
+- script: |
+    set -euo pipefail
+    make --no-print-directory npm-image-validate OS=${{ parameters.os }} ARCH=${{ parameters.arch }}
+  displayName: Validate NPM Linux image runtime
+  condition: and(succeeded(), eq(variables['name'], 'npm'), eq(variables['os'], 'linux'))
+  env:
+    BUILDX_ACTION: --push --provenance=false
+
 - task: AzureCLI@2
   displayName: "Logout"
   inputs:
