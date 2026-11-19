@@ -186,14 +186,6 @@ extends:
                     arch: amd64
                     name: ipv6-hp-bpf
                     os: linux
-                  npm_linux_amd64:
-                    arch: amd64
-                    name: npm
-                    os: linux
-                  npm_windows_amd64:
-                    arch: amd64
-                    name: npm
-                    os: windows
               steps:
                 - template: /.pipelines/containers/container-template.yaml@self
                   parameters:
@@ -224,6 +216,43 @@ extends:
                     arch: arm64
                     name: ipv6-hp-bpf
                     os: linux
+              steps:
+                - template: /.pipelines/containers/container-template.yaml@self
+                  parameters:
+                    arch: $(arch)
+                    name: $(name)
+                    os: $(os)
+            - job: containerize_npm_amd64
+              displayName: Build NPM Images
+              condition: and(eq(variables.RUN_NPM_TESTS, 'True'), succeeded())
+              pool:
+                name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
+                os: linux
+              strategy:
+                matrix:
+                  npm_linux_amd64:
+                    arch: amd64
+                    name: npm
+                    os: linux
+                  npm_windows_amd64:
+                    arch: amd64
+                    name: npm
+                    os: windows
+              steps:
+                - template: /.pipelines/containers/container-template.yaml@self
+                  parameters:
+                    arch: $(arch)
+                    name: $(name)
+                    os: $(os)
+                    os_version: $(os_version)
+            - job: containerize_npm_linux_arm64
+              displayName: Build NPM Images
+              condition: and(eq(variables.RUN_NPM_TESTS, 'True'), succeeded())
+              pool:
+                name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
+                os: linux
+              strategy:
+                matrix:
                   npm_linux_arm64:
                     arch: arm64
                     name: npm
@@ -268,14 +297,30 @@ extends:
                   ipv6_hp_bpf:
                     name: ipv6-hp-bpf
                     platforms: linux/amd64 linux/arm64
-                  npm:
-                    name: npm
-                    platforms: linux/amd64 linux/arm64 windows/amd64
               steps:
                 - template: /.pipelines/containers/manifest-template.yaml@self
                   parameters:
                     name: $(name)
                     platforms: $(platforms)
+                    publishArtifact: false
+            - job: npm_manifest
+              displayName: Compile NPM Manifest
+              condition: and(eq(variables.RUN_NPM_TESTS, 'True'), succeeded())
+              pool:
+                name: "$(BUILD_POOL_NAME_DEFAULT)"
+                os: linux
+              templateContext:
+                outputs:
+                  - output: buildArtifacts
+                    PathtoPublish: "$(Build.ArtifactStagingDirectory)"
+                    ArtifactName: "output_staging"
+                    sbomEnabled: false
+                    condition: succeeded()
+              steps:
+                - template: /.pipelines/containers/manifest-template.yaml@self
+                  parameters:
+                    name: npm
+                    platforms: linux/amd64 linux/arm64 windows/amd64
                     publishArtifact: false
 
         - stage: sbom
