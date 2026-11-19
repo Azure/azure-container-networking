@@ -187,7 +187,8 @@ azure-ipam-binary:
 
 # Build the ipv6-hp-bpf binary.
 ipv6-hp-bpf-binary:
-	cd $(IPV6_HP_BPF_DIR) && CGO_ENABLED=0 go generate ./...
+	# bpf2go runs on the build host; only the loader is cross-compiled.
+	cd $(IPV6_HP_BPF_DIR) && GOOS=$$(go env GOHOSTOS) GOARCH=$$(go env GOHOSTARCH) CGO_ENABLED=0 go generate ./...
 	cd $(IPV6_HP_BPF_DIR)/cmd/ipv6-hp-bpf && CGO_ENABLED=0 go build -v -o $(IPV6_HP_BPF_BUILD_DIR)/ipv6-hp-bpf$(EXE_EXT) -ldflags "-X main.version=$(IPV6_HP_BPF_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Libraries for ipv6-hp-bpf
