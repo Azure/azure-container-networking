@@ -1,4 +1,5 @@
 parameters:
+  use1ESPool: false
   clusterName: ""
   os: ""
   dependsOn: ""
@@ -12,6 +13,8 @@ jobs:
     dependsOn: ${{ parameters.dependsOn }}
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
+      ${{ if eq(parameters.use1ESPool, true) }}:
+        os: linux
     steps:
       - task: AzureCLI@2
         inputs:
