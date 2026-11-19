@@ -24,6 +24,8 @@ parameters:
     type: boolean
     default: false
 
+variables:
+  - template: ../templates/npm-test-scope.variables.yaml
 
 stages:
   - stage: setup
