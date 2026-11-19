@@ -1,0 +1,11 @@
+parameters:
+  official: false
+
+variables:
+  - name: acnTestRef
+    ${{ if eq(parameters.official, true) }}:
+      value: $[ resources.repositories['azure-container-networking'].ref ]
+    ${{ else }}:
+      value: $[ coalesce(variables['System.PullRequest.TargetBranch'], variables['Build.SourceBranch']) ]
+  - name: RUN_NPM_TESTS
+    value: $[ or(in(variables.acnTestRef, 'master', 'refs/heads/master'), startsWith(variables.acnTestRef, 'refs/heads/gh-readonly-queue/master/')) ]

@@ -34,7 +34,7 @@ stages:
               make tools
 
               test_exit=0
-              sudo -E env "PATH=$PATH" make test-all 2>&1 | tee test-output.log || test_exit=$?
+              sudo -E env "PATH=$PATH" make test-all CI_RUN_NPM_TESTS="$RUN_NPM_TESTS" 2>&1 | tee test-output.log || test_exit=$?
               report_exit=0
               build/tools/bin/go-junit-report < test-output.log > report.xml || report_exit=$?
 
@@ -85,7 +85,9 @@ stages:
           # Only run one go test per script
           - script: |
               if not exist go.mod cd azure-container-networking
-              go test -timeout 30m -covermode atomic -coverprofile="$(System.DefaultWorkingDirectory)/windows-coverage.out" ./npm/... ./cni/... ./platform/...
+              set "npm_packages=./npm/..."
+              if /I "%RUN_NPM_TESTS%"=="False" set "npm_packages="
+              go test -timeout 30m -covermode atomic -coverprofile="$(System.DefaultWorkingDirectory)/windows-coverage.out" %npm_packages% ./cni/... ./platform/...
               set "test_exit=%ERRORLEVEL%"
               go tool cover -func="$(System.DefaultWorkingDirectory)/windows-coverage.out"
               set "coverage_exit=%ERRORLEVEL%"

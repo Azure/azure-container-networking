@@ -789,7 +789,13 @@ RESTART_CASE ?= false
 CNI_TYPE ?= cilium
 
 test-all: ## run all unit tests.
-	go test -mod=readonly -buildvcs=false -tags "unit" --skip 'TestE2E*' -race -covermode atomic -coverprofile=coverage-all.out $(COVER_PKG)/...
+	packages=('$(COVER_PKG)/...'); \
+	if [[ "$(CI_RUN_NPM_TESTS)" == "False" ]]; then \
+		set -o pipefail; \
+		listed=$$(go list -mod=readonly -race -tags unit $(COVER_PKG)/... | grep -vE '^github\.com/Azure/azure-container-networking/npm(/|$$)') || exit 1; \
+		mapfile -t packages <<< "$$listed"; \
+	fi; \
+	go test -mod=readonly -buildvcs=false -tags "unit" --skip 'TestE2E*' -race -covermode atomic -coverprofile=coverage-all.out "$${packages[@]}"
 	go tool cover -func=coverage-all.out
 
 test-integration: ## run all integration tests.
