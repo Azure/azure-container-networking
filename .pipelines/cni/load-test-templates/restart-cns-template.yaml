@@ -1,4 +1,5 @@
 parameters:
+  use1ESPublishTask: false
   clusterName: ""
   cni: "cilium"
   scaleup: 100
@@ -38,6 +39,7 @@ steps:
 
   - template: ../../templates/log-template.yaml
     parameters:
+      use1ESPublishTask: ${{ parameters.use1ESPublishTask }}
       clusterName: ${{ parameters.clusterName }}
       logType: ${{ parameters.logType }}
       os: ${{ parameters.os }}
