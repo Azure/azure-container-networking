@@ -70,7 +70,7 @@ verify_metadata() {
 }
 
 prepare() {
-    for tool in go jq kubectl crane timeout sha256sum awk; do
+    for tool in go jq kubectl kubelogin crane timeout sha256sum awk; do
         command -v "$tool" > /dev/null || fail "required tool is unavailable: $tool"
     done
     validate_inputs
@@ -170,6 +170,7 @@ provision() {
     password="$(legacy_admin_fixture "$script_dir/npm-cyc-win-tests-latest-release.yaml")"
     timeout --signal=INT --kill-after=10s 45m az aks create \
         --resource-group "$resource_group" --name "$cluster" --location "$NPM_LITE_LOCATION" \
+        --enable-aad --enable-azure-rbac \
         --no-ssh-key --windows-admin-username e2eadmin --windows-admin-password "$password" \
         --network-plugin azure --vm-set-type VirtualMachineScaleSets \
         --node-vm-size Standard_D4s_v3 --node-count 1 \
@@ -186,6 +187,7 @@ provision() {
     [[ ! -e "$KUBECONFIG" ]] || fail "refusing to replace an existing kubeconfig"
     timeout 120s az aks get-credentials --resource-group "$resource_group" --name "$cluster" \
         --file "$KUBECONFIG" --only-show-errors -o none
+    timeout 120s kubelogin convert-kubeconfig -l azurecli --kubeconfig "$KUBECONFIG"
     chmod 600 "$KUBECONFIG"
     timeout --signal=INT --kill-after=10s 120s kubectl --kubeconfig "$KUBECONFIG" --request-timeout=60s \
         apply -f "$NPM_LITE_WORK_DIR/deployment.json"
@@ -193,8 +195,39 @@ provision() {
         rollout status daemonset/azure-npm-win -n kube-system --timeout=20m
 }
 
+# The executor starts about ten kubectl processes per probe round within its 90-second
+# convergence limit, so it uses one Entra ID token instead of an Azure CLI call per process.
+use_static_token() {
+    local config server_id response token expires_on
+    config="$(timeout 60s kubectl config view --raw --kubeconfig "$KUBECONFIG" -o json)" ||
+        fail "reading the kubeconfig failed"
+    server_id="$(printf '%s' "$config" | jq -er '
+        select((.users | length) == 1 and (.contexts | length) == 1 and
+            .contexts[0].context.user == .users[0].name) |
+        .users[0].user.exec.args as $args | ($args | index("--server-id")) as $i |
+        select($i != null) | $args[$i + 1] | strings | select(test("\\A[a-f0-9-]{36}\\z"))
+    ')" || fail "kubeconfig must have exactly one Azure CLI exec user"
+    response="$(timeout 120s az account get-access-token --resource "$server_id" --only-show-errors -o json)" ||
+        fail "cluster Entra ID token request failed"
+    token="$(printf '%s' "$response" | jq -er '.accessToken | strings | select(length > 0)')" ||
+        fail "cluster Entra ID token response has no access token"
+    expires_on="$(printf '%s' "$response" | jq -er '.expires_on | numbers | floor')" ||
+        fail "cluster Entra ID token response has no expiry"
+    unset response
+    # The token must outlive the executor's 35-minute deadline, with a minute of margin.
+    ((expires_on - $(date +%s) >= 2160)) || fail "cluster Entra ID token expires before the executor deadline"
+    if ! printf '%s' "$config" | NPM_LITE_TOKEN="$token" jq '.users[0].user = {token: env.NPM_LITE_TOKEN}' \
+        > "$KUBECONFIG.tmp"; then
+        rm -f -- "$KUBECONFIG.tmp"
+        fail "writing the token kubeconfig failed"
+    fi
+    unset token
+    mv -f -- "$KUBECONFIG.tmp" "$KUBECONFIG"
+}
+
 provision_and_run() {
     provision "e2e-npm-lite-$BUILD_BUILDID"
+    use_static_token
     exec "$NPM_LITE_WORK_DIR/windows-npm-lite" \
         --kubeconfig "$KUBECONFIG" --daemonset azure-npm-win --npm-namespace kube-system \
         --npm-image "$WINDOWS_NPM_IMAGE"
@@ -269,7 +302,7 @@ cleanup_kubeconfig() {
     [[ -f "$NPM_LITE_WORK_DIR/owner.json" ]] || return 0
     local resource_group cluster owner
     load_owner
-    rm -f -- "$NPM_LITE_WORK_DIR/kubeconfig"
+    rm -f -- "$NPM_LITE_WORK_DIR/kubeconfig" "$NPM_LITE_WORK_DIR/kubeconfig.tmp"
 }
 
 cleanup() {

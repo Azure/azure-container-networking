@@ -86,6 +86,11 @@ DaemonSet rollout before testing, and logs pod image IDs for runtime evidence.
 Image, configuration, or rollout failures fail the job without falling back to a
 source-built image.
 
+Test clusters enable Microsoft Entra ID authentication with Azure RBAC. Each job
+installs [kubelogin](https://github.com/Azure/kubelogin) and converts its
+kubeconfig to Azure CLI authentication. Tasks that use a cluster keep the
+pipeline's Azure session active so that tokens can be renewed during long runs.
+
 Clearing `npmImage` restores Linux source-built validation; it is not a substitute
 for validating a failed candidate. Windows validation is independently opt-in.
 These overrides do not change manual-install manifests or production defaults.
@@ -113,6 +118,10 @@ respectively, and the fixed `conformance-win-lite` cluster name, separate from
 Linux resources. An existing group is never reused;
 cleanup requires the matching build/job/attempt ownership tag. Each job uses a
 private kubeconfig without writing shared SSH keys or kubeconfig files.
+Before the case executor starts, its kubeconfig switches to one Entra ID access
+token, so its frequent kubectl calls do not each start the Azure CLI. That
+token must remain valid past the executor's 35-minute deadline. The upstream
+job keeps Azure CLI authentication.
 Nodepool changes retry only an explicit AKS operation-in-progress rejection,
 within their existing provisioning deadlines; other errors fail immediately.
 
