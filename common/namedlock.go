@@ -31,14 +31,16 @@ func InitNamedLock() *NamedLock {
 // LockAcquire acquires the lock with specified name
 func (namedLock *NamedLock) LockAcquire(lockName string) {
 	namedLock.mutex.Lock()
-	_, ok := namedLock.lockMap[lockName]
+	lock, ok := namedLock.lockMap[lockName]
 	if !ok {
-		namedLock.lockMap[lockName] = &refCountedLock{refCount: 0}
+		lock = &refCountedLock{refCount: 0}
+		namedLock.lockMap[lockName] = lock
 	}
 
-	namedLock.lockMap[lockName].AddRef()
+	lock.AddRef()
 	namedLock.mutex.Unlock()
-	namedLock.lockMap[lockName].Lock()
+	// The ref count keeps this entry in the map, so lock it outside the map mutex.
+	lock.Lock()
 }
 
 // LockRelease releases the lock with specified name
