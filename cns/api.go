@@ -30,6 +30,7 @@ const (
 	CreateHostNCApipaEndpointPath = "/network/createhostncapipaendpoint"
 	DeleteHostNCApipaEndpointPath = "/network/deletehostncapipaendpoint"
 	NmAgentSupportedApisPath      = "/network/nmagentsupportedapis"
+	SupportedFeaturesPath         = "/supportedfeatures"
 	NMAgentGetNCListAPIPath       = "/nclist"
 	V1Prefix                      = "/v0.1"
 	V2Prefix                      = "/v0.2"
@@ -347,6 +348,14 @@ type DeleteHostNCApipaEndpointRequest struct {
 // DeleteHostNCApipaEndpointResponse describes response for delete host NC apipa endpoint request.
 type DeleteHostNCApipaEndpointResponse struct {
 	Response Response
+}
+
+// RNCSupportedFeature advertises availability of the RNC support query API.
+const RNCSupportedFeature = "RNCSupported"
+
+// SupportedFeaturesResponse advertises curated features, not registered routes.
+type SupportedFeaturesResponse struct {
+	SupportedFeatures []string `json:"supportedFeatures"`
 }
 
 type NmAgentSupportedApisRequest struct {
