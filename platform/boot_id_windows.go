@@ -1,0 +1,56 @@
+// Copyright 2017 Microsoft. All rights reserved.
+// MIT License
+
+package platform
+
+import (
+	"errors"
+	"fmt"
+	"strconv"
+
+	"golang.org/x/sys/windows/registry"
+)
+
+const (
+	windowsBootIDRegistryPath = `SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters`
+	windowsBootIDValueName    = "BootId"
+)
+
+var errUnexpectedBootIDRegistryType = errors.New("platform: unexpected boot ID registry type")
+
+type bootIDQuery func() (uint64, error)
+
+// BootID returns the identity of the current Windows boot.
+func BootID() (string, error) {
+	return bootID(queryBootIDRegistry)
+}
+
+func queryBootIDRegistry() (uint64, error) {
+	key, err := registry.OpenKey(registry.LOCAL_MACHINE, windowsBootIDRegistryPath, registry.QUERY_VALUE)
+	if err != nil {
+		return 0, fmt.Errorf("open boot ID registry key: %w", err)
+	}
+	defer key.Close()
+
+	id, valueType, err := key.GetIntegerValue(windowsBootIDValueName)
+	if err != nil {
+		return 0, fmt.Errorf("read boot ID registry value: %w", err)
+	}
+	return validateBootIDRegistryValue(id, valueType)
+}
+
+func validateBootIDRegistryValue(id uint64, valueType uint32) (uint64, error) {
+	if valueType != registry.DWORD {
+		return 0, fmt.Errorf("%w: %d", errUnexpectedBootIDRegistryType, valueType)
+	}
+	return id, nil
+}
+
+func bootID(query bootIDQuery) (string, error) {
+	id, err := query()
+	if err != nil {
+		return "", fmt.Errorf("query windows boot ID: %w", err)
+	}
+
+	return strconv.FormatUint(id, 10), nil
+}
