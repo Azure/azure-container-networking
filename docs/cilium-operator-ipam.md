@@ -294,18 +294,10 @@ release by exact sandbox owner as described in section 7. A failed API call
 never counts as confirmed release.
 
 If the release succeeds but the final state write fails, report that failure
-and preserve idempotent retry behavior. The caller's existing local
-serialization remains. The network cleanup implementation must not delete
-another active endpoint's shared-IP membership when replaying stale cleanup;
-this requires the exact-IP reuse regression in section 10. An IPAM owner
-check protects the reservation, not every host-side cleanup operation.
-
-For that retry, use the existing endpoint inventory under the existing CNI
-operation lock: if another endpoint record uses the address, preserve its
-IP-shared membership and remove only the old endpoint's interface-specific
-objects. Do not remove shared node rules. This is a narrow endpoint-cleanup
-idempotency requirement, not a new Kubernetes read in the network plugin or
-an additional persistent allocation record.
+and preserve idempotent IPAM release behavior. The caller's existing local
+serialization and endpoint cleanup remain unchanged. An IPAM owner check
+protects the reservation, not every host-side cleanup operation. Shared-IP
+dataplane cleanup changes are outside this design.
 
 Normal DEL stops on an endpoint-cleanup error before reaching release.
 Failed-ADD rollback is different: its separate allocation cleanup still runs.
@@ -353,8 +345,8 @@ Rollback is best-effort; endpoint teardown and IP release are **not** an
 atomic transaction. Residual host rules
 are still a networking error to report and clean up. The runtime must abandon
 the failed sandbox rather than treat the failed ADD as successful. Tests must
-cover cleanup errors, retained cleanup inputs, exact-IP reuse and stale
-requests; an empty used entry alone does not prove a clean dataplane.
+cover cleanup errors, retained cleanup inputs and owner-safe IPAM release;
+an empty used entry alone does not prove a clean dataplane.
 
 ## 7. DEL without a saved endpoint
 
@@ -552,7 +544,7 @@ checking that an object or file exists.
 | Failed ADD | Inject endpoint cleanup and state cleanup failures; verify IPAM DEL is still attempted and both failures are observable |
 | API failure during cleanup | Failed release leaves a remote claim; subsequent explicit DEL removes it after API recovery without manual repair |
 | No endpoint record | DEL finds the exact sandbox owner remotely; a missing owner succeeds without touching a different sandbox |
-| Stale cleanup after reuse | Release succeeds, final state write fails, another sandbox reuses the IP, then the old DEL retries; the new reservation and active endpoint rules must survive |
+| Stale IPAM release after reuse | An old owner's DEL does not remove a replacement sandbox's reservation at the same address |
 | Reboot | Reboot with active pods and retained remote usage; old-boot claims disappear automatically and new pods get usable networking without editing the CR |
 | Reboot race/interruption | Concurrent first CNI calls, process exit after reset and a lost reset response never delete current-boot claims |
 | Not a reboot | Restart IPAM/kubelet or remove a local state file during the same boot; unrelated current-boot reservations remain intact |
@@ -561,12 +553,9 @@ checking that an object or file exists.
 | Identity | VM replacement, foreign NIC, wrong Node UID, unknown owner format or missing boot ID cannot trigger a guessed global reset |
 | Configuration | Explicit mode with missing inputs or unsupported dispatch fails; non-opted-in CNI behavior is unchanged |
 
-Endpoint cleanup can fail independently of release. The stale-cleanup test
-must exercise both reservation ownership and Linux rules; a matching owner
-check in IPAM alone cannot prove that a stale network cleanup is harmless.
-Use existing endpoint identity and cleanup helpers, and make any necessary
-retry fix narrowly scoped to the behavior under test rather than moving
-Kubernetes ownership logic into Azure CNI.
+Endpoint cleanup can fail independently of release. IPAM owner checks
+protect allocation ownership; they do not establish host-rule cleanup
+correctness.
 
 Normal reboot recovery must be demonstrated on the supported Linux image,
 not inferred from a changed boot ID in a unit test. The complete integration
