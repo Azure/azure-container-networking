@@ -1137,34 +1137,38 @@ func (service *HTTPRestService) handlePostNetworkContainers(w http.ResponseWrite
 
 func (service *HTTPRestService) createNetworkContainers(createNetworkContainerRequests []cns.CreateNetworkContainerRequest) cns.Response {
 	for i := 0; i < len(createNetworkContainerRequests); i++ {
-		createNcReq := createNetworkContainerRequests[i]
-		ncDetails, found := service.getNetworkContainerDetails(createNcReq.NetworkContainerid)
-		// Create NC if it doesn't exist, or it exists and the requested version is different from the saved version
-		if !found || (found && ncDetails.VMVersion != createNcReq.Version) {
-			nc := service.networkContainer
-			if err := nc.Create(createNcReq); err != nil {
-				return cns.Response{
-					ReturnCode: types.UnexpectedError,
-					Message:    fmt.Sprintf("[Azure CNS] Create Network Containers failed with error: %s", err.Error()),
-				}
-			}
+		if resp := service.createNetworkContainer(createNetworkContainerRequests[i]); resp.ReturnCode != types.Success {
+			return resp
 		}
-		// Save NC Goal State details
-		saveNcReturnCode, saveNcReturnMessage := service.saveNetworkContainerGoalState(createNcReq)
-		// If NC was created successfully, log NC snapshot.
-		if saveNcReturnCode != types.Success {
-			return cns.Response{
-				ReturnCode: saveNcReturnCode,
-				Message:    saveNcReturnMessage,
-			}
-		}
-		logNCSnapshot(createNcReq)
 	}
 
 	return cns.Response{
 		ReturnCode: types.Success,
 		Message:    "",
 	}
+}
+
+func (service *HTTPRestService) createNetworkContainer(createNcReq cns.CreateNetworkContainerRequest) cns.Response {
+	// Serialize with createOrUpdateNetworkContainer of the same NC, so its stale HNS
+	// cleanup can't see this NC as new while this request saves it.
+	namedLock.LockAcquire(createNcReq.NetworkContainerid)
+	defer namedLock.LockRelease(createNcReq.NetworkContainerid)
+
+	ncDetails, found := service.getNetworkContainerDetails(createNcReq.NetworkContainerid)
+	// Create NC if it doesn't exist, or it exists and the requested version is different from the saved version
+	if !found || (found && ncDetails.VMVersion != createNcReq.Version) {
+		if err := service.networkContainer.Create(createNcReq); err != nil {
+			return cns.Response{
+				ReturnCode: types.UnexpectedError,
+				Message:    "[Azure CNS] Create Network Containers failed with error: " + err.Error(),
+			}
+		}
+	}
+	if code, msg := service.saveNetworkContainerGoalState(createNcReq); code != types.Success {
+		return cns.Response{ReturnCode: code, Message: msg}
+	}
+	logNCSnapshot(createNcReq)
+	return cns.Response{ReturnCode: types.Success}
 }
 
 // setResponse encodes the http response
