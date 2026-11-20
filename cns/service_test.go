@@ -4,6 +4,7 @@
 package cns
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -21,11 +22,13 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	loggerv2 "github.com/Azure/azure-container-networking/cns/logger/v2"
 	acn "github.com/Azure/azure-container-networking/common"
 	serverTLS "github.com/Azure/azure-container-networking/server/tls"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestNewService(t *testing.T) {
@@ -320,6 +323,86 @@ func TestMtlsRootCAsFromCertificate(t *testing.T) {
 				require.NoError(t, err)
 				assert.NotNil(t, r)
 			}
+		})
+	}
+}
+
+func TestGetTLSConfigFromFileCAPath(t *testing.T) {
+	previousLogger := logger.Log
+	logger.Log = loggerv2.AsV1(zap.NewNop(), func() {})
+	t.Cleanup(func() {
+		logger.Log = previousLogger
+	})
+	certPath := createTestCertificate(t)
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	var caPEM bytes.Buffer
+	expectedCAs := x509.NewCertPool()
+	for _, name := range []string{"root", "other root"} {
+		template := &x509.Certificate{
+			SerialNumber:          big.NewInt(int64(caPEM.Len() + 1)),
+			Subject:               pkix.Name{CommonName: name},
+			NotBefore:             time.Now().Add(-time.Hour),
+			NotAfter:              time.Now().Add(time.Hour),
+			IsCA:                  true,
+			BasicConstraintsValid: true,
+			KeyUsage:              x509.KeyUsageCertSign,
+		}
+		derBytes, err := x509.CreateCertificate(rand.Reader, template, template, &privateKey.PublicKey, privateKey)
+		require.NoError(t, err)
+		certificate, err := x509.ParseCertificate(derBytes)
+		require.NoError(t, err)
+		expectedCAs.AddCert(certificate)
+		require.NoError(t, pem.Encode(&caPEM, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}))
+	}
+	caPath := filepath.Join(t.TempDir(), "ca.pem")
+	require.NoError(t, os.WriteFile(caPath, caPEM.Bytes(), 0o600))
+	invalidPath := filepath.Join(t.TempDir(), "invalid.pem")
+	require.NoError(t, os.WriteFile(invalidPath, []byte("not a certificate"), 0o600))
+	emptyPath := filepath.Join(t.TempDir(), "empty.pem")
+	require.NoError(t, os.WriteFile(emptyPath, nil, 0o600))
+	missingPath := filepath.Join(t.TempDir(), "missing.pem")
+
+	for _, test := range []struct {
+		name    string
+		caPath  string
+		useMTLS bool
+		wantErr string
+	}{
+		{name: "CA bundle", caPath: caPath, useMTLS: true},
+		{name: "certificate fallback", useMTLS: true},
+		{name: "missing CA file", caPath: missingPath, useMTLS: true, wantErr: "failed to read mTLS CA file"},
+		{name: "invalid CA file", caPath: invalidPath, useMTLS: true, wantErr: "no valid PEM certificates"},
+		{name: "empty CA file", caPath: emptyPath, useMTLS: true, wantErr: "no valid PEM certificates"},
+		{name: "CA ignored without mTLS", caPath: missingPath},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			config, err := getTLSConfigFromFile(serverTLS.TlsSettings{
+				TLSCertificatePath: certPath,
+				TLSCAPath:          test.caPath,
+				UseMTLS:            test.useMTLS,
+				MinTLSVersion:      "TLS 1.2",
+			})
+			if test.wantErr != "" {
+				require.ErrorContains(t, err, test.wantErr)
+				require.Nil(t, config)
+				return
+			}
+			require.NoError(t, err)
+			if !test.useMTLS {
+				require.Nil(t, config.ClientCAs)
+				require.Nil(t, config.RootCAs)
+				return
+			}
+			require.Equal(t, tls.RequireAndVerifyClientCert, config.ClientAuth)
+			require.NotNil(t, config.VerifyPeerCertificate)
+			wantCAs := expectedCAs
+			if test.caPath == "" {
+				wantCAs, err = mtlsRootCAsFromCertificate(&config.Certificates[0])
+				require.NoError(t, err)
+			}
+			require.True(t, wantCAs.Equal(config.ClientCAs))
+			require.True(t, wantCAs.Equal(config.RootCAs))
 		})
 	}
 }

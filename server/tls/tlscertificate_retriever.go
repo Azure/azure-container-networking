@@ -7,6 +7,7 @@ import "time"
 // TlsSettings - Details related to the TLS certificate.
 type TlsSettings struct {
 	TLSSubjectName                     string
+	TLSCAPath                          string
 	TLSCertificatePath                 string
 	TLSPort                            string
 	KeyVaultURL                        string
