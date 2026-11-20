@@ -5,6 +5,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/dropgz/pkg/embed"
 	"github.com/Azure/azure-container-networking/dropgz/pkg/hash"
+	"github.com/Azure/azure-container-networking/dropgz/pkg/securedir"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -113,8 +114,26 @@ var verify = &cobra.Command{
 	Args: cobra.OnlyValidArgs,
 }
 
+// secure-dir subcommand
+var secureDir = &cobra.Command{
+	Use:   "secure-dir <path>",
+	Short: "create a root-owned directory with mode 0700",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(_ *cobra.Command, args []string) error {
+		if err := setLogLevel(); err != nil {
+			return err
+		}
+		if err := securedir.Ensure(args[0]); err != nil {
+			return errors.Wrapf(err, "failed to secure %s", args[0])
+		}
+		z.With(zap.String("cmd", "secure-dir"), zap.String("path", args[0])).Info("directory is root-owned with mode 0700")
+		return nil
+	},
+}
+
 func init() {
 	root.AddCommand(list)
+	root.AddCommand(secureDir)
 
 	verify.ValidArgs, _ = embed.Contents()
 	verify.Flags().StringSliceVarP(&outs, "output", "o", []string{}, "output file path")
