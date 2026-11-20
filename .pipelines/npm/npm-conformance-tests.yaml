@@ -600,6 +600,14 @@ extends:
                   keepAzSessionActive: true
                   arguments: run-upstream
 
+              - task: 1ES.PublishPipelineArtifact@1
+                displayName: Publish Windows NPM Lite logs and the upstream spec report
+                condition: and(always(), eq(variables['NPM_LITE_UPSTREAM_LOGS'], 'collected'))
+                inputs:
+                  targetPath: $(System.DefaultWorkingDirectory)/npmLogs_windows-lite-upstream
+                  artifactName: NpmLogs_windows-lite-upstream_$(System.JobAttempt)
+                  sbomEnabled: false
+
               - task: AzureCLI@2
                 displayName: Delete the owned Windows test resource group
                 condition: always()

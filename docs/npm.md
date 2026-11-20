@@ -333,6 +333,12 @@ which exactly these sixteen specs were selected and each passed once, and no
 other spec ran. It logs each spec's result and duration. The completion guard
 covers this job through the `WindowsNPMLite` stage result.
 
+After the suite runs, whether it passes or fails, the job publishes the
+`NpmLogs_windows-lite-upstream_<JobAttempt>` artifact. It contains the
+timestamped current and previous logs of each `azure-npm-win` pod, the
+cluster's node and pod listing, and the Ginkgo JSON report. Collection is
+best effort and does not change the job result.
+
 ## Usage
 [Microsoft Docs](https://learn.microsoft.com/en-us/azure/aks/use-network-policies#verify-network-policy-setup) has a detailed step by step example on how to use Kubernetes network policy.
 
