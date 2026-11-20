@@ -5,12 +5,16 @@ package mellanox
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"net"
 	"os/exec"
 	"strconv"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/log"
+	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 )
 
 const (
@@ -21,13 +25,19 @@ const (
 	priorityVLANTagIdentifier = "*PriorityVLANTag"
 
 	// Registry key Path Prefix
-	registryKeyPrefix = "HKLM:\\System\\CurrentControlSet\\Control\\Class\\"
+	registryKeyPrefix = "System\\CurrentControlSet\\Control\\Class\\"
+	networkClassPath  = registryKeyPrefix + "{4d36e972-e325-11ce-bfc1-08002be10318}"
 )
 
 var (
 	errorMellanoxAdapterNotFound = fmt.Errorf("no network adapter found with %s in description", mellanoxSearchString)
 	errorMellanoxDeviceNotFound  = fmt.Errorf("no network device found with %s in description", mellanoxSearchString)
 	errorPowershellNotFound      = fmt.Errorf("failed to find powershell executable")
+	errInvalidInterfaceIndex     = errors.New("invalid interface index")
+	errAdapterNameChanged        = errors.New("adapter name changed")
+	errAmbiguousAdapterRegistry  = errors.New("multiple registry keys for adapter")
+	errAdapterRegistryNotFound   = errors.New("registry key not found for adapter")
+	errAmbiguousVLANTagKeyword   = errors.New("multiple PriorityVLANTag keywords")
 )
 
 type Mellanox struct{}
@@ -77,6 +87,12 @@ func (m *Mellanox) GetPriorityVLANTag() (int, error) {
 		return 0, fmt.Errorf("failed to find mellanox adapter: %w", err)
 	}
 
+	// Fall back to the provider when the registry value cannot be mapped unambiguously.
+	value, nativeErr := readAdapterVLANTag(adapterName)
+	if nativeErr == nil {
+		return value, nil
+	}
+
 	// Find if adapter has property PriorityVLANTag (version 4 or up) or not (version 3)
 	cmd := fmt.Sprintf(`Get-NetAdapterAdvancedProperty | Where-Object { $_.RegistryKeyword -like '%s' -and $_.Name -eq '%s' } | Select-Object -ExpandProperty Name`,
 		priorityVLANTagIdentifier, adapterName)
@@ -90,6 +106,92 @@ func (m *Mellanox) GetPriorityVLANTag() (int, error) {
 	}
 
 	return m.getMellanoxPriorityVLANTagValueForV3()
+}
+
+func readAdapterVLANTag(adapterName string) (int, error) {
+	iface, err := net.InterfaceByName(adapterName)
+	if err != nil {
+		return 0, fmt.Errorf("get adapter interface: %w", err)
+	}
+	if iface.Index <= 0 {
+		return 0, errInvalidInterfaceIndex
+	}
+	row := windows.MibIfRow2{InterfaceIndex: uint32(iface.Index)} //nolint:gosec // Windows interface indexes are uint32.
+	err = windows.GetIfEntry2Ex(windows.MibIfEntryNormalWithoutStatistics, &row)
+	if err != nil {
+		return 0, fmt.Errorf("get adapter interface entry: %w", err)
+	}
+	if !strings.EqualFold(windows.UTF16ToString(row.Alias[:]), adapterName) {
+		return 0, errAdapterNameChanged
+	}
+
+	path, err := adapterRegistryPath(registry.LOCAL_MACHINE, networkClassPath, row.InterfaceGuid.String())
+	if err != nil {
+		return 0, err
+	}
+	if err := checkVLANTagKeyword(registry.LOCAL_MACHINE, path); err != nil {
+		return 0, err
+	}
+	return readRegistryVLANTag(registry.LOCAL_MACHINE, path)
+}
+
+func adapterRegistryPath(root registry.Key, classPath, guid string) (string, error) {
+	class, err := registry.OpenKey(root, classPath, registry.ENUMERATE_SUB_KEYS)
+	if err != nil {
+		return "", fmt.Errorf("open network class key: %w", err)
+	}
+	defer class.Close()
+	names, err := class.ReadSubKeyNames(-1)
+	if err != nil {
+		return "", fmt.Errorf("enumerate network class keys: %w", err)
+	}
+
+	var path string
+	for _, name := range names {
+		if len(name) != 4 || strings.Trim(name, "0123456789") != "" {
+			continue
+		}
+		key, err := registry.OpenKey(class, name, registry.QUERY_VALUE)
+		if err != nil {
+			return "", fmt.Errorf("open network class subkey: %w", err)
+		}
+		instanceID, _, err := key.GetStringValue("NetCfgInstanceId")
+		key.Close()
+		if errors.Is(err, registry.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return "", fmt.Errorf("read adapter instance ID: %w", err)
+		}
+		if strings.EqualFold(instanceID, guid) {
+			if path != "" {
+				return "", fmt.Errorf("%w: %s", errAmbiguousAdapterRegistry, guid)
+			}
+			path = classPath + `\` + name
+		}
+	}
+	if path == "" {
+		return "", fmt.Errorf("%w: %s", errAdapterRegistryNotFound, guid)
+	}
+	return path, nil
+}
+
+func checkVLANTagKeyword(root registry.Key, path string) error {
+	key, err := registry.OpenKey(root, path+`\Ndi\params`, registry.ENUMERATE_SUB_KEYS)
+	if err != nil {
+		return fmt.Errorf("open adapter parameters: %w", err)
+	}
+	defer key.Close()
+	names, err := key.ReadSubKeyNames(-1)
+	if err != nil {
+		return fmt.Errorf("enumerate adapter parameters: %w", err)
+	}
+	for _, name := range names {
+		if strings.HasSuffix(strings.ToLower(name), "priorityvlantag") && !strings.EqualFold(name, priorityVLANTagIdentifier) {
+			return errAmbiguousVLANTagKeyword
+		}
+	}
+	return nil
 }
 
 // Checks if a Mellanox adapter's PriorityVLANTag value
@@ -120,19 +222,57 @@ func (m *Mellanox) getMellanoxPriorityVLANTagValueForV3() (int, error) {
 		return 0, err
 	}
 
-	cmd := fmt.Sprintf(
-		`Get-ItemProperty -Path '%s' -Name '%s' | Select-Object -ExpandProperty '%s'`, registryKeyFullPath, priorityVLANTagIdentifier, priorityVLANTagIdentifier)
-	regvalue, err := executePowershellCommand(cmd)
+	intValue, err := readRegistryVLANTag(registry.LOCAL_MACHINE, registryKeyFullPath)
 	if err != nil {
-		return 0, err
-	}
-
-	intValue, err := strconv.Atoi(regvalue)
-	if err != nil {
-		return 0, fmt.Errorf("failed to convert PriorityVLANTag value to integer: %w", err)
+		return 0, fmt.Errorf("failed to read PriorityVLANTag: %w", err)
 	}
 
 	return intValue, nil
+}
+
+func readRegistryVLANTag(root registry.Key, path string) (int, error) {
+	key, err := registry.OpenKey(root, path, registry.QUERY_VALUE)
+	if err != nil {
+		return 0, fmt.Errorf("open adapter key: %w", err)
+	}
+	defer key.Close()
+
+	value, valueType, err := key.GetStringValue(priorityVLANTagIdentifier)
+	switch {
+	case errors.Is(err, registry.ErrUnexpectedType) && (valueType == registry.DWORD || valueType == registry.QWORD):
+		number, _, numberErr := key.GetIntegerValue(priorityVLANTagIdentifier)
+		if numberErr != nil {
+			return 0, fmt.Errorf("read integer PriorityVLANTag: %w", numberErr)
+		}
+		value = strconv.FormatUint(number, 10)
+	case errors.Is(err, registry.ErrUnexpectedType) && valueType == registry.MULTI_SZ:
+		values, _, valuesErr := key.GetStringsValue(priorityVLANTagIdentifier)
+		if valuesErr != nil {
+			return 0, fmt.Errorf("read multi-string PriorityVLANTag: %w", valuesErr)
+		}
+		value = strings.Join(values, "\r\n")
+	case err != nil:
+		return 0, fmt.Errorf("read string PriorityVLANTag: %w", err)
+	}
+
+	parsed, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil {
+		return 0, fmt.Errorf("parse PriorityVLANTag: %w", err)
+	}
+	return parsed, nil
+}
+
+func writeRegistryVLANTag(root registry.Key, path string, value int) error {
+	key, err := registry.OpenKey(root, path, registry.SET_VALUE)
+	if err != nil {
+		return fmt.Errorf("open adapter key: %w", err)
+	}
+	defer key.Close()
+
+	if err = key.SetStringValue(priorityVLANTagIdentifier, strconv.Itoa(value)); err != nil {
+		return fmt.Errorf("write PriorityVLANTag: %w", err)
+	}
+	return nil
 }
 
 // adapter is version 4 and up since adapter's advance property consists of reg key : PriorityVLANTag
@@ -158,15 +298,13 @@ func (m *Mellanox) setMellanoxPriorityVLANTagValueForV3(adapterName string, desi
 		return err
 	}
 
-	cmd := fmt.Sprintf(`New-ItemProperty -Path '%s' -Name '%s' -Value %d -PropertyType String -Force`,
-		registryKeyFullPath, priorityVLANTagIdentifier, desiredVal)
-	_, err = executePowershellCommand(cmd)
+	err = writeRegistryVLANTag(registry.LOCAL_MACHINE, registryKeyFullPath, desiredVal)
 	if err != nil {
-		return fmt.Errorf("error while executing powershell command to set Item property for adapter  %s: %w", adapterName, err)
+		return fmt.Errorf("failed to set PriorityVLANTag for adapter %s: %w", adapterName, err)
 	}
 
 	log.Printf("Restarting Mellanox network adapter for regkey change to take effect")
-	cmd = fmt.Sprintf(`Restart-NetAdapter -Name '%s'`, adapterName)
+	cmd := fmt.Sprintf(`Restart-NetAdapter -Name '%s'`, adapterName)
 	_, err = executePowershellCommand(cmd)
 	if err != nil {
 		return fmt.Errorf("error while executing powershell command to restart net adapter  %s: %w", adapterName, err)
