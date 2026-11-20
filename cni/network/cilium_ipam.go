@@ -10,6 +10,9 @@ import (
 
 var errCiliumIPAMConfig = errors.New("azure-cilium-ipam requires stateful Linux IPv4 transparent-tunnel with default execution")
 
+// Cilium IPAM supports stateful Linux IPv4 transparent-tunnel with default
+// execution. Alternate IPAM modes, multitenancy and dual-network setups
+// are not supported.
 func validateCiliumIPAMConfig(cfg *cni.NetworkConfig, stateless bool) error {
 	if cfg.IPAM.Type != cni.AzureCiliumIPAM {
 		return nil
