@@ -506,9 +506,12 @@ For a new node:
    transparent-tunnel configuration with the single explicit IPAM selector.
 2. Provide node-scoped API access. The plugin needs reads and status updates
    on its own CiliumNode, not ARM allocation permissions.
-3. Register or validate the Node UID, immutable VM annotation, ARM instance
-   ID, selected Azure NIC name and reserve settings. Existing usage must
-   not be overwritten by provisioning.
+3. Deployment or node-provisioning tooling invokes `azure-cilium-ipam
+   --config <bootstrap-conflist> --register` with separate bootstrap
+   credentials. This creates or validates the Node UID, immutable VM
+   annotation, ARM instance ID, selected Azure NIC name and reserve settings.
+   Existing usage must not be overwritten. Ordinary CNI credentials cannot
+   create the object, and ADD does not perform registration.
 4. Start the operator without its agent/CNI and wait for qualified supply.
    The API/operator bootstrap path must not depend on first obtaining an
    ordinary pod IP from that same pool.

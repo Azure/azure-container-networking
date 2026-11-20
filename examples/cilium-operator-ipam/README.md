@@ -62,13 +62,15 @@ They have no CiliumNode create/delete permission or spec/annotation patch
 permission. Registration uses a separately authorized bootstrap identity.
 No ARM allocation permission is needed by the plugin.
 
-## Registration and reconciliation
+## Node registration
 
 Keep the node out of workload scheduling until registration and qualified
 supply are ready. Kubernetes must already contain the node, and operator/API
 bootstrap must not depend on allocating an ordinary pod IP.
 
-Using a protected copy of the conflist with bootstrap credentials:
+Deployment or node-provisioning tooling owns registration. It invokes the
+binary's `--register` bootstrap command before enabling workload scheduling,
+using a protected copy of the conflist with separate bootstrap credentials:
 
 ```sh
 /opt/cni/bin/azure-cilium-ipam --config /secure/bootstrap.conflist --register
@@ -77,6 +79,8 @@ Using a protected copy of the conflist with bootstrap credentials:
 Registration creates the Node/VM binding and reserve settings only when the
 CiliumNode does not exist. Replays validate existing ownership and never
 overwrite it. ADD does not register or repair a missing object.
+The Cilium Operator manages pool inventory after registration; ordinary CNI
+credentials remain limited to reading the node and updating its usage.
 
 Reservations carry a versioned owner containing the VM, boot, network, sandbox
 and interface identities. After an actual reboot of the same bound VM,
