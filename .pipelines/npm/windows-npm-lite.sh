@@ -267,7 +267,32 @@ run_upstream_netpol() {
     if ! python3 "$script_dir/windows-npm-lite-upstream.py" validate "$dir/report.json" && ((status == 0)); then
         status=1
     fi
+    collect_upstream_diagnostics "$dir/report.json" || true
     return "$status"
+}
+
+# Best-effort artifact contents: Lite pod logs, cluster pod placement, and the spec report.
+# Only the report is copied from the private work directory, so the kubeconfig stays unpublished.
+collect_upstream_diagnostics() {
+    local report="$1" out names pod
+    local -a pods=()
+    [[ "${SYSTEM_DEFAULTWORKINGDIRECTORY:-}" == /* ]] || return 0
+    out="$SYSTEM_DEFAULTWORKINGDIRECTORY/npmLogs_windows-lite-upstream"
+    mkdir -p -- "$out" || return 0
+    timeout 120s kubectl --kubeconfig "$KUBECONFIG" --request-timeout=60s get nodes,pods -A -o wide \
+        > "$out/nodes-and-pods.txt" 2>&1
+    names="$(timeout 120s kubectl --kubeconfig "$KUBECONFIG" --request-timeout=60s get pods -n kube-system \
+        -l k8s-app=azure-npm-win -o jsonpath='{.items[*].metadata.name}')"
+    read -r -a pods <<< "$names"
+    for pod in "${pods[@]}"; do
+        [[ "$pod" =~ ^[a-z0-9-]+$ ]] || continue
+        timeout 300s kubectl --kubeconfig "$KUBECONFIG" --request-timeout=240s logs -n kube-system "$pod" \
+            --timestamps > "$out/$pod.log" 2>&1
+        timeout 300s kubectl --kubeconfig "$KUBECONFIG" --request-timeout=240s logs -n kube-system "$pod" \
+            --timestamps --previous > "$out/previous-$pod.log" 2> /dev/null || rm -f -- "$out/previous-$pod.log"
+    done
+    [[ ! -f "$report" ]] || cp -- "$report" "$out/report.json"
+    printf '##vso[task.setvariable variable=NPM_LITE_UPSTREAM_LOGS]collected\n'
 }
 
 provision_and_run_upstream() {
