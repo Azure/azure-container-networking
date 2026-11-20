@@ -38,6 +38,13 @@ pushd "$CNI_IPAM_DIR"
 popd
 
 CNI_IPAMV6_DIR="$REPO_ROOT"/cni/ipam/pluginv6
+if [[ "$OS" == linux ]]; then
+  pushd "$REPO_ROOT"
+    GOOS="$OS" go build -trimpath -ldflags "-s -w -X main.version=$CNI_VERSION" \
+      -o "$OUT_DIR"/bin/azure-cilium-ipam ./cni/ipam/cilium
+  popd
+fi
+
 pushd "$CNI_IPAMV6_DIR"
   GOOS="$OS" go build -v -a -trimpath \
     -o "$OUT_DIR"/bin/azure-vnet-ipamv6"$FILE_EXT" \
