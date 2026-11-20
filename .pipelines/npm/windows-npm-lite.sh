@@ -236,6 +236,40 @@ provision_and_run() {
         --npm-image "$WINDOWS_NPM_IMAGE"
 }
 
+# With ApplyInBackground, Windows NPM starts its pod controller three minutes after startup
+# (npm/npm.go) and applies no policy to pods until then, so specs must start after this marker.
+wait_for_npm_bootup() {
+    local deadline=$((SECONDS + 300)) start=$SECONDS names pod logs pending
+    local marker='^I[0-9]{4}[[:blank:]]+[^[:blank:]]+[[:blank:]]+[0-9]+[[:blank:]]+dataplane\.go:[0-9]+\][[:blank:]]+\[DataPlane\] finished bootup phase$'
+    local -a pods=()
+    printf 'Waiting for the azure-npm-win pods to finish the NPM bootup phase\n'
+    while true; do
+        names="$(timeout 120s kubectl --kubeconfig "$KUBECONFIG" --request-timeout=60s get pods -n kube-system \
+            -l k8s-app=azure-npm-win -o jsonpath='{.items[*].metadata.name}')" || names=""
+        read -r -a pods <<< "$names"
+        pending=""
+        ((${#pods[@]} > 0)) || pending=" (no pods found)"
+        for pod in "${pods[@]}"; do
+            if [[ ! "$pod" =~ ^[a-z0-9-]+$ ]]; then
+                printf 'windows-npm-lite: unexpected azure-npm-win pod name\n' >&2
+                return 1
+            fi
+            logs="$(timeout 120s kubectl --kubeconfig "$KUBECONFIG" --request-timeout=60s \
+                logs -n kube-system "$pod" 2> /dev/null)" || logs=""
+            grep -Eq -- "$marker" <<< "${logs//$'\r'/}" || pending+=" $pod"
+        done
+        if [[ -z "$pending" ]]; then
+            printf 'NPM bootup phase finished on all %d pods after %d seconds\n' "${#pods[@]}" "$((SECONDS - start))"
+            return 0
+        fi
+        if ((SECONDS >= deadline)); then
+            printf 'windows-npm-lite: NPM bootup phase did not finish within 5 minutes on:%s\n' "$pending" >&2
+            return 1
+        fi
+        sleep 10
+    done
+}
+
 run_upstream_netpol() {
     local focus="$1" dir="$NPM_LITE_WORK_DIR/upstream" resource_group cluster owner version fqdn digest actual
     local status=0
@@ -257,6 +291,10 @@ run_upstream_netpol() {
     [[ "${actual%% *}" == "$digest" ]] || fail "test archive checksum mismatch"
     tar -xzf "$dir/kubernetes-test.tar.gz" -C "$dir" --strip-components=3 kubernetes/test/bin/e2e.test
     rm -f -- "$dir/kubernetes-test.tar.gz"
+    if ! wait_for_npm_bootup; then
+        collect_upstream_diagnostics "$dir/report.json" || true
+        return 1
+    fi
 
     # Allowing one not-ready node tolerates the tainted Linux system node.
     KUBERNETES_SERVICE_HOST="$fqdn" KUBERNETES_SERVICE_PORT=443 \

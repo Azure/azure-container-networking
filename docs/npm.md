@@ -286,6 +286,12 @@ archive against its published SHA-256 checksum. It passes
 doubles probe timeouts, and `--allowed-not-ready-nodes=1`, which tolerates the
 tainted Linux system node. The suite timeout is three hours.
 
+Before the suite starts, the job waits up to five minutes for each
+`azure-npm-win` pod to log `[DataPlane] finished bootup phase`. With
+`ApplyInBackground`, Windows NPM starts its pod controller three minutes after
+startup and applies no policy to pods until then. If the wait times out, the
+job fails without running the suite.
+
 The [spec list](../.pipelines/npm/windows-npm-lite-upstream.py) selects sixteen
 TCP-context specs in `NetworkPolicy between server and client` whose policies
 use only target pod selectors, numeric or protocol-only ports, empty rules, and
@@ -299,11 +305,12 @@ which exactly these sixteen specs were selected and each passed once, and no
 other spec ran. It logs each spec's result and duration. The completion guard
 covers this job through the `WindowsNPMLite` stage result.
 
-After the suite runs, whether it passes or fails, the job publishes the
-`NpmLogs_windows-lite-upstream_<JobAttempt>` artifact. It contains the
-timestamped current and previous logs of each `azure-npm-win` pod, the
-cluster's node and pod listing, and the Ginkgo JSON report. Collection is
-best effort and does not change the job result.
+After the suite runs, whether it passes or fails, or after the bootup wait
+times out, the job publishes the `NpmLogs_windows-lite-upstream_<JobAttempt>`
+artifact. It contains the timestamped current and previous logs of each
+`azure-npm-win` pod, the cluster's node and pod listing, and, if the suite ran,
+the Ginkgo JSON report. Collection is best effort and does not change the job
+result.
 
 ## Usage
 [Microsoft Docs](https://learn.microsoft.com/en-us/azure/aks/use-network-policies#verify-network-policy-setup) has a detailed step by step example on how to use Kubernetes network policy.
