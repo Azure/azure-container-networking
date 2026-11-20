@@ -12,7 +12,7 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: actions/stale@main
+      - uses: actions/stale@3c6b846feaf83b4021f133e36bcf68061f04e1dc # main
         id: stale
         with:
           ascending: true
