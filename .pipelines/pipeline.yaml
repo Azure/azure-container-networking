@@ -53,13 +53,9 @@ parameters:
     default: "__use-default__"
 
 variables:
-  - template: templates/npm-test-scope.variables.yaml
-  - name: BUILD_POOL_NAME_DEFAULT
-    value: $(BUILD_POOL_1ESPT_AMD)
-  - name: BUILD_POOL_NAME_LINUX_AMD64
-    value: $(BUILD_POOL_1ESPT_AMD)
-  - name: BUILD_POOL_NAME_LINUX_ARM64
-    value: $(BUILD_POOL_1ESPT_ARM)
+  BUILD_POOL_NAME_DEFAULT: $(BUILD_POOL_1ESPT_AMD)
+  BUILD_POOL_NAME_LINUX_AMD64: $(BUILD_POOL_1ESPT_AMD)
+  BUILD_POOL_NAME_LINUX_ARM64: $(BUILD_POOL_1ESPT_ARM)
 
 resources:
   repositories:

@@ -11,13 +11,9 @@ parameters:
     default: false
 
 variables:
-  - template: ../templates/npm-test-scope.variables.yaml
-  - name: BUILD_POOL_NAME_DEFAULT
-    value: acn-ado-azure-linux-3-amd64-pt-pool
-  - name: BUILD_POOL_NAME_LINUX_AMD64
-    value: acn-ado-azure-linux-3-amd64-pt-pool
-  - name: BUILD_POOL_NAME_LINUX_ARM64
-    value: acn-ado-azure-linux-3-arm64-pt-pool
+  BUILD_POOL_NAME_DEFAULT: acn-ado-azure-linux-3-amd64-pt-pool
+  BUILD_POOL_NAME_LINUX_AMD64: acn-ado-azure-linux-3-amd64-pt-pool
+  BUILD_POOL_NAME_LINUX_ARM64: acn-ado-azure-linux-3-arm64-pt-pool
 
 resources:
   repositories:
