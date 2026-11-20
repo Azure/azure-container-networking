@@ -148,6 +148,14 @@ respectively, and the fixed `conformance-win-lite` cluster name, separate from
 Linux resources. An existing group is never reused;
 cleanup requires the matching build/job/attempt ownership tag. Each job uses a
 private kubeconfig without writing shared SSH keys or kubeconfig files.
+Like the Linux clusters, these clusters enable Microsoft Entra ID with Azure
+RBAC. Each job converts its kubeconfig to Azure CLI authentication with the
+build pool's [kubelogin](https://github.com/Azure/kubelogin), and its Windows
+tasks keep the pipeline's Azure session active so that tokens can be renewed
+during long runs. Before the case executor starts, its kubeconfig switches to
+one Entra ID access token, so its frequent kubectl calls do not each start the
+Azure CLI. That token must remain valid past the executor's 35-minute deadline.
+The upstream job keeps Azure CLI authentication.
 Nodepool changes retry only an explicit AKS operation-in-progress rejection,
 within their existing provisioning deadlines; other errors fail immediately.
 

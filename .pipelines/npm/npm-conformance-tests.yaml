@@ -534,6 +534,7 @@ extends:
                   scriptType: bash
                   scriptLocation: scriptPath
                   scriptPath: .pipelines/npm/windows-npm-lite.sh
+                  keepAzSessionActive: true
                   arguments: run
 
               - task: AzureCLI@2
@@ -596,6 +597,7 @@ extends:
                   scriptType: bash
                   scriptLocation: scriptPath
                   scriptPath: .pipelines/npm/windows-npm-lite.sh
+                  keepAzSessionActive: true
                   arguments: run-upstream
 
               - task: AzureCLI@2
