@@ -110,7 +110,8 @@ load_owner() {
     jq -e --arg build "$BUILD_BUILDID" --arg job "$SYSTEM_JOBID" --arg attempt "$SYSTEM_JOBATTEMPT" '
         .build == $build and .job == $job and .attempt == $attempt and
         .owner == (.build + ":" + .job + ":" + .attempt) and
-        .resourceGroup == ("e2e-npm-lite-" + .build) and
+        (.resourceGroup == ("e2e-npm-lite-" + .build) or
+            .resourceGroup == ("e2e-npm-lite-upstream-" + .build)) and
         .cluster == "conformance-win-lite"
     ' "$state" > /dev/null || fail "resource ownership state does not match this job"
     resource_group="$(jq -er .resourceGroup "$state")"
@@ -144,13 +145,12 @@ run_nodepool_operation() {
     done
 }
 
-provision_and_run() {
+provision() {
     validate_inputs
-    local resource_group cluster node_resource_group owner exists password
+    local resource_group="$1" cluster node_resource_group owner exists password
     [[ -x "$NPM_LITE_WORK_DIR/windows-npm-lite" && -f "$NPM_LITE_WORK_DIR/deployment.json" &&
         ! -e "$NPM_LITE_WORK_DIR/owner.json" ]] ||
         fail "prepared executor/deployment is missing or resource ownership already exists"
-    resource_group="e2e-npm-lite-$BUILD_BUILDID"
     cluster="conformance-win-lite"
     node_resource_group="MC_${resource_group}_${cluster}_${NPM_LITE_LOCATION}"
     [[ "${#node_resource_group}" -le 80 ]] || fail "default AKS node resource-group name exceeds 80 characters"
@@ -191,9 +191,57 @@ provision_and_run() {
         apply -f "$NPM_LITE_WORK_DIR/deployment.json"
     timeout --signal=INT --kill-after=10s 21m kubectl --kubeconfig "$KUBECONFIG" \
         rollout status daemonset/azure-npm-win -n kube-system --timeout=20m
+}
+
+provision_and_run() {
+    provision "e2e-npm-lite-$BUILD_BUILDID"
     exec "$NPM_LITE_WORK_DIR/windows-npm-lite" \
         --kubeconfig "$KUBECONFIG" --daemonset azure-npm-win --npm-namespace kube-system \
         --npm-image "$WINDOWS_NPM_IMAGE"
+}
+
+run_upstream_netpol() {
+    local focus="$1" dir="$NPM_LITE_WORK_DIR/upstream" resource_group cluster owner version fqdn digest actual
+    local status=0
+    load_owner
+    mkdir -m 700 -- "$dir"
+    version="$(timeout 120s az aks show --resource-group "$resource_group" --name "$cluster" \
+        --query currentKubernetesVersion --only-show-errors -o tsv)"
+    [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "cluster Kubernetes version is not a release version"
+    fqdn="$(timeout 120s az aks show --resource-group "$resource_group" --name "$cluster" \
+        --query fqdn --only-show-errors -o tsv)"
+    [[ "$fqdn" =~ ^[a-z0-9.-]+$ ]] || fail "cluster API server FQDN is invalid"
+    printf 'Running upstream NetworkPolicy specs from the official v%s test archive\n' "$version"
+    timeout --signal=INT --kill-after=10s 10m curl -fsSL --proto '=https' --retry 3 \
+        -o "$dir/kubernetes-test.tar.gz" "https://dl.k8s.io/v$version/kubernetes-test-linux-amd64.tar.gz"
+    digest="$(timeout --signal=INT --kill-after=10s 120s curl -fsSL --proto '=https' --retry 3 \
+        "https://dl.k8s.io/v$version/kubernetes-test-linux-amd64.tar.gz.sha256")"
+    [[ "$digest" =~ ^[a-f0-9]{64}$ ]] || fail "published test archive checksum is invalid"
+    actual="$(sha256sum "$dir/kubernetes-test.tar.gz")"
+    [[ "${actual%% *}" == "$digest" ]] || fail "test archive checksum mismatch"
+    tar -xzf "$dir/kubernetes-test.tar.gz" -C "$dir" --strip-components=3 kubernetes/test/bin/e2e.test
+    rm -f -- "$dir/kubernetes-test.tar.gz"
+
+    # Allowing one not-ready node tolerates the tainted Linux system node.
+    KUBERNETES_SERVICE_HOST="$fqdn" KUBERNETES_SERVICE_PORT=443 \
+        timeout --signal=INT --kill-after=10m 190m "$dir/e2e.test" \
+        --provider=local --kubeconfig="$KUBECONFIG" --node-os-distro=windows --allowed-not-ready-nodes=1 \
+        --ginkgo.focus="$focus" --ginkgo.timeout=180m --ginkgo.v \
+        --ginkgo.json-report="$dir/report.json" || status=$?
+    if ! python3 "$script_dir/windows-npm-lite-upstream.py" validate "$dir/report.json" && ((status == 0)); then
+        status=1
+    fi
+    return "$status"
+}
+
+provision_and_run_upstream() {
+    local tool focus
+    for tool in curl tar python3; do
+        command -v "$tool" > /dev/null || fail "required tool is unavailable: $tool"
+    done
+    focus="$(python3 "$script_dir/windows-npm-lite-upstream.py" focus)"
+    provision "e2e-npm-lite-upstream-$BUILD_BUILDID"
+    run_upstream_netpol "$focus"
 }
 
 cleanup_resources() {
@@ -234,8 +282,9 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     case "${1:-}" in
         prepare) prepare ;;
         run) provision_and_run ;;
+        run-upstream) provision_and_run_upstream ;;
         cleanup) cleanup ;;
         cleanup-kubeconfig) cleanup_kubeconfig ;;
-        *) fail "expected prepare, run, cleanup, or cleanup-kubeconfig" ;;
+        *) fail "expected prepare, run, run-upstream, cleanup, or cleanup-kubeconfig" ;;
     esac
 fi

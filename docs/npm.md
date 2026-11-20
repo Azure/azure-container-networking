@@ -136,12 +136,16 @@ derives the exact Windows2022 `os.version` (`10.0.20348.<revision>`) from the
 digest-verified image config before resource creation. There is no separate OS
 version parameter.
 
-The independent stage and job are both named `WindowsNPMLite`. It reuses the
+The independent `WindowsNPMLite` stage runs two parallel jobs on separate
+clusters: `WindowsNPMLite` runs the case corpus below, and
+`WindowsNPMLiteUpstream` runs a subset of the upstream Kubernetes
+NetworkPolicy specs. Each job reuses the
 legacy Windows pipeline's service connection, disposable test-only admin
 fixture, and one-Linux/two-Windows2022-node topology. It does not require a new
-secret, variable group, or caller credential. It uses the build-scoped
-`e2e-npm-lite-<BuildId>` resource group and fixed `conformance-win-lite`
-cluster name, separate from Linux resources. An existing group is never reused;
+secret, variable group, or caller credential. The jobs use the build-scoped
+`e2e-npm-lite-<BuildId>` and `e2e-npm-lite-upstream-<BuildId>` resource groups,
+respectively, and the fixed `conformance-win-lite` cluster name, separate from
+Linux resources. An existing group is never reused;
 cleanup requires the matching build/job/attempt ownership tag. Each job uses a
 private kubeconfig without writing shared SSH keys or kubeconfig files.
 Nodepool changes retry only an explicit AKS operation-in-progress rejection,
@@ -168,15 +172,15 @@ The acceptance signal is the queued run's ordinary terminal
 `completed` / `succeeded` result. There is no Windows result JSON, proof ZIP,
 or custom status-property protocol. When Windows is requested, a native
 completion guard fails the pipeline unless the Linux conformance, Linux cleanup,
-and Windows Lite stages all succeed. The Windows job includes namespace and
-owned resource-group cleanup; its private kubeconfig is never published.
+and Windows Lite stages all succeed. Each Windows job includes namespace and
+owned resource-group cleanup; private kubeconfigs are never published.
 
 Only this mixed route requires a positive stress-worker count and checks each
 Linux invocation's native Ginkgo JSON or place-first JUnit report for actual
 passing tests. Missing, empty, all-skipped, or failed test reports fail the
 invocation even if the engine exits successfully. Native nonzero exit codes
 are preserved. Linux-only behavior and scenario selection remain unchanged.
-This opt-in Windows leg covers Lite only, not full-NPM stress or Windows servicing;
+This opt-in Windows stage covers Lite only, not full-NPM stress or Windows servicing;
 Hypercube remains with the RP caller.
 
 The reusable [Lite configuration](../test/npm/windows-lite/config.json) and
@@ -297,6 +301,29 @@ collect identity-checked NPM log tails (200 lines and 16 KiB per pod) within one
 minute, bounded by the existing execution deadline. Diagnostic failures preserve the
 original failure and the reserved cleanup window.
 These checks do not claim full-NPM conformance or Windows servicing coverage.
+
+#### Upstream NetworkPolicy specs
+
+`WindowsNPMLiteUpstream` prepares and deploys the candidate exactly as above,
+then runs `e2e.test` from the official `kubernetes-test-linux-amd64.tar.gz`
+archive for the cluster's `currentKubernetesVersion`, after checking the
+archive against its published SHA-256 checksum. It passes
+`--node-os-distro=windows`, which schedules test pods on Windows nodes and
+doubles probe timeouts, and `--allowed-not-ready-nodes=1`, which tolerates the
+tainted Linux system node. The suite timeout is three hours.
+
+The [spec list](../.pipelines/npm/windows-npm-lite-upstream.py) selects sixteen
+TCP-context specs in `NetworkPolicy between server and client` whose policies
+use only target pod selectors, numeric or protocol-only ports, empty rules, and
+`ipBlock` peers, including `except` clauses. It excludes specs with peer pod or
+namespace selectors or named ports, which Lite rejects, SCTP specs, and the
+`[LinuxOnly]` UDP and SCTP contexts. One selected spec also checks that a
+TCP-only ingress policy denies UDP.
+
+The job fails unless the native Ginkgo JSON report comes from a real run in
+which exactly these sixteen specs were selected and each passed once, and no
+other spec ran. It logs each spec's result and duration. The completion guard
+covers this job through the `WindowsNPMLite` stage result.
 
 ## Usage
 [Microsoft Docs](https://learn.microsoft.com/en-us/azure/aks/use-network-policies#verify-network-policy-setup) has a detailed step by step example on how to use Kubernetes network policy.

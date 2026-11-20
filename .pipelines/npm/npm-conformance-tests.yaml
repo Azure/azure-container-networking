@@ -555,6 +555,68 @@ extends:
                   filePath: .pipelines/npm/windows-npm-lite.sh
                   arguments: cleanup-kubeconfig
 
+          - job: WindowsNPMLiteUpstream
+            displayName: Run upstream NetworkPolicy specs on Windows NPM Lite
+            timeoutInMinutes: 400
+            cancelTimeoutInMinutes: 35
+            pool:
+              name: $(BUILD_POOL_NAME_DEFAULT)
+              os: linux
+            variables:
+              WINDOWS_NPM_IMAGE: ${{ parameters.windowsNpmImage }}
+              NPM_LITE_LOCATION: $(LOCATION)
+              NPM_LITE_WORK_DIR: $(Agent.TempDirectory)/windows-npm-lite-$(Build.BuildId)-$(System.JobId)-$(System.JobAttempt)
+            steps:
+              - checkout: self
+                clean: true
+
+              - task: KubectlInstaller@0
+                timeoutInMinutes: 5
+                inputs:
+                  kubectlVersion: "1.34.11"
+
+              - bash: .pipelines/build/scripts/install-crane.sh
+                displayName: Install the existing registry inspection tool
+                timeoutInMinutes: 10
+
+              - task: Bash@3
+                displayName: Verify the candidate and build the shared executor
+                timeoutInMinutes: 10
+                inputs:
+                  targetType: filePath
+                  filePath: .pipelines/npm/windows-npm-lite.sh
+                  arguments: prepare
+
+              # Worst case: about 2 hours of provisioning plus the 3-hour suite timeout.
+              - task: AzureCLI@2
+                displayName: Provision the legacy Windows test topology and run upstream NetworkPolicy specs
+                timeoutInMinutes: 340
+                inputs:
+                  azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+                  scriptType: bash
+                  scriptLocation: scriptPath
+                  scriptPath: .pipelines/npm/windows-npm-lite.sh
+                  arguments: run-upstream
+
+              - task: AzureCLI@2
+                displayName: Delete the owned Windows test resource group
+                condition: always()
+                timeoutInMinutes: 30
+                inputs:
+                  azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+                  scriptType: bash
+                  scriptLocation: scriptPath
+                  scriptPath: .pipelines/npm/windows-npm-lite.sh
+                  arguments: cleanup
+
+              - task: Bash@3
+                displayName: Remove the private kubeconfig
+                condition: always()
+                inputs:
+                  targetType: filePath
+                  filePath: .pipelines/npm/windows-npm-lite.sh
+                  arguments: cleanup-kubeconfig
+
         - stage: RejectIncompleteConformance
           displayName: Reject incomplete mixed conformance
           dependsOn: [Create_Cluster_and_Run_Test, clean_up_Create_Cluster_and_Run_Test, WindowsNPMLite]
