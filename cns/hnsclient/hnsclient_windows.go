@@ -567,7 +567,7 @@ func CreateHostNCApipaEndpoint(
 	var (
 		network      *hcn.HostComputeNetwork
 		endpoint     *hcn.HostComputeEndpoint
-		endpointName = getHostNCApipaEndpointName(networkContainerID)
+		endpointName = GetHostNCApipaEndpointName(networkContainerID)
 		err          error
 	)
 
@@ -631,7 +631,7 @@ func updateGwForLocalIPConfiguration(localIPConfiguration *cns.IPConfiguration) 
 	}
 }
 
-func getHostNCApipaEndpointName(
+func GetHostNCApipaEndpointName(
 	networkContainerID string) string {
 	return hostNCApipaEndpointNamePrefix + "-" + networkContainerID
 }
@@ -708,7 +708,7 @@ func deleteEndpointByNameHnsV2(
 // DeleteHostNCApipaEndpoint deletes the endpoint in the apipa network created for host container connectivity
 func DeleteHostNCApipaEndpoint(
 	networkContainerID string) error {
-	endpointName := getHostNCApipaEndpointName(networkContainerID)
+	endpointName := GetHostNCApipaEndpointName(networkContainerID)
 
 	namedLock.LockAcquire(endpointName)
 	defer namedLock.LockRelease(endpointName)
