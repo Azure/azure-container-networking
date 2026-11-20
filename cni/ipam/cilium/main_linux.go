@@ -120,12 +120,11 @@ func adminCommand(args []string) error {
 	flags := flag.NewFlagSet(ciliumpool.PluginName, flag.ContinueOnError)
 	path := flags.String("config", "", "path to the deployed CNI configuration or conflist")
 	register := flags.Bool("register", false, "register a clean or drained node explicitly")
-	reconcile := flags.Bool("reconcile", false, "perform one bounded reconciliation")
 	if err := flags.Parse(args); err != nil {
 		return fmt.Errorf("parsing arguments: %w", err)
 	}
-	if *path == "" || *register == *reconcile || flags.NArg() != 0 {
-		return fmt.Errorf("%w: provide --config and exactly one of --register or --reconcile", ciliumpool.ErrConfig)
+	if *path == "" || !*register || flags.NArg() != 0 {
+		return fmt.Errorf("%w: provide --config and --register", ciliumpool.ErrConfig)
 	}
 	data, err := os.ReadFile(*path)
 	if err != nil {
@@ -141,18 +140,8 @@ func adminCommand(args []string) error {
 	if err != nil {
 		return err
 	}
-	if *register {
-		if err = ciliumpool.Provision(ctx, cfg, guest, client); err != nil {
-			return fmt.Errorf("provisioning IPAM: %w", err)
-		}
-		return nil
-	}
-	allocator, err := ciliumpool.NewAllocator(ctx, cfg, guest, client)
-	if err != nil {
-		return fmt.Errorf("binding IPAM allocator: %w", err)
-	}
-	if err = allocator.Reconcile(ctx); err != nil {
-		return fmt.Errorf("reconciling IPAM: %w", err)
+	if err = ciliumpool.Provision(ctx, cfg, guest, client); err != nil {
+		return fmt.Errorf("provisioning IPAM: %w", err)
 	}
 	return nil
 }

@@ -24,9 +24,6 @@ func TestAPIPolicyDriftBlocksAdmissionButNotDelete(t *testing.T) {
 	if _, addErr := a.Add(context.Background(), owner); !errors.Is(addErr, ErrConfig) {
 		t.Fatalf("ADD accepted policy drift: %v", addErr)
 	}
-	if reconcileErr := a.Reconcile(context.Background()); !errors.Is(reconcileErr, ErrConfig) {
-		t.Fatalf("reconcile accepted policy drift: %v", reconcileErr)
-	}
 	if deleteErr := a.Delete(context.Background(), owner, ip); deleteErr != nil {
 		t.Fatalf("DEL blocked by policy drift: %v", deleteErr)
 	}
@@ -85,28 +82,44 @@ func TestAPIExhaustionPreservesUsageAndOwnerOnlyDeleteReleases(t *testing.T) {
 	}
 }
 
-func TestAPIReconcileRetiresPreviousBootWithoutNewAllocation(t *testing.T) {
-	a, api, factoryErr := testAllocator()
-	if factoryErr != nil {
-		t.Fatal(factoryErr)
-	}
-	t.Cleanup(api.server.Close)
-	ctx := context.Background()
-	if _, err := a.Add(ctx, Owner{Network: testNetwork, Sandbox: testOld, Interface: testIfName}); err != nil {
-		t.Fatal(err)
-	}
-	a.BootID = "22222222-3333-4444-8555-666666666666"
-	if err := a.Reconcile(ctx); err != nil {
-		t.Fatal(err)
-	}
-	node, err := a.Nodes.Get(ctx, a.NodeName, metav1.GetOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	state, err := readState(node, a.Binding)
-	pool, _, poolErr := unstructured.NestedMap(node.Object, specField, ipamField, poolField)
-	if err != nil || poolErr != nil || len(state.Reservations) != 0 || len(pool) != 2 {
-		t.Fatalf("reboot reset changed pool or kept ownership: %+v, %v, %v", state, pool, err)
+func TestAPIAddAndDeleteRetirePreviousBoot(t *testing.T) {
+	for _, allocate := range []bool{false, true} {
+		a, api, factoryErr := testAllocator()
+		if factoryErr != nil {
+			t.Fatal(factoryErr)
+		}
+		t.Cleanup(api.server.Close)
+		ctx := t.Context()
+		oldOwner := Owner{Network: testNetwork, Sandbox: testOld, Interface: testIfName}
+		if _, err := a.Add(ctx, oldOwner); err != nil {
+			t.Fatal(err)
+		}
+		a.BootID = "22222222-3333-4444-8555-666666666666"
+		currentOwner := Owner{Network: testNetwork, Sandbox: testSandbox, Interface: testIfName}
+		wantCount := 0
+		var ip string
+		var err error
+		if allocate {
+			ip, err = a.Add(ctx, currentOwner)
+			wantCount = 1
+		} else {
+			err = a.Delete(ctx, oldOwner, "")
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		node, err := a.Nodes.Get(ctx, a.NodeName, metav1.GetOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		state, err := readState(node, a.Binding)
+		pool, _, poolErr := unstructured.NestedMap(node.Object, specField, ipamField, poolField)
+		if err != nil || poolErr != nil || len(state.Reservations) != wantCount || len(pool) != 2 {
+			t.Fatalf("reboot reset changed pool or kept ownership: %+v, %v, %v", state, pool, err)
+		}
+		if allocate && (state.Reservations[ip].Owner != currentOwner || state.Reservations[ip].BootID != a.BootID) {
+			t.Fatal("ADD did not preserve the current-boot reservation")
+		}
 	}
 }
 

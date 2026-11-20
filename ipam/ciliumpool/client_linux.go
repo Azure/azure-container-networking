@@ -31,7 +31,6 @@ type operation uint8
 const (
 	addOperation operation = iota
 	deleteOperation
-	reconcileOperation
 )
 
 var errConflictRetries = errors.New("CiliumNode conflict retry budget exhausted")
@@ -42,11 +41,6 @@ func (a *Allocator) Add(ctx context.Context, owner Owner) (string, error) {
 
 func (a *Allocator) Delete(ctx context.Context, owner Owner, address string) error {
 	_, err := a.update(ctx, owner, address, deleteOperation)
-	return err
-}
-
-func (a *Allocator) Reconcile(ctx context.Context) error {
-	_, err := a.update(ctx, Owner{}, "", reconcileOperation)
 	return err
 }
 
@@ -132,8 +126,6 @@ func (a *Allocator) changeReservation(state *State, owner Owner, address string,
 		return state.Reserve(owner, a.BootID, a.Binding.Resource, supply)
 	case deleteOperation:
 		return "", state.Release(owner, address)
-	case reconcileOperation:
-		return "", nil
 	default:
 		return "", ErrConfig
 	}

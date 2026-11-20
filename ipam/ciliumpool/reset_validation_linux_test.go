@@ -22,7 +22,7 @@ func TestMalformedBootCannotBeTreatedAsPreviousBoot(t *testing.T) {
 	}
 	t.Cleanup(api.server.Close)
 	a.BootID = "malformed"
-	if err := a.Reconcile(context.Background()); err == nil {
+	if err := a.Delete(context.Background(), Owner{Network: testNetwork, Sandbox: testSandbox, Interface: testIfName}, ""); err == nil {
 		t.Fatal("unrecognized current boot identity accepted for reconciliation")
 	}
 }

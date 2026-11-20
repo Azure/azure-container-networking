@@ -412,6 +412,9 @@ boot ID from section 3. On ADD or DEL, the plugin reads the current boot ID
 and the bound CiliumNode. Before allocating, it conditionally removes only
 recognized reservations for **this same VM and an earlier boot**.
 
+This cleanup runs within ADD and DEL, not a separate service or command.
+An idle node can retain old-boot usage until its next CNI operation.
+
 The reason is specific: processes and pod network namespaces from that
 kernel boot cannot survive a real reboot. A plugin restart, kubelet restart,
 credential refresh, elapsed time or missing JSON file is **not** evidence

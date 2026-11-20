@@ -1,7 +1,7 @@
 # Azure Cilium IPAM installation
 
-`azure-cilium-ipam` is a Linux CNI executable with bounded `--register` and
-`--reconcile` commands. It consumes `spec.ipam.pool` and records reservations
+`azure-cilium-ipam` is a Linux CNI executable with an explicit `--register`
+command. It consumes `spec.ipam.pool` and records reservations
 in `status.ipam.used` on CiliumNode. Each conditional status update preserves
 the operator's inventory, interface metadata and diagnostics.
 
@@ -38,7 +38,7 @@ jq --slurpfile settings examples/cilium-operator-ipam/ipam-settings.json \
 ```
 
 Inspect and install the generated file as the sole primary CNI configuration
-at `/etc/cni/net.d/10-azure.conflist`. CNI and reconciliation use the same
+at `/etc/cni/net.d/10-azure.conflist`. CNI and registration use the same
 settings. `ipam.type` is the only mode selector. Unknown settings, including
 `stateDir`, `releaseExcessIPs` and `coordinatePeers`, are rejected.
 
@@ -76,16 +76,15 @@ Registration creates the Node/VM binding and reserve settings only when the
 CiliumNode does not exist. Replays validate existing ownership and never
 overwrite it. ADD does not register or repair a missing object.
 
-Install the included service and timer for periodic, one-shot reconciliation.
-The timer is not an allocation daemon and does not maintain local state.
 Reservations carry a versioned owner containing the VM, boot, network, sandbox
 and interface identities. After an actual reboot of the same bound VM,
-reconciliation retires only recognized previous-boot reservations.
+ADD and DEL retire only recognized previous-boot reservations. No separate
+service or command is required. On an idle node, old-boot usage remains until
+the next ADD or DEL.
 
 The host must use fresh sandbox identities after reboot and must not restore
 stale pod endpoints, per-pod rules or endpoint files. Keep pod secondaries off
-the host interface. A successful reconciliation is not a dataplane health
-check; verify usable networking before scheduling.
+the host interface. Verify usable networking before scheduling.
 
 ## Failure behavior
 
