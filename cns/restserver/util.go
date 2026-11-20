@@ -1160,7 +1160,7 @@ func (service *HTTPRestService) createNetworkContainer(createNcReq cns.CreateNet
 		if err := service.networkContainer.Create(createNcReq); err != nil {
 			return cns.Response{
 				ReturnCode: types.UnexpectedError,
-				Message:    fmt.Sprintf("[Azure CNS] Create Network Containers failed with error: %s", err.Error()),
+				Message:    "[Azure CNS] Create Network Containers failed with error: " + err.Error(),
 			}
 		}
 	}
