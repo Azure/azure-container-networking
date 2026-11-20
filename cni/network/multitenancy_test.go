@@ -251,6 +251,27 @@ func TestSetupRoutingForMultitenancy(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "network container that skips default routes gets no default route",
+			args: args{
+				nwCfg: &cni.NetworkConfig{MultiTenancy: true},
+				cnsNetworkConfig: &cns.GetNetworkContainerResponse{
+					IPConfiguration:   cns.IPConfiguration{GatewayIPAddress: "10.0.0.1"},
+					SkipDefaultRoutes: true,
+				},
+				epInfo: &network.EndpointInfo{},
+				result: &network.InterfaceInfo{},
+			},
+			expected: args{
+				nwCfg: &cni.NetworkConfig{MultiTenancy: true},
+				cnsNetworkConfig: &cns.GetNetworkContainerResponse{
+					IPConfiguration:   cns.IPConfiguration{GatewayIPAddress: "10.0.0.1"},
+					SkipDefaultRoutes: true,
+				},
+				epInfo: &network.EndpointInfo{},
+				result: &network.InterfaceInfo{},
+			},
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
