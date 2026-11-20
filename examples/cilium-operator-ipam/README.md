@@ -30,8 +30,9 @@ Derive the conflist from the golden Linux configuration:
 ```sh
 bash cni/scripts/gen-transparent-tunnel-conflist.sh \
   cni/azure-linux.conflist /tmp/azure-transparent-tunnel.conflist
-jq --slurpfile settings examples/cilium-operator-ipam/ipam-settings.json \
+jq --arg master eth0 --slurpfile settings examples/cilium-operator-ipam/ipam-settings.json \
   '.plugins |= map(if .type == "azure-vnet" then
+    .master = $master |
     .ipam = {"type":"azure-cilium-ipam","cilium":$settings[0]}
     else . end)' \
   /tmp/azure-transparent-tunnel.conflist > /tmp/10-azure.conflist
@@ -42,9 +43,10 @@ at `/etc/cni/net.d/10-azure.conflist`. CNI and registration use the same
 settings. `ipam.type` is the only mode selector. Unknown settings, including
 `stateDir`, `releaseExcessIPs` and `coordinatePeers`, are rejected.
 
-If `master` is specified, it must equal `ipam.cilium.interface`. Otherwise
-Azure CNI uses the host interface returned by IPAM without subnet-based NIC
-discovery. Install matching network and IPAM binaries together.
+Set `master` to the selected host interface (`eth0` in the example). It is
+required and is the sole interface setting for both Azure CNI and IPAM guest
+discovery. The nested `ipam.cilium.interface` setting is not supported.
+Install matching network and IPAM binaries together.
 
 ## Operator and permissions
 

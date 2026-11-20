@@ -128,9 +128,9 @@ guest interface. The network plugin validates the supported outer combination
 before early dispatch paths can bypass IPAM. The IPAM executable validates its
 own configuration and remote identity.
 
-An explicit `master` must match `ipam.cilium.interface`. The IPAM result
-identifies that host interface, and Azure CNI uses it directly rather than
-rediscovering a NIC by subnet when `master` is omitted.
+`master` is required and is the sole host-interface setting. Both Azure CNI
+and IPAM guest discovery use it; the IPAM result does not carry the host
+interface back to Azure CNI. There is no separate `ipam.cilium.interface`.
 
 ## 3. Pool, reservation and endpoint information
 

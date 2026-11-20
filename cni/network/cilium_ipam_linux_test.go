@@ -14,10 +14,22 @@ import (
 	cnitypes "github.com/containernetworking/cni/pkg/types/100"
 )
 
-const testLegacyIPAM = "azure-vnet-ipam"
+const (
+	testLegacyIPAM = "azure-vnet-ipam"
+	testCiliumMode = "transparent-tunnel"
+)
 
 type statelessCiliumManager struct {
 	network.NetworkManager
+}
+
+func TestCiliumIPAMRequiresMasterBeforeDispatch(t *testing.T) {
+	plugin := GetTestResources()
+	cfg := cni.NetworkConfig{Mode: testCiliumMode, IPAM: cni.IPAM{Type: cni.AzureCiliumIPAM}}
+	err := plugin.Add(&cniSkel.CmdArgs{StdinData: cfg.Serialize()})
+	if err == nil || !strings.Contains(err.Error(), errCiliumIPAMConfig.Error()) {
+		t.Fatalf("ADD without master reached dispatch: %v", err)
+	}
 }
 
 func (statelessCiliumManager) IsStatelessCNIMode() bool { return true }
@@ -25,7 +37,7 @@ func (statelessCiliumManager) IsStatelessCNIMode() bool { return true }
 func TestCiliumIPAMRejectsStatelessBeforeDispatch(t *testing.T) {
 	plugin := GetTestResources()
 	plugin.nm = statelessCiliumManager{}
-	cfg := cni.NetworkConfig{Mode: "transparent-tunnel", IPAM: cni.IPAM{Type: cni.AzureCiliumIPAM}}
+	cfg := cni.NetworkConfig{Master: eth0IfName, Mode: testCiliumMode, IPAM: cni.IPAM{Type: cni.AzureCiliumIPAM}}
 	err := plugin.Add(&cniSkel.CmdArgs{StdinData: cfg.Serialize()})
 	if err == nil || !strings.Contains(err.Error(), errCiliumIPAMConfig.Error()) {
 		t.Fatalf("stateless ADD reached dispatch: %v", err)
@@ -33,7 +45,7 @@ func TestCiliumIPAMRejectsStatelessBeforeDispatch(t *testing.T) {
 }
 
 func TestCiliumIPAMRejectsUnsupportedDispatch(t *testing.T) {
-	valid := cni.NetworkConfig{Mode: "transparent-tunnel", IPAM: cni.IPAM{Type: "azure-cilium-ipam"}}
+	valid := cni.NetworkConfig{Master: eth0IfName, Mode: testCiliumMode, IPAM: cni.IPAM{Type: "azure-cilium-ipam"}}
 	if err := validateCiliumIPAMConfig(&valid, false); err != nil {
 		t.Fatal(err)
 	}

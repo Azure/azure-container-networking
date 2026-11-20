@@ -21,7 +21,7 @@ var ErrConfig = errors.New("invalid Azure Cilium IPAM configuration")
 type Config struct {
 	NodeName          string `json:"nodeName"`
 	Kubeconfig        string `json:"kubeconfig"`
-	Interface         string `json:"interface"`
+	Interface         string `json:"-"`
 	NICID             string `json:"nicID"`
 	Subnet            string `json:"subnet"`
 	PreAllocate       int    `json:"preAllocate"`
@@ -77,11 +77,9 @@ func ParseConfig(data []byte) (*cni.NetworkConfig, Config, error) {
 	if err := d.Decode(new(any)); err != io.EOF {
 		return nil, Config{}, fmt.Errorf("%w: trailing settings", ErrConfig)
 	}
+	cfg.Interface = nw.Master
 	if err := cfg.validate(); err != nil {
 		return nil, Config{}, err
-	}
-	if nw.Master != "" && nw.Master != cfg.Interface {
-		return nil, Config{}, fmt.Errorf("%w: master differs from IPAM interface", ErrConfig)
 	}
 	return nw, cfg, nil
 }
