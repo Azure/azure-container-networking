@@ -69,7 +69,7 @@ func ParseConfig(data []byte) (*cni.NetworkConfig, Config, error) {
 		return nil, Config{}, ErrConfig
 	}
 	var cfg Config
-	d := json.NewDecoder(bytes.NewReader(nw.IPAM.Cilium))
+	d := json.NewDecoder(bytes.NewReader(nw.IPAM.AzureCiliumIPAMSettings))
 	d.DisallowUnknownFields()
 	if err := d.Decode(&cfg); err != nil {
 		return nil, Config{}, fmt.Errorf("decoding IPAM settings: %w", err)

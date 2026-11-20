@@ -42,7 +42,8 @@ type RuntimeDNSConfig struct {
 }
 
 type IPAM struct {
-	Cilium        json.RawMessage `json:"cilium,omitempty"`
+	// AzureCiliumIPAMSettings is interpreted by azure-cilium-ipam, not the network plugin.
+	AzureCiliumIPAMSettings        json.RawMessage `json:"cilium,omitempty"`
 	Mode          string          `json:"mode,omitempty"`
 	Type          string          `json:"type"`
 	Environment   string          `json:"environment,omitempty"`
