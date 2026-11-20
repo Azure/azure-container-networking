@@ -20,9 +20,9 @@ jobs:
     timeoutInMinutes: 180 # This is for testing windows, due to the 3m between the 14 tests -> results in 42m of wasted time
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
+      os: linux
       demands:
         - agent.os -equals Linux
-        - Role -equals Build
     steps:
       - task: AzureCLI@2
         displayName: "Setup Kubernetes E2E Environment"
@@ -161,8 +161,11 @@ jobs:
         retryCountOnTaskFailure: 3
         condition: always()
 
-      - publish: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
+      - task: 1ES.PublishPipelineArtifact@1
         condition: always()
-        artifact: ${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
+        inputs:
+          targetPath: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
+          artifactName: ${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
+          sbomEnabled: false
         name: npmLogs
         displayName: Publish NPM pod logs
