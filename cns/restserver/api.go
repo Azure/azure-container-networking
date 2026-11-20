@@ -736,7 +736,8 @@ func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 
 		// CNI DEL normally removes this, but SF can proceed to delete an NC without a successful CNI DEL (eg. containerd unresponsive, OOM).
 		ncReq := &containerStatus.CreateNetworkContainerRequest
-		if ncReq.NetworkContainerType == cns.AzureContainerInstance && isApipaEnabled(ncReq) {
+		if service.Options[common.OptEnableStaleHNSCleanupOnNCCreate] == true &&
+			ncReq.NetworkContainerType == cns.AzureContainerInstance && isApipaEnabled(ncReq) {
 			if apipaErr := hnsclient.DeleteHostNCApipaEndpoint(ncid); apipaErr != nil {
 				logger.Errorf("[Azure CNS] failed to delete APIPA endpoint for NC %s: %v", ncid, apipaErr) //nolint:staticcheck // TODO: migrate to zap logger
 			}
