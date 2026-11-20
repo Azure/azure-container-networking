@@ -43,14 +43,14 @@ type RuntimeDNSConfig struct {
 
 type IPAM struct {
 	// AzureCiliumIPAMSettings is interpreted by azure-cilium-ipam, not the network plugin.
-	AzureCiliumIPAMSettings        json.RawMessage `json:"cilium,omitempty"`
-	Mode          string          `json:"mode,omitempty"`
-	Type          string          `json:"type"`
-	Environment   string          `json:"environment,omitempty"`
-	AddrSpace     string          `json:"addressSpace,omitempty"`
-	Subnet        string          `json:"subnet,omitempty"`
-	Address       string          `json:"ipAddress,omitempty"`
-	QueryInterval string          `json:"queryInterval,omitempty"`
+	AzureCiliumIPAMSettings json.RawMessage `json:"cilium,omitempty"`
+	Mode                    string          `json:"mode,omitempty"`
+	Type                    string          `json:"type"`
+	Environment             string          `json:"environment,omitempty"`
+	AddrSpace               string          `json:"addressSpace,omitempty"`
+	Subnet                  string          `json:"subnet,omitempty"`
+	Address                 string          `json:"ipAddress,omitempty"`
+	QueryInterval           string          `json:"queryInterval,omitempty"`
 }
 
 // NetworkConfig represents Azure CNI plugin network configuration.
