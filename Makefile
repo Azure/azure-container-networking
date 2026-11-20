@@ -934,13 +934,7 @@ CNI_TYPE ?= cilium
 test-all: test-azure-ipam test-azure-ip-masq-merger test-azure-iptables-monitor test-cilium-log-collector test-main ## run all unit tests.
 
 test-main:
-	packages=('$(COVER_PKG)/...'); \
-	if [[ "$(CI_RUN_NPM_TESTS)" == "False" ]]; then \
-		set -o pipefail; \
-		listed=$$(go list -mod=readonly -race -tags unit $(COVER_PKG)/... | grep -vE '^github\.com/Azure/azure-container-networking/npm(/|$$)') || exit 1; \
-		mapfile -t packages <<< "$$listed"; \
-	fi; \
-	go test -mod=readonly -buildvcs=false -tags "unit" --skip 'TestE2E*' -race -covermode atomic -coverprofile=coverage-main.out "$${packages[@]}"
+	go test -mod=readonly -buildvcs=false -tags "unit" --skip 'TestE2E*' -race -covermode atomic -coverprofile=coverage-main.out $(COVER_PKG)/...
 	go tool cover -func=coverage-main.out
 
 test-integration: ## run all integration tests.
