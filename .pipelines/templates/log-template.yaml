@@ -50,9 +50,14 @@ steps:
     condition: always()
     continueOnError: true # Tends to fail after node restart due to pods still restarting. This should not block other tests or logs from running.
 
-  - bash: |
-      set -o pipefail
-      kubectl get pods -A -owide 2>&1 | tee "$(acnLogs)/all-pods.txt"
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+          set -o pipefail
+          kubectl get pods -A -owide 2>&1 | tee "$(acnLogs)/all-pods.txt"
     displayName: All Pods
     condition: always()
 
@@ -83,85 +88,125 @@ steps:
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
 
-  - bash: |
-      set -o pipefail
-      bash hack/scripts/collect-bad-pod-info.sh 2>&1 | tee "$(acnLogs)/bad-pod-info.txt"
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+          set -o pipefail
+          bash hack/scripts/collect-bad-pod-info.sh 2>&1 | tee "$(acnLogs)/bad-pod-info.txt"
     displayName: Collect Bad Pod Info
     condition: always()
     continueOnError: true
 
-  - bash: |
-      set -o pipefail
-      kubectl describe nodes 2>&1 | tee "$(acnLogs)/node-status.txt"
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+          set -o pipefail
+          kubectl describe nodes 2>&1 | tee "$(acnLogs)/node-status.txt"
     displayName: Node Status
     condition: always()
   
-  - bash: |
-      set -o pipefail
-      kubectl describe nnc -A 2>&1 | tee "$(acnLogs)/node-network-configs.txt"
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+          set -o pipefail
+          kubectl describe nnc -A 2>&1 | tee "$(acnLogs)/node-network-configs.txt"
     displayName: Describe Node Network Configs (NNCs)
     condition: and(always(), ne('${{ parameters.cni }}', 'cniv1')) # cniv1/nodesubnet scenarios do not have node network configs
     continueOnError: true # even if nnc doesn't exist we want to continue
 
-  - bash: |
-      set -o pipefail
-      {
-        kubectl get ds -A -owide
-        echo "Capture daemonset images being used"
-        dsList=`kubectl get ds -A | grep kube-system | awk '{print $2}'`
-        for ds in $dsList; do
-          echo "$ds"
-          kubectl describe ds -n kube-system $ds | grep Image
-        done
-      } 2>&1 | tee "$(acnLogs)/daemonset-images.txt"
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+          set -o pipefail
+          {
+            kubectl get ds -A -owide
+            echo "Capture daemonset images being used"
+            dsList=`kubectl get ds -A | grep kube-system | awk '{print $2}'`
+            for ds in $dsList; do
+              echo "$ds"
+              kubectl describe ds -n kube-system $ds | grep Image
+            done
+          } 2>&1 | tee "$(acnLogs)/daemonset-images.txt"
     displayName: Daemonset Images
     condition: always()
 
-  - bash: |
-      set -o pipefail
-      {
-        kubectl get deploy -A -owide
-        echo "Capture deployment images being used"
-        deployList=`kubectl get deploy -A | grep kube-system | awk '{print $2}'`
-        for deploy in $deployList; do
-          echo "$deploy"
-          kubectl describe deploy -n kube-system $deploy | grep Image
-        done
-      } 2>&1 | tee "$(acnLogs)/deployment-images.txt"
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+          set -o pipefail
+          {
+            kubectl get deploy -A -owide
+            echo "Capture deployment images being used"
+            deployList=`kubectl get deploy -A | grep kube-system | awk '{print $2}'`
+            for deploy in $deployList; do
+              echo "$deploy"
+              kubectl describe deploy -n kube-system $deploy | grep Image
+            done
+          } 2>&1 | tee "$(acnLogs)/deployment-images.txt"
     displayName: Deployment Images
     condition: always()
 
   - ${{ if eq(parameters.logType, 'failure') }}:
-    - bash: |
-        kubectl get pods -n kube-system -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,NODE:.spec.nodeName
-        podList=`kubectl get pods -n kube-system -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,NODE:.spec.nodeName --no-headers | grep -v Running | awk '{print $1}'`
-        array=($podList)
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+            kubectl get pods -n kube-system -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,NODE:.spec.nodeName
+            podList=`kubectl get pods -n kube-system -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,NODE:.spec.nodeName --no-headers | grep -v Running | awk '{print $1}'`
+            array=($podList)
 
-        if [ -z ${array[0]} ]; then
-          echo "There are no kube-system pods in a non-ready state."
-        else
-          mkdir -p $(acnLogs)/${{ parameters.os }}non-ready
-          echo "Directory created: $(acnLogs)/${{ parameters.os }}non-ready"
-          echo "Capturing failed pods"
-          for pod in $podList; do
-            kubectl describe pod -n kube-system $pod > $(acnLogs)/${{ parameters.os }}non-ready/$pod.txt
-            echo "$(acnLogs)/${{ parameters.os }}non-ready/$pod.txt"
-          done
-        fi
+            if [ -z ${array[0]} ]; then
+              echo "There are no kube-system pods in a non-ready state."
+            else
+              mkdir -p $(acnLogs)/${{ parameters.os }}non-ready
+              echo "Directory created: $(acnLogs)/${{ parameters.os }}non-ready"
+              echo "Capturing failed pods"
+              for pod in $podList; do
+                kubectl describe pod -n kube-system $pod > $(acnLogs)/${{ parameters.os }}non-ready/$pod.txt
+                echo "$(acnLogs)/${{ parameters.os }}non-ready/$pod.txt"
+              done
+            fi
       displayName: Failure Logs
       condition: always()
 
   - ${{ if eq(parameters.os, 'linux') }}:
-    - script: |
-        cd hack/scripts
-        acnLogs=$(acnLogs) cni=${{ parameters.cni }} bash collect-linux-logs.sh
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+            cd hack/scripts
+            acnLogs=$(acnLogs) cni=${{ parameters.cni }} bash collect-linux-logs.sh
       displayName: Linux Logs
       condition: always()
 
   - ${{ if eq(parameters.os, 'windows') }}:
-    - script: |
-        cd hack/scripts
-        acnLogs=$(acnLogs) cni=${{ parameters.cni }} bash collect-windows-logs.sh
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+            cd hack/scripts
+            acnLogs=$(acnLogs) cni=${{ parameters.cni }} bash collect-windows-logs.sh
       displayName: Windows Logs
       condition: always()
 
