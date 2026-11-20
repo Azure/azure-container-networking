@@ -88,6 +88,8 @@ func isDelegatedNICType(nicType cns.NICType) bool {
 func (service *HTTPRestService) cleanupStaleSwiftV1Endpoints(req cns.CreateNetworkContainerRequest, isNewNC bool) (returnErr error) {
 	ncID := req.NetworkContainerid
 	ncIP := req.IPConfiguration.IPSubnet.IPAddress
+	// Dual-stack NCs get an IPv6 address on the same endpoint, assigned independently of the IPv4 one.
+	ncIPv6 := req.IPv6Configuration.IPSubnet.IPAddress
 	var apipaIP string
 	if isApipaEnabled(&req) {
 		apipaIP = req.LocalIPConfiguration.IPSubnet.IPAddress
@@ -100,6 +102,7 @@ func (service *HTTPRestService) cleanupStaleSwiftV1Endpoints(req cns.CreateNetwo
 				"ncID":           ncID,
 				"apipaIP":        apipaIP,
 				"ncIP":           ncIP,
+				"ncIPv6":         ncIPv6,
 				"hnsEndpointIDs": strings.Join(deletedEndpointIDs, ","),
 			}, returnErr)
 		}
@@ -131,7 +134,7 @@ func (service *HTTPRestService) cleanupStaleSwiftV1Endpoints(req cns.CreateNetwo
 		// All APIPA endpoints on a node share one HNS network, so the IP alone identifies the collision.
 		staleApipa := apipaIP != "" && strings.HasPrefix(ep.Name, apipaPrefix) && ep.Name != ownApipaName && endpointHoldsIP(ep, apipaIP)
 		// NC IPs are only unique within the customer's VNet, so only look inside its HNS network.
-		staleNCIP := customerNetworks[ep.HostComputeNetwork] && endpointHoldsIP(ep, ncIP)
+		staleNCIP := customerNetworks[ep.HostComputeNetwork] && (endpointHoldsIP(ep, ncIP) || endpointHoldsIP(ep, ncIPv6))
 		if !staleApipa && !staleNCIP {
 			continue
 		}
@@ -197,8 +200,16 @@ func subnetHasVLAN(s hcn.Subnet, vlanID int) bool {
 }
 
 // endpointHoldsIP returns whether an endpoint has an IP configuration with the given IP address.
+// Addresses are parsed so IPv6 matches regardless of formatting; an invalid or empty ip matches nothing.
 func endpointHoldsIP(ep *hcn.HostComputeEndpoint, ip string) bool {
-	return slices.ContainsFunc(ep.IpConfigurations, func(c hcn.IpConfig) bool { return c.IpAddress == ip })
+	want, err := netip.ParseAddr(ip)
+	if err != nil {
+		return false
+	}
+	return slices.ContainsFunc(ep.IpConfigurations, func(c hcn.IpConfig) bool {
+		got, err := netip.ParseAddr(c.IpAddress)
+		return err == nil && got == want
+	})
 }
 
 func normalizeMAC(mac string) string {

@@ -47,6 +47,7 @@ func TestCleanupStaleHNSResourcesSwiftV1(t *testing.T) {
 	const (
 		ncID    = "Swift_new"
 		ncIP    = "10.0.0.5"
+		ncIPv6  = "fd00::5"
 		apipaIP = "169.254.128.5"
 
 		leakedApipa     = "leaked-apipa"
@@ -76,6 +77,14 @@ func TestCleanupStaleHNSResourcesSwiftV1(t *testing.T) {
 	ncWithNCToHostCommunication.AllowNCToHostCommunication = true
 	ncOnDelegatedNIC := nc
 	ncOnDelegatedNIC.NetworkInterfaceInfo = cns.NetworkInterfaceInfo{NICType: cns.DelegatedVMNIC, MACAddress: testEndpointMACAddress}
+	dualStackNC := nc
+	dualStackNC.IPv6Configuration = cns.IPConfiguration{IPSubnet: cns.IPSubnet{IPAddress: ncIPv6, PrefixLength: 64}}
+	dualStackEndpoint := func(id, network string) hcn.HostComputeEndpoint {
+		ep := containerEndpoint(id, network, "10.0.0.7")
+		// ncIPv6 written differently, to test format-insensitive matching.
+		ep.IpConfigurations = append(ep.IpConfigurations, hcn.IpConfig{IpAddress: "FD00:0:0:0::5"})
+		return ep
+	}
 
 	tests := []struct {
 		name                string
@@ -153,6 +162,17 @@ func TestCleanupStaleHNSResourcesSwiftV1(t *testing.T) {
 			name:      "NC without VLAN has no customer network to look in",
 			req:       ncWithoutVLAN,
 			endpoints: []hcn.HostComputeEndpoint{containerEndpoint("unscoped", "customer-network", ncIP)},
+		},
+		{
+			name:        "new dual-stack NC deletes the endpoint holding only its IPv6 address",
+			req:         dualStackNC,
+			endpoints:   []hcn.HostComputeEndpoint{dualStackEndpoint(leakedContainer, "customer-network")},
+			wantDeleted: []string{leakedContainer},
+		},
+		{
+			name:      "keeps endpoints holding the NC IPv6 address in a network with another VLAN",
+			req:       dualStackNC,
+			endpoints: []hcn.HostComputeEndpoint{dualStackEndpoint("other-vlan", "other-vlan-network")},
 		},
 		{
 			name:    "known NC without host-NC communication makes no HNS calls",
