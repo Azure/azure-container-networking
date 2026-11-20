@@ -1,6 +1,9 @@
 parameters:
   name: ""
   platforms: ""
+  # 1ES PT blocks PublishBuildArtifacts@1 in user steps. Callers extending 1ES
+  # pass false and publish through templateContext.outputs instead.
+  publishArtifact: true
 
 steps:
 
@@ -45,13 +48,16 @@ steps:
       inlineScript: |
         docker logout
 
-  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
-    displayName: "Add SBOM Generator tool"
-    inputs:
-      BuildDropPath: "$(Build.ArtifactStagingDirectory)"
+  - ${{ if eq(parameters.publishArtifact, true) }}:
+      # Legacy callers still publish their manifest with the build artifact.
+      # The governed pipeline signs the assembled drop instead.
+      - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+        displayName: "Add SBOM Generator tool"
+        inputs:
+          BuildDropPath: "$(Build.ArtifactStagingDirectory)"
 
-  - task: PublishBuildArtifacts@1
-    inputs:
-      artifactName: "output"
-      pathtoPublish: "$(Build.ArtifactStagingDirectory)"
-    condition: succeeded()
+      - task: PublishBuildArtifacts@1
+        inputs:
+          artifactName: "output"
+          pathtoPublish: "$(Build.ArtifactStagingDirectory)"
+        condition: succeeded()

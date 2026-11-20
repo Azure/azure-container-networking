@@ -61,6 +61,7 @@ else
 endif
 
 # Common az aks create fields
+COMMON_AKS_AUTH_ARGS = --enable-aad --enable-azure-rbac
 COMMON_AKS_FIELDS = $(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 	--auto-upgrade-channel $(AUTOUPGRADE) \
 	--node-os-upgrade-channel $(NODEUPGRADE) \
@@ -69,6 +70,7 @@ COMMON_AKS_FIELDS = $(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 	--node-vm-size $(VM_SIZE) \
 	--no-ssh-key \
 	--os-sku $(OS_SKU) \
+	$(COMMON_AKS_AUTH_ARGS) \
 	--kms-infrastructure-encryption Enabled \
 	$(LTS_ARGS) $(ACNS_ARGS)
 POD_CIDR = 192.168.0.0/16
@@ -114,7 +116,7 @@ ipv6:
 
 
 set-kubeconf: ## Adds the kubeconf for $CLUSTER
-	$(AZCLI) aks get-credentials -n $(CLUSTER) -g $(GROUP)
+	$(AZCLI) aks get-credentials -n $(CLUSTER) -g $(GROUP) --overwrite-existing
 
 unset-kubeconf: ## Deletes the kubeconf for $CLUSTER
 	@kubectl config unset current-context
@@ -292,6 +294,7 @@ swift-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT AzCNI cluster
 
 swiftv2-multitenancy-cluster-up: rg-up ipv4
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		$(COMMON_AKS_AUTH_ARGS) \
 		--network-plugin azure \
 		--network-plugin-mode overlay \
 		--kubernetes-version $(K8S_VER) \
@@ -308,6 +311,7 @@ swiftv2-multitenancy-cluster-up: rg-up ipv4
 
 swiftv2-dummy-cluster-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT AzCNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		$(COMMON_AKS_AUTH_ARGS) \
 		--network-plugin azure \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
