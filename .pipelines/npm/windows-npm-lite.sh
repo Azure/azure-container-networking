@@ -216,6 +216,9 @@ use_static_token() {
     unset response
     # The token must outlive the executor's 35-minute deadline, with a minute of margin.
     ((expires_on - $(date +%s) >= 2160)) || fail "cluster Entra ID token expires before the executor deadline"
+    # An inherited default ACL overrides the umask, so restrict the file before it holds the token.
+    : > "$KUBECONFIG.tmp"
+    chmod 600 -- "$KUBECONFIG.tmp"
     if ! printf '%s' "$config" | NPM_LITE_TOKEN="$token" jq '.users[0].user = {token: env.NPM_LITE_TOKEN}' \
         > "$KUBECONFIG.tmp"; then
         rm -f -- "$KUBECONFIG.tmp"
