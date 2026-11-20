@@ -53,19 +53,29 @@ steps:
 
   - template: ../../templates/cilium-cli.yaml
 
-  - script: |
-      echo "Start Azilium E2E Tests on Overlay Cluster"
-      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=cilium_dualstack VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_OVERLAY=true AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) CLEANUP=true
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: |
+        echo "Start Azilium E2E Tests on Overlay Cluster"
+        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=cilium_dualstack VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_OVERLAY=true AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) CLEANUP=true
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E on AKS Overlay"
 
-  - script: |
-      kubectl get pods -A
-      echo "Waiting < 2 minutes for cilium to be ready"
-      # Ensure Cilium is ready Xm\Xs
-      cilium status --wait --wait-duration 2m
-      kubectl get crd -A
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: |
+        kubectl get pods -A
+        echo "Waiting < 2 minutes for cilium to be ready"
+        # Ensure Cilium is ready Xm\Xs
+        cilium status --wait --wait-duration 2m
+        kubectl get crd -A
     retryCountOnTaskFailure: 3
     name: "CiliumStatus"
     displayName: "Cilium Status"
@@ -107,55 +117,80 @@ steps:
     displayName: "Validate Node Restart"
     retryCountOnTaskFailure: 3
 
-  - script: |
-      set -e
-      echo "Run Cilium Connectivity Tests"
-      cilium status
-      cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption,!no-unexpected-packet-drops,!check-log-errors' --force-deploy
-      ns=`kubectl get ns | grep cilium-test | awk '{print $1}'`
-      echo "##vso[task.setvariable variable=ciliumNamespace]$ns"
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: |
+        set -e
+        echo "Run Cilium Connectivity Tests"
+        cilium status
+        cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption,!no-unexpected-packet-drops,!check-log-errors' --force-deploy
+        ns=`kubectl get ns | grep cilium-test | awk '{print $1}'`
+        echo "##vso[task.setvariable variable=ciliumNamespace]$ns"
     retryCountOnTaskFailure: 3
     name: "ciliumConnectivityTests"
     displayName: "Run Cilium Connectivity Tests"
 
-  - script: |
-      set -e
-      kubectl get po -owide -A
-      cd test/integration/datapath
-      echo "Dualstack Overlay Linux datapath IPv6 test"
-      go test -count=1 datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration -isDualStack=true
-      echo "Dualstack Overlay Linux datapath IPv4 test"
-      go test -count=1 datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: |
+        set -e
+        kubectl get po -owide -A
+        cd test/integration/datapath
+        echo "Dualstack Overlay Linux datapath IPv6 test"
+        go test -count=1 datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration -isDualStack=true
+        echo "Dualstack Overlay Linux datapath IPv4 test"
+        go test -count=1 datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration
     retryCountOnTaskFailure: 3
     name: "DualStack_Overlay_Linux_Tests"
     displayName: "DualStack Overlay Linux Tests"
 
-  - script: |
-      echo "validate pod IP assignment and check systemd-networkd restart"
-      kubectl get pod -owide -A
-      cd test/integration/load
-      CNI_TYPE=cilium_dualstack go test -timeout 30m -tags load -run ^TestValidateState$
-      echo "delete cilium connectivity test resources and re-validate state"
-      kubectl delete ns $(ciliumNamespace)
-      kubectl get pod -owide -A
-      CNI_TYPE=cilium_dualstack go test -timeout 30m -tags load -run ^TestValidateState$
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: |
+        echo "validate pod IP assignment and check systemd-networkd restart"
+        kubectl get pod -owide -A
+        cd test/integration/load
+        CNI_TYPE=cilium_dualstack go test -timeout 30m -tags load -run ^TestValidateState$
+        echo "delete cilium connectivity test resources and re-validate state"
+        kubectl delete ns $(ciliumNamespace)
+        kubectl get pod -owide -A
+        CNI_TYPE=cilium_dualstack go test -timeout 30m -tags load -run ^TestValidateState$
     name: "validatePods"
     displayName: "Validate Pods"
 
-  - script: |
-      echo "Run wireserver and metadata connectivity Tests"
-      bash test/network/wireserver_metadata_test.sh
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: |
+        echo "Run wireserver and metadata connectivity Tests"
+        bash test/network/wireserver_metadata_test.sh
     retryCountOnTaskFailure: 3
     name: "WireserverMetadataConnectivityTests"
     displayName: "Run Wireserver and Metadata Connectivity Tests"
 
-  - script: |
-      cd hack/scripts
-      chmod +x async-delete-test.sh
-      ./async-delete-test.sh
-      if ! [ -z $(kubectl -n kube-system get ds  azure-cns | grep non-existing) ]; then
-        kubectl -n kube-system patch daemonset azure-cns --type json -p='[{"op": "remove", "path": "/spec/template/spec/nodeSelector/non-existing"}]'
-      fi
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: |
+        cd hack/scripts
+        chmod +x async-delete-test.sh
+        ./async-delete-test.sh
+        if ! [ -z $(kubectl -n kube-system get ds  azure-cns | grep non-existing) ]; then
+          kubectl -n kube-system patch daemonset azure-cns --type json -p='[{"op": "remove", "path": "/spec/template/spec/nodeSelector/non-existing"}]'
+        fi
     name: "testAsyncDelete"
     displayName: "Verify Async Delete when CNS is down"
   

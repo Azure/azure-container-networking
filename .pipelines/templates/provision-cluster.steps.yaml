@@ -1,0 +1,42 @@
+parameters:
+  script: ""
+  displayName: ""
+  name: ""
+  continueOnError: false
+
+steps:
+  - bash: bash .pipelines/templates/install-provisioning-cli.sh
+    displayName: Prepare private AKS provisioning CLI
+
+  - task: AzureCLI@2
+    ${{ if ne(parameters.name, '') }}:
+      name: ${{ parameters.name }}
+    displayName: ${{ parameters.displayName }}
+    continueOnError: ${{ parameters.continueOnError }}
+    env:
+      HOME: $(acnProvisionRoot)/home
+      TMPDIR: $(acnProvisionRoot)
+      KUBECONFIG: $(acnProvisionRoot)/home/.kube/config
+      AZURE_EXTENSION_DIR: $(acnProvisionRoot)/extensions
+      AZURE_EXTENSION_SYS_DIR: $(acnProvisionRoot)/system-extensions
+      # Also isolate the task's version check, before it sets its login config.
+      AZURE_CONFIG_DIR: $(acnProvisionRoot)/config
+      AZURE_EXTENSION_USE_DYNAMIC_INSTALL: 'no'
+      AZURE_CORE_COLLECT_TELEMETRY: 'no'
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      useGlobalConfig: false
+      inlineScript: |
+        set -e
+        test "$(command -v az)" = "$(acnProvisionRoot)/usr/bin/az"
+        az account show --output none
+        ${{ parameters.script }}
+
+  - bash: |
+      set -eu
+      [[ "$ACNPROVISIONROOT" == "$AGENT_TEMPDIRECTORY/acn-provision-$SYSTEM_JOBID" ]]
+      rm -rf -- "$ACNPROVISIONROOT"
+    condition: and(always(), ne(variables['acnProvisionRoot'], ''))
+    displayName: Remove private AKS provisioning CLI

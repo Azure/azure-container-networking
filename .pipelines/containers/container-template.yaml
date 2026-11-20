@@ -19,13 +19,23 @@ steps:
     set -e
     echo "=== Disk space BEFORE make image ==="
     df -h
-    if [ ${{ parameters.os }} = 'windows' ]; then export BUILDX_ACTION='--push'; fi
     make ${{ parameters.name }}-image OS=${{ parameters.os }} ARCH=${{ parameters.arch }}
     echo "=== Disk space AFTER make image ==="
     df -h
   name: image_build
   displayName: Image Build
   retryCountOnTaskFailure: 2
+  env:
+    # Buildah pushes separately and ignores this Docker buildx setting.
+    BUILDX_ACTION: --push --provenance=false
+
+- script: |
+    set -euo pipefail
+    make --no-print-directory npm-image-validate OS=${{ parameters.os }} ARCH=${{ parameters.arch }}
+  displayName: Validate NPM Linux image runtime
+  condition: and(succeeded(), eq(variables['name'], 'npm'), eq(variables['os'], 'linux'))
+  env:
+    BUILDX_ACTION: --push --provenance=false
 
 - task: AzureCLI@2
   displayName: "Logout"

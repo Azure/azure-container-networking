@@ -1,3 +1,7 @@
+parameters:
+  isOfficial: false
+  officialAksPool: acn-ado-azure-linux-3-amd64-pt-pool
+
 stages:
 - stage: setup
   displayName: ACN
@@ -262,6 +266,8 @@ stages:
   # Cilium Podsubnet E2E tests
   - template: singletenancy/cilium/cilium-e2e.stages.yaml
     parameters:
+      ${{ if eq(parameters.isOfficial, true) }}:
+        aksPool: ${{ parameters.officialAksPool }}
       name: "cilium_e2e"
       displayName: Cilium
       clusterType: swift-byocni-nokubeproxy-up
@@ -273,6 +279,8 @@ stages:
   # Cilium Nodesubnet E2E tests
   - template: singletenancy/cilium-nodesubnet/cilium-nodesubnet-e2e.stages.yaml
     parameters:
+      ${{ if eq(parameters.isOfficial, true) }}:
+        aksPool: ${{ parameters.officialAksPool }}
       name: "cilium_nodesubnet_e2e"
       displayName: Cilium NodeSubnet
       clusterType: nodesubnet-byocni-nokubeproxy-up
@@ -284,6 +292,8 @@ stages:
   # Cilium Overlay E2E tests
   - template: singletenancy/cilium-overlay/cilium-overlay-e2e.stages.yaml
     parameters:
+      ${{ if eq(parameters.isOfficial, true) }}:
+        aksPool: ${{ parameters.officialAksPool }}
       name: "cilium_overlay_e2e"
       displayName: Cilium on AKS Overlay
       clusterType: overlay-byocni-nokubeproxy-up
@@ -295,6 +305,8 @@ stages:
   # Cilium Dualstack Overlay E2E tests
   - template: singletenancy/cilium-dualstack-overlay/cilium-dualstackoverlay-e2e.stages.yaml
     parameters:
+      ${{ if eq(parameters.isOfficial, true) }}:
+        aksPool: ${{ parameters.officialAksPool }}
       name: "cilium_dualstackoverlay_e2e"
       displayName: Cilium on AKS DualStack Overlay
       os: linux
@@ -307,6 +319,8 @@ stages:
       # Cilium Overlay with hubble E2E tests
   - template: singletenancy/cilium-overlay-withhubble/cilium-overlay-e2e.stages.yaml
     parameters:
+      ${{ if eq(parameters.isOfficial, true) }}:
+        aksPool: ${{ parameters.officialAksPool }}
       name: "cilium_h_overlay_e2e"
       displayName: Cilium on AKS Overlay with Hubble
       clusterType: overlay-byocni-nokubeproxy-up
@@ -319,6 +333,8 @@ stages:
   # Azure Overlay E2E tests
   - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e.stages.yaml
     parameters:
+      ${{ if eq(parameters.isOfficial, true) }}:
+        aksPool: ${{ parameters.officialAksPool }}
       name: "linux_azure_overlay_e2e"
       displayName: Azure Overlay Linux
       os: linux
@@ -331,6 +347,8 @@ stages:
 
   - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e.stages.yaml
     parameters:
+      ${{ if eq(parameters.isOfficial, true) }}:
+        aksPool: ${{ parameters.officialAksPool }}
       name: "win_azure_overlay_e2e"
       displayName: Azure Overlay Windows
       os: windows
@@ -344,6 +362,8 @@ stages:
   # Azure Overlay E2E Stateless CNI tests
   - template: singletenancy/azure-cni-overlay-stateless/azure-cni-overlay-stateless-e2e.stages.yaml
     parameters:
+      ${{ if eq(parameters.isOfficial, true) }}:
+        aksPool: ${{ parameters.officialAksPool }}
       name: "azure_overlay_stateless_e2e"
       displayName: Azure Stateless CNI Overlay
       os: windows
@@ -355,6 +375,8 @@ stages:
   # AKS Swift E2E tests
   - template: singletenancy/aks-swift/e2e.stages.yaml
     parameters:
+      ${{ if eq(parameters.isOfficial, true) }}:
+        aksPool: ${{ parameters.officialAksPool }}
       name: "aks_swift_e2e"
       displayName: AKS Swift Ubuntu
       os: linux
@@ -367,6 +389,8 @@ stages:
   # AKS Swift Vnet Scale E2E tests
   - template: singletenancy/aks-swift/e2e.stages.yaml
     parameters:
+      ${{ if eq(parameters.isOfficial, true) }}:
+        aksPool: ${{ parameters.officialAksPool }}
       name: "aks_swift_vnetscale_e2e"
       displayName: AKS Swift Vnet Scale Ubuntu
       os: linux
@@ -379,6 +403,8 @@ stages:
   # CNIv1 E2E tests
   - template: singletenancy/aks/e2e.stages.yaml
     parameters:
+      ${{ if eq(parameters.isOfficial, true) }}:
+        aksPool: ${{ parameters.officialAksPool }}
       name: "aks_ubuntu_22_linux_e2e"
       displayName: AKS Ubuntu 22
       arch: "amd64"
@@ -392,6 +418,8 @@ stages:
 
   - template: singletenancy/aks/e2e.stages.yaml
     parameters:
+      ${{ if eq(parameters.isOfficial, true) }}:
+        aksPool: ${{ parameters.officialAksPool }}
       name: "aks_windows_22_e2e"
       displayName: AKS Windows 2022
       arch: amd64
@@ -406,6 +434,8 @@ stages:
   # CNI dual stack overlay E2E tests
   - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e.stages.yaml
     parameters:
+      ${{ if eq(parameters.isOfficial, true) }}:
+        aksPool: ${{ parameters.officialAksPool }}
       name: "linux_dualstackoverlay_e2e"
       displayName: AKS DualStack Overlay Linux
       os: linux
@@ -417,6 +447,8 @@ stages:
 
   - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e.stages.yaml
     parameters:
+      ${{ if eq(parameters.isOfficial, true) }}:
+        aksPool: ${{ parameters.officialAksPool }}
       name: "win_dualstackoverlay_e2e"
       displayName: AKS DualStack Overlay Windows
       os: windows
@@ -457,7 +489,10 @@ stages:
     - job: delete_build
       displayName: Delete Cluster
       pool:
-        name: "$(BUILD_POOL_NAME_DEFAULT)"
+        ${{ if eq(parameters.isOfficial, true) }}:
+          name: ${{ parameters.officialAksPool }}
+        ${{ else }}:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
         isCustom: true
         type: linux
       strategy:

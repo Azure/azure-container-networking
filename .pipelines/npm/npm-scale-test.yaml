@@ -164,6 +164,7 @@ jobs:
                 --node-vm-size Standard_D4s_v3 \
                 --node-count 1 \
                 --tier standard \
+                --kms-infrastructure-encryption Enabled \
                 --max-pods 100 \
                 --load-balancer-outbound-ips $PUBLIC_IP_ID
 

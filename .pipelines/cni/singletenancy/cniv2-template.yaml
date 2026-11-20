@@ -41,6 +41,7 @@ stages:
           location: $(LOCATION_AMD64)
       pool:
         name: $(BUILD_POOL_NAME_DEFAULT)
+        os: linux
       dependsOn:
         - setup
         - build_images
@@ -74,6 +75,7 @@ stages:
           location: $(LOCATION_AMD64)
       pool:
         name: $(BUILD_POOL_NAME_DEFAULT)
+        os: linux
       dependsOn:
         - setup
         - build_images
@@ -115,6 +117,7 @@ stages:
         location: $(LOCATION_AMD64)
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
+      os: linux
     dependsOn:
       - create_${{ parameters.name }}
       - publish
@@ -173,26 +176,36 @@ stages:
               name: "swifte2e"
               displayName: "Swift Integration"
           - ${{ if contains(parameters.os, 'windows') }}: # This should be removed in the future, ongoing cloud-node-manager-windows issue
-            - script: |
-                kubectl get nodes -l kubernetes.io/os=windows
-                nodeList=`kubectl get nodes -l kubernetes.io/os=windows --no-headers | awk '{print $1}'`
-                for node in $nodeList; do
-                    taint=`kubectl describe node $node | grep Taints | awk '{print $2}'`
-                    if [ $taint == "node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule" ]; then
-                        kubectl taint nodes $node node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule-
-                    fi
-                done
+            - task: AzureCLI@2
+              inputs:
+                azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+                scriptLocation: inlineScript
+                scriptType: bash
+                inlineScript: |
+                  kubectl get nodes -l kubernetes.io/os=windows
+                  nodeList=`kubectl get nodes -l kubernetes.io/os=windows --no-headers | awk '{print $1}'`
+                  for node in $nodeList; do
+                      taint=`kubectl describe node $node | grep Taints | awk '{print $2}'`
+                      if [ $taint == "node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule" ]; then
+                          kubectl taint nodes $node node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule-
+                      fi
+                  done
               name: windows_taints
               displayName: Remove Windows Taints
-            - script: |
-                kubectl apply -f test/integration/manifests/load/privileged-daemonset-windows.yaml
-                kubectl rollout status ds -n kube-system privileged-daemonset
+            - task: AzureCLI@2
+              inputs:
+                azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+                scriptLocation: inlineScript
+                scriptType: bash
+                inlineScript: |
+                  kubectl apply -f test/integration/manifests/load/privileged-daemonset-windows.yaml
+                  kubectl rollout status ds -n kube-system privileged-daemonset
 
-                kubectl get pod -n kube-system -l app=privileged-daemonset,os=windows -n kube-system
-                pods=`kubectl get pod -n kube-system -l app=privileged-daemonset,os=windows -n kube-system --no-headers | awk '{print $1}'`
-                for pod in $pods; do
-                  kubectl exec -i -n kube-system $pod -- powershell "Restart-service kubeproxy"
-                done
+                  kubectl get pod -n kube-system -l app=privileged-daemonset,os=windows -n kube-system
+                  pods=`kubectl get pod -n kube-system -l app=privileged-daemonset,os=windows -n kube-system --no-headers | awk '{print $1}'`
+                  for pod in $pods; do
+                    kubectl exec -i -n kube-system $pod -- powershell "Restart-service kubeproxy"
+                  done
               name: kubeproxy
               displayName: Restart Kubeproxy on Windows nodes
 
@@ -212,6 +225,7 @@ stages:
         steps:
           - template: ../load-test-templates/pod-deployment-template.yaml
             parameters:
+              use1ESPublishTask: true
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               scaleup: ${{ parameters.scaleup }}
               os: ${{ parameters.os }}
@@ -231,6 +245,7 @@ stages:
         steps:
           - template: ../load-test-templates/restart-node-template.yaml
             parameters:
+              use1ESPublishTask: true
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: cniv2
@@ -248,6 +263,7 @@ stages:
         steps:
           - template: ../load-test-templates/restart-cns-template.yaml
             parameters:
+              use1ESPublishTask: true
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: cniv2
@@ -276,6 +292,7 @@ stages:
             displayName: "Delete test Namespaces"
       - template: ../k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
+          use1ESPool: true
           sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
@@ -300,6 +317,7 @@ stages:
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
+              use1ESPublishTask: true
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: cniv2
@@ -316,6 +334,7 @@ stages:
           location: $(LOCATION_AMD64)
       pool:
         name: $(BUILD_POOL_NAME_DEFAULT)
+        os: linux
       dependsOn:
         - ${{ parameters.name }}
         - setup
@@ -335,6 +354,7 @@ stages:
           steps:
             - template: ../load-test-templates/pod-deployment-template.yaml
               parameters:
+                use1ESPublishTask: true
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
                 scaleup: ${{ parameters.scaleup }}
                 os: ${{ parameters.os }}
@@ -352,6 +372,7 @@ stages:
           steps:
             - template: ../load-test-templates/restart-node-template.yaml
               parameters:
+                use1ESPublishTask: true
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
                 os: ${{ parameters.os }}
                 nodeCount: ${{ parameters.nodeCountWin }}
@@ -370,6 +391,7 @@ stages:
           steps:
             - template: ../load-test-templates/restart-cns-template.yaml
               parameters:
+                use1ESPublishTask: true
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
                 os: ${{ parameters.os }}
                 cni: cniv2
@@ -397,6 +419,7 @@ stages:
               displayName: "Delete test Namespaces"
         - template: ../k8s-e2e/k8s-e2e-job-template.yaml
           parameters:
+            use1ESPool: true
             sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
             clusterName: ${{ parameters.clusterName }}-$(commitID)
             os: ${{ parameters.os }}
@@ -420,6 +443,7 @@ stages:
           steps:
             - template: ../../templates/log-template.yaml
               parameters:
+                use1ESPublishTask: true
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
                 os: ${{ parameters.os }}
                 cni: cniv2

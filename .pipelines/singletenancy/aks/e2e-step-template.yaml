@@ -63,16 +63,21 @@ steps:
           make -C ./hack/aks restart-vmss AZCLI=az CLUSTER=${clusterName} REGION=$(REGION_AKS_CLUSTER_TEST) VMSS_NAME=${val}
         done
     displayName: "Restart Nodes"
-  - script: |
-      set -e
-      kubectl get pods -A -o wide
-      echo "Deploying test pods"
-      cd test/integration/load
-      ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=${{ parameters.os }} go test -count 1 -timeout 30m -tags load -run ^TestLoad$
-      cd ../../..
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: |
+        set -e
+        kubectl get pods -A -o wide
+        echo "Deploying test pods"
+        cd test/integration/load
+        ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=${{ parameters.os }} go test -count 1 -timeout 30m -tags load -run ^TestLoad$
+        cd ../../..
 
-      make test-validate-state OS_TYPE=${{ parameters.os }} CNI_TYPE=cniv1
+        make test-validate-state OS_TYPE=${{ parameters.os }} CNI_TYPE=cniv1
 
-      kubectl delete ns load-test
+        kubectl delete ns load-test
     displayName: "Validate State"
     retryCountOnTaskFailure: 3

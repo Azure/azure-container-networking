@@ -111,14 +111,16 @@ NPM_IMAGE_INFO_FILE			= azure-npm-$(NPM_VERSION).txt
 
 # Default target
 all-binaries-platforms: ## Make all platform binaries
-	@for goos in "$(GOOSES)"; do \
+	@set -e; \
+	for goos in "$(GOOSES)"; do \
 		for goarch in "$(GOARCHES)"; do \
-			make all-binaries GOOS=$$goos GOARCH=$$goarch; \
+			$(MAKE) all-binaries GOOS=$$goos GOARCH=$$goarch; \
 		done \
 	done
 
 # OS specific binaries/images
 ifeq ($(GOOS),linux)
+all-binaries: export MS_GO_NOSYSTEMCRYPTO := 1
 all-binaries: acncli azure-cni-plugin azure-cns azure-npm azure-ipam ipv6-hp-bpf
 all-images: npm-image cns-image cni-manager-image ipv6-hp-bpf-image
 else
@@ -185,17 +187,26 @@ azure-ipam-binary:
 
 # Build the ipv6-hp-bpf binary.
 ipv6-hp-bpf-binary:
-	cd $(IPV6_HP_BPF_DIR) && CGO_ENABLED=0 go generate ./...
+	# bpf2go runs on the build host; only the loader is cross-compiled.
+	cd $(IPV6_HP_BPF_DIR) && GOOS=$$(go env GOHOSTOS) GOARCH=$$(go env GOHOSTARCH) CGO_ENABLED=0 go generate ./...
 	cd $(IPV6_HP_BPF_DIR)/cmd/ipv6-hp-bpf && CGO_ENABLED=0 go build -v -o $(IPV6_HP_BPF_BUILD_DIR)/ipv6-hp-bpf$(EXE_EXT) -ldflags "-X main.version=$(IPV6_HP_BPF_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Libraries for ipv6-hp-bpf
 ipv6-hp-bpf-lib:
 ifeq ($(GOARCH),amd64)
-	sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-multilib
-	for dir in /usr/include/x86_64-linux-gnu/*; do sudo ln -sfn "$$dir" /usr/include/$$(basename "$$dir"); done
+	if [ -f /etc/debian_version ]; then \
+		sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-multilib; \
+	else \
+		sudo tdnf install -y llvm clang libbpf-devel nftables gcc binutils iproute glibc; \
+	fi
+	for dir in /usr/include/x86_64-linux-gnu/*; do [ -e "$$dir" ] || continue; sudo ln -sfn "$$dir" /usr/include/$$(basename "$$dir"); done
 else ifeq ($(GOARCH),arm64)
-	sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu
-	for dir in /usr/include/aarch64-linux-gnu/*; do sudo ln -sfn "$$dir" /usr/include/$$(basename "$$dir"); done
+	if [ -f /etc/debian_version ]; then \
+		sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu; \
+	else \
+		sudo tdnf install -y llvm clang libbpf-devel nftables gcc binutils iproute glibc; \
+	fi
+	for dir in /usr/include/aarch64-linux-gnu/*; do [ -e "$$dir" ] || continue; sudo ln -sfn "$$dir" /usr/include/$$(basename "$$dir"); done
 endif
 
 # Build the Azure CNI network binary.
@@ -502,6 +513,13 @@ npm-image: ## build the npm container image.
 		TARGET=$(OS) \
 		OS=$(OS) \
 		ARCH=$(ARCH)
+
+.PHONY: npm-image-validate
+npm-image-validate: ## validate the built Linux NPM image.
+ifneq (,$(filter buildah --push,$(CONTAINER_BUILDER) $(BUILDX_ACTION)))
+	docker pull "$(IMAGE_REGISTRY)/$(NPM_IMAGE):$(NPM_PLATFORM_TAG)"
+endif
+	bash hack/scripts/test_npm_image.sh "$(IMAGE_REGISTRY)/$(NPM_IMAGE):$(NPM_PLATFORM_TAG)"
 
 npm-image-push: ## push npm container image.
 	$(MAKE) container-push \

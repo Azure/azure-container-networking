@@ -75,10 +75,15 @@ steps:
 
   - template: ../../templates/cilium-cli.yaml
 
-  - script: |
-      echo "Start Nodesubnet E2E Tests"
-      kubectl get po -owide -A
-      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_CNS_NODESUBNET=true AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) CLEANUP=true
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: |
+        echo "Start Nodesubnet E2E Tests"
+        kubectl get po -owide -A
+        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_CNS_NODESUBNET=true AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) CLEANUP=true
     retryCountOnTaskFailure: 3
     name: "nodeSubnetE2ETests"
     displayName: "Run NodeSubnet E2E"

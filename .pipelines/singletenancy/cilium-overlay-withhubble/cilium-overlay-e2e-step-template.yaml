@@ -51,25 +51,35 @@ steps:
 
   - template: ../../templates/cilium-cli.yaml
 
-  - script: |
-      echo "Start Azilium E2E Tests on Overlay Cluster"
-      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]
-      then
-          CNS=$(CNS_VERSION) IPAM=$(AZURE_IPAM_VERSION) && echo "Running nightly"
-      else
-          CNS=$(make cns-version) IPAM=$(make azure-ipam-version)
-      fi
-      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_OVERLAY=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CLEANUP=true
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: |
+        echo "Start Azilium E2E Tests on Overlay Cluster"
+        if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]
+        then
+            CNS=$(CNS_VERSION) IPAM=$(AZURE_IPAM_VERSION) && echo "Running nightly"
+        else
+            CNS=$(make cns-version) IPAM=$(make azure-ipam-version)
+        fi
+        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_OVERLAY=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CLEANUP=true
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E on AKS Overlay"
 
-  - script: |
-      kubectl get pods -A
-      echo "Waiting < 2 minutes for cilium to be ready"
-      # Ensure Cilium is ready Xm\Xs
-      cilium status --wait --wait-duration 2m
-      kubectl get crd -A
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: |
+        kubectl get pods -A
+        echo "Waiting < 2 minutes for cilium to be ready"
+        # Ensure Cilium is ready Xm\Xs
+        cilium status --wait --wait-duration 2m
+        kubectl get crd -A
     retryCountOnTaskFailure: 3
     name: "CiliumStatus"
     displayName: "Cilium Status"
@@ -111,88 +121,118 @@ steps:
     displayName: "Validate Node Restart"
     retryCountOnTaskFailure: 3
 
-  - script: |
-      set -e
-      echo "Run Cilium Connectivity Tests"
-      cilium status
-      cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption,!check-log-errors' --force-deploy
-      ns=`kubectl get ns | grep cilium-test | awk '{print $1}'`
-      echo "##vso[task.setvariable variable=ciliumNamespace]$ns"
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: |
+        set -e
+        echo "Run Cilium Connectivity Tests"
+        cilium status
+        cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption,!check-log-errors' --force-deploy
+        ns=`kubectl get ns | grep cilium-test | awk '{print $1}'`
+        echo "##vso[task.setvariable variable=ciliumNamespace]$ns"
     retryCountOnTaskFailure: 3
     name: "ciliumConnectivityTests"
     displayName: "Run Cilium Connectivity Tests"
 
   - ${{ if eq( parameters['testHubble'], true) }}:
-      - script: |
-          export CILIUM_VERSION_TAG=${CILIUM_HUBBLE_VERSION_TAG}
-          export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
-          kubectl apply -f test/integration/manifests/cilium/hubble/hubble-peer-svc.yaml
-          kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config-hubble.yaml
-          kubectl rollout restart ds cilium -n kube-system
-          echo "wait <3 minutes for pods to be ready after restart"
-          kubectl rollout status ds cilium -n kube-system --timeout=3m
-          kubectl get pods -Aowide
-          echo "verify Hubble metrics endpoint is usable"
-          go test ./test/integration/networkobservability -v -tags=networkobservability
+      - task: AzureCLI@2
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptLocation: inlineScript
+          scriptType: bash
+          inlineScript: |
+            export CILIUM_VERSION_TAG=${CILIUM_HUBBLE_VERSION_TAG}
+            export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
+            kubectl apply -f test/integration/manifests/cilium/hubble/hubble-peer-svc.yaml
+            kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config-hubble.yaml
+            kubectl rollout restart ds cilium -n kube-system
+            echo "wait <3 minutes for pods to be ready after restart"
+            kubectl rollout status ds cilium -n kube-system --timeout=3m
+            kubectl get pods -Aowide
+            echo "verify Hubble metrics endpoint is usable"
+            go test ./test/integration/networkobservability -v -tags=networkobservability
         retryCountOnTaskFailure: 3
         name: "HubbleConnectivityTests"
         displayName: "Run Hubble Connectivity Tests"
 
-  - script: |
-      set -e
-      echo "validate pod IP assignment and check systemd-networkd restart"
-      kubectl get pod -owide -A
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: |
+        set -e
+        echo "validate pod IP assignment and check systemd-networkd restart"
+        kubectl get pod -owide -A
 
-      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
-        echo "Check cilium identities in $(ciliumNamespace) namepsace during nightly run"
-        echo "expect the identities to be deleted when the namespace is deleted"
-        kubectl get ciliumidentity | grep cilium-test
-      fi
-      make test-validate-state
+        if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
+          echo "Check cilium identities in $(ciliumNamespace) namepsace during nightly run"
+          echo "expect the identities to be deleted when the namespace is deleted"
+          kubectl get ciliumidentity | grep cilium-test
+        fi
+        make test-validate-state
     name: "validatePods"
     displayName: "Validate Pods"
 
-  - script: |
-      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
-        kubectl get pod -owide -n $(ciliumNamespace)
-        echo "wait for pod and cilium identity deletion in cilium-test namespace"
-        while true; do
-          pods=$(kubectl get pods -n $(ciliumNamespace) --no-headers=true 2>/dev/null)
-          if [[ -z "$pods" ]]; then
-            echo "No pods found"
-              break
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: |
+        if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
+          kubectl get pod -owide -n $(ciliumNamespace)
+          echo "wait for pod and cilium identity deletion in cilium-test namespace"
+          while true; do
+            pods=$(kubectl get pods -n $(ciliumNamespace) --no-headers=true 2>/dev/null)
+            if [[ -z "$pods" ]]; then
+              echo "No pods found"
+                break
+            fi
+            sleep 2s
+          done
+          sleep 20s
+          echo "Verify cilium identities are deleted from cilium-test"
+          checkIdentity="$(kubectl get ciliumidentity -o json | grep cilium-test | jq -e 'length == 0')"
+          if [[ -n $checkIdentity ]]; then
+            echo "##[error]Cilium Identities still present in $(ciliumNamespace) namespace"
+            exit 1
+          else
+            printf -- "Identities deleted from $(ciliumNamespace) namespace\n"
           fi
-          sleep 2s
-        done
-        sleep 20s
-        echo "Verify cilium identities are deleted from cilium-test"
-        checkIdentity="$(kubectl get ciliumidentity -o json | grep cilium-test | jq -e 'length == 0')"
-        if [[ -n $checkIdentity ]]; then
-          echo "##[error]Cilium Identities still present in $(ciliumNamespace) namespace"
-          exit 1
         else
-          printf -- "Identities deleted from $(ciliumNamespace) namespace\n"
+          echo "skip cilium identities check for PR pipeline"
         fi
-      else
-        echo "skip cilium identities check for PR pipeline"
-      fi
     name: "CiliumIdentities"
     displayName: "Verify Cilium Identities Deletion"
 
-  - script: |
-      echo "Run wireserver and metadata connectivity Tests"
-      bash test/network/wireserver_metadata_test.sh
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: |
+        echo "Run wireserver and metadata connectivity Tests"
+        bash test/network/wireserver_metadata_test.sh
     retryCountOnTaskFailure: 3
     name: "WireserverMetadataConnectivityTests"
     displayName: "Run Wireserver and Metadata Connectivity Tests"
 
-  - script: |
-      cd hack/scripts
-      chmod +x async-delete-test.sh
-      ./async-delete-test.sh
-      if ! [ -z $(kubectl -n kube-system get ds  azure-cns | grep non-existing) ]; then
-        kubectl -n kube-system patch daemonset azure-cns --type json -p='[{"op": "remove", "path": "/spec/template/spec/nodeSelector/non-existing"}]'
-      fi
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: |
+        cd hack/scripts
+        chmod +x async-delete-test.sh
+        ./async-delete-test.sh
+        if ! [ -z $(kubectl -n kube-system get ds  azure-cns | grep non-existing) ]; then
+          kubectl -n kube-system patch daemonset azure-cns --type json -p='[{"op": "remove", "path": "/spec/template/spec/nodeSelector/non-existing"}]'
+        fi
     name: "testAsyncDelete"
     displayName: "Verify Async Delete when CNS is down"
 

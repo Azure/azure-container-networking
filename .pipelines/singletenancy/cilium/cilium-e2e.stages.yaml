@@ -1,4 +1,5 @@
 parameters:
+  aksPool: ""
   name: ""
   displayName: ""
   clusterType: ""
@@ -15,6 +16,8 @@ stages:
       - ${{ parameters.dependsOn }}
       - setup
     variables:
+      ${{ if ne(parameters.aksPool, '') }}:
+        BUILD_POOL_NAME_DEFAULT: ${{ parameters.aksPool }}
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
     jobs:
       - template: ../../templates/create-cluster.jobs.yaml
@@ -34,6 +37,8 @@ stages:
     - setup
     - ${{ parameters.clusterName }}
     variables:
+      ${{ if ne(parameters.aksPool, '') }}:
+        BUILD_POOL_NAME_DEFAULT: ${{ parameters.aksPool }}
       TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
       CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagManifests.currentTagManifests'] ]
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
@@ -55,9 +60,10 @@ stages:
         timeoutInMinutes: 120
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
-          demands:
-          - agent.os -equals Linux
-          - Role -equals $(CUSTOM_E2E_ROLE)
+          ${{ if eq(parameters.aksPool, '') }}:
+            demands:
+            - agent.os -equals Linux
+            - Role -equals $(CUSTOM_E2E_ROLE)
           isCustom: true
           type: linux
         steps:
