@@ -16,7 +16,7 @@ spec:
       containers:
         - name: no-op
           image: mcr.microsoft.com/oss/kubernetes/pause:3.6
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
       nodeSelector:
