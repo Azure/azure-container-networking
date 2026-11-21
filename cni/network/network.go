@@ -1172,9 +1172,8 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		epInfos = plugin.nm.GetEndpointInfosFromContainerID(args.ContainerID)
 	}
 
-	// for when the endpoint is not created, but the ips are already allocated (only works if single network, single infra)
-	// this block applies to stateless CNI if either endpoint state is not found or there is a CNS connection failure
-	// if there is a connection failure to CNS, IP release will be handled asynchronously by the CNS invoker (via ipamInvoker.Delete)
+	// Release by container ID when no endpoint state is available. Do not persist
+	// an async delete because there is no evidence that CNS allocated an IP.
 	if len(epInfos) == 0 {
 		endpointID := plugin.nm.GetEndpointID(args.ContainerID, args.IfName)
 		if !nwCfg.MultiTenancy {
@@ -1184,7 +1183,11 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 			logger.Warn("Release ip by ContainerID (endpoint not found)",
 				zap.String("containerID", args.ContainerID))
-			if err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options); err != nil {
+			deleteCfg := *nwCfg
+			if plugin.nm.IsStatelessCNIMode() {
+				deleteCfg.DisableAsyncDelete = true
+			}
+			if err = plugin.ipamInvoker.Delete(nil, &deleteCfg, args, nwInfo.Options); err != nil {
 				return plugin.RetriableError(fmt.Errorf("failed to release address(no endpoint): %w", err))
 			}
 		}

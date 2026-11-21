@@ -11,6 +11,7 @@ type MockNetworkManager struct {
 	TestEndpointInfoMap map[string]*EndpointInfo
 	TestEndpointClient  *MockEndpointClient
 	SaveStateMap        map[string]*endpoint
+	Stateless           bool
 }
 
 // NewMockNetworkmanager returns a new mock
@@ -74,12 +75,13 @@ func (nm *MockNetworkManager) DeleteEndpoint(_, endpointID string, _ *EndpointIn
 
 // SetStatelessCNIMode enable the statelessCNI falg and inititlizes a CNSClient
 func (nm *MockNetworkManager) SetStatelessCNIMode() error {
+	nm.Stateless = true
 	return nil
 }
 
 // IsStatelessCNIMode checks if the Stateless CNI mode has been enabled or not
 func (nm *MockNetworkManager) IsStatelessCNIMode() bool {
-	return false
+	return nm.Stateless
 }
 
 // GetEndpointID returns the ContainerID value
