@@ -27,6 +27,12 @@ At startup, CNS will detect that it is running in V2 mode based on Node labels.
 
 CNS will check for the existence of the `NodeInfo` CRD and will create an instance of a `NodeInfo` associated with its current Node. This CRD is used to pass the VM Unique ID from CNS to DNC-RC. The CRD will have an OwnerReference set to the Kubernetes Node object, so that it is automatically GC'd when the Node is deleted.
 
+If the NMAgent HomeAZ request fails or returns zero, CNS logs a warning and
+continues creating or updating NodeInfo with `spec.homeAZ: AZ00`. Positive zones
+keep the `AZ##` format (for example, zone 3 becomes `AZ03`). The fallback applies
+to both CRD and MultiTenantCRD startup paths; HomeAZ lookup failures alone do not
+abort startup. IMDS VM unique ID and NodeInfo write errors still fail startup.
+
 
 ```mermaid
 sequenceDiagram
