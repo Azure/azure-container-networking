@@ -37,6 +37,7 @@ stages:
         - job: create_aks_cluster_with_${{ parameters.name }}
           pool:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
+            os: linux
           steps:
             - template: ../load-test-templates/create-cluster-template.yaml
               parameters:
@@ -62,6 +63,7 @@ stages:
         location: $(LOCATION_AMD64)
     pool:
       name: "$(BUILD_POOL_NAME_DEFAULT)"
+      os: linux
     dependsOn:
       - ${{ if eq(parameters.upgradeScenario, false) }}:
         - create_${{ parameters.name }}
@@ -233,6 +235,7 @@ stages:
         steps:
           - template: ../load-test-templates/pod-deployment-template.yaml
             parameters:
+              use1ESPublishTask: true
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               scaleup: ${SCALEUP_CILIUM}
               os: linux
@@ -252,6 +255,7 @@ stages:
         steps:
           - template: ../load-test-templates/restart-node-template.yaml
             parameters:
+              use1ESPublishTask: true
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: cilium
@@ -270,6 +274,7 @@ stages:
         steps:
           - template: ../load-test-templates/restart-cns-template.yaml
             parameters:
+              use1ESPublishTask: true
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               scaleup: ${SCALEUP_CILIUM}
@@ -311,6 +316,7 @@ stages:
           - template: ../../templates/cilium-mtu-check.yaml
       - template: ../k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
+          use1ESPool: true
           sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
@@ -336,12 +342,14 @@ stages:
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
+              use1ESPublishTask: true
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: linux
               cni: cilium
 
       - template: ../../templates/failure-analysis.job.yaml
         parameters:
+          use1ESPublishTask: true
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: linux
           cni: cilium
