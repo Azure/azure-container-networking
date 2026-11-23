@@ -16,7 +16,8 @@ CMD ["npm.exe", "start", "--kubeconfig=.\\kubeconfig"]
 FROM --platform=linux/${ARCH} mcr.microsoft.com/mirror/docker/library/ubuntu:24.04 as linux
 ARG ARTIFACT_DIR
 
-RUN apt-get update && apt-get install -y iptables ipset ca-certificates && apt-get autoremove -y && apt-get clean
+RUN sed -i 's|//archive\.ubuntu\.com|//azure.archive.ubuntu.com|g' /etc/apt/sources.list.d/ubuntu.sources \
+    && apt-get update && apt-get install -y iptables ipset ca-certificates && apt-get autoremove -y && apt-get clean
 #RUN apt-get update && \
 #    apt-get install -y \
 #      linux-libc-dev \
