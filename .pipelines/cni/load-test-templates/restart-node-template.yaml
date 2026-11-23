@@ -1,4 +1,5 @@
 parameters:
+  use1ESPublishTask: false
   clusterName: ""
   os: "linux"
   cni: ""
@@ -41,21 +42,27 @@ steps:
     displayName: "Restart Nodes"
 
   - ${{ if contains(parameters.os, 'windows') }}:
-    - script: |
-        kubectl apply -f test/integration/manifests/load/privileged-daemonset-windows.yaml
-        kubectl rollout status -n kube-system ds privileged-daemonset
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: inlineScript
+        scriptType: bash
+        inlineScript: |
+          kubectl apply -f test/integration/manifests/load/privileged-daemonset-windows.yaml
+          kubectl rollout status -n kube-system ds privileged-daemonset
 
-        kubectl get pod -n kube-system -l app=privileged-daemonset,os=windows -owide
-        pods=`kubectl get pod -n kube-system -l app=privileged-daemonset,os=windows --no-headers | awk '{print $1}'`
-        for pod in $pods; do
-          kubectl exec -i -n kube-system $pod -- powershell "Restart-service kubeproxy"
-        done
+          kubectl get pod -n kube-system -l app=privileged-daemonset,os=windows -owide
+          pods=`kubectl get pod -n kube-system -l app=privileged-daemonset,os=windows --no-headers | awk '{print $1}'`
+          for pod in $pods; do
+            kubectl exec -i -n kube-system $pod -- powershell "Restart-service kubeproxy"
+          done
       name: kubeproxy
       displayName: Restart Kubeproxy on Windows nodes
       retryCountOnTaskFailure: 3
 
   - template: ../../templates/log-template.yaml
     parameters:
+      use1ESPublishTask: ${{ parameters.use1ESPublishTask }}
       clusterName: ${{ parameters.clusterName }}
       logType: ${{ parameters.logType }}
       os: ${{ parameters.os }}

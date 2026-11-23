@@ -1,4 +1,5 @@
 parameters:
+  use1ESPublishTask: false
   clusterName: ""
   scaleup: 100
   os: ""
@@ -26,6 +27,7 @@ steps:
 
   - template: ../../templates/log-template.yaml
     parameters:
+      use1ESPublishTask: ${{ parameters.use1ESPublishTask }}
       clusterName: ${{ parameters.clusterName }}
       os: ${{ parameters.os }}
       cni: ${{ parameters.cni }}
