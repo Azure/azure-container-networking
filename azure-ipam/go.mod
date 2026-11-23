@@ -5,7 +5,7 @@ go 1.26.1
 toolchain go1.26.9
 
 require (
-	github.com/Azure/azure-container-networking v1.9.5-0.20261103190603-871cba3f6df6
+	github.com/Azure/azure-container-networking v1.9.5
 	github.com/containernetworking/cni v1.3.1
 	github.com/containernetworking/plugins v1.9.1
 	github.com/pkg/errors v0.9.1
