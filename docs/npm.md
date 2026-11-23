@@ -324,11 +324,26 @@ archive against its published SHA-256 checksum. It passes
 doubles probe timeouts, and `--allowed-not-ready-nodes=1`, which tolerates the
 tainted Linux system node. The suite timeout is three hours.
 
-Before the suite starts, the job waits up to five minutes for each
-`azure-npm-win` pod to log `[DataPlane] finished bootup phase`. With
+Before the suite starts, the executor's `before` checkpoint applies the
+ten-case job's runtime checks. Each running `azure-npm-win` container must run
+the supplied immutable child image as a HostProcess SYSTEM container, and each
+pod's mounted ConfigMap bytes, startup log, and loaded toggles must show the
+expected Lite configuration. Full NPM logs the same bootup marker, so the
+marker alone does not show that the candidate ran in Lite mode. With
 `ApplyInBackground`, Windows NPM starts its pod controller three minutes after
-startup and applies no policy to pods until then. If the wait times out, the
-job fails without running the suite.
+startup and applies no policy to pods until then, so the checkpoint also waits
+for each pod to log `[DataPlane] finished bootup phase`.
+Pod discovery, polling, and every kubectl read share one five-minute budget,
+and an observation that completes after the budget fails. The checkpoint
+records the DaemonSet, pod, container, node, and image identities and the
+mounted configuration in a private snapshot file that it never overwrites. If
+the checkpoint fails, the job fails without running the suite.
+
+After the suite, the `after` checkpoint observes each pod once, without
+retrying, within its own five-minute budget. It fails on any change to the
+recorded identity, such as a container restart or a new DaemonSet generation,
+on changed mounted configuration, or on non-Lite loaded configuration. A
+330-second shell timeout backstops each checkpoint.
 
 The [spec list](../.pipelines/npm/windows-npm-lite-upstream.py) selects sixteen
 TCP-context specs in `NetworkPolicy between server and client` whose policies
@@ -343,8 +358,8 @@ which exactly these sixteen specs were selected and each passed once, and no
 other spec ran. It logs each spec's result and duration. The completion guard
 covers this job through the `WindowsNPMLite` stage result.
 
-After the suite runs, whether it passes or fails, or after the bootup wait
-times out, the job publishes the `NpmLogs_windows-lite-upstream_<JobAttempt>`
+After the suite runs, whether it passes or fails, or after the `before`
+checkpoint fails, the job publishes the `NpmLogs_windows-lite-upstream_<JobAttempt>`
 artifact. It contains the timestamped current and previous logs of each
 `azure-npm-win` pod, the cluster's node and pod listing, and, if the suite ran,
 the Ginkgo JSON report. Collection is best effort and does not change the job

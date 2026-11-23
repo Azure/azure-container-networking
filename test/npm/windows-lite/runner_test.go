@@ -266,6 +266,9 @@ func (f *fakeCluster) command(ctx context.Context, args []string, input []byte) 
 		if f.fault == "config fallback" {
 			logs += "Failed to load config from env NPM_CONFIG\n"
 		}
+		if f.fault == "loaded full npm config" {
+			logs = strings.Replace(logs, "EnableNPMLite:true", "EnableNPMLite:false", 1)
+		}
 		if f.policy != nil && f.fault != "missing rejection" {
 			reason := fakeRejection(f.policy)
 			if reason != "" {

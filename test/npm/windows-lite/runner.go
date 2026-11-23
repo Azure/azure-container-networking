@@ -400,7 +400,8 @@ func (r *runner) caseFailure(ctx context.Context, name string, cause error) erro
 	return failure
 }
 
-func (r *runner) execute(ctx context.Context) error {
+// startNPM records the ready candidate inventory, then waits for every pod's mounted and loaded Lite configuration.
+func (r *runner) startNPM(ctx context.Context) ([]mountedConfig, error) {
 	err := converge(ctx, convergenceLimit, 1, func(ctx context.Context) (bool, error) {
 		current, err := inspectInventory(ctx, r.kube, r.npmNamespace, r.daemonSet, r.image)
 		if errors.Is(err, errNotReady) {
@@ -413,7 +414,7 @@ func (r *runner) execute(ctx context.Context) error {
 		return true, nil
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	var before []mountedConfig
 	var lastIncomplete error
@@ -430,7 +431,15 @@ func (r *runner) execute(ctx context.Context) error {
 		return true, nil
 	})
 	if err != nil {
-		return fmt.Errorf("npm startup: %w", errors.Join(err, lastIncomplete))
+		return nil, fmt.Errorf("npm startup: %w", errors.Join(err, lastIncomplete))
+	}
+	return before, nil
+}
+
+func (r *runner) execute(ctx context.Context) error {
+	before, err := r.startNPM(ctx)
+	if err != nil {
+		return err
 	}
 	if createErr := r.createRoles(ctx); createErr != nil {
 		return createErr

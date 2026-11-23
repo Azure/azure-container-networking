@@ -238,37 +238,15 @@ provision_and_run() {
 }
 
 # With ApplyInBackground, Windows NPM starts its pod controller three minutes after startup
-# (npm/npm.go) and applies no policy to pods until then, so specs must start after this marker.
-wait_for_npm_bootup() {
-    local deadline=$((SECONDS + 300)) start=$SECONDS names pod logs pending
-    local marker='^I[0-9]{4}[[:blank:]]+[^[:blank:]]+[[:blank:]]+[0-9]+[[:blank:]]+dataplane\.go:[0-9]+\][[:blank:]]+\[DataPlane\] finished bootup phase$'
-    local -a pods=()
-    printf 'Waiting for the azure-npm-win pods to finish the NPM bootup phase\n'
-    while true; do
-        names="$(timeout 120s kubectl --kubeconfig "$KUBECONFIG" --request-timeout=60s get pods -n kube-system \
-            -l k8s-app=azure-npm-win -o jsonpath='{.items[*].metadata.name}')" || names=""
-        read -r -a pods <<< "$names"
-        pending=""
-        ((${#pods[@]} > 0)) || pending=" (no pods found)"
-        for pod in "${pods[@]}"; do
-            if [[ ! "$pod" =~ ^[a-z0-9-]+$ ]]; then
-                printf 'windows-npm-lite: unexpected azure-npm-win pod name\n' >&2
-                return 1
-            fi
-            logs="$(timeout 120s kubectl --kubeconfig "$KUBECONFIG" --request-timeout=60s \
-                logs -n kube-system "$pod" 2> /dev/null)" || logs=""
-            grep -Eq -- "$marker" <<< "${logs//$'\r'/}" || pending+=" $pod"
-        done
-        if [[ -z "$pending" ]]; then
-            printf 'NPM bootup phase finished on all %d pods after %d seconds\n' "${#pods[@]}" "$((SECONDS - start))"
-            return 0
-        fi
-        if ((SECONDS >= deadline)); then
-            printf 'windows-npm-lite: NPM bootup phase did not finish within 5 minutes on:%s\n' "$pending" >&2
-            return 1
-        fi
-        sleep 10
-    done
+# (npm/npm.go) and applies no policy to pods until then, so specs must start after its bootup marker.
+# The before checkpoint waits for that marker and verifies the immutable candidate HostProcess image
+# and each pod's mounted and loaded Lite configuration, all within one five-minute budget that fails
+# late success. The after checkpoint rejects any identity or configuration drift during the specs.
+# The shell timeout only backstops the executor's own budget.
+npm_checkpoint() {
+    timeout --signal=INT --kill-after=30s 330s "$NPM_LITE_WORK_DIR/windows-npm-lite" \
+        --kubeconfig "$KUBECONFIG" --daemonset azure-npm-win --npm-namespace kube-system \
+        --npm-image "$WINDOWS_NPM_IMAGE" --checkpoint "$1" --snapshot "$2"
 }
 
 run_upstream_netpol() {
@@ -292,7 +270,7 @@ run_upstream_netpol() {
     [[ "${actual%% *}" == "$digest" ]] || fail "test archive checksum mismatch"
     tar -xzf "$dir/kubernetes-test.tar.gz" -C "$dir" --strip-components=3 kubernetes/test/bin/e2e.test
     rm -f -- "$dir/kubernetes-test.tar.gz"
-    if ! wait_for_npm_bootup; then
+    if ! npm_checkpoint before "$dir/npm-snapshot.json"; then
         collect_upstream_diagnostics "$dir/report.json" || true
         return 1
     fi
@@ -304,6 +282,9 @@ run_upstream_netpol() {
         --ginkgo.focus="$focus" --ginkgo.timeout=180m --ginkgo.v \
         --ginkgo.json-report="$dir/report.json" || status=$?
     if ! python3 "$script_dir/windows-npm-lite-upstream.py" validate "$dir/report.json" && ((status == 0)); then
+        status=1
+    fi
+    if ! npm_checkpoint after "$dir/npm-snapshot.json" && ((status == 0)); then
         status=1
     fi
     collect_upstream_diagnostics "$dir/report.json" || true

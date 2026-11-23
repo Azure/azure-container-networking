@@ -22,6 +22,8 @@ type options struct {
 	daemonSet    string
 	npmNamespace string
 	image        string
+	checkpoint   string
+	snapshot     string
 }
 
 func parseOptions(args []string) (options, error) {
@@ -31,6 +33,8 @@ func parseOptions(args []string) (options, error) {
 	flags.StringVar(&out.daemonSet, "daemonset", "", "explicit Windows NPM DaemonSet name")
 	flags.StringVar(&out.npmNamespace, "npm-namespace", "kube-system", "Windows NPM namespace")
 	flags.StringVar(&out.image, "npm-image", "", "complete immutable candidate child reference")
+	flags.StringVar(&out.checkpoint, "checkpoint", "", "verify npm before or after externally run specs instead of running the cases")
+	flags.StringVar(&out.snapshot, "snapshot", "", "private npm snapshot written before and verified after externally run specs")
 	if err := flags.Parse(args); err != nil {
 		return out, fmt.Errorf("parse flags: %w", err)
 	}
@@ -39,6 +43,10 @@ func parseOptions(args []string) (options, error) {
 		!name.MatchString(out.npmNamespace) || len(out.npmNamespace) > 63 ||
 		out.kubeconfig == "" || out.image == "" {
 		return out, fmt.Errorf("%w: kubeconfig, npm-image, and valid daemonset/namespace names are required", errInput)
+	}
+	if (out.checkpoint != "" && out.checkpoint != checkpointBefore && out.checkpoint != checkpointAfter) ||
+		(out.checkpoint == "") != (out.snapshot == "") {
+		return out, fmt.Errorf("%w: checkpoint must be before or after and requires a snapshot", errInput)
 	}
 	return out, nil
 }
@@ -55,14 +63,21 @@ func run(ctx context.Context, input options, command commandFunc) error {
 	if err != nil {
 		return err
 	}
+	r := runner{
+		kube: kubeClient{input.kubeconfig, command}, npmNamespace: input.npmNamespace,
+		daemonSet: input.daemonSet, image: image,
+	}
+	switch input.checkpoint {
+	case checkpointBefore:
+		return r.recordCheckpoint(ctx, input.snapshot)
+	case checkpointAfter:
+		return r.verifyCheckpoint(ctx, input.snapshot)
+	}
 	cases, err := loadCorpus()
 	if err != nil {
 		return err
 	}
-	r := runner{
-		kube: kubeClient{input.kubeconfig, command}, npmNamespace: input.npmNamespace,
-		daemonSet: input.daemonSet, image: image, corpus: cases,
-	}
+	r.corpus = cases
 	deadline, ok := ctx.Deadline()
 	if !ok {
 		return fmt.Errorf("%w: runner requires an overall deadline", errInput)
@@ -93,6 +108,9 @@ func main() {
 		return
 	}
 	if err == nil {
+		if input.checkpoint != "" {
+			logger = logger.With("checkpoint", input.checkpoint)
+		}
 		err = run(ctx, input, invokeKubectl)
 	}
 	cancel()
@@ -100,6 +118,10 @@ func main() {
 	if err != nil {
 		logger.Error("conformance failed", "error", err)
 		os.Exit(1)
+	}
+	if input.checkpoint != "" {
+		logger.Info("npm checkpoint passed", "image", input.image)
+		return
 	}
 	logger.Info("conformance passed", "image", input.image, "cases", len(requiredCases))
 }
