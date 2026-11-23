@@ -100,8 +100,9 @@ prepare() {
     ' "$script_dir/windows-npm-lite.json" > "$NPM_LITE_WORK_DIR/deployment.json"
     (
         cd "$repo_root"
-        CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=readonly -trimpath \
-            -o "$NPM_LITE_WORK_DIR/windows-npm-lite" ./test/npm/windows-lite
+        # Microsoft Go 1.26's default system crypto backend requires cgo; select its cgo-free OpenSSL backend.
+        GOEXPERIMENT=ms_nocgo_opensslcrypto CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+            go build -mod=readonly -trimpath -o "$NPM_LITE_WORK_DIR/windows-npm-lite" ./test/npm/windows-lite
     )
 }
 

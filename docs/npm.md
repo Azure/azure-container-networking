@@ -249,11 +249,15 @@ authenticate to registries, or redeploy NPM. Select the Windows DaemonSet
 explicitly; its selector and single container are discovered and verified, with
 no fallback to the Linux DaemonSet.
 
-Build and run from the chosen immutable source checkout:
+Build and run from the chosen immutable source checkout. Microsoft Go 1.26's
+default system crypto backend requires cgo, so the `GOEXPERIMENT` setting
+selects its cgo-free OpenSSL backend for this `CGO_ENABLED=0` build. The binary
+then loads the host's OpenSSL and glibc at run time. Omit the setting when
+building with upstream Go.
 
 ```bash
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=readonly -trimpath \
-  -o windows-npm-lite ./test/npm/windows-lite
+GOEXPERIMENT=ms_nocgo_opensslcrypto CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+  go build -mod=readonly -trimpath -o windows-npm-lite ./test/npm/windows-lite
 ./windows-npm-lite \
   --kubeconfig "$KUBECONFIG" \
   --daemonset azure-npm-win \
