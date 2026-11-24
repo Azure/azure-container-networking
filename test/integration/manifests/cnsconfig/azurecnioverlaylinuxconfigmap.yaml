@@ -28,6 +28,7 @@ data:
       "EnableAsyncPodDelete": true,
       "EnableCNIConflistGeneration": true,
       "EnableIPAMv2": true,
+      "EnableOverlayBlackholeRoutes": true,
       "EnableStateMigration": false,
       "EnableSubnetScarcity": false,
       "InitializeFromCNI": true,

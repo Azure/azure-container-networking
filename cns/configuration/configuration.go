@@ -36,6 +36,7 @@ type CNSConfig struct {
 	EnableIPAMv2                    bool
 	EnableK8sDevicePlugin           bool
 	EnableLoggerV2                  bool
+	EnableOverlayBlackholeRoutes    bool
 	EnablePprof                     bool
 	EnableStateMigration            bool
 	EnableSubnetScarcity            bool
