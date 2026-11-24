@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/netip"
 	"path/filepath"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/util"
@@ -90,7 +91,7 @@ func (cfg Config) validate() error {
 	if cfg.NodeName == "" || cfg.Interface == "" || !filepath.IsAbs(cfg.Kubeconfig) ||
 		filepath.Clean(cfg.Kubeconfig) != cfg.Kubeconfig ||
 		prefixErr != nil || !prefix.Addr().Is4() || prefix != prefix.Masked() ||
-		nicErr != nil || nic.ResourceType.String() != "Microsoft.Network/networkInterfaces" ||
+		nicErr != nil || !strings.EqualFold(nic.ResourceType.String(), "Microsoft.Network/networkInterfaces") ||
 		cfg.PreAllocate < 1 || cfg.PreAllocate > 255 || cfg.MinAllocate < 0 || cfg.MinAllocate > 255 ||
 		cfg.MaxAboveWatermark < 0 || cfg.MaxAboveWatermark > 255 || cfg.MinAllocate+cfg.MaxAboveWatermark > 255 {
 		return ErrConfig

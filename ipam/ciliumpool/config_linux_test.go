@@ -11,6 +11,15 @@ const testConfig = `{"cniVersion":"1.0.0","name":"azure","master":"eth0","type":
 		"nicID":"/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg/providers/Microsoft.Network/networkInterfaces/nic",
 		"subnet":"10.0.0.0/24","preAllocate":8}}}`
 
+func TestConfigAcceptsCaseInsensitiveNICResourceType(t *testing.T) {
+	for _, resourceType := range []string{"microsoft.network/networkinterfaces", "MICROSOFT.NETWORK/NETWORKINTERFACES"} {
+		raw := strings.Replace(testConfig, "Microsoft.Network/networkInterfaces", resourceType, 1)
+		if _, _, err := ParseConfig([]byte(raw)); err != nil {
+			t.Fatalf("valid NIC resource type %q rejected: %v", resourceType, err)
+		}
+	}
+}
+
 func TestConfigUsesMasterAsOnlyInterfaceSetting(t *testing.T) {
 	_, cfg, err := ParseConfig([]byte(testConfig))
 	if err != nil || cfg.Interface != testIfName {
@@ -38,6 +47,7 @@ func TestConfigAcceptsConflistAndRejectsFallbackOrUnqualifiedFeatures(t *testing
 	for _, tt := range []struct{ name, raw string }{
 		{"wrong plugin", strings.Replace(testConfig, `"type":"azure-cilium-ipam"`, `"type":"azure-vnet-ipam"`, 1)},
 		{"wrong mode", strings.Replace(testConfig, `"transparent-tunnel"`, `"transparent"`, 1)},
+		{"wrong resource type", strings.Replace(testConfig, "Microsoft.Network/networkInterfaces", "Microsoft.Compute/virtualMachines", 1)},
 		{"relative credential", strings.Replace(testConfig, `"/etc/azure-vnet/ipam.kubeconfig"`, `"relative"`, 1)},
 		{"invalid subnet", strings.Replace(testConfig, `"10.0.0.0/24"`, `"10.0.0.10/24"`, 1)},
 		{"unknown persistence", strings.Replace(testConfig, `"preAllocate":8`, `"preAllocate":8,"stateDir":"/var/lib/ipam"`, 1)},
