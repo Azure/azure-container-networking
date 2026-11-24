@@ -33,8 +33,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal/v3 v3.2.0 h1:+lnL
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal/v3 v3.2.0/go.mod h1:tStOHrivWUrcBolspvKV70Us1ckESYGYSHdG4LX8zyY=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managementgroups/armmanagementgroups v1.0.0 h1:pPvTJ1dY0sA35JOeFq6TsY2xj6Z85Yo23Pj4wCCvu4o=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managementgroups/armmanagementgroups v1.0.0/go.mod h1:mLfWfj8v3jfWKsL9G4eoBoXVcsqcIUTapmdKy7uGOp0=
-github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor v0.14.0 h1:bd58P7PSS/SxZ3uwa44DqqRgi/Xyw6jnTa+m5m07Tc0=
-github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor v0.14.0/go.mod h1:4xjlV//yO8vylb8pso9Yu4Zyf/4Rh5wjQNOmgXsZ9vE=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitorworkspaces v1.0.0 h1:yRc6K1OZrXy6vOLAPS139RJOFipSTDjEfAYeH90I4pk=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitorworkspaces v1.0.0/go.mod h1:YHRnbMMQsqngRBY8cVvHX42PsSsRFJgX569n7h5fPI0=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v5 v5.2.0 h1:qBlqTo40ARdI7Pmq+enBiTnejZk2BF+PHgktgG8k3r8=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v5 v5.2.0/go.mod h1:UmyOatRyQodVpp55Jr5WJmnkmVW4wKfo85uHFmMEjfM=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeployments v1.0.0 h1:67nFqWXpo0x5Nz0XEb1yI7s8D+EHy8NsTinYw9sZnLk=
