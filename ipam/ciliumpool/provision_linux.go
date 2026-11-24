@@ -26,21 +26,6 @@ func readNode(ctx context.Context, name string, client dynamic.Interface) (*core
 	return node, nil
 }
 
-func NewAllocator(ctx context.Context, cfg Config, g Guest, client dynamic.Interface) (*Allocator, error) {
-	node, err := readNode(ctx, cfg.NodeName, client)
-	if err != nil {
-		return nil, err
-	}
-	binding, err := bindGuest(cfg, node, g)
-	if err != nil {
-		return nil, err
-	}
-	return &Allocator{
-		Nodes: client.Resource(CiliumNodes), NodeName: cfg.NodeName, Binding: binding,
-		BootID: g.BootID, PreAllocate: cfg.PreAllocate, Supply: g.Supply,
-	}, nil
-}
-
 func Provision(ctx context.Context, cfg Config, g Guest, client dynamic.Interface) error {
 	node, err := readNode(ctx, cfg.NodeName, client)
 	if err != nil {
