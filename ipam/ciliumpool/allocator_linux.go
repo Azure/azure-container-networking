@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"slices"
 	"strings"
 	"time"
 
@@ -57,6 +58,30 @@ func (a *Allocator) Add(ctx context.Context, owner Owner) (string, error) {
 func (a *Allocator) Delete(ctx context.Context, owner Owner, address string) error {
 	_, err := a.update(ctx, owner, address, deleteOperation)
 	return err
+}
+
+func (a *Allocator) Check(ctx context.Context, owner Owner) error {
+	node, err := a.Nodes.Get(ctx, a.NodeName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("reading CiliumNode: %w", err)
+	}
+	if callErr := validateCiliumNode(node, a.Binding); callErr != nil {
+		return callErr
+	}
+	state, err := readState(node, a.Binding)
+	if err != nil {
+		return err
+	}
+	supply, err := eligibleSupply(node, a.Binding, a.Supply)
+	if err != nil {
+		return err
+	}
+	for ip, entry := range state.Reservations {
+		if entry.Owner == owner && entry.BootID == a.BootID && slices.Contains(supply, ip) {
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: no current eligible reservation", ErrOwnership)
 }
 
 func (a *Allocator) update(ctx context.Context, owner Owner, address string, command operation) (string, error) {
