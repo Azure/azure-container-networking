@@ -14,6 +14,17 @@ const (
 	consumerAnnotation = "azure-container-networking.io/ipam-consumer"
 )
 
+type Binding struct {
+	Primary    string
+	MAC        string
+	NodeName   string
+	InstanceID string
+	NodeUID    string
+	VMID       string
+	Resource   string
+	Subnet     string
+}
+
 func bindGuest(cfg Config, node *corev1.Node, guest Guest) (Binding, error) {
 	instance, err := arm.ParseResourceID(guest.InstanceID)
 	if err != nil || !strings.EqualFold(instance.ResourceType.String(), "Microsoft.Compute/virtualMachines") ||

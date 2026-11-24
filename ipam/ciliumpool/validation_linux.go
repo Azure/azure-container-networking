@@ -8,17 +8,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-type Binding struct {
-	Primary    string
-	MAC        string
-	NodeName   string
-	InstanceID string
-	NodeUID    string
-	VMID       string
-	Resource   string
-	Subnet     string
-}
-
 func readState(node *unstructured.Unstructured, binding Binding) (State, error) {
 	state := newState()
 	if _, present := node.GetAnnotations()["azure-container-networking.io/ipam-state"]; present {
