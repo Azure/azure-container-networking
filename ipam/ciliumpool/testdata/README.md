@@ -4,10 +4,11 @@
 [commit 7d68cfb394f2960e10aa72e76d0d51e66c1b2ebc](https://github.com/cilium/cilium/blob/7d68cfb394f2960e10aa72e76d0d51e66c1b2ebc/pkg/k8s/apis/cilium.io/client/crds/v2/ciliumnodes.yaml).
 Its Git blob SHA is `5ffb64fc5df4e83f5727f89e2b04b82741202d4f`.
 
-Run the local API-server test with:
+The local API-server test runs with ordinary `go test` and `make test-all`.
+To run it on its own:
 
 ```sh
-ACN_CILIUM_ENVTEST=1 go test ./ipam/ciliumpool -run '^TestCiliumNodeAPIContract$' -count=1
+go test ./ipam/ciliumpool -run '^TestCiliumNodeAPIContract$' -count=1
 ```
 
 The test starts an isolated etcd/API server on loopback with ephemeral ports,

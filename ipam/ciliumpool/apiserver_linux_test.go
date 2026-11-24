@@ -14,9 +14,6 @@ import (
 )
 
 func TestCiliumNodeAPIContract(t *testing.T) {
-	if os.Getenv("ACN_CILIUM_ENVTEST") != "1" {
-		t.Skip("set ACN_CILIUM_ENVTEST=1 to run the local API-server contract test")
-	}
 	local := false
 	env := &envtest.Environment{
 		UseExistingCluster: &local, ErrorIfCRDPathMissing: true,
