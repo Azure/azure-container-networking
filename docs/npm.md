@@ -183,17 +183,20 @@ completion guard fails the pipeline unless the Linux conformance, Linux cleanup,
 and Windows Lite stages all succeed. Each Windows job includes namespace and
 owned resource-group cleanup; private kubeconfigs are never published.
 
-Every Windows step has a timeout. Each job's timeout exceeds the sum of its
-step timeouts by fifteen minutes for steps that the 1ES template injects, so a
-step timeout fires first and the `always()` cleanup and publication steps keep
-their budgets. Each job's cancel timeout covers those `always()` steps with ten
-minutes of margin. Worst-case provisioning takes about 122 minutes. The step
-that provisions the cluster and runs the cases allows 170 minutes, which
-includes the executor's 35-minute deadline. The upstream job's equivalent step
-allows 310 minutes, which includes the suite's 140-minute shell limit with kill
-grace, plus downloads, checkpoints, and diagnostics. Resource-group cleanup
-allows 35 minutes for a worst case of about 29. The jobs run on a self-hosted
-1ES pool, so no hosted-agent job limit applies.
+Every step that the Windows jobs define has a timeout except artifact
+publication, whose timeout the 1ES template drops. Each job's timeout exceeds
+the sum of its step timeouts by at least fifteen minutes for steps that the 1ES
+template injects, so a step timeout fires first and the `always()` cleanup
+steps keep their budgets. The upstream job runs its cleanup steps before the
+1ES artifact scans and publication, so publication only uses the job's
+remaining time. Each job's cancel timeout covers its `always()` cleanup steps
+with at least ten minutes of margin. Worst-case provisioning takes about 122
+minutes. The step that provisions the cluster and runs the cases allows 170
+minutes, which includes the executor's 35-minute deadline. The upstream job's
+equivalent step allows 310 minutes, which includes the suite's 140-minute shell
+limit with kill grace, plus downloads, checkpoints, and diagnostics.
+Resource-group cleanup allows 35 minutes for a worst case of about 29. The jobs
+run on a self-hosted 1ES pool, so no hosted-agent job limit applies.
 
 Only this mixed route requires a positive stress-worker count and checks each
 Linux invocation's native Ginkgo JSON or place-first JUnit report for actual

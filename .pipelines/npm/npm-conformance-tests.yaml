@@ -566,9 +566,10 @@ extends:
 
           - job: WindowsNPMLiteUpstream
             displayName: Run upstream NetworkPolicy specs on Windows NPM Lite
-            # Step timeouts sum to 395 minutes, and 15 more cover steps that the 1ES template injects, so a
-            # step timeout fires first and always() publication and cleanup keep their full budgets. The
-            # cancel timeout covers the 50 minutes of always() steps with margin.
+            # Step timeouts sum to 385 minutes. The other 25 cover steps that the 1ES template injects,
+            # including the untimed artifact scans and publication that run after owned cleanup, so a step
+            # timeout fires first and always() cleanup keeps its full budget. The cancel timeout covers the
+            # 40 minutes of always() cleanup with time left for publication.
             timeoutInMinutes: 410
             cancelTimeoutInMinutes: 60
             pool:
@@ -613,15 +614,6 @@ extends:
                   keepAzSessionActive: true
                   arguments: run-upstream
 
-              - task: 1ES.PublishPipelineArtifact@1
-                displayName: Publish Windows NPM Lite logs and the upstream spec report
-                condition: and(always(), eq(variables['NPM_LITE_UPSTREAM_LOGS'], 'collected'))
-                timeoutInMinutes: 10
-                inputs:
-                  targetPath: $(System.DefaultWorkingDirectory)/npmLogs_windows-lite-upstream
-                  artifactName: NpmLogs_windows-lite-upstream_$(System.JobAttempt)
-                  sbomEnabled: false
-
               - task: AzureCLI@2
                 displayName: Delete the owned Windows test resource group
                 condition: always()
@@ -641,6 +633,16 @@ extends:
                   targetType: filePath
                   filePath: .pipelines/npm/windows-npm-lite.sh
                   arguments: cleanup-kubeconfig
+
+              # The 1ES template drops this step's timeout and scans the artifact before publishing it, so
+              # publication runs after owned cleanup and uses the job's remaining time.
+              - task: 1ES.PublishPipelineArtifact@1
+                displayName: Publish Windows NPM Lite logs and the upstream spec report
+                condition: and(always(), eq(variables['NPM_LITE_UPSTREAM_LOGS'], 'collected'))
+                inputs:
+                  targetPath: $(System.DefaultWorkingDirectory)/npmLogs_windows-lite-upstream
+                  artifactName: NpmLogs_windows-lite-upstream_$(System.JobAttempt)
+                  sbomEnabled: false
 
         - stage: RejectIncompleteConformance
           displayName: Reject incomplete mixed conformance
