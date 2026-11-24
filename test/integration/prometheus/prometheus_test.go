@@ -7,6 +7,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestParseStringMetrics(t *testing.T) {
+	metrics, err := ParseStringMetrics("# TYPE test_total counter\ntest_total 7\n")
+	require.NoError(t, err)
+	samples := metrics["test_total"].GetMetric()
+	require.Len(t, samples, 1)
+	require.Equal(t, 7.0, samples[0].GetCounter().GetValue())
+}
+
 func TestGetMetricValue(t *testing.T) {
 	metrics := map[string]*io_prometheus_client.MetricFamily{
 		"test_metric_0": {

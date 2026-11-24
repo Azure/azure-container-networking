@@ -9,6 +9,7 @@ import (
 
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 )
 
 var (
@@ -38,14 +39,12 @@ func GetMetrics(url string) (map[string]*io_prometheus_client.MetricFamily, erro
 }
 
 func ParseReaderMetrics(input io.Reader) (map[string]*io_prometheus_client.MetricFamily, error) {
-	var parser expfmt.TextParser
+	parser := expfmt.NewTextParser(model.UTF8Validation)
 	return parser.TextToMetricFamilies(input) //nolint
 }
 
 func ParseStringMetrics(input string) (map[string]*io_prometheus_client.MetricFamily, error) {
-	var parser expfmt.TextParser
-	reader := strings.NewReader(input)
-	return parser.TextToMetricFamilies(reader) //nolint
+	return ParseReaderMetrics(strings.NewReader(input))
 }
 
 // SelectMetric retrieves a particular metric from a map of MetricFamily based on the name (key) and

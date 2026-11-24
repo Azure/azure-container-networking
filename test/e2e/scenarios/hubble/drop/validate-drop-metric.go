@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/azure-container-networking/test/internal/retry"
 	promclient "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 )
 
 var ErrNoMetricFound = fmt.Errorf("no metric found")
@@ -117,7 +118,7 @@ func getPrometheusDropMetrics(url string) (map[string]*promclient.MetricFamily, 
 }
 
 func parseReaderPrometheusMetrics(input io.Reader) (map[string]*promclient.MetricFamily, error) {
-	var parser expfmt.TextParser
+	parser := expfmt.NewTextParser(model.UTF8Validation)
 	return parser.TextToMetricFamilies(input) //nolint
 }
 
