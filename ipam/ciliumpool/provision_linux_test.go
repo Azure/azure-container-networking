@@ -2,10 +2,12 @@ package ciliumpool
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/netip"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -76,6 +78,47 @@ func TestProvisionIsExplicitAndNeverOverwritesExistingUsage(t *testing.T) {
 	used, _, err := unstructured.NestedMap(cn.Object, statusField, ipamField, "used")
 	if err != nil || len(used) != 1 {
 		t.Fatal("registration rewrote existing usage")
+	}
+	for _, drift := range []struct {
+		name  string
+		path  []string
+		value any
+	}{
+		{"selector", []string{specField, testNetwork, "interface-name"}, "other-nic"},
+		{"minimum", []string{specField, ipamField, "min-allocate"}, int64(cfg.MinAllocate + 1)},
+		{"preallocation", []string{specField, ipamField, "pre-allocate"}, int64(cfg.PreAllocate + 1)},
+		{"maximum above watermark", []string{specField, ipamField, "max-above-watermark"}, int64(cfg.MaxAboveWatermark + 1)},
+		{"malformed policy", []string{specField, ipamField, "pre-allocate"}, "invalid"},
+	} {
+		t.Run(drift.name, func(t *testing.T) {
+			changed := cn.DeepCopy()
+			if setErr := unstructured.SetNestedField(changed.Object, drift.value, drift.path...); setErr != nil {
+				t.Fatal(setErr)
+			}
+			before, updateErr := client.Resource(CiliumNodes).Update(ctx, changed, metav1.UpdateOptions{})
+			if updateErr != nil {
+				t.Fatal(updateErr)
+			}
+			if registerErr := Provision(ctx, cfg, g, client); !errors.Is(registerErr, ErrConfig) {
+				t.Fatalf("registration did not reject policy drift: %v", registerErr)
+			}
+			after, getErr := client.Resource(CiliumNodes).Get(ctx, testNodeName, metav1.GetOptions{})
+			if getErr != nil {
+				t.Fatal(getErr)
+			}
+			if diff := cmp.Diff(before.Object, after.Object); diff != "" {
+				t.Fatalf("registration changed existing state: %s", diff)
+			}
+		})
+	}
+	zeroDefaults := cn.DeepCopy()
+	unstructured.RemoveNestedField(zeroDefaults.Object, specField, ipamField, "min-allocate")
+	unstructured.RemoveNestedField(zeroDefaults.Object, specField, ipamField, "max-above-watermark")
+	if _, updateErr := client.Resource(CiliumNodes).Update(ctx, zeroDefaults, metav1.UpdateOptions{}); updateErr != nil {
+		t.Fatal(updateErr)
+	}
+	if registerErr := Provision(ctx, cfg, g, client); registerErr != nil {
+		t.Fatalf("omitted zero-value policy is incompatible: %v", registerErr)
 	}
 	if err := unstructured.SetNestedField(cn.Object, "corrupt", statusField, ipamField, "used"); err != nil {
 		t.Fatal(err)

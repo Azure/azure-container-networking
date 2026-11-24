@@ -3,10 +3,12 @@ package ciliumpool
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
@@ -49,6 +51,31 @@ func Provision(ctx context.Context, cfg Config, g Guest, client dynamic.Interfac
 	if callErr := validateCiliumNode(current, binding); callErr != nil {
 		return callErr
 	}
+	if callErr := validateRegistrationPolicy(current, cfg); callErr != nil {
+		return callErr
+	}
 	_, err = readState(current, binding)
 	return err
+}
+
+func validateRegistrationPolicy(node *unstructured.Unstructured, cfg Config) error {
+	selector, _, err := unstructured.NestedString(node.Object, specField, "azure", "interface-name")
+	if err != nil || selector != cfg.NICID[strings.LastIndex(cfg.NICID, "/")+1:] {
+		return fmt.Errorf("%w: registered NIC selector differs from configuration", ErrConfig)
+	}
+	for _, setting := range []struct {
+		name string
+		want int
+	}{
+		{"min-allocate", cfg.MinAllocate},
+		{"pre-allocate", cfg.PreAllocate},
+		{"max-above-watermark", cfg.MaxAboveWatermark},
+	} {
+		// Cilium can omit zero-valued reserve settings when serializing its spec.
+		value, _, err := unstructured.NestedInt64(node.Object, specField, ipamField, setting.name)
+		if err != nil || value != int64(setting.want) {
+			return fmt.Errorf("%w: registered %s differs from configuration", ErrConfig, setting.name)
+		}
+	}
+	return nil
 }

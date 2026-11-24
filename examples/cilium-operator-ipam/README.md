@@ -77,8 +77,9 @@ using a protected copy of the conflist with separate bootstrap credentials:
 ```
 
 Registration creates the Node/VM binding and reserve settings only when the
-CiliumNode does not exist. Replays validate existing ownership and never
-overwrite it. ADD does not register or repair a missing object.
+CiliumNode does not exist. Replays validate existing ownership, the NIC
+selector and reserve settings without overwriting usage. ADD does not
+register or repair a missing object.
 The Cilium Operator manages pool inventory after registration; ordinary CNI
 credentials remain limited to reading the node and updating its usage.
 
