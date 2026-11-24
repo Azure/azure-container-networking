@@ -116,7 +116,18 @@ func TestAfterCheckpointRejectsDriftWithoutRetry(t *testing.T) {
 		{"mounted config content", func(f *fakeCluster) { f.config.Data["azure-npm.json"] += "\n" }, errEvidence},
 		{"replaced configmap", func(f *fakeCluster) { f.config.Metadata.UID = "replacement-uid" }, errEvidence},
 		{"mounted full npm config", fullNPMConfig, errEvidence},
-		{"loaded full npm config", func(f *fakeCluster) { f.fault = "loaded full npm config" }, errEvidence},
+		{"replaced container", func(f *fakeCluster) {
+			status := &f.npm[0].Status.ContainerStatuses[0]
+			status.ContainerID = "containerd://replacement"
+			status.State.Running.StartedAt = status.State.Running.StartedAt.Add(time.Second)
+		}, errEvidence},
+		{"recreated pod", func(f *fakeCluster) { f.npm[0].Metadata.UID = "replacement-pod-uid" }, errEvidence},
+		{"replaced daemonset", func(f *fakeCluster) {
+			f.ds.Metadata.UID = "replacement-daemonset-uid"
+			for i := range f.npm {
+				f.npm[i].Metadata.OwnerReferences[0].UID = "replacement-daemonset-uid"
+			}
+		}, errEvidence},
 		{"rollout not ready", func(f *fakeCluster) { f.ds.Status.Ready = 1 }, errNotReady},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -131,6 +142,36 @@ func TestAfterCheckpointRejectsDriftWithoutRetry(t *testing.T) {
 				err := runCheckpoint(t, input, cluster.command, checkpointAfter, snapshot)
 				if !errors.Is(err, test.want) || time.Since(start) != 0 {
 					t.Fatalf("after checkpoint accepted or retried drift for %s: %v", time.Since(start), err)
+				}
+			})
+		})
+	}
+}
+
+func TestAfterCheckpointToleratesUnreadableStartupLogs(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		result commandResult
+		err    error
+	}{
+		{"rotated startup logs", commandResult{stdout: []byte("2026-01-01T00:00:00Z I0101 00:00:00.000000 1234 dataplane.go:200] later entry\n")}, nil},
+		{"logs over the read limit", commandResult{}, errOutputLimit},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				cluster, input := testCluster(t)
+				snapshot := filepath.Join(t.TempDir(), "npm-snapshot.json")
+				if err := runCheckpoint(t, input, cluster.command, checkpointBefore, snapshot); err != nil {
+					t.Fatal(err)
+				}
+				command := func(ctx context.Context, args []string, stdin []byte) (commandResult, error) {
+					if slices.Contains(args, "logs") {
+						return test.result, test.err
+					}
+					return cluster.command(ctx, args, stdin)
+				}
+				if err := runCheckpoint(t, input, command, checkpointAfter, snapshot); err != nil {
+					t.Fatalf("after checkpoint required startup logs of an unchanged candidate: %v", err)
 				}
 			})
 		})
@@ -200,9 +241,9 @@ func TestCheckpointsRejectLateSuccess(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				// Log reads ignore cancellation, so the second pod's read succeeds 20s after the budget.
+				// Mounted-config reads ignore cancellation, so the second pod's read succeeds 20s after the budget.
 				command := func(ctx context.Context, args []string, stdin []byte) (commandResult, error) {
-					if slices.Contains(args, "logs") {
+					if slices.Contains(args, "exec") {
 						time.Sleep(160 * time.Second)
 					}
 					return cluster.command(context.WithoutCancel(ctx), args, stdin)

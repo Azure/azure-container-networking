@@ -72,7 +72,9 @@ func (r *runner) recordCheckpoint(ctx context.Context, path string) error {
 	return writeSnapshot(path, newSnapshot(r.before, configs))
 }
 
-// verifyCheckpoint observes the candidate once and rejects any identity or configuration drift since recordCheckpoint.
+// verifyCheckpoint observes the candidate once and rejects any identity or mounted configuration drift since
+// recordCheckpoint. An unchanged container identity keeps the before-checkpoint startup proof valid, so it does not
+// reread startup logs that kubelet may have rotated.
 func (r *runner) verifyCheckpoint(ctx context.Context, path string) error {
 	ctx, cancel := context.WithTimeout(ctx, npmStartupLimit)
 	defer cancel()

@@ -42,30 +42,55 @@ func (r *runner) current(ctx context.Context) (inventory, error) {
 	return current, sameInventory(r.before, current)
 }
 
+// mountedConfigFor reads one candidate pod's mounted Lite configuration between two identity checks.
+func (r *runner) mountedConfigFor(ctx context.Context, podUID string) (mountedConfig, error) {
+	current, err := r.current(ctx)
+	if err != nil {
+		return mountedConfig{}, err
+	}
+	var value pod
+	for i := range current.pods {
+		candidate := &current.pods[i]
+		if candidate.Metadata.UID == podUID {
+			value = *candidate
+		}
+	}
+	config, err := readMountedConfig(ctx, r.kube, r.npmNamespace, value)
+	if err != nil {
+		return mountedConfig{}, err
+	}
+	if _, err = r.current(ctx); err != nil {
+		return mountedConfig{}, err
+	}
+	if configErr := validateConfig([]byte(config.content)); configErr != nil {
+		return mountedConfig{}, configErr
+	}
+	return config, nil
+}
+
+// observeNPM revalidates the candidate identity and every pod's mounted Lite configuration. observeStartup bound the
+// loaded-config proof to each container ID, restart count, and start time in r.before, and r.current rejects any
+// change to them, so kubelet log rotation or the log read limit cannot fail an unchanged candidate.
 func (r *runner) observeNPM(ctx context.Context) ([]mountedConfig, error) {
 	var configs []mountedConfig
 	for i := range r.before.identity {
+		config, err := r.mountedConfigFor(ctx, r.before.identity[i].PodUID)
+		if err != nil {
+			return nil, err
+		}
+		configs = append(configs, config)
+	}
+	return configs, nil
+}
+
+// observeStartup reads every pod's mounted Lite configuration and requires its startup log to show NPM loaded it.
+func (r *runner) observeStartup(ctx context.Context) ([]mountedConfig, error) {
+	var configs []mountedConfig
+	for i := range r.before.identity {
 		identity := &r.before.identity[i]
-		current, err := r.current(ctx)
+		config, err := r.mountedConfigFor(ctx, identity.PodUID)
 		if err != nil {
 			return nil, err
-		}
-		var value pod
-		for i := range current.pods {
-			candidate := &current.pods[i]
-			if candidate.Metadata.UID == identity.PodUID {
-				value = *candidate
-			}
-		}
-		config, err := readMountedConfig(ctx, r.kube, r.npmNamespace, value)
-		if err != nil {
-			return nil, err
-		}
-		if _, err = r.current(ctx); err != nil {
-			return nil, err
-		}
-		if configErr := validateConfig([]byte(config.content)); configErr != nil {
-			return nil, configErr
 		}
 		logs, err := r.kube.logs(ctx, r.npmNamespace, *identity, time.Time{})
 		if err != nil {
@@ -419,7 +444,7 @@ func (r *runner) startNPM(ctx context.Context) ([]mountedConfig, error) {
 	var before []mountedConfig
 	var lastIncomplete error
 	err = converge(ctx, npmStartupLimit, 1, func(ctx context.Context) (bool, error) {
-		observed, observeErr := r.observeNPM(ctx)
+		observed, observeErr := r.observeStartup(ctx)
 		if errors.Is(observeErr, errNotReady) {
 			lastIncomplete = fmt.Errorf("last incomplete startup observation: %w", observeErr)
 			return false, nil

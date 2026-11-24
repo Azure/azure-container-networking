@@ -241,8 +241,9 @@ provision_and_run() {
 # (npm/npm.go) and applies no policy to pods until then, so specs must start after its bootup marker.
 # The before checkpoint waits for that marker and verifies the immutable candidate HostProcess image
 # and each pod's mounted and loaded Lite configuration, all within one five-minute budget that fails
-# late success. The after checkpoint rejects any identity or configuration drift during the specs.
-# The shell timeout only backstops the executor's own budget.
+# late success. The after checkpoint rejects any identity or mounted configuration drift during the
+# specs. An unchanged container identity keeps the startup proof valid, so it does not reread startup
+# logs that kubelet may have rotated. The shell timeout only backstops the executor's own budget.
 npm_checkpoint() {
     timeout --signal=INT --kill-after=30s 330s "$NPM_LITE_WORK_DIR/windows-npm-lite" \
         --kubeconfig "$KUBECONFIG" --daemonset azure-npm-win --npm-namespace kube-system \
@@ -275,11 +276,12 @@ run_upstream_netpol() {
         return 1
     fi
 
-    # Allowing one not-ready node tolerates the tainted Linux system node.
+    # Allowing one not-ready node tolerates the tainted Linux system node. Passing suites have taken
+    # about 16 minutes; the 2-hour limit bounds a stalled or failing run within the task timeout.
     KUBERNETES_SERVICE_HOST="$fqdn" KUBERNETES_SERVICE_PORT=443 \
-        timeout --signal=INT --kill-after=10m 190m "$dir/e2e.test" \
+        timeout --signal=INT --kill-after=10m 130m "$dir/e2e.test" \
         --provider=local --kubeconfig="$KUBECONFIG" --node-os-distro=windows --allowed-not-ready-nodes=1 \
-        --ginkgo.focus="$focus" --ginkgo.timeout=180m --ginkgo.v \
+        --ginkgo.focus="$focus" --ginkgo.timeout=120m --ginkgo.v \
         --ginkgo.json-report="$dir/report.json" || status=$?
     if ! python3 "$script_dir/windows-npm-lite-upstream.py" validate "$dir/report.json" && ((status == 0)); then
         status=1
@@ -291,28 +293,68 @@ run_upstream_netpol() {
     return "$status"
 }
 
-# Best-effort artifact contents: Lite pod logs, cluster pod placement, and the spec report.
-# Only the report is copied from the private work directory, so the kubeconfig stays unpublished.
+# Names an item missing from the diagnostics artifact in both the job log and collection-errors.txt.
+diagnostics_gap() {
+    printf 'windows-npm-lite: diagnostics: %s\n' "$1" >&2
+    printf '%s\n' "$1" >> "$diagnostics_dir/collection-errors.txt"
+}
+
+# Runs one kubectl read into the artifact, bounded by its own cap and the shared diagnostics deadline.
+collect_diagnostic() {
+    local cap="$1" file="$2" bound status=0
+    shift 2
+    bound=$((diagnostics_deadline - SECONDS))
+    ((bound <= cap)) || bound="$cap"
+    if ((bound < 5)); then
+        diagnostics_gap "$file: skipped because the diagnostics budget was exhausted"
+        return 1
+    fi
+    timeout --kill-after=5s "${bound}s" kubectl --kubeconfig "$KUBECONFIG" --request-timeout="${bound}s" "$@" \
+        < /dev/null > "$diagnostics_dir/$file" 2> "$diagnostics_dir/$file.stderr" || status=$?
+    [[ -s "$diagnostics_dir/$file.stderr" ]] || rm -f -- "$diagnostics_dir/$file.stderr"
+    if ((status == 124 || status == 137)); then
+        diagnostics_gap "$file: timed out after ${bound}s"
+    elif ((status != 0)); then
+        diagnostics_gap "$file: kubectl exited $status"
+    fi
+    return "$status"
+}
+
+# Best-effort artifact contents within one five-minute budget: the spec report, cluster pod placement,
+# and Lite pod logs. Only the report is copied from the private work directory, so the kubeconfig
+# stays unpublished. Previous logs are read only for restarted containers, so every failed read is a gap.
 collect_upstream_diagnostics() {
-    local report="$1" out names pod
-    local -a pods=()
+    local report="$1" diagnostics_dir diagnostics_deadline=$((SECONDS + 300)) pods pod restarts
     [[ "${SYSTEM_DEFAULTWORKINGDIRECTORY:-}" == /* ]] || return 0
-    out="$SYSTEM_DEFAULTWORKINGDIRECTORY/npmLogs_windows-lite-upstream"
-    mkdir -p -- "$out" || return 0
-    timeout 120s kubectl --kubeconfig "$KUBECONFIG" --request-timeout=60s get nodes,pods -A -o wide \
-        > "$out/nodes-and-pods.txt" 2>&1
-    names="$(timeout 120s kubectl --kubeconfig "$KUBECONFIG" --request-timeout=60s get pods -n kube-system \
-        -l k8s-app=azure-npm-win -o jsonpath='{.items[*].metadata.name}')"
-    read -r -a pods <<< "$names"
-    for pod in "${pods[@]}"; do
-        [[ "$pod" =~ ^[a-z0-9-]+$ ]] || continue
-        timeout 300s kubectl --kubeconfig "$KUBECONFIG" --request-timeout=240s logs -n kube-system "$pod" \
-            --timestamps > "$out/$pod.log" 2>&1
-        timeout 300s kubectl --kubeconfig "$KUBECONFIG" --request-timeout=240s logs -n kube-system "$pod" \
-            --timestamps --previous > "$out/previous-$pod.log" 2> /dev/null || rm -f -- "$out/previous-$pod.log"
-    done
-    [[ ! -f "$report" ]] || cp -- "$report" "$out/report.json"
+    diagnostics_dir="$SYSTEM_DEFAULTWORKINGDIRECTORY/npmLogs_windows-lite-upstream"
+    if ! mkdir -p -- "$diagnostics_dir"; then
+        printf 'windows-npm-lite: diagnostics: the artifact directory could not be created\n' >&2
+        return 1
+    fi
     printf '##vso[task.setvariable variable=NPM_LITE_UPSTREAM_LOGS]collected\n'
+    if [[ ! -f "$report" ]]; then
+        diagnostics_gap "report.json: the suite produced no report"
+    elif ! cp -- "$report" "$diagnostics_dir/report.json"; then
+        diagnostics_gap "report.json: copying the report failed"
+    fi
+    collect_diagnostic 30 nodes-and-pods.txt get nodes,pods -A -o wide || true
+    if ! collect_diagnostic 30 npm-pods.json get pods -n kube-system -l k8s-app=azure-npm-win -o json ||
+        ! pods="$(jq -r '.items[] | "\(.metadata.name) \(.status.containerStatuses[0].restartCount // 0)"' \
+            "$diagnostics_dir/npm-pods.json")"; then
+        diagnostics_gap "Lite pod logs: skipped because the pod list is unavailable"
+        return 1
+    fi
+    [[ -n "$pods" ]] || diagnostics_gap "npm-pods.json: no Lite pods were found"
+    while read -r pod restarts; do
+        if [[ ! "$pod" =~ ^[a-z0-9-]+$ ]]; then
+            [[ -z "$pod" ]] || diagnostics_gap "npm-pods.json: skipped an invalid pod name"
+            continue
+        fi
+        collect_diagnostic 90 "$pod.log" logs -n kube-system "$pod" --timestamps || true
+        if [[ "$restarts" =~ ^[1-9][0-9]*$ ]]; then
+            collect_diagnostic 30 "previous-$pod.log" logs -n kube-system "$pod" --timestamps --previous || true
+        fi
+    done <<< "$pods"
 }
 
 provision_and_run_upstream() {

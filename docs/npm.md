@@ -183,6 +183,18 @@ completion guard fails the pipeline unless the Linux conformance, Linux cleanup,
 and Windows Lite stages all succeed. Each Windows job includes namespace and
 owned resource-group cleanup; private kubeconfigs are never published.
 
+Every Windows step has a timeout. Each job's timeout exceeds the sum of its
+step timeouts by fifteen minutes for steps that the 1ES template injects, so a
+step timeout fires first and the `always()` cleanup and publication steps keep
+their budgets. Each job's cancel timeout covers those `always()` steps with ten
+minutes of margin. Worst-case provisioning takes about 122 minutes. The step
+that provisions the cluster and runs the cases allows 170 minutes, which
+includes the executor's 35-minute deadline. The upstream job's equivalent step
+allows 310 minutes, which includes the suite's 140-minute shell limit with kill
+grace, plus downloads, checkpoints, and diagnostics. Resource-group cleanup
+allows 35 minutes for a worst case of about 29. The jobs run on a self-hosted
+1ES pool, so no hosted-agent job limit applies.
+
 Only this mixed route requires a positive stress-worker count and checks each
 Linux invocation's native Ginkgo JSON or place-first JUnit report for actual
 passing tests. Missing, empty, all-skipped, or failed test reports fail the
@@ -287,8 +299,10 @@ candidate container must also log `[DataPlane] finished bootup phase` before tes
 roles are created. This waits for NPM's intentional controller-start delay rather
 than treating DaemonSet readiness or the listening HTTP API as completed startup.
 Configuration fallback, ambiguous or incorrect loaded configuration, and
-observation-command failures are fatal. A missing final startup observation or
-changed mounted config also fails the run.
+observation-command failures are fatal. After the cases, the final check
+revalidates each recorded container identity and its mounted config without
+rereading startup logs, which kubelet may rotate. A replaced or restarted
+container, a changed DaemonSet, or changed mounted config fails the run.
 
 The executor uses the immutable Windows2022 agnhost 2.39 child
 `registry.k8s.io/e2e-test-images/agnhost@sha256:66482b9d14a4e4d412c18533e738255dddabe6d05da19b2df0476f17bf2324ef`.
@@ -322,7 +336,8 @@ archive for the cluster's `currentKubernetesVersion`, after checking the
 archive against its published SHA-256 checksum. It passes
 `--node-os-distro=windows`, which schedules test pods on Windows nodes and
 doubles probe timeouts, and `--allowed-not-ready-nodes=1`, which tolerates the
-tainted Linux system node. The suite timeout is three hours.
+tainted Linux system node. Passing suites have taken about 16 minutes, and the
+suite timeout is two hours.
 
 Before the suite starts, the executor's `before` checkpoint applies the
 ten-case job's runtime checks. Each running `azure-npm-win` container must run
@@ -340,10 +355,14 @@ mounted configuration in a private snapshot file that it never overwrites. If
 the checkpoint fails, the job fails without running the suite.
 
 After the suite, the `after` checkpoint observes each pod once, without
-retrying, within its own five-minute budget. It fails on any change to the
-recorded identity, such as a container restart or a new DaemonSet generation,
-on changed mounted configuration, or on non-Lite loaded configuration. A
-330-second shell timeout backstops each checkpoint.
+retrying, within its own five-minute budget. It revalidates the supplied image
+and HostProcess identity and each pod's mounted Lite configuration. It fails on
+any change to the recorded identity, such as a replaced pod, container, or
+DaemonSet, a container restart, or a new DaemonSet generation, and on changed
+mounted configuration. It does not reread startup logs, which kubelet may
+rotate during the suite; an unchanged container identity keeps the `before`
+checkpoint's startup evidence valid. A 330-second shell timeout backstops each
+checkpoint.
 
 The [spec list](../.pipelines/npm/windows-npm-lite-upstream.py) selects sixteen
 TCP-context specs in `NetworkPolicy between server and client` whose policies
@@ -360,10 +379,13 @@ covers this job through the `WindowsNPMLite` stage result.
 
 After the suite runs, whether it passes or fails, or after the `before`
 checkpoint fails, the job publishes the `NpmLogs_windows-lite-upstream_<JobAttempt>`
-artifact. It contains the timestamped current and previous logs of each
-`azure-npm-win` pod, the cluster's node and pod listing, and, if the suite ran,
-the Ginkgo JSON report. Collection is best effort and does not change the job
-result.
+artifact. It contains the timestamped current log of each `azure-npm-win` pod,
+the previous log of each restarted container, the pods' JSON, the cluster's
+node and pod listing, and, if the suite ran, the Ginkgo JSON report. All reads
+share one five-minute budget, and each read also has its own cap. A read's
+error output is saved beside its file, and each missing item is named in the
+job log and in `collection-errors.txt`. Collection is best effort and does not
+change the job result.
 
 ## Usage
 [Microsoft Docs](https://learn.microsoft.com/en-us/azure/aks/use-network-policies#verify-network-policy-setup) has a detailed step by step example on how to use Kubernetes network policy.

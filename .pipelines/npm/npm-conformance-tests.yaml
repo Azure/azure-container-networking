@@ -496,8 +496,11 @@ extends:
           jobs:
           - job: WindowsNPMLite
             displayName: Validate the prebuilt Windows NPM Lite image
-            timeoutInMinutes: 210
-            cancelTimeoutInMinutes: 35
+            # Step timeouts sum to 245 minutes, and 15 more cover steps that the 1ES template injects, so a
+            # step timeout fires first and always() cleanup keeps its full budget. The cancel timeout
+            # covers the 40 minutes of always() steps with margin.
+            timeoutInMinutes: 260
+            cancelTimeoutInMinutes: 50
             pool:
               name: $(BUILD_POOL_NAME_DEFAULT)
               os: linux
@@ -508,6 +511,7 @@ extends:
             steps:
               - checkout: self
                 clean: true
+                timeoutInMinutes: 10
 
               - task: KubectlInstaller@0
                 timeoutInMinutes: 5
@@ -526,9 +530,11 @@ extends:
                   filePath: .pipelines/npm/windows-npm-lite.sh
                   arguments: prepare
 
+              # Worst case: about 122 minutes of provisioning, 3 minutes for the static token, and the
+              # executor's 35-minute deadline.
               - task: AzureCLI@2
                 displayName: Provision the legacy Windows test topology and run Lite cases
-                timeoutInMinutes: 150
+                timeoutInMinutes: 170
                 inputs:
                   azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
                   scriptType: bash
@@ -537,10 +543,11 @@ extends:
                   keepAzSessionActive: true
                   arguments: run
 
+              # Worst case: about 29 minutes of ownership checks, deletion, and confirmation, plus login.
               - task: AzureCLI@2
                 displayName: Delete the owned Windows test resource group
                 condition: always()
-                timeoutInMinutes: 30
+                timeoutInMinutes: 35
                 inputs:
                   azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
                   scriptType: bash
@@ -551,6 +558,7 @@ extends:
               - task: Bash@3
                 displayName: Remove the private kubeconfig
                 condition: always()
+                timeoutInMinutes: 5
                 inputs:
                   targetType: filePath
                   filePath: .pipelines/npm/windows-npm-lite.sh
@@ -558,8 +566,11 @@ extends:
 
           - job: WindowsNPMLiteUpstream
             displayName: Run upstream NetworkPolicy specs on Windows NPM Lite
-            timeoutInMinutes: 400
-            cancelTimeoutInMinutes: 35
+            # Step timeouts sum to 395 minutes, and 15 more cover steps that the 1ES template injects, so a
+            # step timeout fires first and always() publication and cleanup keep their full budgets. The
+            # cancel timeout covers the 50 minutes of always() steps with margin.
+            timeoutInMinutes: 410
+            cancelTimeoutInMinutes: 60
             pool:
               name: $(BUILD_POOL_NAME_DEFAULT)
               os: linux
@@ -570,6 +581,7 @@ extends:
             steps:
               - checkout: self
                 clean: true
+                timeoutInMinutes: 10
 
               - task: KubectlInstaller@0
                 timeoutInMinutes: 5
@@ -588,10 +600,11 @@ extends:
                   filePath: .pipelines/npm/windows-npm-lite.sh
                   arguments: prepare
 
-              # Worst case: about 2 hours of provisioning plus the 3-hour suite timeout.
+              # Worst case: about 122 minutes of provisioning, the 140-minute suite limit including its
+              # kill grace, and about 34 minutes for downloads, both checkpoints, and diagnostics.
               - task: AzureCLI@2
                 displayName: Provision the legacy Windows test topology and run upstream NetworkPolicy specs
-                timeoutInMinutes: 340
+                timeoutInMinutes: 310
                 inputs:
                   azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
                   scriptType: bash
@@ -603,6 +616,7 @@ extends:
               - task: 1ES.PublishPipelineArtifact@1
                 displayName: Publish Windows NPM Lite logs and the upstream spec report
                 condition: and(always(), eq(variables['NPM_LITE_UPSTREAM_LOGS'], 'collected'))
+                timeoutInMinutes: 10
                 inputs:
                   targetPath: $(System.DefaultWorkingDirectory)/npmLogs_windows-lite-upstream
                   artifactName: NpmLogs_windows-lite-upstream_$(System.JobAttempt)
@@ -611,7 +625,7 @@ extends:
               - task: AzureCLI@2
                 displayName: Delete the owned Windows test resource group
                 condition: always()
-                timeoutInMinutes: 30
+                timeoutInMinutes: 35
                 inputs:
                   azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
                   scriptType: bash
@@ -622,6 +636,7 @@ extends:
               - task: Bash@3
                 displayName: Remove the private kubeconfig
                 condition: always()
+                timeoutInMinutes: 5
                 inputs:
                   targetType: filePath
                   filePath: .pipelines/npm/windows-npm-lite.sh

@@ -731,24 +731,22 @@ func TestNPMStartupConfigWaitIsBounded(t *testing.T) {
 	}
 }
 
-func TestMissingStartupConfigAfterWorkFailsClosed(t *testing.T) {
+func TestFinalNPMCheckToleratesRotatedStartupLogs(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		cluster, input := testCluster(t)
-		missing := 0
 		command := func(ctx context.Context, args []string, stdin []byte) (commandResult, error) {
 			if slices.Contains(args, "logs") && cluster.policiesDeleted == 10 {
-				missing++
 				return commandResult{}, nil
 			}
 			return cluster.command(ctx, args, stdin)
 		}
 		ctx, cancel := context.WithTimeout(t.Context(), 35*time.Minute)
 		defer cancel()
-		if err := run(ctx, input, command); !errors.Is(err, errNotReady) {
-			t.Fatalf("missing final loaded config was not rejected: %v", err)
+		if err := run(ctx, input, command); err != nil {
+			t.Fatalf("final check required startup logs of an unchanged candidate: %v", err)
 		}
-		if missing != 1 || cluster.namespaceDeletes != 1 {
-			t.Fatalf("missing observations=%d, namespace cleanup=%d", missing, cluster.namespaceDeletes)
+		if cluster.policiesDeleted != 10 || cluster.namespaceDeletes != 1 {
+			t.Fatalf("policies deleted=%d, namespace cleanup=%d", cluster.policiesDeleted, cluster.namespaceDeletes)
 		}
 	})
 }
