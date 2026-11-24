@@ -1,0 +1,8 @@
+{
+  "Toggles": {
+    "EnableV2NPM": true,
+    "EnableNPMLite": true,
+    "EnableHTTPDebugAPI": false,
+    "EnablePprof": false
+  }
+}
