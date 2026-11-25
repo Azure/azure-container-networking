@@ -5,6 +5,12 @@ Azure VNET IPAM plugins manage IP address assignments to containers.
 
 Currently, these IP addresses need to be pre-allocated from Azure VNET to each container host's network interface before becoming available to containers running on that host.
 
+For operator-managed pools on standalone Linux VMs, see
+[Azure Cilium IPAM installation](../examples/cilium-operator-ipam/README.md).
+Cilium Operator allocates NIC secondaries, Azure Cilium IPAM records
+reservations on CiliumNode, and Azure CNI owns endpoint networking.
+CNS and the Cilium agent/dataplane are not used.
+
 ## Allocating IP addresses for containers
 This section describes how to allocate IP addresses for containers running on individual Azure IaaS VMs. If you are planning to deploy an ACS cluster, see [ACS](acs.md) instead.
 

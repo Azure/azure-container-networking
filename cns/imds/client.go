@@ -108,6 +108,31 @@ func (c *Client) GetVMUniqueID(ctx context.Context) (string, error) {
 	return vmUniqueID, nil
 }
 
+type ComputeMetadata struct {
+	ResourceID string
+	VMID       string
+}
+
+func (c *Client) GetComputeMetadata(ctx context.Context) (ComputeMetadata, error) {
+	var result ComputeMetadata
+	err := retry.Do(func() error {
+		doc, err := c.getInstanceMetadata(ctx, imdsComputePath, imdsDefaultAPIVersion)
+		if err != nil {
+			return errors.Wrap(err, "reading compute metadata")
+		}
+		result.ResourceID, _ = doc["resourceId"].(string)
+		result.VMID, _ = doc[vmUniqueIDProperty].(string)
+		if result.ResourceID == "" || result.VMID == "" {
+			return errors.New("IMDS compute metadata has no complete VM identity")
+		}
+		return nil
+	}, retry.Context(ctx), retry.Attempts(c.config.retryAttempts), retry.DelayType(retry.BackOffDelay))
+	if err != nil {
+		return ComputeMetadata{}, errors.Wrap(err, "getting compute identity")
+	}
+	return result, nil
+}
+
 func (c *Client) GetNetworkInterfaces(ctx context.Context) ([]NetworkInterface, error) {
 	var networkData NetworkInterfaces
 	err := retry.Do(func() error {
