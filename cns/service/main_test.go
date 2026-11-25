@@ -19,6 +19,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const expectedFallbackHomeAZ = "AZ00"
+
 // MockHTTPClient is a mock implementation of HTTPClient
 type MockHTTPClient struct {
 	Response *http.Response
@@ -108,12 +110,14 @@ func (m *mockNodeInfoClient) CreateOrUpdate(_ context.Context, nodeInfo *mtv1alp
 }
 
 func TestBuildNodeInfoSpec_WithHomeAZ(t *testing.T) {
+	logger.InitLogger("testlogs", 0, 0, "./") //nolint:staticcheck // Initialize the legacy startup logger.
 	tests := []struct {
 		name            string
 		vmUniqueID      string
 		vmUniqueIDErr   error
 		homeAzResponse  nmagent.AzResponse
 		homeAzErr       error
+		nodeInfoErr     error
 		expectedSpec    mtv1alpha1.NodeInfoSpec
 		expectedNodeErr bool
 	}{
@@ -161,9 +165,19 @@ func TestBuildNodeInfoSpec_WithHomeAZ(t *testing.T) {
 			homeAzErr:      errors.New("nmagent HomeAZ not available"),
 			expectedSpec: mtv1alpha1.NodeInfoSpec{
 				VMUniqueID: "test-vm-id",
-				HomeAZ:     "", // HomeAZ should be empty when not available
+				HomeAZ:     expectedFallbackHomeAZ,
 			},
-			expectedNodeErr: true,
+			expectedNodeErr: false,
+		},
+		{
+			name:           "HomeAZ error with populated response",
+			vmUniqueID:     "test-vm-id",
+			homeAzResponse: nmagent.AzResponse{HomeAz: 9},
+			homeAzErr:      errors.New("nmagent HomeAZ error"),
+			expectedSpec: mtv1alpha1.NodeInfoSpec{
+				VMUniqueID: "test-vm-id",
+				HomeAZ:     expectedFallbackHomeAZ,
+			},
 		},
 		{
 			name:            "IMDS error", // should fail
@@ -175,16 +189,27 @@ func TestBuildNodeInfoSpec_WithHomeAZ(t *testing.T) {
 			expectedNodeErr: true,
 		},
 		{
-			name:           "HomeAZ zone 0", // should be treated as not available
+			name:           "HomeAZ zone 0",
 			vmUniqueID:     "test-vm-id",
 			vmUniqueIDErr:  nil,
 			homeAzResponse: nmagent.AzResponse{HomeAz: 0},
 			homeAzErr:      nil,
 			expectedSpec: mtv1alpha1.NodeInfoSpec{
 				VMUniqueID: "test-vm-id",
-				HomeAZ:     "",
+				HomeAZ:     expectedFallbackHomeAZ,
 			},
 			expectedNodeErr: false,
+		},
+		{
+			name:            "NodeInfo write error after HomeAZ fallback",
+			vmUniqueID:      "test-vm-id",
+			homeAzErr:       errors.New("nmagent HomeAZ error"),
+			nodeInfoErr:     errors.New("nodeinfo write error"),
+			expectedNodeErr: true,
+			expectedSpec: mtv1alpha1.NodeInfoSpec{
+				VMUniqueID: "test-vm-id",
+				HomeAZ:     expectedFallbackHomeAZ,
+			},
 		},
 	}
 
@@ -198,7 +223,7 @@ func TestBuildNodeInfoSpec_WithHomeAZ(t *testing.T) {
 				homeAzResponse: test.homeAzResponse,
 				err:            test.homeAzErr,
 			}
-			nodeInfoCli := &mockNodeInfoClient{}
+			nodeInfoCli := &mockNodeInfoClient{err: test.nodeInfoErr}
 			node := &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-node",
@@ -215,10 +240,18 @@ func TestBuildNodeInfoSpec_WithHomeAZ(t *testing.T) {
 			}
 
 			if err != nil {
-				// we should make no further assertions
+				if test.vmUniqueIDErr != nil {
+					require.ErrorIs(t, err, test.vmUniqueIDErr)
+					require.Nil(t, nodeInfoCli.createdNodeInfo)
+				} else {
+					require.ErrorIs(t, err, test.nodeInfoErr)
+					require.NotNil(t, nodeInfoCli.createdNodeInfo)
+					require.Equal(t, test.expectedSpec, nodeInfoCli.createdNodeInfo.Spec)
+				}
 				return
 			}
 
+			require.NotNil(t, nodeInfoCli.createdNodeInfo)
 			got := nodeInfoCli.createdNodeInfo.Spec
 			exp := test.expectedSpec
 
@@ -236,6 +269,7 @@ func TestBuildNodeInfoSpec_WithHomeAZ(t *testing.T) {
 // TestBuildAndCreateNodeInfo_MultiTenantCRD verifies that buildAndCreateNodeInfo
 // correctly creates a NodeInfo CRD in the MultiTenantCRD channel mode scenario.
 func TestBuildAndCreateNodeInfo_MultiTenantCRD(t *testing.T) {
+	logger.InitLogger("testlogs", 0, 0, "./") //nolint:staticcheck // Initialize the legacy startup logger.
 	tests := []struct {
 		name        string
 		vmUniqueID  string
@@ -254,7 +288,7 @@ func TestBuildAndCreateNodeInfo_MultiTenantCRD(t *testing.T) {
 			name:        "multi-tenant CRD with no HomeAZ",
 			vmUniqueID:  "mt-vm-no-az",
 			homeAz:      0,
-			expectedAZ:  "",
+			expectedAZ:  expectedFallbackHomeAZ,
 			expectError: false,
 		},
 	}

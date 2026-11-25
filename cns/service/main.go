@@ -1809,12 +1809,15 @@ func buildAndCreateNodeInfo(ctx context.Context, imdsCli VMUniqueIDGetter, nmaCl
 
 	nodeInfoSpec := mtv1alpha1.NodeInfoSpec{
 		VMUniqueID: vmUniqueID,
+		HomeAZ:     "AZ00",
 	}
 
 	homeAzResponse, err := nmaCli.GetHomeAz(ctx)
 	if err != nil {
-		return errors.Wrap(err, "getting HomeAZ from NMAgent")
-	} else if homeAzResponse.HomeAz > 0 {
+		logger.Warnf("HomeAZ lookup failed, using AZ00: %v", err) //nolint:staticcheck // Keep legacy logging without changing startup signatures.
+	} else if homeAzResponse.HomeAz == 0 {
+		logger.Warnf("Invalid HomeAZ value %d, using AZ00", homeAzResponse.HomeAz) //nolint:staticcheck // Keep legacy logging without changing startup signatures.
+	} else {
 		nodeInfoSpec.HomeAZ = fmt.Sprintf("AZ%02d", homeAzResponse.HomeAz)
 	}
 
