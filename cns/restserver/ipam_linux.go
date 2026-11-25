@@ -1,5 +1,7 @@
 package restserver
 
-func (service *HTTPRestService) cleanupStaleHNSResources(_, _, _ string) error {
+import "github.com/Azure/azure-container-networking/cns"
+
+func (service *HTTPRestService) cleanupStaleHNSResources(_ cns.CreateNetworkContainerRequest) error {
 	return nil
 }

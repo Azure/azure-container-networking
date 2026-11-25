@@ -549,14 +549,14 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 				}
 			}
 		} else if req.NetworkContainerType == cns.AzureContainerInstance {
-			// Clean up stale HNS resources from a previous NC that used the same delegated NIC.
-			cleanupEnabled := service.Options[common.OptEnableStaleHNSCleanupOnNCCreate] == true &&
-				service.Options[common.OptManageEndpointState] == true
-			hasDelegatedNIC := req.NetworkInterfaceInfo.MACAddress != "" &&
-				(req.NetworkInterfaceInfo.NICType == cns.DelegatedVMNIC || req.NetworkInterfaceInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC)
-			if cleanupEnabled && hasDelegatedNIC {
-				if cleanupErr := service.cleanupStaleHNSResources(req.NetworkContainerid, req.NetworkInterfaceInfo.MACAddress, req.LocalIPConfiguration.IPSubnet.IPAddress); cleanupErr != nil {
-					returnMessage = fmt.Sprintf("[Azure CNS] stale HNS cleanup failed for MAC %s: %v", req.NetworkInterfaceInfo.MACAddress, cleanupErr)
+			if service.Options[common.OptEnableStaleHNSCleanupOnNCCreate] == true {
+				// Hold a per-NC lock until the goal state is saved, so a concurrent CREATE of the
+				// same NC sees it as known and can't delete its live endpoints. Other NCs aren't blocked.
+				namedLock.LockAcquire(req.NetworkContainerid)
+				defer namedLock.LockRelease(req.NetworkContainerid)
+				// Clean up HNS resources leaked by a previous NC that this NC's IPs or delegated NIC collide with.
+				if cleanupErr := service.cleanupStaleHNSResources(req); cleanupErr != nil {
+					returnMessage = fmt.Sprintf("[Azure CNS] stale HNS cleanup failed for NC %s: %v", req.NetworkContainerid, cleanupErr)
 					returnCode = types.UnexpectedError
 					break
 				}
@@ -732,6 +732,15 @@ func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 		if !ok {
 			logger.Printf("Not able to retrieve network container details for this container id %v", ncid)
 			break
+		}
+
+		// CNI DEL normally removes this, but SF can proceed to delete an NC without a successful CNI DEL (eg. containerd unresponsive, OOM).
+		ncReq := &containerStatus.CreateNetworkContainerRequest
+		if service.Options[common.OptEnableStaleHNSCleanupOnNCCreate] == true &&
+			ncReq.NetworkContainerType == cns.AzureContainerInstance && isApipaEnabled(ncReq) {
+			if apipaErr := hnsclient.DeleteHostNCApipaEndpoint(ncid); apipaErr != nil {
+				logger.Errorf("[Azure CNS] failed to delete APIPA endpoint for NC %s: %v", ncid, apipaErr) //nolint:staticcheck // TODO: migrate to zap logger
+			}
 		}
 
 		if containerStatus.CreateNetworkContainerRequest.NetworkContainerType == cns.WebApps {
@@ -1257,6 +1266,10 @@ func (service *HTTPRestService) joinVNet(
 	return resp.StatusCode, body, nil
 }
 
+func isApipaEnabled(req *cns.CreateNetworkContainerRequest) bool {
+	return req.AllowHostToNCCommunication || req.AllowNCToHostCommunication
+}
+
 func (service *HTTPRestService) CreateHostNCApipaEndpoint(w http.ResponseWriter, r *http.Request) {
 	logger.Printf("[Azure-CNS] CreateHostNCApipaEndpoint")
 
@@ -1278,8 +1291,7 @@ func (service *HTTPRestService) CreateHostNCApipaEndpoint(w http.ResponseWriter,
 	case http.MethodPost:
 		networkContainerDetails, found := service.getNetworkContainerDetails(req.NetworkContainerID)
 		if found {
-			if !networkContainerDetails.CreateNetworkContainerRequest.AllowNCToHostCommunication &&
-				!networkContainerDetails.CreateNetworkContainerRequest.AllowHostToNCCommunication {
+			if !isApipaEnabled(&networkContainerDetails.CreateNetworkContainerRequest) {
 				returnMessage = fmt.Sprintf("HostNCApipaEndpoint creation is not supported unless " +
 					"AllowNCToHostCommunication or AllowHostToNCCommunication is set to true")
 				returnCode = types.InvalidRequest

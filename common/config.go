@@ -104,7 +104,8 @@ const (
 	// Enable CNS to manage endpoint state
 	OptManageEndpointState = "manage-endpoint-state"
 
-	// Enable CNS to clean up stale HNS resources when a NIC/MAC is reused by a new NC
+	// Enable CNS to clean up stale HNS resources when a NIC/MAC is reused by a new NC,
+	// and to delete the NC's host APIPA endpoint when the NC is deleted
 	OptEnableStaleHNSCleanupOnNCCreate = "enable-stale-hns-cleanup-on-nc-create"
 
 	// How long CNS re-checks NMAgent before returning VFP programming pending. 0 value disables this.

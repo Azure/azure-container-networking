@@ -2633,6 +2633,33 @@ func TestPostNetworkContainers(t *testing.T) {
 	}
 }
 
+func TestPostNetworkContainersWaitsForNCLock(t *testing.T) {
+	setEnv(t)
+	if err := setOrchestratorType(t, cns.Kubernetes); err != nil {
+		t.Fatal(err)
+	}
+	ncID := cns.SwiftPrefix + ncParams[0].ncID
+	t.Cleanup(func() { _ = deleteNetworkContainerWithParams(ncParams[0]) })
+
+	// Hold the lock an in-flight createOrUpdateNetworkContainer of this NC holds.
+	namedLock.LockAcquire(ncID)
+	done := make(chan error, 1)
+	go func() { done <- postAllNetworkContainers(t, ncParams[:1]) }()
+
+	time.Sleep(200 * time.Millisecond)
+	if _, found := svc.getNetworkContainerDetails(ncID); found {
+		t.Error("NC was saved while its lock was held")
+	}
+
+	namedLock.LockRelease(ncID)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if _, found := svc.getNetworkContainerDetails(ncID); !found {
+		t.Error("NC was not saved after the lock was released")
+	}
+}
+
 func postAllNetworkContainers(t *testing.T, ncParams []createOrUpdateNetworkContainerParams) error {
 	var ipConfig cns.IPConfiguration
 	ipConfig.DNSServers = []string{"8.8.8.8", "8.8.4.4"}
