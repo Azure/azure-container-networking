@@ -59,6 +59,7 @@ type CNSConfig struct {
 	SyncHostNCTimeoutMs             int
 	SyncHostNCVersionIntervalMs     int
 	TLSCertificatePath              string
+	TLSCAFilePath                   string
 	TLSEndpoint                     string
 	TLSPort                         string
 	TLSSubjectName                  string
