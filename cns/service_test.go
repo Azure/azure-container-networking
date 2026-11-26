@@ -33,6 +33,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const testTLSVersion12 = "TLS 1.2"
+
 func TestDisableHTTPListener(t *testing.T) {
 	previousLogger := logger.Log
 	logger.Log = loggerv2.AsV1(zap.NewNop(), func() {})
@@ -46,7 +48,8 @@ func TestDisableHTTPListener(t *testing.T) {
 	})
 
 	t.Run("does not bind HTTP", func(t *testing.T) {
-		occupied, err := net.Listen("tcp", "127.0.0.1:0")
+		listenConfig := net.ListenConfig{}
+		occupied, err := listenConfig.Listen(t.Context(), "tcp", "127.0.0.1:0")
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = occupied.Close() })
 		address, err := url.Parse("tcp://" + occupied.Addr().String())
@@ -70,7 +73,7 @@ func TestDisableHTTPListener(t *testing.T) {
 			TLSSettings: serverTLS.TlsSettings{
 				TLSPort:            "0",
 				TLSCertificatePath: createTestCertificate(t),
-				MinTLSVersion:      "TLS 1.2",
+				MinTLSVersion:      testTLSVersion12,
 			},
 		}
 		require.NoError(t, service.AddListener(config))
@@ -129,7 +132,7 @@ func TestNewService(t *testing.T) {
 			TLSPort:            "10091",
 			TLSSubjectName:     "localhost",
 			TLSCertificatePath: testCertFilePath,
-			MinTLSVersion:      "TLS 1.2",
+			MinTLSVersion:      testTLSVersion12,
 		}
 
 		svc, err := NewService(config.Name, config.Version, config.ChannelMode, config.Store)
@@ -198,7 +201,7 @@ func TestNewService(t *testing.T) {
 					TLSSubjectName:            "localhost",
 					TLSCertificatePath:        testCertFilePath,
 					UseMTLS:                   true,
-					MinTLSVersion:             "TLS 1.2",
+					MinTLSVersion:             testTLSVersion12,
 					MtlsClientCertSubjectName: "example.com",
 				},
 				handshakeFailureExpected: false,
@@ -210,7 +213,7 @@ func TestNewService(t *testing.T) {
 					TLSSubjectName:            "localhost",
 					TLSCertificatePath:        testCertFilePath,
 					UseMTLS:                   true,
-					MinTLSVersion:             "TLS 1.2",
+					MinTLSVersion:             testTLSVersion12,
 					MtlsClientCertSubjectName: "foo.com", // Common Name from test certificate
 				},
 				handshakeFailureExpected: false,
@@ -222,7 +225,7 @@ func TestNewService(t *testing.T) {
 					TLSSubjectName:            "localhost",
 					TLSCertificatePath:        testCertFilePath,
 					UseMTLS:                   true,
-					MinTLSVersion:             "TLS 1.2",
+					MinTLSVersion:             testTLSVersion12,
 					MtlsClientCertSubjectName: "random.com",
 				},
 				handshakeFailureExpected: true,
@@ -431,7 +434,7 @@ func TestGetTLSConfigFromFileCAPath(t *testing.T) {
 				TLSCertificatePath: certPath,
 				TLSCAFilePath:      test.caPath,
 				UseMTLS:            test.useMTLS,
-				MinTLSVersion:      "TLS 1.2",
+				MinTLSVersion:      testTLSVersion12,
 			})
 			if test.wantErr != "" {
 				require.ErrorContains(t, err, test.wantErr)
@@ -537,7 +540,7 @@ func TestTLSVersionNumber(t *testing.T) {
 	})
 
 	t.Run("valid ServerSettings.MinTLSVersion", func(t *testing.T) {
-		versionNumber, err := parseTLSVersionName("TLS 1.2")
+		versionNumber, err := parseTLSVersionName(testTLSVersion12)
 		require.Equal(t, uint16(tls.VersionTLS12), versionNumber)
 		require.NoError(t, err)
 	})

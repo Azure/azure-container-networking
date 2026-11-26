@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testCaseOmitted = "omitted"
+
 func TestGetConfigFilePath(t *testing.T) {
 	execpath, _ := common.GetExecutableDirectory()
 
@@ -121,7 +123,7 @@ func TestReadDisableHTTPListener(t *testing.T) {
 		config string
 		want   bool
 	}{
-		{name: "omitted", config: `{}`},
+		{name: testCaseOmitted, config: `{}`},
 		{name: "disabled", config: `{"DisableHTTPListener": false}`},
 		{name: "enabled", config: `{"DisableHTTPListener": true}`, want: true},
 	} {
@@ -143,7 +145,7 @@ func TestReadTLSCAFilePath(t *testing.T) {
 		config string
 		want   string
 	}{
-		{name: "omitted", config: `{}`},
+		{name: testCaseOmitted, config: `{}`},
 		{name: "empty", config: `{"TLSCAFilePath": ""}`},
 		{name: "configured", config: `{"TLSCAFilePath": "/test/ca.pem"}`, want: "/test/ca.pem"},
 	} {
@@ -165,7 +167,7 @@ func TestReadIPv6MultitenancyFlag(t *testing.T) {
 		config  string
 		enabled bool
 	}{
-		{name: "omitted", config: `{}`},
+		{name: testCaseOmitted, config: `{}`},
 		{name: "disabled", config: `{"EnableIPv6Multitenancy": false}`},
 		{name: "enabled", config: `{"EnableIPv6Multitenancy": true}`, enabled: true},
 	} {

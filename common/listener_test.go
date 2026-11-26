@@ -2,6 +2,7 @@ package common
 
 import (
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -30,7 +31,9 @@ func TestListenerTLSOnly(t *testing.T) {
 	require.NoError(t, listener.StartTLS(errChan, tlsConfig, "127.0.0.1:0"))
 	t.Cleanup(listener.Stop)
 	require.Nil(t, listener.listener)
-	response, err := client.Get("https://" + listener.tlsListener.Addr().String() + "/test")
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://"+listener.tlsListener.Addr().String()+"/test", http.NoBody)
+	require.NoError(t, err)
+	response, err := client.Do(request)
 	require.NoError(t, err)
 	_, err = io.Copy(io.Discard, response.Body)
 	require.NoError(t, response.Body.Close())
@@ -38,7 +41,8 @@ func TestListenerTLSOnly(t *testing.T) {
 	require.Equal(t, http.StatusNoContent, response.StatusCode)
 	require.NotPanics(t, listener.Stop)
 	select {
-	case <-errChan:
+	case err := <-errChan:
+		require.ErrorIs(t, err, net.ErrClosed)
 	case <-time.After(5 * time.Second):
 		t.Fatal("TLS server did not stop")
 	}

@@ -365,7 +365,6 @@ func mtlsRootCAsFromCertificate(tlsCert *tls.Certificate) (*x509.CertPool, error
 
 func (service *Service) StartListener(config *common.ServiceConfig) error {
 	if config.DisableHTTPListener {
-		logger.Printf("Skipping remote HTTP listener: DisableHTTPListener is enabled")
 		return nil
 	}
 	logger.Debugf("[Azure CNS] Going to start listener: %+v", config)
