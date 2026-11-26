@@ -51,6 +51,9 @@ func NewService(name, version, channelMode string, store store.KeyValueStore) (*
 }
 
 func (service *Service) AddListener(config *common.ServiceConfig) error {
+	if config.DisableHTTPListener && config.TLSSettings.TLSPort == "" {
+		return errors.New("disabling the HTTP listener requires a TLS port")
+	}
 	var (
 		err     error
 		nodeURL *url.URL
@@ -88,8 +91,7 @@ func (service *Service) AddListener(config *common.ServiceConfig) error {
 		// use the URL that customer provides by -c
 		logger.Printf("user specifies -c option")
 
-		// do not enable local server if customer uses -c option
-		config.Server.EnableLocalServer = false
+		config.Server.EnableLocalServer = config.DisableHTTPListener
 		nodeURL, err = url.Parse(cnsURL)
 		if err != nil {
 			return errors.Wrap(err, "Failed to parse URL that customer provides")
@@ -362,6 +364,10 @@ func mtlsRootCAsFromCertificate(tlsCert *tls.Certificate) (*x509.CertPool, error
 }
 
 func (service *Service) StartListener(config *common.ServiceConfig) error {
+	if config.DisableHTTPListener {
+		logger.Printf("Skipping remote HTTP listener: DisableHTTPListener is enabled")
+		return nil
+	}
 	logger.Debugf("[Azure CNS] Going to start listener: %+v", config)
 
 	// Initialize the listener.

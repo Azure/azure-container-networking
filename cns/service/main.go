@@ -567,6 +567,7 @@ func main() {
 		}
 	}
 	configuration.SetCNSConfigDefaults(cnsconfig)
+	config.DisableHTTPListener = cnsconfig.DisableHTTPListener
 	config.IPAMSocket = cnsconfig.EnableIPAMUnixSocket
 
 	disableTelemetry := cnsconfig.TelemetrySettings.DisableAll

@@ -28,6 +28,7 @@ type CNSConfig struct {
 	CNIConflistFilepath             string
 	CNIConflistScenario             string
 	ChannelMode                     string
+	DisableHTTPListener             bool
 	EnableAPIServerHealthPing       bool
 	EnableAsyncPodDelete            bool
 	EnableCNIConflistGeneration     bool

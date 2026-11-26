@@ -14,7 +14,9 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -30,6 +32,54 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
+
+func TestDisableHTTPListener(t *testing.T) {
+	previousLogger := logger.Log
+	logger.Log = loggerv2.AsV1(zap.NewNop(), func() {})
+	t.Cleanup(func() { logger.Log = previousLogger })
+
+	t.Run("requires TLS", func(t *testing.T) {
+		service := &Service{}
+		err := service.AddListener(&common.ServiceConfig{DisableHTTPListener: true})
+		require.ErrorContains(t, err, "requires a TLS port")
+		require.Nil(t, service.Listener)
+	})
+
+	t.Run("does not bind HTTP", func(t *testing.T) {
+		occupied, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = occupied.Close() })
+		address, err := url.Parse("tcp://" + occupied.Addr().String())
+		require.NoError(t, err)
+		listener, err := acn.NewListener(address)
+		require.NoError(t, err)
+		service := &Service{}
+		service.Listener = listener
+		require.NoError(t, service.StartListener(&common.ServiceConfig{DisableHTTPListener: true}))
+		require.Error(t, service.StartListener(&common.ServiceConfig{}))
+	})
+
+	t.Run("TLS-only startup and shutdown", func(t *testing.T) {
+		service, err := NewService("test", "test", "", nil)
+		require.NoError(t, err)
+		service.SetOption(acn.OptCnsURL, "tcp://127.0.0.1:0")
+		service.SetOption(acn.OptCnsPort, "")
+		config := &common.ServiceConfig{
+			DisableHTTPListener: true,
+			ErrChan:             make(chan error, 1),
+			TLSSettings: serverTLS.TlsSettings{
+				TLSPort:            "0",
+				TLSCertificatePath: createTestCertificate(t),
+				MinTLSVersion:      "TLS 1.2",
+			},
+		}
+		require.NoError(t, service.AddListener(config))
+		t.Cleanup(service.Listener.Stop)
+		require.True(t, config.Server.EnableLocalServer)
+		require.NoError(t, service.StartListener(config))
+		require.NotPanics(t, service.Listener.Stop)
+	})
+}
 
 func TestNewService(t *testing.T) {
 	logger.InitLogger("azure-cns.log", 0, 0, "/")

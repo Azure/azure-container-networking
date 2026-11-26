@@ -114,6 +114,28 @@ func TestReadConfigFromFile(t *testing.T) {
 	}
 }
 
+func TestReadDisableHTTPListener(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		config string
+		want   bool
+	}{
+		{name: "omitted", config: `{}`},
+		{name: "disabled", config: `{"DisableHTTPListener": false}`},
+		{name: "enabled", config: `{"DisableHTTPListener": true}`, want: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), defaultConfigName)
+			require.NoError(t, os.WriteFile(path, []byte(test.config), 0o600))
+			config, err := readConfigFromFile(path)
+			require.NoError(t, err)
+			require.Equal(t, test.want, config.DisableHTTPListener)
+			SetCNSConfigDefaults(config)
+			require.Equal(t, test.want, config.DisableHTTPListener)
+		})
+	}
+}
+
 func TestReadTLSCAFilePath(t *testing.T) {
 	for _, test := range []struct {
 		name   string
