@@ -10,6 +10,9 @@ Before enabling the listener, provision `/var/run/azure-cns` as a root-owned dir
 CNS accepts mode `0755`, which Kubernetes uses for `DirectoryOrCreate` host volumes.
 CNS rejects a missing directory, a directory symlink, a different owner, or group or other write permission.
 CNS does not create the directory or change its permissions.
+`/var/run` is a tmpfs, so the directory must be provisioned again after every node boot, before CNS starts.
+The `dropgz secure-dir /var/run/azure-cns` command creates the directory if needed and sets it to root-owned with mode `0700`.
+It refuses symlinks and non-directories, and it is idempotent, so it can run as an init container on every pod start.
 CNS rejects existing files, symlinks, directories, and active sockets at the socket path.
 CNS replaces a stale socket only when the connection attempt returns `ECONNREFUSED`.
 
