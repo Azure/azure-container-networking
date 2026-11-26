@@ -1,6 +1,7 @@
 package network
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"strings"
@@ -29,6 +30,15 @@ const (
 	DisableRPFilterCmd    = "sysctl -w net.ipv4.conf.all.rp_filter=0" // Command to disable the rp filter for tunneling
 	numRetries            = 5
 	sleepInMs             = 100
+
+	// Azure Load Balancer sends IPv6 health probes from the virtual gateway's link-local address. The vnet
+	// namespace routes them to the container veth, but the kernel never forwards packets with a link-local
+	// source (RFC 4291 section 2.5.6), so they are dropped and the backend is marked down. The vnet namespace
+	// therefore swaps that source for a routable placeholder on ingress and restores it on egress.
+	lbProbeV6SourceIP = "fe80::1234:5678:9abc"
+	// lbProbeV6PlaceholderIP is from the RFC 6666 discard-only prefix, so it can't collide with a VNet address.
+	lbProbeV6PlaceholderIP = "100::1"
+	lbProbeV6NftTable      = "ip6 azure_lb_probe_v6"
 )
 
 var errNamespaceCreation = fmt.Errorf("network namespace creation error")
@@ -480,8 +490,49 @@ func (client *TransparentVlanEndpointClient) AddVnetRules(epInfo *EndpointInfo) 
 		if err := client.addVnetMangleAndTunnelingRules(iptables.V6, vishnetlink.FAMILY_V6); err != nil {
 			return err
 		}
+		if err := client.addLBProbeV6SourceRewrite(); err != nil {
+			return err
+		}
 	}
 
+	return nil
+}
+
+// lbProbeV6SourceRewriteRuleset returns an nft script that atomically (re)creates a table in the vnet namespace which
+// rewrites the IPv6 load balancer probe source to a routable placeholder on ingress from the vlan interface, and
+// restores it on egress. The rewrite is stateless, so probe flows are kept out of conntrack. nft parses its arguments
+// as one script, so the ruleset is passed as a single argument without a shell.
+//
+// Example of the resulting nftables ruleset for vlan interface eth0_1:
+//
+//	table ip6 azure_lb_probe_v6 {
+//	    chain prerouting {
+//	        type filter hook prerouting priority -300; policy accept;
+//	        iifname "eth0_1" ip6 saddr fe80::1234:5678:9abc ip6 saddr set 100::1 notrack
+//	        ip6 daddr 100::1 notrack
+//	    }
+//
+//	    chain postrouting {
+//	        type filter hook postrouting priority 300; policy accept;
+//	        oifname "eth0_1" ip6 daddr 100::1 ip6 daddr set fe80::1234:5678:9abc
+//	    }
+//	}
+func lbProbeV6SourceRewriteRuleset(vlanIfName string) string {
+	return fmt.Sprintf("add table %[1]s; delete table %[1]s; table %[1]s { "+
+		"chain prerouting { type filter hook prerouting priority -300; policy accept; "+
+		"iifname \"%[2]s\" ip6 saddr %[3]s ip6 saddr set %[4]s notrack; ip6 daddr %[4]s notrack; }; "+
+		"chain postrouting { type filter hook postrouting priority 300; policy accept; "+
+		"oifname \"%[2]s\" ip6 daddr %[4]s ip6 daddr set %[3]s; }; }",
+		lbProbeV6NftTable, vlanIfName, lbProbeV6SourceIP, lbProbeV6PlaceholderIP)
+}
+
+// addLBProbeV6SourceRewrite lets Azure Load Balancer IPv6 health probes reach the container. A failure is returned
+// rather than logged: without the rewrite the IPv6 backend is silently probed down, which is hard to trace back to
+// the CNI. Namespace: vnet
+func (client *TransparentVlanEndpointClient) addLBProbeV6SourceRewrite() error {
+	if _, err := client.plClient.ExecuteCommand(context.TODO(), "nft", lbProbeV6SourceRewriteRuleset(client.vlanIfName)); err != nil {
+		return errors.Wrapf(err, "failed to add IPv6 load balancer probe source rewrite on %s", client.vlanIfName)
+	}
 	return nil
 }
 

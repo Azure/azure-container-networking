@@ -6,10 +6,10 @@ toolchain go1.26.9
 
 require (
 	github.com/google/uuid v1.6.0
-	github.com/openai/openai-go/v3 v3.88.0
+	github.com/openai/openai-go/v3 v3.91.0
 	go.uber.org/zap v1.28.0
 	gopkg.in/yaml.v3 v3.0.1
-	modernc.org/sqlite v1.61.0
+	modernc.org/sqlite v1.61.1
 )
 
 require (

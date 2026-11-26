@@ -1,17 +1,22 @@
 package v2
 
 import (
+	"bytes"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	acncommon "github.com/Azure/azure-container-networking/common"
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/require"
 )
 
 // TestStartServices will test three scenarios:
@@ -97,4 +102,31 @@ func startService(cnsPort, cnsURL string) error {
 	service.Stop()
 
 	return nil
+}
+
+func TestServerOmitsTCPIPAMRoutesWhenUnixSocketEnabled(t *testing.T) {
+	if logger.Log == nil {
+		log, err := logger.New("testlogs", 0, 0, t.TempDir()+"/") //nolint:staticcheck // existing handlers require the global logger
+		require.NoError(t, err)
+		logger.Log = log
+	}
+	config := common.ServiceConfig{IPAMSocket: true}
+	service, err := restserver.NewHTTPRestService(&config, &fakes.WireserverClientFake{}, nil, nil, nil, nil, nil, nil, nil)
+	require.NoError(t, err)
+	service.SetOption(acncommon.OptCnsURL, "tcp://127.0.0.1:0")
+	service.SetOption(acncommon.OptCnsPort, "")
+	require.NoError(t, service.Init(&config))
+
+	server := httptest.NewServer(New(service).newEcho())
+	t.Cleanup(server.Close)
+	for _, route := range []string{cns.RequestIPConfig, cns.RequestIPConfigs, cns.ReleaseIPConfig, cns.ReleaseIPConfigs} {
+		t.Run(route, func(t *testing.T) {
+			req, requestErr := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL+route, bytes.NewBufferString("{}"))
+			require.NoError(t, requestErr)
+			response, responseErr := server.Client().Do(req)
+			require.NoError(t, responseErr)
+			require.NoError(t, response.Body.Close())
+			require.Equal(t, http.StatusNotFound, response.StatusCode)
+		})
+	}
 }

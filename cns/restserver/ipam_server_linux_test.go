@@ -5,6 +5,7 @@ package restserver
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -25,20 +26,27 @@ import (
 
 func TestListenIPAMSocket(t *testing.T) {
 	requireRootSocketTests(t)
-	t.Run("creates socket with mode 0600", func(t *testing.T) {
-		socketPath := filepath.Join(socketTestDirectory(t), "cns.sock")
+	for _, mode := range []os.FileMode{0o700, 0o750, 0o755} {
+		t.Run(fmt.Sprintf("directory mode %04o", mode), func(t *testing.T) {
+			directory := socketTestDirectory(t)
+			require.NoError(t, os.Chmod(directory, mode))
+			socketPath := filepath.Join(directory, "cns.sock")
 
-		listener, err := listenIPAMSocket(socketPath)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = listener.Close()
+			listener, err := listenIPAMSocket(socketPath)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_ = listener.Close()
+			})
+
+			socketInfo, err := os.Lstat(socketPath)
+			require.NoError(t, err)
+			require.NotZero(t, socketInfo.Mode()&os.ModeSocket)
+			require.Equal(t, os.FileMode(ipamSocketMode), socketInfo.Mode().Perm())
+			directoryInfo, err := os.Lstat(directory)
+			require.NoError(t, err)
+			require.Equal(t, mode, directoryInfo.Mode().Perm())
 		})
-
-		socketInfo, err := os.Lstat(socketPath)
-		require.NoError(t, err)
-		require.NotZero(t, socketInfo.Mode()&os.ModeSocket)
-		require.Equal(t, os.FileMode(ipamSocketMode), socketInfo.Mode().Perm())
-	})
+	}
 
 	t.Run("replaces old socket", func(t *testing.T) {
 		socketPath := filepath.Join(socketTestDirectory(t), "cns.sock")
@@ -103,15 +111,17 @@ func TestListenIPAMSocketRejectsUnsafeDirectory(t *testing.T) {
 		_, err := listenIPAMSocket(filepath.Join(directory, "cns.sock"))
 		require.ErrorIs(t, err, errIPAMSocketDirectory)
 	})
-	t.Run("permissions", func(t *testing.T) {
-		directory := socketTestDirectory(t)
-		require.NoError(t, os.Chmod(directory, 0o755))
-		_, err := listenIPAMSocket(filepath.Join(directory, "cns.sock"))
-		require.ErrorIs(t, err, errIPAMSocketDirectory)
-		info, err := os.Lstat(directory)
-		require.NoError(t, err)
-		require.Equal(t, os.FileMode(0o755), info.Mode().Perm())
-	})
+	for _, mode := range []os.FileMode{0o720, 0o702, 0o775, 0o777} {
+		t.Run(fmt.Sprintf("directory mode %04o", mode), func(t *testing.T) {
+			directory := socketTestDirectory(t)
+			require.NoError(t, os.Chmod(directory, mode))
+			_, err := listenIPAMSocket(filepath.Join(directory, "cns.sock"))
+			require.ErrorIs(t, err, errIPAMSocketDirectory)
+			info, err := os.Lstat(directory)
+			require.NoError(t, err)
+			require.Equal(t, mode, info.Mode().Perm())
+		})
+	}
 	t.Run("owner", func(t *testing.T) {
 		directory := socketTestDirectory(t)
 		require.NoError(t, os.Chown(directory, 1, 1))
@@ -212,6 +222,39 @@ func TestTCPIPAMRequestMetrics(t *testing.T) {
 			require.InDelta(t, before+1, testutil.ToFloat64(counter), 0)
 		})
 	}
+}
+
+func TestTCPIPAMRoutesDisabledWhenUnixSocketEnabled(t *testing.T) {
+	initSocketTestLogger(t)
+	config := &common.ServiceConfig{IPAMSocket: true}
+	service, err := NewHTTPRestService(config, &fakes.WireserverClientFake{}, nil, nil, nil, nil, nil, nil, nil)
+	require.NoError(t, err)
+	service.SetOption(acn.OptCnsURL, "tcp://127.0.0.1:0")
+	service.SetOption(acn.OptCnsPort, "")
+	require.NoError(t, service.Init(config))
+
+	server := httptest.NewServer(service.Listener.GetMux())
+	t.Cleanup(server.Close)
+	for _, route := range []string{cns.RequestIPConfig, cns.RequestIPConfigs, cns.ReleaseIPConfig, cns.ReleaseIPConfigs} {
+		t.Run(route, func(t *testing.T) {
+			counter := ipamRequests.WithLabelValues(route, "tcp")
+			before := testutil.ToFloat64(counter)
+			req, requestErr := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL+route, bytes.NewBufferString("{}"))
+			require.NoError(t, requestErr)
+			response, responseErr := server.Client().Do(req)
+			require.NoError(t, responseErr)
+			require.NoError(t, response.Body.Close())
+			require.Equal(t, http.StatusNotFound, response.StatusCode)
+			require.InDelta(t, before, testutil.ToFloat64(counter), 0)
+		})
+	}
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL+cns.PathDebugIPAddresses, bytes.NewBufferString("{"))
+	require.NoError(t, err)
+	response, err := server.Client().Do(req)
+	require.NoError(t, err)
+	require.NoError(t, response.Body.Close())
+	require.NotEqual(t, http.StatusNotFound, response.StatusCode)
 }
 
 func initSocketTestLogger(t *testing.T) {

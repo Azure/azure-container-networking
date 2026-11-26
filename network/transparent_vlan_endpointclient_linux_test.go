@@ -1390,3 +1390,67 @@ func TestRunWithRetries(t *testing.T) {
 		})
 	}
 }
+
+func TestAddVnetRulesLBProbeV6SourceRewrite(t *testing.T) {
+	newClient := func(plc *platform.MockExecClient) *TransparentVlanEndpointClient {
+		return &TransparentVlanEndpointClient{
+			vlanIfName:     "eth0_1",
+			iptablesClient: &mockIPTablesClient{},
+			nlRuleClient:   &mockNetlinkRuleClient{},
+			plClient:       plc,
+			netUtilsClient: networkutils.NewNetworkUtils(netlink.NewMockNetlink(false, ""), plc),
+		}
+	}
+	type nftCall struct {
+		cmd  string
+		args []string
+	}
+	recordNftCalls := func(plc *platform.MockExecClient, nftErr error) *[]nftCall {
+		calls := &[]nftCall{}
+		plc.SetExecCommand(func(cmd string, args ...string) (string, error) {
+			if cmd == "nft" {
+				*calls = append(*calls, nftCall{cmd: cmd, args: args})
+				return "", nftErr
+			}
+			return "", nil
+		})
+		plc.SetExecRawCommand(func(cmd string) (string, error) {
+			require.NotContains(t, cmd, "nft", "nft must not run through a shell")
+			return "", nil
+		})
+		return calls
+	}
+
+	t.Run("adds the rewrite when IPv6 is enabled", func(t *testing.T) {
+		plc := platform.NewMockExecClient(false)
+		calls := recordNftCalls(plc, nil)
+
+		err := newClient(plc).AddVnetRules(&EndpointInfo{IsIPv6Enabled: true})
+		require.NoError(t, err)
+		want := "add table ip6 azure_lb_probe_v6; delete table ip6 azure_lb_probe_v6; table ip6 azure_lb_probe_v6 { " +
+			"chain prerouting { type filter hook prerouting priority -300; policy accept; " +
+			`iifname "eth0_1" ip6 saddr fe80::1234:5678:9abc ip6 saddr set 100::1 notrack; ip6 daddr 100::1 notrack; }; ` +
+			"chain postrouting { type filter hook postrouting priority 300; policy accept; " +
+			`oifname "eth0_1" ip6 daddr 100::1 ip6 daddr set fe80::1234:5678:9abc; }; }`
+		require.Equal(t, []nftCall{{cmd: "nft", args: []string{want}}}, *calls)
+	})
+
+	t.Run("skips the rewrite when IPv6 is disabled", func(t *testing.T) {
+		plc := platform.NewMockExecClient(false)
+		calls := recordNftCalls(plc, nil)
+
+		err := newClient(plc).AddVnetRules(&EndpointInfo{IsIPv6Enabled: false})
+		require.NoError(t, err)
+		require.Empty(t, *calls)
+	})
+
+	t.Run("fails the endpoint when nft fails", func(t *testing.T) {
+		plc := platform.NewMockExecClient(false)
+		calls := recordNftCalls(plc, errors.New("nft: command not found"))
+
+		err := newClient(plc).AddVnetRules(&EndpointInfo{IsIPv6Enabled: true})
+		require.ErrorContains(t, err, "failed to add IPv6 load balancer probe source rewrite on eth0_1")
+		require.ErrorContains(t, err, "nft: command not found")
+		require.Len(t, *calls, 1)
+	})
+}

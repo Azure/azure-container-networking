@@ -452,7 +452,6 @@ func (service *HTTPRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 
 	service.Lock()
 
-	service.dncPartitionKey = req.DncPartitionKey
 	nodeID = service.state.NodeID
 
 	if nodeID == "" || nodeID == req.NodeID || !service.areNCsPresent() {
@@ -460,7 +459,8 @@ func (service *HTTPRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 		case cns.ServiceFabric, cns.Kubernetes, cns.KubernetesCRD, cns.WebApps, cns.Batch, cns.DBforPostgreSQL, cns.AzureFirstParty:
 			service.state.OrchestratorType = req.OrchestratorType
 			service.state.NodeID = req.NodeID
-			logger.SetContextDetails(req.OrchestratorType, req.NodeID)
+			service.state.DncPartitionKey = req.DncPartitionKey
+			logger.SetContextDetails(req.OrchestratorType, req.NodeID, req.DncPartitionKey) //nolint:staticcheck // updating to logger v2 is outside scope of current refactor
 			service.saveState()
 		default:
 			returnMessage = fmt.Sprintf("Invalid Orchestrator type %v", req.OrchestratorType)
@@ -636,7 +636,7 @@ func (service *HTTPRestService) GetAllNetworkContainers(w http.ResponseWriter, r
 		return
 	}
 
-	getAllNetworkContainerResponses := service.getAllNetworkContainerResponses(req) // nolint
+	getAllNetworkContainerResponses := service.getAllNetworkContainerResponsesWithRetry(req) // nolint
 
 	var resp cns.GetAllNetworkContainersResponse
 
@@ -677,7 +677,7 @@ func (service *HTTPRestService) GetNetworkContainerByOrchestratorContext(w http.
 		return
 	}
 
-	getNetworkContainerResponses := service.getAllNetworkContainerResponses(req) // nolint
+	getNetworkContainerResponses := service.getAllNetworkContainerResponsesWithRetry(req) // nolint
 	err = common.Encode(w, &getNetworkContainerResponses[0])
 	logger.Response(service.Name, getNetworkContainerResponses[0], getNetworkContainerResponses[0].Response.ReturnCode, err)
 }

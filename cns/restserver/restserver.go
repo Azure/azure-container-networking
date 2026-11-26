@@ -111,7 +111,6 @@ type HTTPRestService struct {
 	state                    *httpRestServiceState
 	podsPendingIPAssignment  *bounded.TimedSet
 	sync.RWMutex
-	dncPartitionKey            string
 	EndpointState              map[string]*EndpointInfo // key : container id
 	EndpointStateStore         store.KeyValueStore
 	EndpointDeleteIntents      map[string]EndpointDeleteIntent // key : container id
@@ -122,10 +121,14 @@ type HTTPRestService struct {
 	imdsClient                 imdsClient
 	nodesubnetIPFetcher        *nodesubnet.IPFetcher
 	ipamServer                 *ipamServer
+	ipamSocket                 bool
 	nicncClient                nicncClient
 	mtpncClient                mtpncClient
 	nodeinfoClient             nodeinfoClient
 	nodeName                   string
+	// last NMAgent NC version list, reused by VFP pending retries. Guarded by the service lock.
+	ncVersionList   nma.NCVersionList
+	ncVersionListAt time.Time
 }
 
 type CNIConflistGenerator interface {
@@ -201,6 +204,7 @@ type httpRestServiceState struct {
 	Location                         string
 	NetworkType                      string
 	OrchestratorType                 string
+	DncPartitionKey                  string
 	NodeID                           string
 	Initialized                      bool
 	ContainerIDByOrchestratorContext map[string]*ncList         // OrchestratorContext is the key and value is a list of NetworkContainerIDs separated by comma
@@ -289,6 +293,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 		logger.Errorf("[Azure CNS]  Failed to initialize base service, err:%v.", err)
 		return err
 	}
+	service.ipamSocket = config.IPAMSocket
 
 	if err = service.restoreState(); err != nil {
 		return fmt.Errorf("restoring state: %w", err)
@@ -321,10 +326,12 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.DeleteHostNCApipaEndpointPath, service.DeleteHostNCApipaEndpoint)
 	listener.AddHandler(cns.PublishNetworkContainer, service.publishNetworkContainer)
 	listener.AddHandler(cns.UnpublishNetworkContainer, service.unpublishNetworkContainer)
-	listener.AddHandler(cns.RequestIPConfig, NewIPAMHandler(service.RequestIPConfigHandler, "tcp"))
-	listener.AddHandler(cns.RequestIPConfigs, NewIPAMHandler(service.RequestIPConfigsHandler, "tcp"))
-	listener.AddHandler(cns.ReleaseIPConfig, NewIPAMHandler(service.ReleaseIPConfigHandler, "tcp"))
-	listener.AddHandler(cns.ReleaseIPConfigs, NewIPAMHandler(service.ReleaseIPConfigsHandler, "tcp"))
+	if !config.IPAMSocket {
+		listener.AddHandler(cns.RequestIPConfig, NewIPAMHandler(service.RequestIPConfigHandler, "tcp"))
+		listener.AddHandler(cns.RequestIPConfigs, NewIPAMHandler(service.RequestIPConfigsHandler, "tcp"))
+		listener.AddHandler(cns.ReleaseIPConfig, NewIPAMHandler(service.ReleaseIPConfigHandler, "tcp"))
+		listener.AddHandler(cns.ReleaseIPConfigs, NewIPAMHandler(service.ReleaseIPConfigsHandler, "tcp"))
+	}
 	listener.AddHandler(cns.NmAgentSupportedApisPath, service.nmAgentSupportedApisHandler)
 	listener.AddHandler(cns.PathDebugIPAddresses, service.HandleDebugIPAddresses)
 	listener.AddHandler(cns.PathDebugPodContext, service.HandleDebugPodContext)
@@ -374,7 +381,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	responseHeaderTimeout, _ := service.GetOption(acn.OptHttpResponseHeaderTimeout).(int)
 	acn.InitHttpClient(connectionTimeout, responseHeaderTimeout)
 
-	logger.SetContextDetails(service.state.OrchestratorType, service.state.NodeID)
+	logger.SetContextDetails(service.state.OrchestratorType, service.state.NodeID, service.state.DncPartitionKey) //nolint:staticcheck // updating to logger v2 is outside scope of current refactor
 	logger.Printf("[Azure CNS]  Listening.")
 
 	return nil
@@ -415,6 +422,11 @@ func (service *HTTPRestService) Start(config *common.ServiceConfig) error {
 	}
 
 	return nil
+}
+
+// IPAMSocketEnabled reports whether the Unix socket listener serves IPAM routes.
+func (service *HTTPRestService) IPAMSocketEnabled() bool {
+	return service.ipamSocket
 }
 
 // Stop stops the CNS.

@@ -142,7 +142,7 @@ extends:
 
                   BUILD_NUMBER=$(Build.BuildNumber)
                   echo "##vso[task.setvariable variable=StorageID;isOutput=true]$(echo ${BUILD_NUMBER//./-})"
-                  echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(date "+%d%H%M"))"
+                  echo "##vso[task.setvariable variable=commitID;isOutput=true]$(make revision)-$(Build.BuildId)"
                   echo "##vso[task.setvariable variable=Tag;isOutput=true]$(make version)"
                   echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
                   echo "##vso[task.setvariable variable=imageRepositoryPath;isOutput=true]acnpublic.azurecr.io"
@@ -578,7 +578,7 @@ extends:
             displayName: Cil Podsubnet Vnet Scale Ubuntu
             os: linux
             clusterType: vnetscale-swift-byocni-nokubeproxy-up
-            clusterName: "ciliumvscalee2e"
+            clusterName: "cilvscalee2e"
             vmSize: Standard_B2ms
             k8sVersion: ""
             dependsOn: ["test"]
@@ -604,7 +604,7 @@ extends:
             name: "cilium_nodesubnet_e2e"
             displayName: Cil NodeSubnet
             clusterType: nodesubnet-byocni-nokubeproxy-up
-            clusterName: "cilndsubnete2e"
+            clusterName: "cilnsube2e"
             vmSize: Standard_B2s
             dependsOn: ["test"]
 
@@ -643,7 +643,7 @@ extends:
             name: "cilium_ebpf_overlay_e2e"
             displayName: Cil EBPF on AKS Overlay Azure Linux
             clusterType: overlay-byocni-nokubeproxy-up
-            clusterName: "cilbpfovere2e"
+            clusterName: "cilbpfovre2e"
             vmSize: Standard_B2ms
             k8sVersion: ""
             dependsOn: ["test"]
@@ -670,7 +670,7 @@ extends:
             name: "cilium_h_overlay_e2e"
             displayName: Cil on AKS Overlay with Hubble
             clusterType: overlay-byocni-nokubeproxy-up
-            clusterName: "cilwhleovere2e"
+            clusterName: "cilhovere2e"
             vmSize: Standard_B2ms
             k8sVersion: ""
             dependsOn: ["test"]
@@ -685,7 +685,7 @@ extends:
             displayName: Azure Overlay Linux
             os: linux
             clusterType: overlay-byocni-up
-            clusterName: "linuxazovere2e"
+            clusterName: "lnxazovere2e"
             vmSize: Standard_B2ms
             k8sVersion: ""
             dependsOn: ["test"]
@@ -743,7 +743,7 @@ extends:
             displayName: AKS Swift Vnet Scale Ubuntu
             os: linux
             clusterType: vnetscale-swift-byocni-up
-            clusterName: "vscaleswifte2e"
+            clusterName: "vsclswifte2e"
             vmSize: Standard_B2ms
             dependsOn: ["test"]
 
@@ -787,7 +787,7 @@ extends:
             displayName: AKS DualStack Overlay Linux
             os: linux
             clusterType: dualstack-overlay-byocni-up
-            clusterName: "linuxdsovere2e"
+            clusterName: "lnxdsovere2e"
             vmSize: Standard_B2ms
             dependsOn: ["test"]
             scaleup: 100
@@ -857,21 +857,21 @@ extends:
                       # Cilium clusters
                       - cilbpfdse2e
                       - ciliume2e
-                      - ciliumvscalee2e
+                      - cilvscalee2e
                       - cilbpfpode2e
-                      - cilndsubnete2e
+                      - cilnsube2e
                       - cilovere2e
-                      - cilbpfovere2e
+                      - cilbpfovre2e
                       - cildsovere2e
-                      - cilwhleovere2e
+                      - cilhovere2e
                       # Windows clusters
                       - winazovere2e
                       - statelesswin
                       - win22e2e
                       - windsovere2e
                       # Linux clusters
-                      - linuxazovere2e
+                      - lnxazovere2e
                       - swifte2e
-                      - vscaleswifte2e
+                      - vsclswifte2e
                       - ubuntu22e2e
-                      - linuxdsovere2e
+                      - lnxdsovere2e

@@ -568,6 +568,12 @@ func main() {
 	}
 	configuration.SetCNSConfigDefaults(cnsconfig)
 	config.DisableHTTPListener = cnsconfig.DisableHTTPListener
+	cnsconfig.EnableIPAMUnixSocket, err = configuration.IPAMUnixSocketEnabled(cnsconfig.EnableIPAMUnixSocket)
+	if err != nil {
+		//nolint:staticcheck // the structured logger is initialized after configuration.
+		logger.Errorf("fatal: failed to read IPAM Unix socket setting: %v", err)
+		os.Exit(1)
+	}
 	config.IPAMSocket = cnsconfig.EnableIPAMUnixSocket
 
 	disableTelemetry := cnsconfig.TelemetrySettings.DisableAll
@@ -620,19 +626,24 @@ func main() {
 			scenarioString = cniConflistScenarioArg
 		}
 
+		cnsSocketPath := ""
+		if cnsconfig.EnableIPAMUnixSocket {
+			cnsSocketPath = restserver.IPAMUnixSocketPath
+		}
+
 		switch scenario := cniConflistScenario(scenarioString); scenario {
 		case scenarioV4Overlay:
-			conflistGenerator = &cniconflist.V4OverlayGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.V4OverlayGenerator{Writer: writer, CNSSocketPath: cnsSocketPath}
 		case scenarioDualStackOverlay:
-			conflistGenerator = &cniconflist.DualStackOverlayGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.DualStackOverlayGenerator{Writer: writer, CNSSocketPath: cnsSocketPath}
 		case scenarioOverlay:
-			conflistGenerator = &cniconflist.OverlayGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.OverlayGenerator{Writer: writer, CNSSocketPath: cnsSocketPath}
 		case scenarioCilium:
-			conflistGenerator = &cniconflist.CiliumGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.CiliumGenerator{Writer: writer, CNSSocketPath: cnsSocketPath}
 		case scenarioSWIFT:
-			conflistGenerator = &cniconflist.SWIFTGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.SWIFTGenerator{Writer: writer, CNSSocketPath: cnsSocketPath}
 		case scenarioAzurecniChainedCilium:
-			conflistGenerator = &cniconflist.AzureCNIChainedCiliumGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.AzureCNIChainedCiliumGenerator{Writer: writer, CNSSocketPath: cnsSocketPath}
 		default:
 			logger.Errorf("unable to generate cni conflist for unknown scenario: %s", scenario)
 			os.Exit(1)
@@ -809,6 +820,7 @@ func main() {
 	httpRemoteRestService.SetOption(acn.OptProgramSNATIPTables, cnsconfig.ProgramSNATIPTables)
 	httpRemoteRestService.SetOption(acn.OptManageEndpointState, cnsconfig.ManageEndpointState)
 	httpRemoteRestService.SetOption(acn.OptEnableStaleHNSCleanupOnNCCreate, cnsconfig.EnableStaleHNSCleanupOnNCCreate)
+	httpRemoteRestService.SetOption(acn.OptVFPPendingRetryTimeoutMs, cnsconfig.VFPPendingRetryTimeoutMs)
 
 	// Create default ext network if commandline option is set
 	if len(strings.TrimSpace(createDefaultExtNetworkType)) > 0 {
@@ -1078,7 +1090,11 @@ func main() {
 		// Start fs watcher here
 		z.Info("AsyncPodDelete is enabled")
 		logger.Printf("AsyncPodDelete is enabled")
-		cnsclient, err := cnsclient.New("", cnsReqTimeout) // nolint
+		asyncDeleteSocketPath := ""
+		if cnsconfig.EnableIPAMUnixSocket {
+			asyncDeleteSocketPath = restserver.IPAMUnixSocketPath
+		}
+		cnsclient, err := cnsclient.NewWithUnixSocket("", asyncDeleteSocketPath, cnsReqTimeout) // nolint
 		if err != nil {
 			z.Error("failed to create cnsclient", zap.Error(err))
 		}
@@ -1565,7 +1581,10 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 
 	// get CNS Node IP to compare NC Node IP with this Node IP to ensure NCs were created for this node
 	nodeIP := configuration.NodeIP()
-	nncReconciler := nncctrl.NewReconciler(httpRestServiceImplementation, initializerWrapper, poolMonitor, nodeIP, cnsconfig.EnableSwiftV2, cnsconfig.IPv6PrefixClamp)
+	nncReconciler := nncctrl.NewReconciler(
+		httpRestServiceImplementation, initializerWrapper, poolMonitor, nodeIP,
+		cnsconfig.EnableSwiftV2, cnsconfig.IPv6PrefixClamp, cnsconfig.EnableOverlayBlackholeRoutes,
+	)
 	// pass Node to the Reconciler for Controller xref
 	// IPAMv1 - reconcile only status changes (where generation doesn't change).
 	// IPAMv2 - reconcile all updates.

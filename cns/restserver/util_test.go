@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -103,9 +104,10 @@ func TestGetAllNetworkContainerResponsesNMAgentVersionList(t *testing.T) {
 				},
 			}
 
-			responses := service.getAllNetworkContainerResponses(cns.GetNetworkContainerRequest{
+			responses, err := service.getAllNetworkContainerResponses(cns.GetNetworkContainerRequest{
 				OrchestratorContext: orchestratorContext,
-			})
+			}, 0)
+			require.ErrorIs(t, err, tt.nmaErr)
 
 			require.Equal(t, []cns.GetNetworkContainerResponse{{
 				NetworkContainerID: ncID,
@@ -117,6 +119,84 @@ func TestGetAllNetworkContainerResponsesNMAgentVersionList(t *testing.T) {
 			assert.Equal(t, tt.vfpUpdateComplete, service.state.ContainerStatus[ncID].VfpUpdateComplete)
 		})
 	}
+}
+
+func TestGetAllNetworkContainerResponsesSharesRefresh(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		service := &HTTPRestService{
+			store: store.NewMockStore(""),
+			state: &httpRestServiceState{
+				OrchestratorType:                 cns.Kubernetes,
+				ContainerIDByOrchestratorContext: map[string]*ncList{},
+				ContainerStatus:                  map[string]containerstatus{},
+			},
+		}
+		ncIDs := []string{ncResponsePrimaryID, ncResponseSecondaryID}
+		requests := make([]cns.GetNetworkContainerRequest, len(ncIDs))
+		for i, ncID := range ncIDs {
+			pod := cns.KubernetesPodInfo{PodName: ncID, PodNamespace: ncResponseNamespace}
+			contextJSON, err := json.Marshal(pod)
+			require.NoError(t, err)
+			requests[i].OrchestratorContext = contextJSON
+			ncs := ncList(ncID)
+			service.state.ContainerIDByOrchestratorContext[pod.PodName+pod.PodNamespace] = &ncs
+			service.state.ContainerStatus[ncID] = containerstatus{
+				CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
+					NetworkContainerid:  ncID,
+					Version:             "1",
+					OrchestratorContext: contextJSON,
+				},
+			}
+		}
+
+		calls := 0
+		service.nma = &fakes.NMAgentClientFake{
+			GetNCVersionListF: func(context.Context) (nmagent.NCVersionList, error) {
+				calls++
+				if calls <= len(requests) {
+					return nmagent.NCVersionList{}, nil
+				}
+				return nmagent.NCVersionList{Containers: []nmagent.NCVersion{
+					{NetworkContainerID: ncIDs[0], Version: "1"},
+					{NetworkContainerID: ncIDs[1], Version: "0"},
+				}}, nil
+			},
+		}
+		for _, req := range requests {
+			responses, err := service.getAllNetworkContainerResponses(req, 0)
+			require.NoError(t, err)
+			require.Len(t, responses, 1)
+			require.Equal(t, types.NetworkContainerVfpProgramPending, responses[0].Response.ReturnCode)
+		}
+		require.Equal(t, len(requests), calls, "first checks must bypass the cache")
+		service.ncVersionListAt = time.Now().Add(-vfpPendingRetryInterval)
+
+		type result struct {
+			responses []cns.GetNetworkContainerResponse
+			err       error
+		}
+		results := make([]result, len(requests))
+		for i, req := range requests {
+			go func() {
+				responses, err := service.getAllNetworkContainerResponses(req, vfpPendingRetryInterval)
+				results[i] = result{responses: responses, err: err}
+			}()
+		}
+		// The clock stays frozen until both callers finish, so the cache can't expire between them.
+		synctest.Wait()
+
+		wantCodes := []types.ResponseCode{types.Success, types.NetworkContainerVfpProgramPending}
+		for i, got := range results {
+			require.NoError(t, got.err)
+			require.Len(t, got.responses, 1)
+			response := got.responses[0]
+			assert.Equal(t, ncIDs[i], response.NetworkContainerID)
+			assert.Equal(t, wantCodes[i], response.Response.ReturnCode)
+		}
+		assert.Equal(t, len(requests)+1, calls, "pending callers must share one successful refresh")
+		assert.True(t, service.state.ContainerStatus[ncIDs[0]].VfpUpdateComplete)
+		assert.False(t, service.state.ContainerStatus[ncIDs[1]].VfpUpdateComplete)
+	})
 }
 
 func TestUpdateNCVFPStatusUntransactedMatchesMaster(t *testing.T) {
@@ -421,6 +501,25 @@ func TestRestoreState(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRestoreStateWithoutDncPartitionKey(t *testing.T) {
+	const nodeName = "node1"
+
+	mainStore := store.NewMockStore("")
+	require.NoError(t, mainStore.Write(storeKey, map[string]string{
+		"OrchestratorType": cns.ServiceFabric,
+		"NodeID":           nodeName,
+	}))
+	s := &HTTPRestService{
+		Service: &cns.Service{Service: &common.Service{}},
+		store:   mainStore,
+		state:   &httpRestServiceState{},
+	}
+	require.NoError(t, s.restoreState())
+	assert.Empty(t, s.state.DncPartitionKey)
+	assert.Equal(t, cns.ServiceFabric, s.state.OrchestratorType)
+	assert.Equal(t, nodeName, s.state.NodeID)
 }
 
 func TestRestoreStateFailsClosedWhenEndpointStateCannotBeRead(t *testing.T) {

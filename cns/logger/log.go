@@ -12,7 +12,7 @@ type loggershim interface {
 	InitAI(aitelemetry.AIConfig, bool, bool, bool)
 	InitAIWithIKey(aitelemetry.AIConfig, string, bool, bool, bool)
 	InitAIWithConnectionString(aitelemetry.AIConfig, string, bool, bool, bool)
-	SetContextDetails(string, string)
+	SetContextDetails(string, string, string)
 	SetAPIServer(string)
 	Printf(string, ...any)
 	Debugf(string, ...any)
@@ -64,8 +64,8 @@ func InitAIWithConnectionString(aiConfig aitelemetry.AIConfig, connectionString 
 }
 
 // Deprecated: The global logger is deprecated. Migrate to zap using the cns/logger/v2 package and pass the logger instead.
-func SetContextDetails(orchestrator, nodeID string) {
-	Log.SetContextDetails(orchestrator, nodeID)
+func SetContextDetails(orchestrator, nodeID, dncPartitionKey string) {
+	Log.SetContextDetails(orchestrator, nodeID, dncPartitionKey)
 }
 
 // Deprecated: The global logger is deprecated. Migrate to zap using the cns/logger/v2 package and pass the logger instead.

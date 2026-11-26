@@ -53,6 +53,17 @@ func NewPlugin(logger *zap.Logger, c cnsClient, out io.Writer) (*IPAMPlugin, err
 	return plugin, nil
 }
 
+func (p *IPAMPlugin) getCNSClient(socketPath string) (cnsClient, error) {
+	if socketPath == "" {
+		return p.cnsClient, nil
+	}
+	client, err := cnscli.NewWithUnixSocket(cnsBaseURL, socketPath, cnsReqTimeout)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to initialize CNS client")
+	}
+	return client, nil
+}
+
 //
 // CNI implementation
 // https://github.com/containernetworking/cni/blob/master/SPEC.md
@@ -70,6 +81,12 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 	}
 	p.logger.Debug("Parsed network config", zap.Any("netconf", nwCfg))
 
+	cnsClient, err := p.getCNSClient(nwCfg.CNSSocketPath)
+	if err != nil {
+		p.logger.Error("Failed to initialize CNS client", zap.Error(err))
+		return cniTypes.NewError(cniTypes.ErrInvalidNetworkConfig, err.Error(), "failed to initialize CNS client")
+	}
+
 	// Create ip config request from args
 	req, err := ipconfig.CreateIPConfigsReq(args)
 	if err != nil {
@@ -81,7 +98,7 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 	p.logger.Debug("Making request to CNS")
 	// if this fails, the caller plugin should execute again with cmdDel before returning error.
 	// https://www.cni.dev/docs/spec/#delegated-plugin-execution-procedure
-	resp, err := p.cnsClient.RequestIPs(context.TODO(), req)
+	resp, err := cnsClient.RequestIPs(context.TODO(), req)
 	if err != nil {
 		if cnscli.IsUnsupportedAPI(err) {
 			p.logger.Error("Failed to request IPs using RequestIPs from CNS, going to try RequestIPAddress", zap.Error(err), zap.Any("request", req))
@@ -93,7 +110,7 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 			p.logger.Debug("Created CNS IP config request", zap.Any("request", ipconfigReq))
 
 			p.logger.Debug("Making request to CNS")
-			res, err := p.cnsClient.RequestIPAddress(context.TODO(), ipconfigReq)
+			res, err := cnsClient.RequestIPAddress(context.TODO(), ipconfigReq)
 
 			// if the old API fails as well then we just return the error
 			if err != nil {
@@ -187,6 +204,19 @@ func (p *IPAMPlugin) CmdDel(args *cniSkel.CmdArgs) error {
 	var connectionErr *cnscli.ConnectionFailureErr
 	p.logger.Info("DEL called", zap.Any("args", args))
 
+	nwCfg, err := parseNetConf(args.StdinData)
+	if err != nil {
+		p.logger.Error("Failed to parse CNI network config from stdin", zap.Error(err), zap.Any("argStdinData", args.StdinData))
+		return cniTypes.NewError(cniTypes.ErrDecodingFailure, err.Error(), "failed to parse CNI network config from stdin")
+	}
+	p.logger.Debug("Parsed network config", zap.Any("netconf", nwCfg))
+
+	cnsClient, err := p.getCNSClient(nwCfg.CNSSocketPath)
+	if err != nil {
+		p.logger.Error("Failed to initialize CNS client", zap.Error(err))
+		return cniTypes.NewError(cniTypes.ErrInvalidNetworkConfig, err.Error(), "failed to initialize CNS client")
+	}
+
 	// Create ip config request from args
 	req, err := ipconfig.CreateIPConfigsReq(args)
 	if err != nil {
@@ -197,7 +227,7 @@ func (p *IPAMPlugin) CmdDel(args *cniSkel.CmdArgs) error {
 
 	p.logger.Debug("Making request to CNS")
 	// cnsClient enforces it own timeout
-	if err := p.cnsClient.ReleaseIPs(context.TODO(), req); err != nil {
+	if err := cnsClient.ReleaseIPs(context.TODO(), req); err != nil {
 		// if we fail a request with a 404 error try using the old API
 		if cnscli.IsUnsupportedAPI(err) {
 			p.logger.Error("Failed to release IPs using ReleaseIPs from CNS, going to try ReleaseIPAddress", zap.Error(err), zap.Any("request", req))
@@ -209,7 +239,7 @@ func (p *IPAMPlugin) CmdDel(args *cniSkel.CmdArgs) error {
 			p.logger.Debug("Created CNS IP config request", zap.Any("request", ipconfigReq))
 
 			p.logger.Debug("Making request to CNS")
-			err = p.cnsClient.ReleaseIPAddress(context.TODO(), ipconfigReq)
+			err = cnsClient.ReleaseIPAddress(context.TODO(), ipconfigReq)
 
 			if err != nil {
 				if errors.As(err, &connectionErr) {
@@ -252,17 +282,22 @@ func (p *IPAMPlugin) CmdCheck(args *cniSkel.CmdArgs) error {
 	return nil
 }
 
+type netConf struct {
+	cniTypes.NetConf
+	CNSSocketPath string `json:"cnsSocketPath,omitempty"`
+}
+
 // Parse network config from given byte array
-func parseNetConf(b []byte) (*cniTypes.NetConf, error) {
-	netConf := &cniTypes.NetConf{}
-	err := json.Unmarshal(b, netConf)
+func parseNetConf(b []byte) (*netConf, error) {
+	cfg := &netConf{}
+	err := json.Unmarshal(b, cfg)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to unmarshal net conf")
 	}
 
-	if netConf.CNIVersion == "" {
-		netConf.CNIVersion = "0.2.0" // default CNI version
+	if cfg.CNIVersion == "" {
+		cfg.CNIVersion = "0.2.0" // default CNI version
 	}
 
-	return netConf, nil
+	return cfg, nil
 }

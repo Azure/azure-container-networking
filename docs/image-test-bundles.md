@@ -24,22 +24,22 @@ bypass those filters. No jobs, assertions, or failure/exception policies change.
 | # | Create stage | E2E stage |
 | --- | --- | --- |
 | 1 | `ciliume2e` | `cilium_e2e` |
-| 2 | `ciliumvscalee2e` | `cilium_vnetscale_e2e` |
+| 2 | `cilvscalee2e` | `cilium_vnetscale_e2e` |
 | 3 | `cilbpfpode2e` | `cilium_ebpf_podsubnet_e2e` |
-| 4 | `cilndsubnete2e` | `cilium_nodesubnet_e2e` |
+| 4 | `cilnsube2e` | `cilium_nodesubnet_e2e` |
 | 5 | `cilovere2e` | `cilium_overlay_e2e` |
 | 6 | `cildsovere2e` | `cilium_dualstackoverlay_e2e` |
-| 7 | `cilbpfovere2e` | `cilium_ebpf_overlay_e2e` |
+| 7 | `cilbpfovre2e` | `cilium_ebpf_overlay_e2e` |
 | 8 | `cilbpfdse2e` | `cilium_ebpf_ds_e2e` |
-| 9 | `cilwhleovere2e` | `cilium_h_overlay_e2e` |
-| 10 | `linuxazovere2e` | `linux_azure_overlay_e2e` |
+| 9 | `cilhovere2e` | `cilium_h_overlay_e2e` |
+| 10 | `lnxazovere2e` | `linux_azure_overlay_e2e` |
 | 11 | `winazovere2e` | `win_azure_overlay_e2e` |
 | 12 | `statelesswin` | `azure_overlay_stateless_e2e` |
 | 13 | `swifte2e` | `aks_swift_e2e` |
-| 14 | `vscaleswifte2e` | `aks_swift_vnetscale_e2e` |
+| 14 | `vsclswifte2e` | `aks_swift_vnetscale_e2e` |
 | 15 | `ubuntu22e2e` | `aks_ubuntu_22_linux_e2e` |
 | 16 | `win22e2e` | `aks_windows_22_e2e` |
-| 17 | `linuxdsovere2e` | `linux_dualstackoverlay_e2e` |
+| 17 | `lnxdsovere2e` | `linux_dualstackoverlay_e2e` |
 | 18 | `windsovere2e` | `win_dualstackoverlay_e2e` |
 
 Unchanged base stages: `setup`, `test`, `test_windows`, `code_coverage`, `binaries`,

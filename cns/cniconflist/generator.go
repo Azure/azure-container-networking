@@ -31,13 +31,14 @@ type cniConflist struct { //nolint:unused,deadcode // used in linux
 
 // NetConf describes a network. It represents the Cilium specific containernetworking/cni/pkg/types.NetConf
 type NetConf struct {
-	CNIVersion   string          `json:"cniVersion,omitempty"`
-	Name         string          `json:"name,omitempty"`
-	Type         string          `json:"type,omitempty"`
-	Capabilities map[string]bool `json:"capabilities,omitempty"`
-	IPAM         IPAM            `json:"ipam,omitempty"`
-	EnableDebug  bool            `json:"enable-debug"`
-	LogFile      string          `json:"log-file"`
+	CNIVersion    string          `json:"cniVersion,omitempty"`
+	Name          string          `json:"name,omitempty"`
+	Type          string          `json:"type,omitempty"`
+	Capabilities  map[string]bool `json:"capabilities,omitempty"`
+	IPAM          IPAM            `json:"ipam,omitempty"`
+	EnableDebug   bool            `json:"enable-debug"`
+	LogFile       string          `json:"log-file"`
+	CNSSocketPath string          `json:"cnsSocketPath,omitempty"`
 
 	RawPrevResult map[string]interface{} `json:"prevResult,omitempty"`
 }
@@ -48,31 +49,37 @@ type IPAM struct {
 
 // V4OverlayGenerator generates the Azure CNI conflist for the ipv4 Overlay scenario
 type V4OverlayGenerator struct {
-	Writer io.WriteCloser
+	Writer        io.WriteCloser
+	CNSSocketPath string
 }
 
 // DualStackOverlayGenerator generates the Azure CNI conflist for the dualstack Overlay scenario
 type DualStackOverlayGenerator struct {
-	Writer io.WriteCloser
+	Writer        io.WriteCloser
+	CNSSocketPath string
 }
 
 // OverlayGenerator generates the Azure CNI conflist for all Overlay scenarios
 type OverlayGenerator struct {
-	Writer io.WriteCloser
+	Writer        io.WriteCloser
+	CNSSocketPath string
 }
 
 // CiliumGenerator generates the Azure CNI conflist for the Cilium scenario
 type CiliumGenerator struct {
-	Writer io.WriteCloser
+	Writer        io.WriteCloser
+	CNSSocketPath string
 }
 
 // SWIFTGenerator generates the Azure CNI conflist for the SWIFT scenario
 type SWIFTGenerator struct {
-	Writer io.WriteCloser
+	Writer        io.WriteCloser
+	CNSSocketPath string
 }
 
 type AzureCNIChainedCiliumGenerator struct {
-	Writer io.WriteCloser
+	Writer        io.WriteCloser
+	CNSSocketPath string
 }
 
 func (v *V4OverlayGenerator) Close() error {

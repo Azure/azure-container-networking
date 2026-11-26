@@ -16,12 +16,12 @@ const ipamSocketMode = 0o600
 
 var (
 	errRelativeIPAMSocket  = stderrors.New("cns Unix socket path must be absolute")
-	errIPAMSocketDirectory = stderrors.New("unix socket directory must be root-owned with mode 0700")
+	errIPAMSocketDirectory = stderrors.New("unix socket directory must be root-owned without group or other write permission")
 	errIPAMSocketType      = stderrors.New("unix socket path is not a socket")
 	errIPAMSocketActive    = stderrors.New("unix socket already has a listener")
 )
 
-// listenIPAMSocket replaces only stale sockets in a root-owned directory with mode 0700.
+// listenIPAMSocket replaces only stale sockets in a directory that only root can modify.
 func listenIPAMSocket(socketPath string) (net.Listener, error) {
 	if !filepath.IsAbs(socketPath) {
 		return nil, fmt.Errorf("%w: %q", errRelativeIPAMSocket, socketPath)
@@ -32,7 +32,7 @@ func listenIPAMSocket(socketPath string) (net.Listener, error) {
 		return nil, fmt.Errorf("checking Unix socket directory %q: %w", directory, err)
 	}
 	owner, ok := directoryInfo.Sys().(*syscall.Stat_t)
-	if !directoryInfo.IsDir() || directoryInfo.Mode().Perm() != 0o700 || !ok || owner.Uid != 0 {
+	if !directoryInfo.IsDir() || directoryInfo.Mode().Perm()&0o022 != 0 || !ok || owner.Uid != 0 {
 		return nil, fmt.Errorf("%w: %q", errIPAMSocketDirectory, directory)
 	}
 

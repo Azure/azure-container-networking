@@ -53,14 +53,15 @@ func TestReadConfigFromFile(t *testing.T) {
 			name: "full config",
 			path: "testdata/good.json",
 			want: &CNSConfig{
-				ChannelMode:              "Direct",
-				InitializeFromCNI:        true,
-				EnableHomeAZ:             true,
-				EnableHomeAZMultitenancy: true,
-				EnableIPv6Multitenancy:   true,
-				EnablePprof:              true,
-				EnableSubnetScarcity:     true,
-				EnableSwiftV1DualStack:   true,
+				ChannelMode:                  "Direct",
+				InitializeFromCNI:            true,
+				EnableHomeAZ:                 true,
+				EnableHomeAZMultitenancy:     true,
+				EnableIPv6Multitenancy:       true,
+				EnableOverlayBlackholeRoutes: true,
+				EnablePprof:                  true,
+				EnableSubnetScarcity:         true,
+				EnableSwiftV1DualStack:       true,
 				ManagedSettings: ManagedSettings{
 					PrivateEndpoint:           "abc",
 					InfrastructureNetworkID:   "abc",
@@ -301,7 +302,8 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 		{
 			name: "don't overwrite set values",
 			in: CNSConfig{
-				ChannelMode: "Other",
+				ChannelMode:                  "Other",
+				EnableOverlayBlackholeRoutes: true,
 				ManagedSettings: ManagedSettings{
 					NodeSyncIntervalInSeconds: 1,
 				},
@@ -331,7 +333,8 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 				MtlsClientCertSubjectName: "example.com",
 			},
 			want: CNSConfig{
-				ChannelMode: "Other",
+				ChannelMode:                  "Other",
+				EnableOverlayBlackholeRoutes: true,
 				ManagedSettings: ManagedSettings{
 					NodeSyncIntervalInSeconds: 1,
 				},

@@ -33,27 +33,37 @@ steps:
     name: "kubeconfig"
     displayName: "Set Kubeconfig"
 
-  - script: |
-      kubectl cluster-info
-      kubectl get node
-      kubectl get po -owide -A
-      # These vars may be set by the job template via setup stage outputs and are available here as environment variables in child scripts.
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: |
+        kubectl cluster-info
+        kubectl get node
+        kubectl get po -owide -A
+        # These vars may be set by the job template via setup stage outputs and are available here as environment variables in child scripts.
 
-      CNI=${CNI_VERSION:-$(make cni-version)}
-      CNS=${CNS_VERSION:-$(make cns-version)}
-      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=dualstack VALIDATE_STATEFILE=true INSTALL_DUALSTACK_OVERLAY=true VALIDATE_DUALSTACK=true CNI_VERSION=${CNI} CNS_VERSION=${CNS} CLEANUP=true
+        CNI=${CNI_VERSION:-$(make cni-version)}
+        CNS=${CNS_VERSION:-$(make cns-version)}
+        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=dualstack VALIDATE_STATEFILE=true INSTALL_DUALSTACK_OVERLAY=true VALIDATE_DUALSTACK=true CNI_VERSION=${CNI} CNS_VERSION=${CNS} CLEANUP=true
     retryCountOnTaskFailure: 3
     name: "integrationTest"
     displayName: "Run CNS Integration Tests on AKS DualStack Overlay"
 
-  - script: |
-      set -e
-      kubectl get po -owide -A
-      cd test/integration/datapath
-      echo "Dualstack Overlay Linux datapath IPv6 test"
-      go test -count=1 datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration -isDualStack=true
-      echo "Dualstack Overlay Linux datapath IPv4 test"
-      go test -count=1 datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      inlineScript: |
+        set -e
+        kubectl get po -owide -A
+        cd test/integration/datapath
+        echo "Dualstack Overlay Linux datapath IPv6 test"
+        go test -count=1 datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration -isDualStack=true
+        echo "Dualstack Overlay Linux datapath IPv4 test"
+        go test -count=1 datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration
     retryCountOnTaskFailure: 3
     name: "DualStack_Overlay_Linux_Tests"
     displayName: "DualStack Overlay Linux Tests"
