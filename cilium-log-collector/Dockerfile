@@ -4,7 +4,7 @@ ARG ARCH
 ARG OS
 
 # mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0@sha256:d104fef62900c2ca101f52568f43e0e6b6499b60be324fdd4d2ad5bae4bc3203 AS go
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0@sha256:e8c8da1d9459ae8716a50a0bf01d9c5075039fcbbe7a10c456e476b088778bf1 AS go
 
 FROM go AS fluent-bit-plugin
 ARG VERSION
@@ -13,5 +13,5 @@ WORKDIR /cilium-log-collector
 COPY ./cilium-log-collector .
 RUN go build -buildmode=c-shared -a -o out_azure_app_insights.so -trimpath -ldflags "-X main.version=$VERSION" -gcflags="-dwarflocationlists=true" .
 
-FROM mcr.microsoft.com/oss/v2/fluent/fluent-bit:v5.1.5 as linux
+FROM mcr.microsoft.com/oss/v2/fluent/fluent-bit:v5.2.1 as linux
 COPY --from=fluent-bit-plugin /cilium-log-collector/out_azure_app_insights.so /out_azure_app_insights.so
