@@ -74,17 +74,18 @@ func (m *Multitenancy) Init(cnsclient cnsclient, netioshim netioshim) {
 }
 
 // DetermineSnatFeatureOnHost - Temporary function to determine whether we need to disable SNAT due to NMAgent support
+// snatFile is the cache filename without its .json extension.
 func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApisURL string) (snatForDNS, snatOnHost bool, err error) {
 	var (
 		snatConfig            snatConfiguration
 		retrieveSnatConfigErr error
 		jsonFile              *os.File
 		httpClient            = &http.Client{Timeout: time.Second * httpTimeout}
-		snatConfigFile        = snatConfigFileName + jsonFileExtension
+		snatConfigFile        = snatFile + jsonFileExtension
 	)
 
 	// Check if we've already retrieved NMAgent version and determined whether to disable snat on host
-	if jsonFile, retrieveSnatConfigErr = os.Open(snatFile); retrieveSnatConfigErr == nil {
+	if jsonFile, retrieveSnatConfigErr = os.Open(snatConfigFile); retrieveSnatConfigErr == nil {
 		bytes, _ := io.ReadAll(jsonFile)
 		jsonFile.Close()
 		if retrieveSnatConfigErr = json.Unmarshal(bytes, &snatConfig); retrieveSnatConfigErr != nil {
@@ -112,7 +113,7 @@ func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApis
 				if bodyBytes, retrieveSnatConfigErr = io.ReadAll(resp.Body); retrieveSnatConfigErr == nil {
 					bodyStr := string(bodyBytes)
 					if !strings.Contains(bodyStr, nmAgentSnatAndDnsSupportAPI) {
-						snatConfig.EnableSnatForDns = true
+						snatConfig.EnableSnatForDNS = true
 						snatConfig.EnableSnatOnHost = !strings.Contains(bodyStr, nmAgentSnatSupportAPI)
 					}
 
@@ -140,7 +141,7 @@ func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApis
 	if retrieveSnatConfigErr != nil {
 		logger.Error("failed to acquire SNAT configuration with error %v",
 			zap.Error(retrieveSnatConfigErr))
-		return snatConfig.EnableSnatForDns, snatConfig.EnableSnatOnHost, retrieveSnatConfigErr
+		return snatConfig.EnableSnatForDNS, snatConfig.EnableSnatOnHost, retrieveSnatConfigErr
 	}
 
 	logger.Info("saved snat settings",
@@ -149,14 +150,14 @@ func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApis
 	if snatConfig.EnableSnatOnHost {
 		logger.Info("enabling SNAT on container host for outbound connectivity")
 	}
-	if snatConfig.EnableSnatForDns {
+	if snatConfig.EnableSnatForDNS {
 		logger.Info("enabling SNAT on container host for DNS traffic")
 	}
-	if !snatConfig.EnableSnatForDns && !snatConfig.EnableSnatOnHost {
+	if !snatConfig.EnableSnatForDNS && !snatConfig.EnableSnatOnHost {
 		logger.Info("disabling SNAT on container host")
 	}
 
-	return snatConfig.EnableSnatForDns, snatConfig.EnableSnatOnHost, nil
+	return snatConfig.EnableSnatForDNS, snatConfig.EnableSnatOnHost, nil
 }
 
 func (m *Multitenancy) SetupRoutingForMultitenancy(

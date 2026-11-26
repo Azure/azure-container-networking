@@ -5,6 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"sync/atomic"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni"
@@ -186,6 +191,117 @@ func getIPNetWithString(ipaddrwithcidr string) *net.IPNet {
 	}
 
 	return ipnet
+}
+
+func TestDetermineSnatFeatureOnHostUsesJSONCache(t *testing.T) {
+	snatFile := filepath.Join(t.TempDir(), "customSnatConfig")
+	expected := snatConfiguration{EnableSnatOnHost: true, EnableSnatForDNS: true}
+	data, err := json.Marshal(expected)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"EnableSnatOnHost":true,"EnableSnatForDns":true}`, string(data))
+	require.NoError(t, os.WriteFile(snatFile+jsonFileExtension, data, 0o600))
+
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+	}))
+	defer server.Close()
+
+	m := &Multitenancy{}
+	dns, host, err := m.DetermineSnatFeatureOnHost(snatFile, buildNmAgentSupportedApisURL(server.Listener.Addr().String()))
+	require.NoError(t, err)
+	require.Equal(t, expected.EnableSnatForDNS, dns)
+	require.Equal(t, expected.EnableSnatOnHost, host)
+	require.Zero(t, requests.Load())
+}
+
+func TestDetermineSnatFeatureOnHostCachesSupportedAPIs(t *testing.T) {
+	tests := []struct {
+		name          string
+		response      string
+		cacheContents string
+		expected      snatConfiguration
+	}{
+		{
+			name:     "host_and_dns_snat_required",
+			response: `[]`,
+			expected: snatConfiguration{EnableSnatOnHost: true, EnableSnatForDNS: true},
+		},
+		{
+			name:     "host_snat_supported",
+			response: `["NetworkManagementSnatSupport"]`,
+			expected: snatConfiguration{EnableSnatForDNS: true},
+		},
+		{
+			name:     "host_and_dns_snat_supported",
+			response: `["NetworkManagementSnatSupport","NetworkManagementDNSSupport"]`,
+		},
+		{
+			name:          "invalid_cache_is_refreshed",
+			response:      `["NetworkManagementSnatSupport"]`,
+			cacheContents: `{invalid`,
+			expected:      snatConfiguration{EnableSnatForDNS: true},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			snatFile := filepath.Join(t.TempDir(), "customSnatConfig")
+			if tt.cacheContents != "" {
+				require.NoError(t, os.WriteFile(snatFile+jsonFileExtension, []byte(tt.cacheContents), 0o600))
+			}
+
+			var requests atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if requests.Add(1) > 1 {
+					http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+					return
+				}
+				if r.Method != http.MethodGet || r.URL.Query().Get("type") != "GetSupportedApis" {
+					http.Error(w, "Unexpected request", http.StatusBadRequest)
+					return
+				}
+				if _, err := w.Write([]byte(tt.response)); err != nil {
+					t.Errorf("writing supported APIs response: %v", err)
+				}
+			}))
+			defer server.Close()
+
+			m := &Multitenancy{}
+			url := buildNmAgentSupportedApisURL(server.Listener.Addr().String())
+			for i := 0; i < 3; i++ {
+				dns, host, err := m.DetermineSnatFeatureOnHost(snatFile, url)
+				require.NoError(t, err)
+				require.Equal(t, tt.expected.EnableSnatForDNS, dns)
+				require.Equal(t, tt.expected.EnableSnatOnHost, host)
+			}
+			require.EqualValues(t, 1, requests.Load())
+			require.NoFileExists(t, snatFile)
+
+			data, err := os.ReadFile(snatFile + jsonFileExtension)
+			require.NoError(t, err)
+			var cached snatConfiguration
+			require.NoError(t, json.Unmarshal(data, &cached))
+			require.Equal(t, tt.expected, cached)
+		})
+	}
+}
+
+func TestDetermineSnatFeatureOnHostReturnsNMAgentError(t *testing.T) {
+	snatFile := filepath.Join(t.TempDir(), "customSnatConfig")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+	}))
+	defer server.Close()
+
+	m := &Multitenancy{}
+	dns, host, err := m.DetermineSnatFeatureOnHost(snatFile, buildNmAgentSupportedApisURL(server.Listener.Addr().String()))
+	require.ErrorIs(t, err, errNmaResponse)
+	require.EqualError(t, err, "nmagent request status code:429")
+	require.False(t, dns)
+	require.False(t, host)
+	require.NoFileExists(t, snatFile+jsonFileExtension)
 }
 
 func TestSetupRoutingForMultitenancy(t *testing.T) {
