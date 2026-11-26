@@ -379,7 +379,7 @@ func TestGetTLSConfigFromFileCAPath(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			config, err := getTLSConfigFromFile(serverTLS.TlsSettings{
 				TLSCertificatePath: certPath,
-				TLSCAPath:          test.caPath,
+				TLSCAFilePath:      test.caPath,
 				UseMTLS:            test.useMTLS,
 				MinTLSVersion:      "TLS 1.2",
 			})

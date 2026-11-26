@@ -245,8 +245,8 @@ func getTLSConfigFromFile(tlsSettings localtls.TlsSettings) (*tls.Config, error)
 
 	if tlsSettings.UseMTLS {
 		var rootCAs *x509.CertPool
-		if tlsSettings.TLSCAPath != "" {
-			rootCAs, err = mtlsRootCAsFromFile(tlsSettings.TLSCAPath)
+		if tlsSettings.TLSCAFilePath != "" {
+			rootCAs, err = mtlsRootCAsFromFile(tlsSettings.TLSCAFilePath)
 		} else {
 			rootCAs, err = mtlsRootCAsFromCertificate(&tlsCert)
 		}
