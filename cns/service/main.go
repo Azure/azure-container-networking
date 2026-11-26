@@ -567,6 +567,7 @@ func main() {
 		}
 	}
 	configuration.SetCNSConfigDefaults(cnsconfig)
+	config.DisableHTTPListener = cnsconfig.DisableHTTPListener
 	cnsconfig.EnableIPAMUnixSocket, err = configuration.IPAMUnixSocketEnabled(cnsconfig.EnableIPAMUnixSocket)
 	if err != nil {
 		//nolint:staticcheck // the structured logger is initialized after configuration.
@@ -836,6 +837,7 @@ func main() {
 		if cnsconfig.UseHTTPS {
 			config.TLSSettings = localtls.TlsSettings{
 				TLSSubjectName:                     cnsconfig.TLSSubjectName,
+				TLSCAFilePath:                      cnsconfig.TLSCAFilePath,
 				TLSCertificatePath:                 cnsconfig.TLSCertificatePath,
 				TLSPort:                            cnsconfig.TLSPort,
 				KeyVaultURL:                        cnsconfig.KeyVaultSettings.URL,

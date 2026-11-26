@@ -95,7 +95,10 @@ func (l *Listener) Stop() {
 	l.active = false
 
 	// Stop servicing requests.
-	_ = l.listener.Close()
+	if l.listener != nil {
+		_ = l.listener.Close()
+		log.Printf("[Listener] Stopped listening on %s", l.listener.Addr())
+	}
 
 	if l.tlsListener != nil {
 		// Stop servicing requests on secure listener
@@ -107,8 +110,6 @@ func (l *Listener) Stop() {
 	if l.protocol == "unix" {
 		_ = os.Remove(l.localAddress)
 	}
-
-	log.Printf("[Listener] Stopped listening on %s", l.listener.Addr())
 }
 
 // GetMux returns the HTTP mux for the listener.

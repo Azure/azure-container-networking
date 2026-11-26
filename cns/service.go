@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cns/common"
@@ -50,6 +51,9 @@ func NewService(name, version, channelMode string, store store.KeyValueStore) (*
 }
 
 func (service *Service) AddListener(config *common.ServiceConfig) error {
+	if config.DisableHTTPListener && config.TLSSettings.TLSPort == "" {
+		return errors.New("disabling the HTTP listener requires a TLS port")
+	}
 	var (
 		err     error
 		nodeURL *url.URL
@@ -87,8 +91,7 @@ func (service *Service) AddListener(config *common.ServiceConfig) error {
 		// use the URL that customer provides by -c
 		logger.Printf("user specifies -c option")
 
-		// do not enable local server if customer uses -c option
-		config.Server.EnableLocalServer = false
+		config.Server.EnableLocalServer = config.DisableHTTPListener
 		nodeURL, err = url.Parse(cnsURL)
 		if err != nil {
 			return errors.Wrap(err, "Failed to parse URL that customer provides")
@@ -243,7 +246,12 @@ func getTLSConfigFromFile(tlsSettings localtls.TlsSettings) (*tls.Config, error)
 	}
 
 	if tlsSettings.UseMTLS {
-		rootCAs, err := mtlsRootCAsFromCertificate(&tlsCert)
+		var rootCAs *x509.CertPool
+		if tlsSettings.TLSCAFilePath != "" {
+			rootCAs, err = mtlsRootCAsFromFile(tlsSettings.TLSCAFilePath)
+		} else {
+			rootCAs, err = mtlsRootCAsFromCertificate(&tlsCert)
+		}
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get root CAs for configuring mTLS")
 		}
@@ -314,6 +322,18 @@ func getTLSConfigFromKeyVault(tlsSettings localtls.TlsSettings, errChan chan<- e
 	return &tlsConfig, nil
 }
 
+func mtlsRootCAsFromFile(path string) (*x509.CertPool, error) {
+	caPEM, err := os.ReadFile(path)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to read mTLS CA file")
+	}
+	rootCAs := x509.NewCertPool()
+	if !rootCAs.AppendCertsFromPEM(caPEM) {
+		return nil, errors.New("mTLS CA file contains no valid PEM certificates")
+	}
+	return rootCAs, nil
+}
+
 // Given a TLS cert, return the root CAs
 func mtlsRootCAsFromCertificate(tlsCert *tls.Certificate) (*x509.CertPool, error) {
 	switch {
@@ -344,6 +364,9 @@ func mtlsRootCAsFromCertificate(tlsCert *tls.Certificate) (*x509.CertPool, error
 }
 
 func (service *Service) StartListener(config *common.ServiceConfig) error {
+	if config.DisableHTTPListener {
+		return nil
+	}
 	logger.Debugf("[Azure CNS] Going to start listener: %+v", config)
 
 	// Initialize the listener.

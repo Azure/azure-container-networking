@@ -28,6 +28,7 @@ type CNSConfig struct {
 	CNIConflistFilepath             string
 	CNIConflistScenario             string
 	ChannelMode                     string
+	DisableHTTPListener             bool
 	EnableAPIServerHealthPing       bool
 	EnableAsyncPodDelete            bool
 	EnableCNIConflistGeneration     bool
@@ -59,6 +60,7 @@ type CNSConfig struct {
 	SyncHostNCTimeoutMs             int
 	SyncHostNCVersionIntervalMs     int
 	TLSCertificatePath              string
+	TLSCAFilePath                   string
 	TLSEndpoint                     string
 	TLSPort                         string
 	TLSSubjectName                  string

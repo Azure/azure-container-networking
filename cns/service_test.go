@@ -4,6 +4,7 @@
 package cns
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -13,7 +14,9 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -21,12 +24,65 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	loggerv2 "github.com/Azure/azure-container-networking/cns/logger/v2"
 	acn "github.com/Azure/azure-container-networking/common"
 	serverTLS "github.com/Azure/azure-container-networking/server/tls"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
+
+const testTLSVersion12 = "TLS 1.2"
+
+func TestDisableHTTPListener(t *testing.T) {
+	previousLogger := logger.Log
+	logger.Log = loggerv2.AsV1(zap.NewNop(), func() {})
+	t.Cleanup(func() { logger.Log = previousLogger })
+
+	t.Run("requires TLS", func(t *testing.T) {
+		service := &Service{}
+		err := service.AddListener(&common.ServiceConfig{DisableHTTPListener: true})
+		require.ErrorContains(t, err, "requires a TLS port")
+		require.Nil(t, service.Listener)
+	})
+
+	t.Run("does not bind HTTP", func(t *testing.T) {
+		listenConfig := net.ListenConfig{}
+		occupied, err := listenConfig.Listen(t.Context(), "tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = occupied.Close() })
+		address, err := url.Parse("tcp://" + occupied.Addr().String())
+		require.NoError(t, err)
+		listener, err := acn.NewListener(address)
+		require.NoError(t, err)
+		service := &Service{}
+		service.Listener = listener
+		require.NoError(t, service.StartListener(&common.ServiceConfig{DisableHTTPListener: true}))
+		require.Error(t, service.StartListener(&common.ServiceConfig{}))
+	})
+
+	t.Run("TLS-only startup and shutdown", func(t *testing.T) {
+		service, err := NewService("test", "test", "", nil)
+		require.NoError(t, err)
+		service.SetOption(acn.OptCnsURL, "tcp://127.0.0.1:0")
+		service.SetOption(acn.OptCnsPort, "")
+		config := &common.ServiceConfig{
+			DisableHTTPListener: true,
+			ErrChan:             make(chan error, 1),
+			TLSSettings: serverTLS.TlsSettings{
+				TLSPort:            "0",
+				TLSCertificatePath: createTestCertificate(t),
+				MinTLSVersion:      testTLSVersion12,
+			},
+		}
+		require.NoError(t, service.AddListener(config))
+		t.Cleanup(service.Listener.Stop)
+		require.True(t, config.Server.EnableLocalServer)
+		require.NoError(t, service.StartListener(config))
+		require.NotPanics(t, service.Listener.Stop)
+	})
+}
 
 func TestNewService(t *testing.T) {
 	logger.InitLogger("azure-cns.log", 0, 0, "/")
@@ -76,7 +132,7 @@ func TestNewService(t *testing.T) {
 			TLSPort:            "10091",
 			TLSSubjectName:     "localhost",
 			TLSCertificatePath: testCertFilePath,
-			MinTLSVersion:      "TLS 1.2",
+			MinTLSVersion:      testTLSVersion12,
 		}
 
 		svc, err := NewService(config.Name, config.Version, config.ChannelMode, config.Store)
@@ -145,7 +201,7 @@ func TestNewService(t *testing.T) {
 					TLSSubjectName:            "localhost",
 					TLSCertificatePath:        testCertFilePath,
 					UseMTLS:                   true,
-					MinTLSVersion:             "TLS 1.2",
+					MinTLSVersion:             testTLSVersion12,
 					MtlsClientCertSubjectName: "example.com",
 				},
 				handshakeFailureExpected: false,
@@ -157,7 +213,7 @@ func TestNewService(t *testing.T) {
 					TLSSubjectName:            "localhost",
 					TLSCertificatePath:        testCertFilePath,
 					UseMTLS:                   true,
-					MinTLSVersion:             "TLS 1.2",
+					MinTLSVersion:             testTLSVersion12,
 					MtlsClientCertSubjectName: "foo.com", // Common Name from test certificate
 				},
 				handshakeFailureExpected: false,
@@ -169,7 +225,7 @@ func TestNewService(t *testing.T) {
 					TLSSubjectName:            "localhost",
 					TLSCertificatePath:        testCertFilePath,
 					UseMTLS:                   true,
-					MinTLSVersion:             "TLS 1.2",
+					MinTLSVersion:             testTLSVersion12,
 					MtlsClientCertSubjectName: "random.com",
 				},
 				handshakeFailureExpected: true,
@@ -324,6 +380,86 @@ func TestMtlsRootCAsFromCertificate(t *testing.T) {
 	}
 }
 
+func TestGetTLSConfigFromFileCAPath(t *testing.T) {
+	previousLogger := logger.Log
+	logger.Log = loggerv2.AsV1(zap.NewNop(), func() {})
+	t.Cleanup(func() {
+		logger.Log = previousLogger
+	})
+	certPath := createTestCertificate(t)
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	var caPEM bytes.Buffer
+	expectedCAs := x509.NewCertPool()
+	for _, name := range []string{"root", "other root"} {
+		template := &x509.Certificate{
+			SerialNumber:          big.NewInt(int64(caPEM.Len() + 1)),
+			Subject:               pkix.Name{CommonName: name},
+			NotBefore:             time.Now().Add(-time.Hour),
+			NotAfter:              time.Now().Add(time.Hour),
+			IsCA:                  true,
+			BasicConstraintsValid: true,
+			KeyUsage:              x509.KeyUsageCertSign,
+		}
+		derBytes, err := x509.CreateCertificate(rand.Reader, template, template, &privateKey.PublicKey, privateKey)
+		require.NoError(t, err)
+		certificate, err := x509.ParseCertificate(derBytes)
+		require.NoError(t, err)
+		expectedCAs.AddCert(certificate)
+		require.NoError(t, pem.Encode(&caPEM, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}))
+	}
+	caPath := filepath.Join(t.TempDir(), "ca.pem")
+	require.NoError(t, os.WriteFile(caPath, caPEM.Bytes(), 0o600))
+	invalidPath := filepath.Join(t.TempDir(), "invalid.pem")
+	require.NoError(t, os.WriteFile(invalidPath, []byte("not a certificate"), 0o600))
+	emptyPath := filepath.Join(t.TempDir(), "empty.pem")
+	require.NoError(t, os.WriteFile(emptyPath, nil, 0o600))
+	missingPath := filepath.Join(t.TempDir(), "missing.pem")
+
+	for _, test := range []struct {
+		name    string
+		caPath  string
+		useMTLS bool
+		wantErr string
+	}{
+		{name: "CA bundle", caPath: caPath, useMTLS: true},
+		{name: "certificate fallback", useMTLS: true},
+		{name: "missing CA file", caPath: missingPath, useMTLS: true, wantErr: "failed to read mTLS CA file"},
+		{name: "invalid CA file", caPath: invalidPath, useMTLS: true, wantErr: "no valid PEM certificates"},
+		{name: "empty CA file", caPath: emptyPath, useMTLS: true, wantErr: "no valid PEM certificates"},
+		{name: "CA ignored without mTLS", caPath: missingPath},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			config, err := getTLSConfigFromFile(serverTLS.TlsSettings{
+				TLSCertificatePath: certPath,
+				TLSCAFilePath:      test.caPath,
+				UseMTLS:            test.useMTLS,
+				MinTLSVersion:      testTLSVersion12,
+			})
+			if test.wantErr != "" {
+				require.ErrorContains(t, err, test.wantErr)
+				require.Nil(t, config)
+				return
+			}
+			require.NoError(t, err)
+			if !test.useMTLS {
+				require.Nil(t, config.ClientCAs)
+				require.Nil(t, config.RootCAs)
+				return
+			}
+			require.Equal(t, tls.RequireAndVerifyClientCert, config.ClientAuth)
+			require.NotNil(t, config.VerifyPeerCertificate)
+			wantCAs := expectedCAs
+			if test.caPath == "" {
+				wantCAs, err = mtlsRootCAsFromCertificate(&config.Certificates[0])
+				require.NoError(t, err)
+			}
+			require.True(t, wantCAs.Equal(config.ClientCAs))
+			require.True(t, wantCAs.Equal(config.RootCAs))
+		})
+	}
+}
+
 // createTestCertificate is a test helper that creates a test certificate
 // and writes it to a temporary file that is cleaned up after the test.
 // Returns the path to the test certificate file
@@ -404,7 +540,7 @@ func TestTLSVersionNumber(t *testing.T) {
 	})
 
 	t.Run("valid ServerSettings.MinTLSVersion", func(t *testing.T) {
-		versionNumber, err := parseTLSVersionName("TLS 1.2")
+		versionNumber, err := parseTLSVersionName(testTLSVersion12)
 		require.Equal(t, uint16(tls.VersionTLS12), versionNumber)
 		require.NoError(t, err)
 	})
