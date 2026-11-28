@@ -32,6 +32,7 @@ type MockIpamInvoker struct {
 	delegatedVMNICFail bool
 	ipMap              map[string]bool
 	add                func(opt IPAMAddConfig) (ipamAddResult IPAMAddResult, err error)
+	delete             func(address *net.IPNet, nwCfg *cni.NetworkConfig, args *skel.CmdArgs, options map[string]interface{}) error
 }
 
 func NewMockIpamInvoker(ipv6, v4Fail, v6Fail, delegatedVMNIC, delegatedVMNICFail bool) *MockIpamInvoker {
@@ -122,7 +123,10 @@ func (invoker *MockIpamInvoker) Add(opt IPAMAddConfig) (ipamAddResult IPAMAddRes
 	return ipamAddResult, nil
 }
 
-func (invoker *MockIpamInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, _ *skel.CmdArgs, options map[string]interface{}) error {
+func (invoker *MockIpamInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, args *skel.CmdArgs, options map[string]interface{}) error {
+	if invoker.delete != nil {
+		return invoker.delete(address, nwCfg, args, options)
+	}
 	if invoker.v4Fail || invoker.v6Fail {
 		return errDeleteIpam
 	}

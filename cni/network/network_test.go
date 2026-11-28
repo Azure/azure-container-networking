@@ -1,6 +1,7 @@
 package network
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -12,12 +13,14 @@ import (
 	"github.com/Azure/azure-container-networking/cni/api"
 	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
+	cnscli "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/common"
 	acnnetwork "github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Azure/azure-container-networking/nns"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
+	cniTypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -469,6 +472,37 @@ func TestIpamDeleteFail(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDeleteWithoutEndpointDisablesAsyncDelete(t *testing.T) {
+	plugin := GetTestResources()
+	mockNetworkManager := acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil))
+	mockNetworkManager.Stateless = true
+	plugin.nm = mockNetworkManager
+	var deleteCalled bool
+	plugin.ipamInvoker = &MockIpamInvoker{
+		delete: func(address *net.IPNet, nwCfg *cni.NetworkConfig, _ *cniSkel.CmdArgs, _ map[string]interface{}) error {
+			deleteCalled = true
+			require.Nil(t, address)
+			require.True(t, nwCfg.DisableAsyncDelete)
+			return cnscli.NewConnectionFailureErr(errors.New("connection refused"))
+		},
+	}
+
+	deleteArgs := &cniSkel.CmdArgs{
+		StdinData:   nwCfg.Serialize(),
+		ContainerID: "unallocated-container",
+		Netns:       "unallocated-container",
+		Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
+		IfName:      eth0IfName,
+	}
+
+	err := plugin.Delete(deleteArgs)
+	require.Error(t, err)
+	require.True(t, deleteCalled)
+	var cniErr *cniTypes.Error
+	require.ErrorAs(t, err, &cniErr)
+	require.Equal(t, uint(cniTypes.ErrTryAgainLater), cniErr.Code)
 }
 
 // test v4 and v6 address allocation from ipam
